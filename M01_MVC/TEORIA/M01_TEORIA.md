@@ -17,13 +17,17 @@
 
 # 1.1. Introducción al desarrollo web con ASP.NET Core
 
-## Objetivos de aprendizaje
+
+
+**Objetivos de aprendizaje.**
 
 Al finalizar este punto, el alumno podrá explicar qué función desempeña ASP.NET Core en una aplicación web, diferenciar una respuesta HTML generada por MVC de una respuesta JSON generada por una API, identificar los elementos esenciales de una petición HTTP y seguir la ejecución desde el navegador hasta una acción MVC y una vista Razor.
 
 Se utilizará una primera aplicación del curso, `CursoWeb.Mvc`, que mostrará una página relacionada con el futuro catálogo de productos. No necesitaremos base de datos, autenticación ni conocimientos nuevos de C#.
 
-## 1.1.1. Del conocimiento de Web API a una aplicación web visible
+## MVC y Web API: el contexto
+
+**Del conocimiento de Web API a una aplicación web visible.**
 
 Los alumnos ya conocen ASP.NET Core Web API: una aplicación recibe una petición como `GET /api/productos`, ejecuta un endpoint y devuelve, habitualmente, JSON. Un programa consumidor interpreta después esos datos. Cuando queremos construir una **interfaz web tradicional**, el servidor también puede generar la representación HTML que ve el navegador.
 
@@ -59,7 +63,64 @@ Ambos ejemplos utilizan HTTP. La diferencia esencial es el **contrato de present
 
 **Pregunta de razonamiento.** Si una API devuelve el nombre y el precio de un producto, ¿por qué el navegador no presenta automáticamente una ficha de producto con el formato deseado? Porque JSON describe datos, pero no define por sí mismo los elementos HTML, su estructura visual ni los estilos. Una interfaz necesita construir esa representación, y MVC puede hacerlo del lado del servidor.
 
-## 1.1.2. Qué ocurre al escribir una URL
+**MVC y Web API: parecido de infraestructura, diferencia de intención.**
+
+Comparación orientativa, a partir de una misma necesidad de mostrar datos:
+
+| Aspecto | Acción MVC con vista Razor | Endpoint o controlador Web API |
+|---|---|---|
+| Caso más común | Generar una página para una persona | Facilitar datos/operaciones a un consumidor |
+| Respuesta típica | HTML | JSON |
+| Presentación | Se construye en el servidor mediante una vista | El consumidor decide cómo presentar los datos |
+| Infraestructura HTTP | ASP.NET Core y routing | ASP.NET Core y routing |
+| ¿Puede acceder a servicios y EF Core? | Sí | Sí |
+| ¿Es obligatoria una base de datos? | No | No |
+
+Un fragmento conceptual de MVC podría ser `return View(productos);`. Su correspondiente estilo de API podría ser `return Ok(productos);`. En el primer caso se solicita la representación de una vista; en el segundo se envían datos con un resultado HTTP apropiado. Son ejemplos de **intención**: no debemos copiar el segundo en el controlador del proyecto 1.1 porque aún no hemos creado ningún modelo `Producto`.
+
+En particular, no es correcto afirmar que *MVC significa servidor y API significa cliente*: ambos códigos se ejecutan en el servidor. Tampoco es correcto afirmar que MVC no utiliza HTTP porque el usuario solo ve un sitio web: cada navegación sigue siendo una comunicación HTTP.
+
+**MVC frente a una Web API: mismos fundamentos, resultados distintos.**
+
+El alumnado ya conoce Web API, por lo que conviene partir de ese conocimiento y evitar enseñar HTTP desde cero. ASP.NET Core MVC y las API web se apoyan en el mismo framework y pueden convivir en una misma aplicación. Lo que cambia es la responsabilidad predominante de sus endpoints y el resultado que preparan.
+
+Una API suele exponer información estructurada para otros programas. Si el resultado es JSON, el cliente puede interpretarlo como datos y decidir qué interfaz construir. Una aplicación MVC con vistas Razor puede devolver HTML ya preparado para que el navegador lo represente. Ninguna de esas opciones requiere un protocolo de red diferente: ambas utilizan HTTP.
+
+El ejemplo de la primera página devuelve una vista:
+
+~~~csharp
+[HttpGet]
+public IActionResult Index()
+{
+    return View();
+}
+~~~
+
+Una acción de Web API podría devolver un resultado con datos JSON, pero no necesitamos cambiar nuestro controlador inicial para comprender la diferencia. En 1.4 haremos la comparación dentro del mismo proyecto, con `Content()` y `Ok()`, después de haber estudiado los tipos de resultado.
+
+**Qué significa renderizar del lado del servidor.**
+
+En MVC, la ejecución de Razor que construye la vista ocurre en el servidor. Cuando el navegador recibe la respuesta, las expresiones Razor ya se han evaluado. Esto simplifica la comprensión del primer flujo: el cliente solicita una URL y recibe un documento HTML.
+
+Esta afirmación no implica que una página MVC no pueda utilizar JavaScript ni que sea imposible actualizar parte de una página dinámicamente. Simplemente estamos estudiando el comportamiento mínimo del proyecto suministrado, que no necesita JavaScript de aplicación para mostrar sus contenidos iniciales.
+
+**Una tabla conceptual para evitar confusiones.**
+
+| Pregunta | MVC con vistas Razor del curso | Web API conocida por el alumno |
+|---|---|---|
+| ¿Qué protocolo se utiliza? | HTTP | HTTP |
+| ¿Cuál es un resultado frecuente? | HTML | JSON |
+| ¿Quién prepara el HTML inicial? | Servidor, mediante Razor | Normalmente otro cliente o capa |
+| ¿Debe existir una vista `.cshtml`? | Si se devuelve `View()` | No para un resultado JSON |
+| ¿Existen controladores y rutas? | Sí, en esta aplicación | Pueden existir |
+| ¿Se pueden devolver errores HTTP? | Sí | Sí |
+| ¿Una acción MVC está obligada a devolver HTML? | No | Tampoco toda API se limita a JSON |
+
+La tabla contiene características habituales, no restricciones absolutas de ASP.NET Core. El objetivo es aprovechar conocimientos previos y concentrarnos en la representación de páginas web, que es la nueva competencia de M01.
+
+## El recorrido HTTP en el navegador
+
+**Qué ocurre al escribir una URL.**
 
 Cuando introducimos `http://localhost:5091/` en el navegador, este actúa como **cliente HTTP**. En nuestro laboratorio, `localhost` identifica el propio ordenador, el puerto `5091` selecciona el proceso servidor y `/` es la ruta solicitada. En un sitio público intervendrían además resolución de nombres, red y, normalmente, HTTPS. Estos elementos no alteran la lógica básica de cliente, petición y respuesta.
 
@@ -93,7 +154,172 @@ sequenceDiagram
 
 **Importante:** el navegador **no ejecuta C# ni interpreta código Razor**. Recibe HTML y otros recursos web. Las expresiones Razor se procesan en el servidor al generar la respuesta de esta aplicación MVC. Cuando más adelante estudiemos Blazor, distinguiremos explícitamente su modelo de componentes y su interactividad.
 
-## 1.1.3. Servidor, aplicación, framework y navegador: cuatro responsabilidades
+**Observar HTTP en lugar de imaginarlo.**
+
+La explicación del recorrido anterior se puede comprobar de tres maneras que se complementan:
+
+**En el navegador**, la página visual muestra el contenido procesado. Al abrir las herramientas de desarrollo (F12) y la pestaña *Red/Network*, una navegación permite observar el documento y sus recursos relacionados. Seleccionando la fila de tipo *document* comprobamos el método GET, la URL y el código 200.
+
+**En las cabeceras**, la respuesta de un documento HTML contiene `Content-Type: text/html`, posiblemente acompañado de una indicación de codificación. Al pedir el CSS observaríamos en cambio `text/css`. Las cabeceras describen la respuesta y no deben confundirse con los elementos `<h1>` o `<p>`, que forman parte del HTML.
+
+**En una herramienta HTTP** como `curl`, podemos ver la respuesta sin que intervenga la representación visual del navegador:
+
+~~~bash
+curl -i http://localhost:5091/
+curl -i http://localhost:5091/ruta-inexistente
+~~~
+
+La primera petición debe recibir `200` y una página HTML. La segunda, al no corresponder con una acción de la aplicación, debe recibir `404`. El HTML exacto puede incluir detalles adicionales de framework, pero lo que comprobaremos es el estado HTTP y la marca visible de la vista.
+
+Durante la práctica activaremos dos pequeñas modificaciones y compararemos sus efectos:
+
+- Añadir la cabecera `X-Curso-Paso: 1.1.4` desde la acción MVC **modifica los metadatos HTTP de la respuesta**, no el contenido visual.
+- Descomentar un bloque HTML en `Index.cshtml` **modifica el cuerpo HTML**, no necesita añadir una nueva ruta ni cambiar el código HTTP de éxito.
+
+Esta distinción resulta fundamental cuando, más adelante, debamos depurar formularios y llamadas a API: no todos los cambios en el servidor se observan del mismo modo en la pantalla.
+
+**Analizar HTTP como un contrato observable, no como una caja negra.**
+
+Hasta ahora hemos seguido una petición desde la barra de direcciones hasta una acción MVC. Para comprender cómo depurar aplicaciones web necesitamos observar el intercambio de datos con mayor precisión. HTTP tiene una estructura definida: una solicitud contiene un método, un objetivo o ruta, una versión de protocolo, cabeceras y, cuando corresponde, un cuerpo. La respuesta aporta un código de estado, cabeceras y posiblemente un cuerpo. En el laboratorio inicial nos interesa especialmente una petición GET, que no necesita enviar datos de formulario.
+
+Una representación didáctica de la solicitud es:
+
+~~~http
+GET /Home/Index HTTP/1.1
+Host: localhost:5091
+Accept: text/html
+
+~~~
+
+La línea inicial indica **qué operación** se solicita y sobre **qué ruta**. La cabecera `Host` identifica el host al que se dirige la petición. `Accept` comunica una preferencia sobre formatos de respuesta, aunque no obliga por sí sola a una aplicación a producir cualquiera de ellos. El ejemplo muestra un mensaje representativo; los navegadores reales incluyen más cabeceras y pueden utilizar HTTP/2 u HTTP/3.
+
+La respuesta de una vista MVC puede conceptualizarse así:
+
+~~~http
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+
+<!DOCTYPE html>
+<html lang="es">
+  ...
+  <h1>1.1 | Primer recorrido MVC</h1>
+</html>
+~~~
+
+Si el servidor devuelve `200`, la solicitud fue atendida satisfactoriamente según ese resultado. `Content-Type` explica cómo debe interpretar el cliente el contenido. En nuestra aplicación, el servidor entrega HTML generado por Razor: el navegador no ejecuta el archivo `Index.cshtml` directamente.
+
+Conviene distinguir tres conceptos que pueden parecer equivalentes pero no lo son: el **código de estado** de la respuesta, el **tipo de contenido** indicado por sus cabeceras y el **contenido concreto** que vemos en la pantalla. El servidor puede devolver 200 con un texto que dice «error» si la acción así lo programa; el texto visible no determina automáticamente el código. Igualmente, un documento con extensión `.css` servido por el middleware estático debe identificarse mediante el tipo de contenido adecuado, no porque el navegador adivine su estructura a partir del nombre.
+
+**El papel de los códigos 200, 404 y errores de conexión.**
+
+En el punto 1.1 hemos preparado una comprobación de `/ruta-inexistente`. Esta URL no coincide con un endpoint configurado y, por eso, recibimos 404. Sin embargo, un 404 demuestra que **sí hubo comunicación con el servidor**: se ha recibido una respuesta HTTP que declara que no se encontró el recurso solicitado.
+
+Muy diferente es una conexión rechazada cuando el proceso no está ejecutándose o no escucha en el puerto utilizado. En ese caso no se puede afirmar que hubo un «HTTP 404», pues quizá nunca se recibió una respuesta HTTP. Esta distinción será especialmente útil en M05, cuando comparemos los tres modos de ejecución y despliegue.
+
+También hay que distinguir la ruta de un endpoint de la dirección de un archivo fuente. `/Home/Index` no es una orden al sistema operativo para abrir `Views/Home/Index.cshtml`. Es una dirección que el middleware MVC interpreta y relaciona con un controlador y una acción.
+
+**Por qué curl ayuda a entender lo que hace el navegador.**
+
+La herramienta `curl` puede enviar peticiones HTTP sin renderizar la interfaz. Por ejemplo:
+
+~~~bash
+curl -i http://localhost:5091/
+curl -i http://localhost:5091/Home/Index
+curl -i http://localhost:5091/ruta-inexistente
+curl -i http://localhost:5091/css/site.css
+~~~
+
+La opción `-i` permite incluir las cabeceras en la salida. Esta herramienta no sustituye al navegador para evaluar CSS, accesibilidad o experiencia de usuario, pero sí permite identificar el resultado del servidor independientemente de cómo se representa en pantalla. De hecho, puede ser decisiva para averiguar si una hoja de estilos falla porque recibe 404 o porque el navegador la recibió correctamente y otra regla CSS prevaleció.
+
+En el cuaderno práctico compararemos la observación de F12 con estas llamadas. Es importante poder responder exactamente qué información suministra cada herramienta: el panel de red ayuda a relacionar peticiones del documento y sus recursos; `curl` permite reproducir una única petición y leer sus cabeceras y cuerpo; el código C# del controlador explica quién ha generado ciertos valores.
+
+**Reconstruir una petición para diagnosticar un fallo.**
+
+Una técnica sencilla de diagnóstico consiste en seguir un orden fijo antes de modificar el código:
+
+**Primero, confirmar el proceso.** ¿Hay realmente una aplicación escuchando en el puerto indicado? Si falla la conexión, no tiene sentido inspeccionar el HTML todavía. Revisar la terminal de `dotnet run` proporciona el punto de partida.
+
+**Segundo, identificar la URL exacta.** `/`, `/Home/Index` y `/css/site.css` no tienen necesariamente el mismo recorrido. La ruta no es solo el nombre mostrado en la barra de direcciones; es parte de la información que MVC y otros middlewares utilizan para decidir el resultado.
+
+**Tercero, leer el código de estado.** Un 200 de `/` permite continuar al análisis del cuerpo. Un 404 de `/ruta-inexistente` es correcto en esta práctica, pues demuestra que el endpoint no existe. Un 404 de `/css/site.css`, en cambio, señala un fallo para un recurso que el proyecto sí incluye.
+
+**Cuarto, observar el tipo de contenido.** Si el navegador recibe una página HTML donde esperaba CSS, no debemos concluir que la hoja funciona solo porque la URL devolvió 200. El tipo `text/css` en la respuesta del archivo es una comprobación más precisa.
+
+**Quinto, observar el contenido.** Una respuesta HTML puede tener código 200, pero no contener el texto que esperamos. La comprobación entonces debe revisar qué vista se ha ejecutado, si se guardaron los cambios y si el proceso utiliza la versión correcta de los archivos.
+
+**Sexto, conservar una evidencia mínima.** La URL solicitada, el código de estado, una cabecera relevante y una frase del cuerpo suelen bastar para reproducir el hallazgo. No es necesario copiar largas trazas en el material del alumno. Esto también enseña a comunicar incidencias con precisión en una futura práctica profesional.
+
+**Un modelo mental de la web orientado a peticiones.**
+
+En una aplicación de escritorio tradicional, el desarrollador suele pensar primero en ventanas y eventos de usuario. En una aplicación web resulta especialmente útil empezar pensando en **peticiones**. El usuario introduce una dirección o pulsa un enlace, el cliente solicita un recurso o endpoint y el servidor procesa la solicitud antes de devolver un resultado.
+
+La interfaz puede parecer una única página, pero el navegador suele efectuar múltiples solicitudes. Primero pide el documento HTML; después puede solicitar hojas CSS, imágenes u otros recursos referenciados en ese documento. En nuestro proyecto inicial, `/` devuelve un documento construido mediante MVC y `/css/site.css` entrega un archivo estático. Ambas respuestas proceden del mismo servidor Kestrel, pero su recorrido interno puede ser distinto.
+
+Este hecho explica por qué la inspección de F12 → Red es más informativa que fijarse solo en el resultado visual. La pantalla puede mostrar un encabezado y unos párrafos, mientras el panel de red registra más de una solicitud. El alumno debe ser capaz de identificar cuál corresponde al documento principal y cuál a los recursos que lo complementan.
+
+**La solicitud del documento y la solicitud de CSS.**
+
+Podemos comparar dos ejemplos conceptuales:
+
+~~~http
+GET / HTTP/1.1
+Host: localhost:5091
+Accept: text/html
+~~~
+
+y
+
+~~~http
+GET /css/site.css HTTP/1.1
+Host: localhost:5091
+Accept: text/css
+~~~
+
+No estamos afirmando que un navegador envíe exactamente esas tres líneas. Son representaciones simplificadas que permiten estudiar el método, la ruta y una posible preferencia de contenido. La comparación muestra algo estable: en el primer caso pedimos `/` y en el segundo pedimos `/css/site.css`.
+
+El servidor debe decidir qué componente atiende cada petición. En nuestra configuración, el documento se obtiene desde una acción MVC y el archivo CSS desde el middleware de recursos estáticos. Por eso una cabecera añadida exclusivamente dentro de la acción Home no tiene por qué aparecer en la respuesta de `site.css`.
+
+**Qué aporta el método HTTP.**
+
+El método `GET` indica una operación de recuperación de representación de un recurso. En un desarrollo web real existen otros métodos, pero en este primer punto no necesitamos introducir formularios ni operaciones que cambien datos. Las solicitudes de la práctica son GET y el objetivo es aprender a seguirlas de principio a fin.
+
+No debemos asociar GET únicamente a «abrir una página HTML». El mismo método puede solicitar una hoja CSS, un archivo de texto o datos JSON. El tipo de resultado lo decide el servidor y se comunica mediante la respuesta, especialmente a través de su cabecera de contenido.
+
+**Leer las herramientas de desarrollo con método.**
+
+El panel de red de un navegador contiene mucha información. Para este curso conviene utilizarlo de una forma dirigida, evitando que el alumnado pierda tiempo entre columnas que todavía no necesita interpretar.
+
+Primero abrimos las herramientas de desarrollo y seleccionamos la pestaña **Red / Network**. Después recargamos la página para capturar las solicitudes desde el comienzo. Identificamos el documento principal y abrimos el detalle de esa solicitud.
+
+En la sección de información general observamos la URL y el código de estado. En las cabeceras observamos `Content-Type` y, cuando activamos el paso correspondiente, `X-Curso-Paso`. En el cuerpo de respuesta buscamos el encabezado de nuestra vista y más adelante el bloque `marca-paso-1-1-5`.
+
+Después repetimos el procedimiento para `/css/site.css`. Debemos observar un recurso diferente, con tipo de contenido CSS. La cabecera que se añadió dentro del controlador Home no se espera en esa solicitud, pues corresponde a otro mecanismo de atención.
+
+**¿Qué información no necesitamos memorizar?.**
+
+El navegador puede incluir múltiples cabeceras y datos de temporización, almacenamiento en caché y seguridad. No es necesario explicarlos todos para comprender el primer recorrido MVC. Nuestro criterio docente es seleccionar un conjunto pequeño de evidencias que responda a preguntas concretas: ¿qué se pidió?, ¿quién lo atendió?, ¿qué respondió el servidor? y ¿qué parte del contenido cambió después de editar el código?
+
+Una vez que el alumno domina esta secuencia, puede emplearla para diagnosticar problemas más avanzados sin que tengamos que dedicar horas a todas las opciones de la herramienta.
+
+**Pequeño caso completo de diagnóstico.**
+
+Imaginemos que una persona informa: «La aplicación está rota; no se ve como ayer». Esa descripción todavía no permite decidir qué archivo corregir. Podemos convertirla en una secuencia de preguntas útiles.
+
+**¿Se puede abrir `/`?** Si no se establece conexión, revisamos primero la ejecución de Kestrel y el puerto. Si se recibe 404, investigamos el enrutamiento o la dirección. Si se recibe 200, ya tenemos una evidencia positiva sobre la página inicial.
+
+**¿El HTML contiene el encabezado de la práctica?** Si falta, revisamos la vista que se está ejecutando, el proyecto lanzado y si los cambios se han guardado. Si aparece, sabemos que la acción y el resultado de vista han producido al menos una parte reconocible de la página.
+
+**¿Se recibe el CSS?** Si `/css/site.css` responde 404, investigamos su ubicación y `UseStaticFiles`. Si responde 200 con contenido CSS pero el aspecto visual sigue siendo incorrecto, el problema puede depender de las reglas CSS o de su aplicación en el documento.
+
+**¿Se observa la cabecera del ejercicio?** Si activamos `X-Curso-Paso` y no aparece en el documento HTML, comprobamos que la línea realmente está descomentada en la versión de `HomeController` que ejecuta el servidor. No buscamos esa cabecera en la respuesta CSS.
+
+**¿Está el texto añadido en la vista?** Si el `section` de 1.1.5 continúa dentro de un comentario Razor, no producirá contenido. Si está activo y el servidor representa la versión correcta, debe aparecer en el HTML.
+
+Esta secuencia enseña a separar causas. A menudo «la página está rota» equivale a varios problemas diferentes, y cada uno exige observar una pieza concreta antes de modificarla.
+
+## Servidor, Kestrel y pipeline
+
+**Servidor, aplicación, framework y navegador: cuatro responsabilidades.**
 
 Conviene separar cuatro participantes que a menudo se confunden:
 
@@ -121,9 +347,46 @@ flowchart TD
 
 La figura resume el caso del curso. Una aplicación ASP.NET Core más grande puede utilizar autenticación, sesiones, manejo de excepciones u otros middleware; por ahora no los incorporamos.
 
-## 1.1.4. Cómo se conecta la URL con nuestro primer controlador
+**Entender el servidor, la aplicación y el proceso .NET.**
 
-Observemos los archivos reales de `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc`. El arranque está definido en `Program.cs`:
+En una explicación informal es frecuente decir que «MVC es el servidor». La idea ayuda a empezar, pero oculta responsabilidades distintas. **Kestrel** es el servidor HTTP integrado con ASP.NET Core que escucha conexiones y participa en su procesamiento. **ASP.NET Core** proporciona el pipeline de middleware, el enrutamiento y los servicios web. **MVC** añade la infraestructura de controladores y vistas. **Nuestro proyecto C#** define qué controlador, vista y recursos incluye la aplicación concreta.
+
+Esos elementos colaboran en el mismo proceso del ejercicio. No hay un proceso distinto para cada controlador ni un servidor nuevo por cada vista. Cuando ejecutamos el proyecto, el host inicializa la aplicación y Kestrel empieza a escuchar en la URL indicada. Las solicitudes entrantes atraviesan el pipeline hasta que un componente las atiende o el procesamiento finaliza.
+
+También conviene separar la configuración del código fuente del modo de arranque. El comando:
+
+~~~bash
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+inicia una aplicación de desarrollo mediante el SDK y solicita que escuche en la dirección propuesta, sin utilizar un perfil de `launchSettings.json`. La parte `http://localhost:5091` incorpora un esquema (`http`), un host (`localhost`) y un puerto (5091). Dos procesos diferentes no pueden, por regla general, escuchar simultáneamente de la misma forma en el mismo extremo de red. Por eso la práctica pide detener el proceso antes de cambiar entre versiones del proyecto.
+
+El alumno debe comprender además que `localhost` se refiere al propio equipo desde el que se ejecuta el cliente. Abrir una dirección `localhost` en otro dispositivo no implica acceder mágicamente al mismo servidor. Esto resulta relevante al ejecutar prácticas en una máquina virtual o en un contenedor, aunque su configuración se pospone a M05.
+
+**El ciclo al reconstruir y volver a ejecutar.**
+
+Cuando modificamos un archivo C# del controlador, el proyecto debe recompilarse o utilizar un mecanismo de desarrollo que reconstruya los cambios para que el proceso en ejecución los incorpore. Cuando cambiamos una vista Razor, ciertas herramientas de desarrollo pueden mostrar actualizaciones de otra manera, pero no necesitamos basar la práctica en comportamientos variables del entorno. Para una comprobación reproducible seguiremos una secuencia explícita: **detener → guardar → compilar → iniciar → solicitar**.
+
+Esta secuencia evita falsos diagnósticos. Si el alumno ha modificado el archivo del proyecto 1.1 pero continúa ejecutando la DLL del proyecto 1.2, el navegador no mostrará el cambio esperado. La comprobación correcta comienza por identificar el directorio de trabajo y el proyecto que se ha iniciado.
+
+**El pipeline y la idea de middleware.**
+
+Un middleware es un componente que participa en el procesamiento de solicitudes y respuestas. Algunos hacen trabajo antes de pasar la solicitud al siguiente; otros pueden intervenir al regresar la respuesta; otros pueden atender la solicitud sin seguir avanzando por el pipeline. En esta aplicación hemos incluido dos piezas fáciles de observar:
+
+~~~csharp
+app.UseStaticFiles();
+app.UseRouting();
+~~~
+
+`UseStaticFiles` permite servir archivos estáticos reconocidos desde la raíz web, como `wwwroot/css/site.css`. Cuando se solicita ese CSS, no necesitamos ejecutar `HomeController.Index()` para construir su contenido. Por otro lado, la ruta convencional de MVC conecta direcciones como `/Home/Index` con acciones de controlador.
+
+No debemos representar el pipeline como una lista de carpetas ni creer que cada llamada `Use...` es un controlador. Es el **orden de procesamiento de componentes** que la plataforma configura. La ruta de archivos y la ruta HTTP son conceptos diferentes: un middleware estático resuelve recursos de archivo publicados, mientras que MVC invoca código del controlador que puede renderizar una vista.
+
+Esto explica por qué la cabecera personalizada añadida dentro de `HomeController.Index()` no aparece automáticamente en `/css/site.css`. Esa instrucción pertenece a una acción concreta, no a todas las respuestas producidas por la aplicación. En M01 todavía no introduciremos middleware propio, porque el objetivo es observar la secuencia; comprender sus responsabilidades será suficiente para evitar confusiones.
+
+**Una lectura detallada de Program.cs.**
+
+`Program.cs` utiliza la forma de arranque simplificada característica de ASP.NET Core moderno:
 
 ~~~csharp
 var builder = WebApplication.CreateBuilder(args);
@@ -140,6 +403,28 @@ app.MapControllerRoute(
 
 app.Run();
 ~~~
+
+No debemos leerlo como si cada línea fuera un paso repetido para cada visitante. La mayor parte de estas instrucciones configura el host y la aplicación al arrancar. Una vez que `Run()` está atendiendo solicitudes, los middlewares y endpoints intervienen cuando llegan peticiones.
+
+`CreateBuilder` prepara la configuración del host y el registro de servicios. `AddControllersWithViews` incorpora servicios necesarios para MVC con vistas. `Build` crea la aplicación configurada. `UseStaticFiles` permite responder a solicitudes de recursos estáticos; `UseRouting` participa en el enrutamiento; `MapControllerRoute` registra el patrón convencional; `Run` inicia el proceso de atención.
+
+**¿Dónde está la lista de rutas?.**
+
+La ruta convencional describe un patrón que puede relacionar diferentes combinaciones de controlador y acción. No necesitamos declarar una llamada independiente en `Program.cs` por cada método de controlador. Tampoco significa que la aplicación publique automáticamente cualquier método privado: los endpoints MVC se construyen con reglas y metadatos propios de los controladores y sus acciones.
+
+En la primera práctica solo seguimos `HomeController.Index`. Más adelante veremos cómo `ProductosController.Index` encaja en el mismo patrón y cómo un atributo permite definir una dirección distinta.
+
+**¿Por qué no modificar aún el orden de middleware?.**
+
+La práctica no pretende enseñar todas las variantes del pipeline ni construir middleware propio. El orden puede ser relevante para el comportamiento de ASP.NET Core, y alterar varias instrucciones a la vez haría más difícil identificar causas. Conservamos la configuración proporcionada y nos concentramos en una pregunta verificable: **qué resultado devuelve cada URL en este proyecto**.
+
+## Rutas, controladores y Razor
+
+**Cómo se conecta la URL con nuestro primer controlador.**
+
+Observemos los archivos reales de `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc`. El arranque está definido en `Program.cs`:
+
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
 
 Examinemos cada parte, sin adelantar toda la materia de routing del punto 1.4:
 
@@ -177,7 +462,7 @@ La clase deriva de `Controller` para disponer de la infraestructura y de método
 
 Por convención, `return View();` en `HomeController.Index` selecciona `Views/Home/Index.cshtml`. Esa convención relaciona nombres de controlador, acción y archivo. La estudiaremos con detalle en los puntos 1.3, 1.4 y 1.5.
 
-## 1.1.5. La vista Razor y el HTML que llega al cliente
+**La vista Razor y el HTML que llega al cliente.**
 
 El contenido visible de la vista inicial es:
 
@@ -199,170 +484,7 @@ El archivo `Views/Shared/_Layout.cshtml` dispone el esqueleto común del documen
 
 La hoja de estilos `wwwroot/css/site.css` se sirve por separado. Aunque la apariencia cambie con el CSS, la acción del controlador no necesita conocer detalles del navegador.
 
-## 1.1.6. Observar HTTP en lugar de imaginarlo
-
-La explicación del recorrido anterior se puede comprobar de tres maneras que se complementan:
-
-**En el navegador**, la página visual muestra el contenido procesado. Al abrir las herramientas de desarrollo (F12) y la pestaña *Red/Network*, una navegación permite observar el documento y sus recursos relacionados. Seleccionando la fila de tipo *document* comprobamos el método GET, la URL y el código 200.
-
-**En las cabeceras**, la respuesta de un documento HTML contiene `Content-Type: text/html`, posiblemente acompañado de una indicación de codificación. Al pedir el CSS observaríamos en cambio `text/css`. Las cabeceras describen la respuesta y no deben confundirse con los elementos `<h1>` o `<p>`, que forman parte del HTML.
-
-**En una herramienta HTTP** como `curl`, podemos ver la respuesta sin que intervenga la representación visual del navegador:
-
-~~~bash
-curl -i http://localhost:5091/
-curl -i http://localhost:5091/ruta-inexistente
-~~~
-
-La primera petición debe recibir `200` y una página HTML. La segunda, al no corresponder con una acción de la aplicación, debe recibir `404`. El HTML exacto puede incluir detalles adicionales de framework, pero lo que comprobaremos es el estado HTTP y la marca visible de la vista.
-
-Durante la práctica activaremos dos pequeñas modificaciones y compararemos sus efectos:
-
-- Añadir la cabecera `X-Curso-Paso: 1.1.4` desde la acción MVC **modifica los metadatos HTTP de la respuesta**, no el contenido visual.
-- Descomentar un bloque HTML en `Index.cshtml` **modifica el cuerpo HTML**, no necesita añadir una nueva ruta ni cambiar el código HTTP de éxito.
-
-Esta distinción resulta fundamental cuando, más adelante, debamos depurar formularios y llamadas a API: no todos los cambios en el servidor se observan del mismo modo en la pantalla.
-
-## 1.1.7. MVC y Web API: parecido de infraestructura, diferencia de intención
-
-Comparación orientativa, a partir de una misma necesidad de mostrar datos:
-
-| Aspecto | Acción MVC con vista Razor | Endpoint o controlador Web API |
-|---|---|---|
-| Caso más común | Generar una página para una persona | Facilitar datos/operaciones a un consumidor |
-| Respuesta típica | HTML | JSON |
-| Presentación | Se construye en el servidor mediante una vista | El consumidor decide cómo presentar los datos |
-| Infraestructura HTTP | ASP.NET Core y routing | ASP.NET Core y routing |
-| ¿Puede acceder a servicios y EF Core? | Sí | Sí |
-| ¿Es obligatoria una base de datos? | No | No |
-
-Un fragmento conceptual de MVC podría ser `return View(productos);`. Su correspondiente estilo de API podría ser `return Ok(productos);`. En el primer caso se solicita la representación de una vista; en el segundo se envían datos con un resultado HTTP apropiado. Son ejemplos de **intención**: no debemos copiar el segundo en el controlador del proyecto 1.1 porque aún no hemos creado ningún modelo `Producto`.
-
-En particular, no es correcto afirmar que *MVC significa servidor y API significa cliente*: ambos códigos se ejecutan en el servidor. Tampoco es correcto afirmar que MVC no utiliza HTTP porque el usuario solo ve un sitio web: cada navegación sigue siendo una comunicación HTTP.
-
-## 1.1.8. Confusiones frecuentes y cómo resolverlas
-
-**«Si abro localhost en el navegador, estoy abriendo un archivo HTML».** En nuestro ejemplo no: el navegador solicita la ruta `/` a un proceso web que escucha en un puerto. La vista se genera como respuesta de una acción MVC. Si apagamos el proceso, esa dirección deja de responder.
-
-**«El archivo Index.cshtml se descarga y Razor se ejecuta en el ordenador del alumno».** No. Razor se evalúa en el servidor. El resultado enviado al navegador es HTML. La extensión `.cshtml` identifica el archivo fuente del proyecto, no el formato de respuesta entregado al usuario.
-
-**«View() devuelve directamente una página HTML».** Más exactamente, `View()` crea un resultado MVC de vista. La infraestructura ejecuta ese resultado, localiza la vista y genera la respuesta HTML. La distinción explica por qué la acción puede permanecer compacta.
-
-**«Una ruta 404 implica que toda la aplicación ha fallado».** No necesariamente. La aplicación puede estar funcionando perfectamente y no tener un endpoint compatible con la URL solicitada. En nuestra primera aplicación es normal que `/ruta-inexistente` devuelva 404.
-
-**«Si no veo cambios en la pantalla, el código del controlador no se ha ejecutado».** No siempre. Una acción puede añadir una cabecera HTTP que solo se aprecia en la respuesta o en las herramientas de desarrollo.
-
-**«ASP.NET Core MVC y ASP.NET Core Web API son frameworks totalmente aislados».** Comparten la misma plataforma web y numerosos servicios. Usan convenciones y tipos de respuesta con objetivos diferentes.
-
-## 1.1.9. Relación directa con la práctica
-
-La práctica `P1.1` reproduce exactamente los hechos descritos aquí: creación de una plantilla MVC, apertura del proyecto inicial del curso, arranque de Kestrel, navegación por `/`, lectura del método y estado de la petición, comparación con una ruta 404, activación de una cabecera y activación de un bloque HTML Razor.
-
-Al finalizar se habrá demostrado un flujo real, no solo memorizado un diagrama. El conocimiento adquirido nos permitirá desarrollar en **1.2** las responsabilidades de Modelo, Vista y Controlador; en **1.3**, la estructura del proyecto; en **1.4**, rutas y acciones; y en **1.5**, vistas Razor más elaboradas.
-
-## Lecturas de referencia
-
-- Microsoft Learn, Información general de ASP.NET Core MVC: https://learn.microsoft.com/es-es/aspnet/core/mvc/overview?view=aspnetcore-8.0
-- Microsoft Learn, Tutorial de primera aplicación MVC: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/?view=aspnetcore-8.0
-- Microsoft Learn, Fundamentos de middleware: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-8.0
-
-
----
-
-
-## 1.1.10. Analizar HTTP como un contrato observable, no como una caja negra
-
-Hasta ahora hemos seguido una petición desde la barra de direcciones hasta una acción MVC. Para comprender cómo depurar aplicaciones web necesitamos observar el intercambio de datos con mayor precisión. HTTP tiene una estructura definida: una solicitud contiene un método, un objetivo o ruta, una versión de protocolo, cabeceras y, cuando corresponde, un cuerpo. La respuesta aporta un código de estado, cabeceras y posiblemente un cuerpo. En el laboratorio inicial nos interesa especialmente una petición GET, que no necesita enviar datos de formulario.
-
-Una representación didáctica de la solicitud es:
-
-~~~http
-GET /Home/Index HTTP/1.1
-Host: localhost:5091
-Accept: text/html
-
-~~~
-
-La línea inicial indica **qué operación** se solicita y sobre **qué ruta**. La cabecera `Host` identifica el host al que se dirige la petición. `Accept` comunica una preferencia sobre formatos de respuesta, aunque no obliga por sí sola a una aplicación a producir cualquiera de ellos. El ejemplo muestra un mensaje representativo; los navegadores reales incluyen más cabeceras y pueden utilizar HTTP/2 u HTTP/3.
-
-La respuesta de una vista MVC puede conceptualizarse así:
-
-~~~http
-HTTP/1.1 200 OK
-Content-Type: text/html; charset=utf-8
-
-<!DOCTYPE html>
-<html lang="es">
-  ...
-  <h1>1.1 | Primer recorrido MVC</h1>
-</html>
-~~~
-
-Si el servidor devuelve `200`, la solicitud fue atendida satisfactoriamente según ese resultado. `Content-Type` explica cómo debe interpretar el cliente el contenido. En nuestra aplicación, el servidor entrega HTML generado por Razor: el navegador no ejecuta el archivo `Index.cshtml` directamente.
-
-Conviene distinguir tres conceptos que pueden parecer equivalentes pero no lo son: el **código de estado** de la respuesta, el **tipo de contenido** indicado por sus cabeceras y el **contenido concreto** que vemos en la pantalla. El servidor puede devolver 200 con un texto que dice «error» si la acción así lo programa; el texto visible no determina automáticamente el código. Igualmente, un documento con extensión `.css` servido por el middleware estático debe identificarse mediante el tipo de contenido adecuado, no porque el navegador adivine su estructura a partir del nombre.
-
-### El papel de los códigos 200, 404 y errores de conexión
-
-En el punto 1.1 hemos preparado una comprobación de `/ruta-inexistente`. Esta URL no coincide con un endpoint configurado y, por eso, recibimos 404. Sin embargo, un 404 demuestra que **sí hubo comunicación con el servidor**: se ha recibido una respuesta HTTP que declara que no se encontró el recurso solicitado.
-
-Muy diferente es una conexión rechazada cuando el proceso no está ejecutándose o no escucha en el puerto utilizado. En ese caso no se puede afirmar que hubo un «HTTP 404», pues quizá nunca se recibió una respuesta HTTP. Esta distinción será especialmente útil en M05, cuando comparemos los tres modos de ejecución y despliegue.
-
-También hay que distinguir la ruta de un endpoint de la dirección de un archivo fuente. `/Home/Index` no es una orden al sistema operativo para abrir `Views/Home/Index.cshtml`. Es una dirección que el middleware MVC interpreta y relaciona con un controlador y una acción.
-
-### Por qué curl ayuda a entender lo que hace el navegador
-
-La herramienta `curl` puede enviar peticiones HTTP sin renderizar la interfaz. Por ejemplo:
-
-~~~bash
-curl -i http://localhost:5091/
-curl -i http://localhost:5091/Home/Index
-curl -i http://localhost:5091/ruta-inexistente
-curl -i http://localhost:5091/css/site.css
-~~~
-
-La opción `-i` permite incluir las cabeceras en la salida. Esta herramienta no sustituye al navegador para evaluar CSS, accesibilidad o experiencia de usuario, pero sí permite identificar el resultado del servidor independientemente de cómo se representa en pantalla. De hecho, puede ser decisiva para averiguar si una hoja de estilos falla porque recibe 404 o porque el navegador la recibió correctamente y otra regla CSS prevaleció.
-
-En el cuaderno práctico compararemos la observación de F12 con estas llamadas. Es importante poder responder exactamente qué información suministra cada herramienta: el panel de red ayuda a relacionar peticiones del documento y sus recursos; `curl` permite reproducir una única petición y leer sus cabeceras y cuerpo; el código C# del controlador explica quién ha generado ciertos valores.
-
-## 1.1.11. Entender el servidor, la aplicación y el proceso .NET
-
-En una explicación informal es frecuente decir que «MVC es el servidor». La idea ayuda a empezar, pero oculta responsabilidades distintas. **Kestrel** es el servidor HTTP integrado con ASP.NET Core que escucha conexiones y participa en su procesamiento. **ASP.NET Core** proporciona el pipeline de middleware, el enrutamiento y los servicios web. **MVC** añade la infraestructura de controladores y vistas. **Nuestro proyecto C#** define qué controlador, vista y recursos incluye la aplicación concreta.
-
-Esos elementos colaboran en el mismo proceso del ejercicio. No hay un proceso distinto para cada controlador ni un servidor nuevo por cada vista. Cuando ejecutamos el proyecto, el host inicializa la aplicación y Kestrel empieza a escuchar en la URL indicada. Las solicitudes entrantes atraviesan el pipeline hasta que un componente las atiende o el procesamiento finaliza.
-
-También conviene separar la configuración del código fuente del modo de arranque. El comando:
-
-~~~bash
-dotnet run --no-launch-profile --urls http://localhost:5091
-~~~
-
-inicia una aplicación de desarrollo mediante el SDK y solicita que escuche en la dirección propuesta, sin utilizar un perfil de `launchSettings.json`. La parte `http://localhost:5091` incorpora un esquema (`http`), un host (`localhost`) y un puerto (5091). Dos procesos diferentes no pueden, por regla general, escuchar simultáneamente de la misma forma en el mismo extremo de red. Por eso la práctica pide detener el proceso antes de cambiar entre versiones del proyecto.
-
-El alumno debe comprender además que `localhost` se refiere al propio equipo desde el que se ejecuta el cliente. Abrir una dirección `localhost` en otro dispositivo no implica acceder mágicamente al mismo servidor. Esto resulta relevante al ejecutar prácticas en una máquina virtual o en un contenedor, aunque su configuración se pospone a M05.
-
-### El ciclo al reconstruir y volver a ejecutar
-
-Cuando modificamos un archivo C# del controlador, el proyecto debe recompilarse o utilizar un mecanismo de desarrollo que reconstruya los cambios para que el proceso en ejecución los incorpore. Cuando cambiamos una vista Razor, ciertas herramientas de desarrollo pueden mostrar actualizaciones de otra manera, pero no necesitamos basar la práctica en comportamientos variables del entorno. Para una comprobación reproducible seguiremos una secuencia explícita: **detener → guardar → compilar → iniciar → solicitar**.
-
-Esta secuencia evita falsos diagnósticos. Si el alumno ha modificado el archivo del proyecto 1.1 pero continúa ejecutando la DLL del proyecto 1.2, el navegador no mostrará el cambio esperado. La comprobación correcta comienza por identificar el directorio de trabajo y el proyecto que se ha iniciado.
-
-## 1.1.12. El pipeline y la idea de middleware
-
-Un middleware es un componente que participa en el procesamiento de solicitudes y respuestas. Algunos hacen trabajo antes de pasar la solicitud al siguiente; otros pueden intervenir al regresar la respuesta; otros pueden atender la solicitud sin seguir avanzando por el pipeline. En esta aplicación hemos incluido dos piezas fáciles de observar:
-
-~~~csharp
-app.UseStaticFiles();
-app.UseRouting();
-~~~
-
-`UseStaticFiles` permite servir archivos estáticos reconocidos desde la raíz web, como `wwwroot/css/site.css`. Cuando se solicita ese CSS, no necesitamos ejecutar `HomeController.Index()` para construir su contenido. Por otro lado, la ruta convencional de MVC conecta direcciones como `/Home/Index` con acciones de controlador.
-
-No debemos representar el pipeline como una lista de carpetas ni creer que cada llamada `Use...` es un controlador. Es el **orden de procesamiento de componentes** que la plataforma configura. La ruta de archivos y la ruta HTTP son conceptos diferentes: un middleware estático resuelve recursos de archivo publicados, mientras que MVC invoca código del controlador que puede renderizar una vista.
-
-Esto explica por qué la cabecera personalizada añadida dentro de `HomeController.Index()` no aparece automáticamente en `/css/site.css`. Esa instrucción pertenece a una acción concreta, no a todas las respuestas producidas por la aplicación. En M01 todavía no introduciremos middleware propio, porque el objetivo es observar la secuencia; comprender sus responsabilidades será suficiente para evitar confusiones.
-
-## 1.1.13. Controlador y vista: dos puntos distintos donde observar resultados
+**Controlador y vista: dos puntos distintos donde observar resultados.**
 
 Para aislar responsabilidades hemos preparado dos fragmentos comentados en el proyecto. El primero modifica la respuesta desde C#:
 
@@ -385,29 +507,71 @@ Un navegador puede mostrar exactamente el mismo encabezado visual con o sin la c
 
 También hay que interpretar correctamente `Response.Headers`. Se trata de un objeto asociado a la respuesta de la petición actual; escribir una cabecera desde una acción no equivale a cambiar las cabeceras de todos los recursos del sitio. No utilizamos aquí cookies, autenticación ni cabeceras de seguridad: los nombres `X-Curso-Paso` y `X-Curso-Reto` son estrictamente marcadores docentes.
 
-### El reto como prueba de comprensión
+**El reto como prueba de comprensión.**
 
 El reto 1.1 vuelve a separar dos intervenciones: añadir la cabecera `X-Curso-Reto: HTTP-y-HTML` desde el controlador y representar un párrafo `reto-1-1` desde la vista. Si ambos resultados están presentes en la misma respuesta, no debemos deducir que se generaron de la misma manera. El controlador decidió añadir una cabecera y la vista decidió producir marcado adicional.
 
 La comprobación más útil no es únicamente «aparece el párrafo». Debemos solicitar también el archivo CSS y mostrar que **la cabecera del controlador no aparece allí**. La diferencia confirma qué componente atendió cada tipo de solicitud.
 
-## 1.1.14. Reconstruir una petición para diagnosticar un fallo
+**Observar el HTML generado sin confundirlo con Razor.**
 
-Una técnica sencilla de diagnóstico consiste en seguir un orden fijo antes de modificar el código:
+El archivo `Views/Home/Index.cshtml` contiene marcado HTML y expresiones Razor. Durante el primer recorrido, la acción devuelve `View()` y el motor localiza esa plantilla mediante convenciones. La respuesta que llega al navegador es HTML, no una copia que el cliente deba interpretar como fuente C#.
 
-**Primero, confirmar el proceso.** ¿Hay realmente una aplicación escuchando en el puerto indicado? Si falla la conexión, no tiene sentido inspeccionar el HTML todavía. Revisar la terminal de `dotnet run` proporciona el punto de partida.
+El archivo principal incluye un encabezado:
 
-**Segundo, identificar la URL exacta.** `/`, `/Home/Index` y `/css/site.css` no tienen necesariamente el mismo recorrido. La ruta no es solo el nombre mostrado en la barra de direcciones; es parte de la información que MVC y otros middlewares utilizan para decidir el resultado.
+~~~cshtml
+<h1>1.1 | Primer recorrido MVC</h1>
+~~~
 
-**Tercero, leer el código de estado.** Un 200 de `/` permite continuar al análisis del cuerpo. Un 404 de `/ruta-inexistente` es correcto en esta práctica, pues demuestra que el endpoint no existe. Un 404 de `/css/site.css`, en cambio, señala un fallo para un recurso que el proyecto sí incluye.
+Esta línea no contiene una expresión dinámica, así que el resultado HTML conserva un elemento parecido. Sin embargo, `@{ ViewData["Title"] = "Primer recorrido MVC"; }` es una instrucción Razor que establece datos de presentación y no aparece literalmente en el HTML final.
 
-**Cuarto, observar el tipo de contenido.** Si el navegador recibe una página HTML donde esperaba CSS, no debemos concluir que la hoja funciona solo porque la URL devolvió 200. El tipo `text/css` en la respuesta del archivo es una comprobación más precisa.
+Esta diferencia puede parecer poco importante en una página sencilla, pero se volverá esencial en 1.2, donde la vista representa productos a partir de una colección. Si el alumno cree que Razor se ejecuta en el navegador, no podrá explicar correctamente por qué la respuesta HTTP contiene los nombres de los productos y no un bucle de C#.
 
-**Quinto, observar el contenido.** Una respuesta HTML puede tener código 200, pero no contener el texto que esperamos. La comprobación entonces debe revisar qué vista se ha ejecutado, si se guardaron los cambios y si el proceso utiliza la versión correcta de los archivos.
+**Contenido de una respuesta frente a apariencia.**
 
-**Sexto, conservar una evidencia mínima.** La URL solicitada, el código de estado, una cabecera relevante y una frase del cuerpo suelen bastar para reproducir el hallazgo. No es necesario copiar largas trazas en el material del alumno. Esto también enseña a comunicar incidencias con precisión en una futura práctica profesional.
+El HTML define una estructura documental; las hojas CSS controlan aspectos de presentación. Una respuesta HTML correcta no garantiza que la apariencia sea la esperada. Por ejemplo, si el archivo CSS devuelve 404, los títulos y párrafos todavía pueden aparecer, pero faltarán estilos.
 
-## 1.1.15. Primeras pruebas de regresión: cambiar una pieza sin romper otra
+Este es otro motivo para inspeccionar tanto el documento principal como sus recursos. En la práctica no se pide diseñar una página compleja: se pide reconocer **qué parte del sistema es responsable de cada tipo de salida**.
+
+**Cabeceras personalizadas: datos de control fuera del HTML.**
+
+El paso 1.1.4 añade una cabecera a la respuesta:
+
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+
+La instrucción modifica la colección de cabeceras HTTP de la respuesta de la acción. El navegador puede mostrar ese dato en su panel de red, pero no tiene por qué dibujar automáticamente el texto en la página.
+
+Esto permite distinguir **metadatos de transporte** y **cuerpo de la respuesta**. Una cabecera y un párrafo HTML pueden contener la misma cadena, pero eso no significa que tengan el mismo papel. El cuerpo HTML será interpretado como documento; la cabecera forma parte de la información que acompaña a la respuesta.
+
+**Por qué el lugar del código importa.**
+
+Si escribimos esta instrucción dentro de `HomeController.Index()`, afecta a las respuestas preparadas al ejecutar esa acción. Si la aplicación atendiera otra URL mediante un archivo estático, esa instrucción no se ejecutaría allí. El reto reproduce la diferencia con una segunda cabecera de diagnóstico y un párrafo Razor.
+
+No introducimos cabeceras de autenticación, controles de caché o seguridad porque exigirían explicar conceptos que no pertenecen a este ejercicio. Los nombres personalizados son marcadores sin significado operativo fuera del laboratorio.
+
+## Comprobación, errores y continuidad
+
+**Confusiones frecuentes y cómo resolverlas.**
+
+**«Si abro localhost en el navegador, estoy abriendo un archivo HTML».** En nuestro ejemplo no: el navegador solicita la ruta `/` a un proceso web que escucha en un puerto. La vista se genera como respuesta de una acción MVC. Si apagamos el proceso, esa dirección deja de responder.
+
+**«El archivo Index.cshtml se descarga y Razor se ejecuta en el ordenador del alumno».** No. Razor se evalúa en el servidor. El resultado enviado al navegador es HTML. La extensión `.cshtml` identifica el archivo fuente del proyecto, no el formato de respuesta entregado al usuario.
+
+**«View() devuelve directamente una página HTML».** Más exactamente, `View()` crea un resultado MVC de vista. La infraestructura ejecuta ese resultado, localiza la vista y genera la respuesta HTML. La distinción explica por qué la acción puede permanecer compacta.
+
+**«Una ruta 404 implica que toda la aplicación ha fallado».** No necesariamente. La aplicación puede estar funcionando perfectamente y no tener un endpoint compatible con la URL solicitada. En nuestra primera aplicación es normal que `/ruta-inexistente` devuelva 404.
+
+**«Si no veo cambios en la pantalla, el código del controlador no se ha ejecutado».** No siempre. Una acción puede añadir una cabecera HTTP que solo se aprecia en la respuesta o en las herramientas de desarrollo.
+
+**«ASP.NET Core MVC y ASP.NET Core Web API son frameworks totalmente aislados».** Comparten la misma plataforma web y numerosos servicios. Usan convenciones y tipos de respuesta con objetivos diferentes.
+
+**Relación directa con la práctica.**
+
+La práctica `P1.1` reproduce exactamente los hechos descritos aquí: creación de una plantilla MVC, apertura del proyecto inicial del curso, arranque de Kestrel, navegación por `/`, lectura del método y estado de la petición, comparación con una ruta 404, activación de una cabecera y activación de un bloque HTML Razor.
+
+Al finalizar se habrá demostrado un flujo real, no solo memorizado un diagrama. El conocimiento adquirido nos permitirá desarrollar en **1.2** las responsabilidades de Modelo, Vista y Controlador; en **1.3**, la estructura del proyecto; en **1.4**, rutas y acciones; y en **1.5**, vistas Razor más elaboradas.
+
+**Primeras pruebas de regresión: cambiar una pieza sin romper otra.**
 
 Una modificación puede funcionar localmente y provocar una regresión en otro recurso. Por ejemplo, añadir una cabecera al controlador puede coincidir con un fallo accidental si el alumno modificó `Program.cs` y quitó `UseStaticFiles()`. Una prueba solo sobre `/` no detectaría la ausencia del CSS.
 
@@ -426,7 +590,7 @@ Estas pruebas son pequeñas, pero ilustran un principio general: **verificar el 
 
 Al trabajar con un servidor HTTP real, la comprobación cubre más que una llamada aislada al método C#: intervienen el host, el enrutamiento, el resultado de vista y la respuesta. La inspección visual con F12 complementa estas comprobaciones, no las sustituye.
 
-## 1.1.16. Preguntas de razonamiento con respuestas argumentadas
+**Preguntas de razonamiento con respuestas argumentadas.**
 
 **¿Por qué `/` y `/Home/Index` muestran la misma página?** Porque la ruta convencional utiliza Home e Index como valores predeterminados cuando se omiten los segmentos. No son necesariamente dos copias de HTML: ambas direcciones seleccionan la misma acción dentro de esta configuración.
 
@@ -440,177 +604,13 @@ Al trabajar con un servidor HTTP real, la comprobación cubre más que una llama
 
 **¿Tiene sentido medir solamente cuánto tarda en arrancar el servidor para afirmar que la práctica está bien?** No. La rapidez de arranque no demuestra que se comprendan las responsabilidades, que el alumno pueda seguir una petición o que sepa reproducir un diagnóstico HTTP.
 
-## 1.1.17. Conexión con lo que aprenderemos después
+**Conexión con lo que aprenderemos después.**
 
 La primera práctica se concentra deliberadamente en una única página. Sin embargo, el recorrido que ya conocemos —URL → middleware → acción → resultado → contenido y cabeceras HTTP— seguirá vigente en los demás capítulos. En 1.2 añadiremos un modelo real de producto y aprenderemos a entregarlo a una vista; en 1.3 localizaremos archivos y configuración; en 1.4 añadiremos acciones y códigos de estado; y en 1.5 reutilizaremos marcado Razor.
 
 Cuando trabajemos con Blazor, seguiremos necesitando comprender qué es una petición, qué aporta el servidor y qué renderiza el navegador, aunque la composición de la interfaz y la interactividad tengan otro modelo. El objetivo de esta profundización no es memorizar cabeceras: es construir una **cadena de explicaciones comprobables** y aprender a separar lo observado de nuestras suposiciones.
 
-
-
-## 1.1.18. Un modelo mental de la web orientado a peticiones
-
-En una aplicación de escritorio tradicional, el desarrollador suele pensar primero en ventanas y eventos de usuario. En una aplicación web resulta especialmente útil empezar pensando en **peticiones**. El usuario introduce una dirección o pulsa un enlace, el cliente solicita un recurso o endpoint y el servidor procesa la solicitud antes de devolver un resultado.
-
-La interfaz puede parecer una única página, pero el navegador suele efectuar múltiples solicitudes. Primero pide el documento HTML; después puede solicitar hojas CSS, imágenes u otros recursos referenciados en ese documento. En nuestro proyecto inicial, `/` devuelve un documento construido mediante MVC y `/css/site.css` entrega un archivo estático. Ambas respuestas proceden del mismo servidor Kestrel, pero su recorrido interno puede ser distinto.
-
-Este hecho explica por qué la inspección de F12 → Red es más informativa que fijarse solo en el resultado visual. La pantalla puede mostrar un encabezado y unos párrafos, mientras el panel de red registra más de una solicitud. El alumno debe ser capaz de identificar cuál corresponde al documento principal y cuál a los recursos que lo complementan.
-
-### La solicitud del documento y la solicitud de CSS
-
-Podemos comparar dos ejemplos conceptuales:
-
-~~~http
-GET / HTTP/1.1
-Host: localhost:5091
-Accept: text/html
-~~~
-
-y
-
-~~~http
-GET /css/site.css HTTP/1.1
-Host: localhost:5091
-Accept: text/css
-~~~
-
-No estamos afirmando que un navegador envíe exactamente esas tres líneas. Son representaciones simplificadas que permiten estudiar el método, la ruta y una posible preferencia de contenido. La comparación muestra algo estable: en el primer caso pedimos `/` y en el segundo pedimos `/css/site.css`.
-
-El servidor debe decidir qué componente atiende cada petición. En nuestra configuración, el documento se obtiene desde una acción MVC y el archivo CSS desde el middleware de recursos estáticos. Por eso una cabecera añadida exclusivamente dentro de la acción Home no tiene por qué aparecer en la respuesta de `site.css`.
-
-### Qué aporta el método HTTP
-
-El método `GET` indica una operación de recuperación de representación de un recurso. En un desarrollo web real existen otros métodos, pero en este primer punto no necesitamos introducir formularios ni operaciones que cambien datos. Las solicitudes de la práctica son GET y el objetivo es aprender a seguirlas de principio a fin.
-
-No debemos asociar GET únicamente a «abrir una página HTML». El mismo método puede solicitar una hoja CSS, un archivo de texto o datos JSON. El tipo de resultado lo decide el servidor y se comunica mediante la respuesta, especialmente a través de su cabecera de contenido.
-
-## 1.1.19. MVC frente a una Web API: mismos fundamentos, resultados distintos
-
-El alumnado ya conoce Web API, por lo que conviene partir de ese conocimiento y evitar enseñar HTTP desde cero. ASP.NET Core MVC y las API web se apoyan en el mismo framework y pueden convivir en una misma aplicación. Lo que cambia es la responsabilidad predominante de sus endpoints y el resultado que preparan.
-
-Una API suele exponer información estructurada para otros programas. Si el resultado es JSON, el cliente puede interpretarlo como datos y decidir qué interfaz construir. Una aplicación MVC con vistas Razor puede devolver HTML ya preparado para que el navegador lo represente. Ninguna de esas opciones requiere un protocolo de red diferente: ambas utilizan HTTP.
-
-El ejemplo de la primera página devuelve una vista:
-
-~~~csharp
-[HttpGet]
-public IActionResult Index()
-{
-    return View();
-}
-~~~
-
-Una acción de Web API podría devolver un resultado con datos JSON, pero no necesitamos cambiar nuestro controlador inicial para comprender la diferencia. En 1.4 haremos la comparación dentro del mismo proyecto, con `Content()` y `Ok()`, después de haber estudiado los tipos de resultado.
-
-### Qué significa renderizar del lado del servidor
-
-En MVC, la ejecución de Razor que construye la vista ocurre en el servidor. Cuando el navegador recibe la respuesta, las expresiones Razor ya se han evaluado. Esto simplifica la comprensión del primer flujo: el cliente solicita una URL y recibe un documento HTML.
-
-Esta afirmación no implica que una página MVC no pueda utilizar JavaScript ni que sea imposible actualizar parte de una página dinámicamente. Simplemente estamos estudiando el comportamiento mínimo del proyecto suministrado, que no necesita JavaScript de aplicación para mostrar sus contenidos iniciales.
-
-### Una tabla conceptual para evitar confusiones
-
-| Pregunta | MVC con vistas Razor del curso | Web API conocida por el alumno |
-|---|---|---|
-| ¿Qué protocolo se utiliza? | HTTP | HTTP |
-| ¿Cuál es un resultado frecuente? | HTML | JSON |
-| ¿Quién prepara el HTML inicial? | Servidor, mediante Razor | Normalmente otro cliente o capa |
-| ¿Debe existir una vista `.cshtml`? | Si se devuelve `View()` | No para un resultado JSON |
-| ¿Existen controladores y rutas? | Sí, en esta aplicación | Pueden existir |
-| ¿Se pueden devolver errores HTTP? | Sí | Sí |
-| ¿Una acción MVC está obligada a devolver HTML? | No | Tampoco toda API se limita a JSON |
-
-La tabla contiene características habituales, no restricciones absolutas de ASP.NET Core. El objetivo es aprovechar conocimientos previos y concentrarnos en la representación de páginas web, que es la nueva competencia de M01.
-
-## 1.1.20. Observar el HTML generado sin confundirlo con Razor
-
-El archivo `Views/Home/Index.cshtml` contiene marcado HTML y expresiones Razor. Durante el primer recorrido, la acción devuelve `View()` y el motor localiza esa plantilla mediante convenciones. La respuesta que llega al navegador es HTML, no una copia que el cliente deba interpretar como fuente C#.
-
-El archivo principal incluye un encabezado:
-
-~~~cshtml
-<h1>1.1 | Primer recorrido MVC</h1>
-~~~
-
-Esta línea no contiene una expresión dinámica, así que el resultado HTML conserva un elemento parecido. Sin embargo, `@{ ViewData["Title"] = "Primer recorrido MVC"; }` es una instrucción Razor que establece datos de presentación y no aparece literalmente en el HTML final.
-
-Esta diferencia puede parecer poco importante en una página sencilla, pero se volverá esencial en 1.2, donde la vista representa productos a partir de una colección. Si el alumno cree que Razor se ejecuta en el navegador, no podrá explicar correctamente por qué la respuesta HTTP contiene los nombres de los productos y no un bucle de C#.
-
-### Contenido de una respuesta frente a apariencia
-
-El HTML define una estructura documental; las hojas CSS controlan aspectos de presentación. Una respuesta HTML correcta no garantiza que la apariencia sea la esperada. Por ejemplo, si el archivo CSS devuelve 404, los títulos y párrafos todavía pueden aparecer, pero faltarán estilos.
-
-Este es otro motivo para inspeccionar tanto el documento principal como sus recursos. En la práctica no se pide diseñar una página compleja: se pide reconocer **qué parte del sistema es responsable de cada tipo de salida**.
-
-## 1.1.21. Una lectura detallada de Program.cs
-
-`Program.cs` utiliza la forma de arranque simplificada característica de ASP.NET Core moderno:
-
-~~~csharp
-var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddControllersWithViews();
-
-var app = builder.Build();
-
-app.UseStaticFiles();
-app.UseRouting();
-
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
-
-app.Run();
-~~~
-
-No debemos leerlo como si cada línea fuera un paso repetido para cada visitante. La mayor parte de estas instrucciones configura el host y la aplicación al arrancar. Una vez que `Run()` está atendiendo solicitudes, los middlewares y endpoints intervienen cuando llegan peticiones.
-
-`CreateBuilder` prepara la configuración del host y el registro de servicios. `AddControllersWithViews` incorpora servicios necesarios para MVC con vistas. `Build` crea la aplicación configurada. `UseStaticFiles` permite responder a solicitudes de recursos estáticos; `UseRouting` participa en el enrutamiento; `MapControllerRoute` registra el patrón convencional; `Run` inicia el proceso de atención.
-
-### ¿Dónde está la lista de rutas?
-
-La ruta convencional describe un patrón que puede relacionar diferentes combinaciones de controlador y acción. No necesitamos declarar una llamada independiente en `Program.cs` por cada método de controlador. Tampoco significa que la aplicación publique automáticamente cualquier método privado: los endpoints MVC se construyen con reglas y metadatos propios de los controladores y sus acciones.
-
-En la primera práctica solo seguimos `HomeController.Index`. Más adelante veremos cómo `ProductosController.Index` encaja en el mismo patrón y cómo un atributo permite definir una dirección distinta.
-
-### ¿Por qué no modificar aún el orden de middleware?
-
-La práctica no pretende enseñar todas las variantes del pipeline ni construir middleware propio. El orden puede ser relevante para el comportamiento de ASP.NET Core, y alterar varias instrucciones a la vez haría más difícil identificar causas. Conservamos la configuración proporcionada y nos concentramos en una pregunta verificable: **qué resultado devuelve cada URL en este proyecto**.
-
-## 1.1.22. Leer las herramientas de desarrollo con método
-
-El panel de red de un navegador contiene mucha información. Para este curso conviene utilizarlo de una forma dirigida, evitando que el alumnado pierda tiempo entre columnas que todavía no necesita interpretar.
-
-Primero abrimos las herramientas de desarrollo y seleccionamos la pestaña **Red / Network**. Después recargamos la página para capturar las solicitudes desde el comienzo. Identificamos el documento principal y abrimos el detalle de esa solicitud.
-
-En la sección de información general observamos la URL y el código de estado. En las cabeceras observamos `Content-Type` y, cuando activamos el paso correspondiente, `X-Curso-Paso`. En el cuerpo de respuesta buscamos el encabezado de nuestra vista y más adelante el bloque `marca-paso-1-1-5`.
-
-Después repetimos el procedimiento para `/css/site.css`. Debemos observar un recurso diferente, con tipo de contenido CSS. La cabecera que se añadió dentro del controlador Home no se espera en esa solicitud, pues corresponde a otro mecanismo de atención.
-
-### ¿Qué información no necesitamos memorizar?
-
-El navegador puede incluir múltiples cabeceras y datos de temporización, almacenamiento en caché y seguridad. No es necesario explicarlos todos para comprender el primer recorrido MVC. Nuestro criterio docente es seleccionar un conjunto pequeño de evidencias que responda a preguntas concretas: ¿qué se pidió?, ¿quién lo atendió?, ¿qué respondió el servidor? y ¿qué parte del contenido cambió después de editar el código?
-
-Una vez que el alumno domina esta secuencia, puede emplearla para diagnosticar problemas más avanzados sin que tengamos que dedicar horas a todas las opciones de la herramienta.
-
-## 1.1.23. Cabeceras personalizadas: datos de control fuera del HTML
-
-El paso 1.1.4 añade una cabecera a la respuesta:
-
-~~~csharp
-Response.Headers["X-Curso-Paso"] = "1.1.4";
-~~~
-
-La instrucción modifica la colección de cabeceras HTTP de la respuesta de la acción. El navegador puede mostrar ese dato en su panel de red, pero no tiene por qué dibujar automáticamente el texto en la página.
-
-Esto permite distinguir **metadatos de transporte** y **cuerpo de la respuesta**. Una cabecera y un párrafo HTML pueden contener la misma cadena, pero eso no significa que tengan el mismo papel. El cuerpo HTML será interpretado como documento; la cabecera forma parte de la información que acompaña a la respuesta.
-
-### Por qué el lugar del código importa
-
-Si escribimos esta instrucción dentro de `HomeController.Index()`, afecta a las respuestas preparadas al ejecutar esa acción. Si la aplicación atendiera otra URL mediante un archivo estático, esa instrucción no se ejecutaría allí. El reto reproduce la diferencia con una segunda cabecera de diagnóstico y un párrafo Razor.
-
-No introducimos cabeceras de autenticación, controles de caché o seguridad porque exigirían explicar conceptos que no pertenecen a este ejercicio. Los nombres personalizados son marcadores sin significado operativo fuera del laboratorio.
-
-## 1.1.24. Tres estrategias incorrectas de depuración
+**Tres estrategias incorrectas de depuración.**
 
 **Estrategia incorrecta 1: modificar el CSS porque una URL devuelve 404.** El CSS no determina por sí solo qué endpoints existen. Antes de editar estilos debemos comprobar qué URL se solicitó y si corresponde a un controlador o archivo estático.
 
@@ -620,23 +620,7 @@ No introducimos cabeceras de autenticación, controles de caché o seguridad por
 
 La técnica correcta consiste en formular una hipótesis y comprobarla con una observación concreta. El alumnado debe aprender a responder con datos y no con conjeturas: URL, método, estado, tipo de contenido y fragmento de resultado.
 
-## 1.1.25. Pequeño caso completo de diagnóstico
-
-Imaginemos que una persona informa: «La aplicación está rota; no se ve como ayer». Esa descripción todavía no permite decidir qué archivo corregir. Podemos convertirla en una secuencia de preguntas útiles.
-
-**¿Se puede abrir `/`?** Si no se establece conexión, revisamos primero la ejecución de Kestrel y el puerto. Si se recibe 404, investigamos el enrutamiento o la dirección. Si se recibe 200, ya tenemos una evidencia positiva sobre la página inicial.
-
-**¿El HTML contiene el encabezado de la práctica?** Si falta, revisamos la vista que se está ejecutando, el proyecto lanzado y si los cambios se han guardado. Si aparece, sabemos que la acción y el resultado de vista han producido al menos una parte reconocible de la página.
-
-**¿Se recibe el CSS?** Si `/css/site.css` responde 404, investigamos su ubicación y `UseStaticFiles`. Si responde 200 con contenido CSS pero el aspecto visual sigue siendo incorrecto, el problema puede depender de las reglas CSS o de su aplicación en el documento.
-
-**¿Se observa la cabecera del ejercicio?** Si activamos `X-Curso-Paso` y no aparece en el documento HTML, comprobamos que la línea realmente está descomentada en la versión de `HomeController` que ejecuta el servidor. No buscamos esa cabecera en la respuesta CSS.
-
-**¿Está el texto añadido en la vista?** Si el `section` de 1.1.5 continúa dentro de un comentario Razor, no producirá contenido. Si está activo y el servidor representa la versión correcta, debe aparecer en el HTML.
-
-Esta secuencia enseña a separar causas. A menudo «la página está rota» equivale a varios problemas diferentes, y cada uno exige observar una pieza concreta antes de modificarla.
-
-## 1.1.26. Construir una explicación técnica reproducible
+**Construir una explicación técnica reproducible.**
 
 Al terminar la práctica, el alumno debería poder describir la aplicación sin depender de que otra persona conozca su equipo. Una descripción útil incluye la carpeta de proyecto, el comando de ejecución, la URL observada, el resultado esperado y el archivo donde está el cambio.
 
@@ -646,7 +630,7 @@ Esta explicación relaciona código, configuración y observación. También res
 
 Una afirmación como «lo probé y funciona» es mucho menos útil, porque no deja claro qué funcionalidad se verificó ni cuáles fueron las condiciones de la ejecución.
 
-## 1.1.27. Cierre razonado de la primera etapa
+**Cierre razonado de la primera etapa.**
 
 El propósito del capítulo no es enseñar todas las posibilidades de ASP.NET Core, sino construir un recorrido completo y fiable sobre el que se apoyarán los demás contenidos. Hemos identificado el servidor HTTP, el pipeline de ASP.NET Core, los controladores MVC, las vistas Razor y los recursos estáticos, y hemos observado sus respuestas.
 
@@ -654,16 +638,28 @@ El valor de trabajar con una única página inicial es que permite introducir un
 
 Cuando en 1.2 aparezca un modelo de producto, no tendremos que reaprender qué es una solicitud ni qué significa una vista. La nueva pregunta será qué datos recibe esa vista y cómo los utiliza. El método de trabajo seguirá siendo el mismo: **razonar, activar un bloque, ejecutar, observar y comprobar que el comportamiento previo no se ha roto**.
 
+**Lecturas de referencia.**
+
+- Microsoft Learn, Información general de ASP.NET Core MVC: https://learn.microsoft.com/es-es/aspnet/core/mvc/overview?view=aspnetcore-8.0
+- Microsoft Learn, Tutorial de primera aplicación MVC: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/?view=aspnetcore-8.0
+- Microsoft Learn, Fundamentos de middleware: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/middleware/?view=aspnetcore-8.0
+
+
+---
 
 # 1.2. Arquitectura Model-View-Controller
 
-## Objetivos
+
+
+**Objetivos.**
 
 Al finalizar el capítulo, el alumno debe poder identificar sin ambigüedades las responsabilidades de **Model**, **View** y **Controller**; explicar cómo se relacionan durante una petición HTTP; entregar objetos desde una acción a una vista fuertemente tipada; y razonar por qué separar datos, decisión de la respuesta y presentación facilita modificar y probar una aplicación.
 
 En el punto 1.1 observamos una acción `HomeController.Index()` que devolvía una vista. En el 1.2 incorporamos una pieza que aún faltaba: un **modelo de producto**. Usaremos un catálogo con tres objetos en memoria para evitar que el aprendizaje de MVC quede oculto tras una base de datos. El acceso mediante EF Core llegará en M02.
 
-## 1.2.1. El problema de una aplicación que mezcla todas las responsabilidades
+## Modelo, vista y controlador: responsabilidades
+
+**El problema de una aplicación que mezcla todas las responsabilidades.**
 
 Supongamos que queremos mostrar una página con tres productos. Una solución apresurada consiste en escribir en una misma acción el contenido de los productos y el marcado HTML que aparecerá en pantalla:
 
@@ -682,11 +678,11 @@ Este código es válido como demostración aislada: la acción puede devolver un
 
 Este es el problema al que responde la separación de responsabilidades: cada elemento se centra en un tipo de decisión y expone una relación clara con los demás. **Separar no significa crear muchas capas empresariales**: para la dimensión didáctica de nuestro catálogo, tres tipos de archivo son suficientes.
 
-## 1.2.2. Tres responsabilidades distintas
+**Tres responsabilidades distintas.**
 
 El patrón arquitectónico **Modelo–Vista–Controlador (MVC)** organiza una aplicación web en tres familias de responsabilidades. «Familia» es una palabra importante: una aplicación real puede tener múltiples modelos, controladores y vistas; no implica una sola clase de cada tipo.
 
-### Modelo — representar los datos y las reglas de negocio
+**Modelo — representar los datos y las reglas de negocio.**
 
 Un modelo expresa los conceptos que maneja la aplicación. Para nuestro ejemplo, un producto tiene identificador, nombre y precio.
 
@@ -707,7 +703,7 @@ Que una clase esté en la carpeta `Models` no la convierte automáticamente en u
 
 En aplicaciones mayores podemos encontrar modelos de dominio, modelos de persistencia y **view models** (tipos adaptados a una vista). No son necesariamente la misma clase. En este ejercicio utilizaremos directamente `Producto` como modelo de la vista porque es pequeño y evita introducir una arquitectura adicional. Más adelante podremos distinguir cuándo convendría proyectar datos a un tipo específico para la presentación.
 
-### Vista — representar la información para el usuario
+**Vista — representar la información para el usuario.**
 
 La vista define cómo se transforma la información recibida en una interfaz. En MVC, suele ser un archivo `.cshtml` que combina HTML y sintaxis Razor.
 
@@ -738,7 +734,7 @@ El bloque `@if` decide la **presentación** del caso en que no se ha enviado una
 
 Esto no significa que en una vista esté prohibida toda expresión de C#. Razor permite expresiones y condicionales adecuados para la presentación. Lo que evitaremos es poner en la vista operaciones de persistencia o lógica de negocio compleja.
 
-### Controlador — atender la interacción y coordinar la respuesta
+**Controlador — atender la interacción y coordinar la respuesta.**
 
 El controlador recibe el resultado del enrutamiento, obtiene o prepara los datos necesarios y elige qué respuesta entregar. En nuestro ejercicio, recibe `GET /Productos`, construye tres productos fijos y los pasa a la vista:
 
@@ -769,7 +765,7 @@ La acción es intencionadamente sencilla: no ejecuta consultas ni reglas de nego
 
 **La línea decisiva es `return View(productos);`.** Se crea un resultado de vista asociado al modelo que se quiere representar. MVC localiza la vista correspondiente a `ProductosController.Index` y establece su propiedad `Model` con la lista suministrada. En ese momento, la vista ya no necesita inventarse cuáles son los tres productos: los conoce a través de un contrato tipado.
 
-### Mapa de responsabilidades
+**Mapa de responsabilidades.**
 
 | Pregunta | Componente principal |
 |---|---|
@@ -781,7 +777,71 @@ La acción es intencionadamente sencilla: no ejecuta consultas ni reglas de nego
 
 El controlador puede conocer el modelo y seleccionar la vista. La vista suele recibir datos del modelo. **El modelo no necesita depender del controlador ni de la vista**: esa independencia es una de las ventajas más relevantes de MVC.
 
-## 1.2.3. El recorrido completo de una petición
+**Ventajas reales de separar responsabilidades.**
+
+**Modificación localizada.** Si queremos presentar precios con dos decimales, cambiaremos el marcado de la vista. Si queremos variar la lista fija, editaremos el código que prepara los datos. La clase de producto puede seguir representando las mismas propiedades en ambos casos. Esto reduce el número de archivos afectados por una modificación.
+
+**Comprobación independiente.** Podemos verificar que `Producto` almacena identificador, nombre y precio como cualquier otro objeto C#. Podemos comprobar que un controlador entrega una lista y observar mediante HTTP el HTML de la vista. En nuestro laboratorio también podemos verificar los estados intermedios con peticiones reales a Kestrel.
+
+**Reutilización.** El modelo `Producto` podrá utilizarse en una lista, una vista de detalle y, cuando llegue el momento, en un formulario. No necesitamos duplicar la definición de identificador y precio en cada página.
+
+**Colaboración y evolución.** Una persona puede modificar el aspecto de una vista mientras otra amplía un controlador, siempre que ambas respeten el contrato de datos. Esta separación no elimina toda dependencia: si cambia el nombre o tipo de una propiedad requerida, habrá que actualizar el código que la consume.
+
+**Costes y límites.** MVC añade convenciones y archivos. Para una página estática pequeña puede parecer más trabajo que escribir un único HTML. Un proyecto mal organizado puede seguir siendo complejo aunque utilice carpetas llamadas Models, Views y Controllers. MVC **ayuda** a separar responsabilidades; no garantiza automáticamente que el diseño sea correcto.
+
+En el capítulo 1.4 ampliaremos las acciones, parámetros y tipos de resultado; en 1.5 aprenderemos a construir vistas con un diseño reutilizable. En esta introducción no añadiremos patrones Repository, Clean Architecture ni otras capas empresariales que no aporta el ejercicio.
+
+**Errores conceptuales frecuentes.**
+
+**«El modelo es la base de datos».** No. El modelo representa conceptos y datos. Puede estar asociado a persistencia o existir solo en memoria. La clase `Producto` de 1.2 no abre ninguna conexión a una base de datos.
+
+**«El controlador debe escribir todo el HTML».** No es su responsabilidad principal. Devuelve un resultado de vista y proporciona datos. El archivo `.cshtml` define el marcado de presentación.
+
+**«La vista no puede contener ningún C#».** Las vistas Razor permiten expresiones, bucles y condicionales de presentación. Lo que evitaremos es añadir lógica empresarial o de acceso a datos dentro de la vista.
+
+**«Si la vista recibe `null`, la ruta siempre devuelve 404».** No. Una vista bien diseñada puede mostrar un mensaje informativo y responder HTTP 200. Un 404 corresponde a un recurso o endpoint no encontrado, no automáticamente a la ausencia de un objeto.
+
+**«El navegador recibe instancias de `Producto`».** En esta aplicación MVC, el navegador recibe HTML generado a partir de esas instancias. El objeto C# permanece en el servidor.
+
+**«El nombre de la vista es arbitrario».** Si se utiliza `return View()` sin especificar un nombre, MVC recurre a convenciones basadas en el controlador y la acción. Por eso nuestro archivo está en `Views/Productos/Index.cshtml`. Más adelante veremos cómo personalizarlo.
+
+**«MVC y Razor Pages son lo mismo porque ambos emplean Razor».** No. La vista MVC es un elemento de presentación asociado a una acción de controlador. Una Razor Page estructura la gestión de solicitudes alrededor de una página y su PageModel. La comparación detallada será en el capítulo 2.5.
+
+**Ventajas y costes al modificar un requisito.**
+
+Imaginemos cuatro solicitudes de cambio realizadas por el responsable de una aplicación:
+
+**Cambio 1: «El producto de id 1 debe llamarse Bloc».** Afecta al valor de los datos que genera nuestro controlador. No requiere modificar las etiquetas HTML. La práctica del reto demuestra precisamente este caso, con la variante de código ya comentada junto al objeto original.
+
+**Cambio 2: «Los nombres deben aparecer resaltados».** Se trata de una modificación visual. En este punto miraríamos primero `Index.cshtml` y, más adelante, podríamos extraer el marcado reutilizable a una vista parcial. El contrato `Producto` puede seguir igual.
+
+**Cambio 3: «Añade un enlace Productos al menú de todas las páginas».** Corresponde a una estructura de presentación compartida. El `_Layout.cshtml` permite aplicar ese cambio una vez en el lugar adecuado, sin obligar a cada controlador a incorporar manualmente el enlace.
+
+**Cambio 4: «Los cambios de nombre deben conservarse después de reiniciar».** No se resuelve solamente cambiando `@Model.Nombre`, porque lo que falta es persistencia. El proyecto actual crea la misma colección fija cada vez; será necesario introducir un mecanismo que almacene datos. Se abordará en M02 para no confundir objetivos.
+
+La separación de responsabilidades **no significa que cada cambio afecte siempre a un solo archivo**. Si ampliamos la clase `Producto` con una nueva propiedad obligatoria, puede ser preciso modificar el código que construye sus instancias y las vistas que utilicen esa propiedad. La ventaja es que sabemos por qué cada archivo necesita cambiar y cuál es el contrato compartido.
+
+**Un pequeño ejemplo de evolución sin añadir capas innecesarias.**
+
+Si necesitáramos mostrar una propiedad descriptiva adicional, el razonamiento sería:
+
+~~~csharp
+public sealed class Producto
+{
+    public int Id { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public decimal Precio { get; set; }
+    public string Descripcion { get; set; } = string.Empty;
+}
+~~~
+
+Este fragmento es **un ejemplo de lectura conceptual**, no un paso que deba activarse ahora en el proyecto. Primero habría que valorar si la propiedad pertenece realmente al concepto Producto. Después se proporcionarían valores y, finalmente, una vista decidiría si y dónde mostrarla. No hace falta introducir un sistema de servicios para comprender esta secuencia.
+
+En el código ejecutable del curso no añadimos `Descripcion` durante 1.2; la clase suministrada mantiene únicamente las tres propiedades necesarias, y el reto se concentra en variar el nombre de una instancia. Con ello mantenemos un ejercicio acotado y reproducible.
+
+## Cómo llegan los datos a la vista
+
+**El recorrido completo de una petición.**
 
 La separación cobra sentido cuando vemos las tres piezas trabajando juntas. En `Program.cs`, el patrón de ruta convencional registrado es:
 
@@ -833,7 +893,7 @@ Es importante entender dos diferencias temporales:
 
 ¿Qué ocurre con `/Productos/Index`? La ruta expresa controlador y acción de forma explícita y, por tanto, llega a la misma acción. Esta es una **convención de rutas** que ampliaremos en el capítulo 1.4; en 1.2 solo necesitamos reconocerla y comprobarla.
 
-## 1.2.4. Qué significa «pasar un modelo a una vista»
+**Qué significa «pasar un modelo a una vista».**
 
 Para distinguir entrega de datos y representación, construiremos el proyecto en estados sucesivos.
 
@@ -854,55 +914,7 @@ Para distinguir entrega de datos y representación, construiremos el proyecto en
 
 La práctica no requiere escribir cuatro aplicaciones distintas. En `PROYECTO/1.2/CursoWeb.Mvc` están preparados los fragmentos que el alumno activa paso a paso, y una batería E2E reconstruye cada estado sobre una copia temporal.
 
-## 1.2.5. Ventajas reales de separar responsabilidades
-
-**Modificación localizada.** Si queremos presentar precios con dos decimales, cambiaremos el marcado de la vista. Si queremos variar la lista fija, editaremos el código que prepara los datos. La clase de producto puede seguir representando las mismas propiedades en ambos casos. Esto reduce el número de archivos afectados por una modificación.
-
-**Comprobación independiente.** Podemos verificar que `Producto` almacena identificador, nombre y precio como cualquier otro objeto C#. Podemos comprobar que un controlador entrega una lista y observar mediante HTTP el HTML de la vista. En nuestro laboratorio también podemos verificar los estados intermedios con peticiones reales a Kestrel.
-
-**Reutilización.** El modelo `Producto` podrá utilizarse en una lista, una vista de detalle y, cuando llegue el momento, en un formulario. No necesitamos duplicar la definición de identificador y precio en cada página.
-
-**Colaboración y evolución.** Una persona puede modificar el aspecto de una vista mientras otra amplía un controlador, siempre que ambas respeten el contrato de datos. Esta separación no elimina toda dependencia: si cambia el nombre o tipo de una propiedad requerida, habrá que actualizar el código que la consume.
-
-**Costes y límites.** MVC añade convenciones y archivos. Para una página estática pequeña puede parecer más trabajo que escribir un único HTML. Un proyecto mal organizado puede seguir siendo complejo aunque utilice carpetas llamadas Models, Views y Controllers. MVC **ayuda** a separar responsabilidades; no garantiza automáticamente que el diseño sea correcto.
-
-En el capítulo 1.4 ampliaremos las acciones, parámetros y tipos de resultado; en 1.5 aprenderemos a construir vistas con un diseño reutilizable. En esta introducción no añadiremos patrones Repository, Clean Architecture ni otras capas empresariales que no aporta el ejercicio.
-
-## 1.2.6. Errores conceptuales frecuentes
-
-**«El modelo es la base de datos».** No. El modelo representa conceptos y datos. Puede estar asociado a persistencia o existir solo en memoria. La clase `Producto` de 1.2 no abre ninguna conexión a una base de datos.
-
-**«El controlador debe escribir todo el HTML».** No es su responsabilidad principal. Devuelve un resultado de vista y proporciona datos. El archivo `.cshtml` define el marcado de presentación.
-
-**«La vista no puede contener ningún C#».** Las vistas Razor permiten expresiones, bucles y condicionales de presentación. Lo que evitaremos es añadir lógica empresarial o de acceso a datos dentro de la vista.
-
-**«Si la vista recibe `null`, la ruta siempre devuelve 404».** No. Una vista bien diseñada puede mostrar un mensaje informativo y responder HTTP 200. Un 404 corresponde a un recurso o endpoint no encontrado, no automáticamente a la ausencia de un objeto.
-
-**«El navegador recibe instancias de `Producto`».** En esta aplicación MVC, el navegador recibe HTML generado a partir de esas instancias. El objeto C# permanece en el servidor.
-
-**«El nombre de la vista es arbitrario».** Si se utiliza `return View()` sin especificar un nombre, MVC recurre a convenciones basadas en el controlador y la acción. Por eso nuestro archivo está en `Views/Productos/Index.cshtml`. Más adelante veremos cómo personalizarlo.
-
-**«MVC y Razor Pages son lo mismo porque ambos emplean Razor».** No. La vista MVC es un elemento de presentación asociado a una acción de controlador. Una Razor Page estructura la gestión de solicitudes alrededor de una página y su PageModel. La comparación detallada será en el capítulo 2.5.
-
-## 1.2.7. Relación con la práctica P1.2
-
-La práctica construye un recorrido comprobable en cuatro estados, partiendo del resultado de 1.1: inspeccionar la clase `Producto`, navegar a un controlador que aún no envía datos, activar una lista fija y pasarla mediante `View(productos)`, habilitar el `@foreach` de la vista y, finalmente, mostrar un enlace de navegación. Después se modifica el nombre de un producto para constatar que la vista utiliza los valores del modelo en vez de tener nombres escritos directamente en su HTML.
-
-Es necesario **observar cada estado antes de activar el siguiente**, porque el objetivo principal no es acabar cuanto antes una página sino explicar por qué apareció cada elemento: la cantidad depende de la entrega del modelo, el listado depende de la lógica de presentación y el enlace depende del layout.
-
-Al finalizar, debe poder responderse a la pregunta: *«Cuando cambio el nombre de Cuaderno por Bloc, ¿qué archivo modifico y por qué no tengo que reescribir la vista?»*. La respuesta debe enlazar las responsabilidades de Modelo, Controlador y Vista que acabamos de estudiar.
-
-### Referencias técnicas
-
-- Microsoft Learn, patrón MVC y separación de responsabilidades: https://learn.microsoft.com/aspnet/core/mvc/overview?view=aspnetcore-8.0
-- Microsoft Learn, tutorial de controladores MVC: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/adding-controller?view=aspnetcore-8.0
-- Microsoft Learn, sintaxis Razor y vistas tipadas: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/razor?view=aspnetcore-8.0
-
-
----
-
-
-## 1.2.8. El contrato de datos como vínculo entre componentes
+**El contrato de datos como vínculo entre componentes.**
 
 La palabra «modelo» se utiliza en desarrollo de software para referirse a cosas diferentes: modelo de dominio, representación de una fila de base de datos, objeto de transferencia, objeto de un formulario o modelo que necesita una vista concreta. En este primer encuentro con MVC utilizamos deliberadamente un único tipo `Producto` para todas las demostraciones, pero es útil entender por qué esta simplificación es válida en el laboratorio y cuándo dejaría de serlo.
 
@@ -918,7 +930,7 @@ El símbolo `?` detrás del tipo señala que, según las anotaciones de nulabili
 
 También importa el tipo de cada propiedad del elemento. `Precio` es `decimal`, no una cadena preformateada con el símbolo «€». El modelo almacena el valor numérico y la vista decide cómo representarlo. Si guardáramos todos los importes como textos, las comparaciones numéricas y la futura persistencia serían más difíciles de tratar correctamente. Esta separación permite que el valor tenga sentido como dato, independientemente de cómo aparezca en la pantalla.
 
-### El valor del contrato no es el valor concreto de los datos
+**El valor del contrato no es el valor concreto de los datos.**
 
 El tipo `Producto` dice que existe una propiedad `Nombre`, pero no determina qué nombre tiene el primer objeto. Los valores concretos se establecen cuando creamos instancias:
 
@@ -935,7 +947,7 @@ La vista solo puede presentar el resultado que recibe. Si el controlador enviara
 
 En un sistema más amplio, podríamos construir un `ProductoListadoViewModel` con únicamente las propiedades que necesita la pantalla. No introducirlo aquí no significa que todo modelo de vista tenga que ser una entidad de dominio; significa que aún no existe una necesidad didáctica que compense añadir tipos adicionales.
 
-## 1.2.9. Seguir el ciclo de ejecución a nivel de archivo y de método
+**Seguir el ciclo de ejecución a nivel de archivo y de método.**
 
 Para comprender MVC a fondo no basta con repetir el diagrama «Modelo → Vista → Controlador». De hecho, ese orden puede inducir a error: **una petición HTTP no empieza por ejecutar el modelo**. En nuestro ejemplo, el recorrido observable empieza en el navegador, pasa por la infraestructura ASP.NET Core y llega a una acción concreta.
 
@@ -943,7 +955,7 @@ La ruta convencional registrada por `MapControllerRoute` está preparada para re
 
 Es importante distinguir **crear un resultado de vista** de **componer inmediatamente todos sus caracteres HTML**. `return View(productos)` expresa qué resultado debe ejecutarse, y la infraestructura MVC se ocupa de representar la vista dentro del proceso de construcción de la respuesta. Para el alumno, esta precisión explica por qué no encontrará el HTML de todas las tarjetas en el método C#.
 
-### Una forma de examinar el recorrido sin depuración avanzada
+**Una forma de examinar el recorrido sin depuración avanzada.**
 
 Podemos detenernos en tres archivos y formular una pregunta diferente en cada uno:
 
@@ -957,25 +969,7 @@ Esta lectura tiene una ventaja práctica sobre comenzar abriendo todos los archi
 
 No significa que los tres archivos sean independientes en todos los sentidos. El controlador y la vista comparten un contrato tipado, y los nombres de controlador y acción participan en convenciones de búsqueda de vistas. La separación es **de responsabilidad**, no aislamiento absoluto.
 
-## 1.2.10. Comparar tres situaciones que parecen la misma avería
-
-Los tres estados siguientes pueden producir una pantalla sin filas visibles, pero representan problemas conceptualmente distintos:
-
-**Situación A: no se entregó un modelo.** La acción utiliza `return View()`, la vista recibe `null` y muestra el mensaje preparado para ese caso. La página puede responder 200. Es un comportamiento correcto para el estado inicial didáctico.
-
-**Situación B: se entregó un modelo, pero el bucle está comentado.** La acción envía tres objetos, `Model.Count` informa de la cantidad correcta y el navegador no muestra las filas porque todavía no se ha activado su bloque de representación. El problema, si lo tratáramos como una aplicación final, sería de contenido visual de la vista, no de recuperación de datos.
-
-**Situación C: se entregó una lista vacía.** No es el estado que ejecutamos con nuestros datos fijos, pero podemos razonarlo a partir del contrato: `Model` no sería `null`, `Model.Count` sería cero y un `foreach` sobre esa lista no produciría filas. En una aplicación real convendría presentar un mensaje específico de catálogo vacío. Una colección vacía y la ausencia de colección no son necesariamente lo mismo.
-
-Estos escenarios revelan por qué las comprobaciones deben observar más de un elemento. Un test que verifica únicamente HTTP 200 no detecta si la lista está correctamente representada. Un test que busca un nombre escrito literalmente en la vista podría pasar incluso si el controlador nunca entregó un modelo. Una comprobación útil debe vincular datos y presentación.
-
-### Los errores de tipado también son distintos
-
-Si una vista espera un `Producto` individual y recibe una `List<Producto>`, habrá una incompatibilidad de contrato de modelo. No se resuelve añadiendo más HTML. Lo correcto es revisar la declaración `@model` y el argumento pasado a `View(...)` para garantizar que ambos expresen el mismo tipo de información.
-
-El caso contrario también puede ocurrir: una vista preparada para iterar una colección no puede tratar automáticamente un objeto individual como una lista. En 1.4 tendremos ambas vistas y podremos comprobar por qué conviene que cada una declare explícitamente su tipo.
-
-## 1.2.11. La vista como función de presentación
+**La vista como función de presentación.**
 
 Resulta útil razonar sobre una vista como una transformación conceptual:
 
@@ -987,45 +981,76 @@ Nuestro ejemplo permite comprobar ambos sentidos de la relación. El paso 1.2.3 
 
 Esto ofrece un método para pensar en las modificaciones que aparecerán después. Si queremos mostrar un icono junto a cada producto, probablemente cambiaremos la vista. Si queremos seleccionar únicamente productos de cierto tipo, necesitaremos decidir dónde se produce la selección de datos, normalmente antes de entregar el modelo a la vista. Si queremos guardar productos para que sobrevivan al reinicio, necesitamos persistencia, que todavía no existe.
 
-### Presentación y negocio no son idénticos
+**Presentación y negocio no son idénticos.**
 
 En un ejemplo pequeño puede parecer razonable poner todas las condiciones dentro de `@if` en Razor. Algunas condiciones realmente son de presentación, como decidir si se muestra un encabezado para una lista vacía. Otras pueden representar políticas de negocio: por ejemplo, decidir qué productos están autorizados para venderse en cierta jurisdicción. La segunda no debería quedar oculta exclusivamente en una plantilla HTML, porque podría necesitarse también desde una API o desde otros procesos.
 
 El límite no es «está prohibido usar C# en la vista», sino **qué responsabilidad pertenece a cada decisión**. En M01 usaremos condiciones simples de presentación y mantendremos los datos fijos fuera del archivo Razor.
 
-## 1.2.12. Ventajas y costes al modificar un requisito
+**Distinguir Model, ViewData y contenido fijo.**
 
-Imaginemos cuatro solicitudes de cambio realizadas por el responsable de una aplicación:
+Una vista MVC puede obtener información de maneras diferentes. Para entender la estructura del proyecto es importante reconocer qué se utiliza en cada caso, sin concluir que todas las formas son intercambiables.
 
-**Cambio 1: «El producto de id 1 debe llamarse Bloc».** Afecta al valor de los datos que genera nuestro controlador. No requiere modificar las etiquetas HTML. La práctica del reto demuestra precisamente este caso, con la variante de código ya comentada junto al objeto original.
+La directiva `@model` declara el tipo de modelo que la vista espera. Cuando el controlador ejecuta `return View(productos)`, la colección se entrega como el modelo de esa vista. Es el mecanismo principal de nuestro ejemplo porque el listado necesita objetos con propiedades conocidas: `Id`, `Nombre` y `Precio`.
 
-**Cambio 2: «Los nombres deben aparecer resaltados».** Se trata de una modificación visual. En este punto miraríamos primero `Index.cshtml` y, más adelante, podríamos extraer el marcado reutilizable a una vista parcial. El contrato `Producto` puede seguir igual.
+El proyecto también utiliza `ViewData["Title"]` para establecer el título del documento. Se trata de un valor de presentación que el layout puede consultar. No define los productos del catálogo ni sustituye a la colección que recorre `@foreach`. En este caso es suficiente para comunicar una cadena sencilla a la estructura compartida.
 
-**Cambio 3: «Añade un enlace Productos al menú de todas las páginas».** Corresponde a una estructura de presentación compartida. El `_Layout.cshtml` permite aplicar ese cambio una vez en el lugar adecuado, sin obligar a cada controlador a incorporar manualmente el enlace.
+Por otra parte, el propio archivo Razor contiene texto fijo, como encabezados y explicaciones docentes. Ese texto aparece aunque no cambien los productos. No todo carácter de HTML procede de una propiedad del modelo; una plantilla combina estructura fija con contenido que depende de los datos recibidos.
 
-**Cambio 4: «Los cambios de nombre deben conservarse después de reiniciar».** No se resuelve solamente cambiando `@Model.Nombre`, porque lo que falta es persistencia. El proyecto actual crea la misma colección fija cada vez; será necesario introducir un mecanismo que almacene datos. Se abordará en M02 para no confundir objetivos.
+**Una comprobación aplicada al catálogo.**
 
-La separación de responsabilidades **no significa que cada cambio afecte siempre a un solo archivo**. Si ampliamos la clase `Producto` con una nueva propiedad obligatoria, puede ser preciso modificar el código que construye sus instancias y las vistas que utilicen esa propiedad. La ventaja es que sabemos por qué cada archivo necesita cambiar y cuál es el contrato compartido.
+En `Views/Productos/Index.cshtml` encontrarás un encabezado que describe el punto del curso, un párrafo que muestra `Model.Count` y una lista que recorre `Model`. El encabezado es texto fijo de la plantilla; el contador depende de la colección; los nombres dependen de cada instancia.
 
-### Un pequeño ejemplo de evolución sin añadir capas innecesarias
+Si cambiamos Cuaderno por Bloc en el controlador, el encabezado y la estructura de la lista deberían permanecer iguales. Solo se modifica el nombre representado para ese objeto. Si cambiamos el texto del encabezado en la vista, la colección de datos seguirá teniendo los mismos productos.
 
-Si necesitáramos mostrar una propiedad descriptiva adicional, el razonamiento sería:
+Esta distinción permite diagnosticar incidencias con mayor precisión. Un error en un título estático puede resolverse en Razor; un dato equivocado del producto requiere investigar qué valor se preparó para el modelo; un problema de navegación común puede estar en el layout.
 
-~~~csharp
-public sealed class Producto
-{
-    public int Id { get; set; }
-    public string Nombre { get; set; } = string.Empty;
-    public decimal Precio { get; set; }
-    public string Descripcion { get; set; } = string.Empty;
-}
-~~~
+**Por qué no abusar de valores sueltos.**
 
-Este fragmento es **un ejemplo de lectura conceptual**, no un paso que deba activarse ahora en el proyecto. Primero habría que valorar si la propiedad pertenece realmente al concepto Producto. Después se proporcionarían valores y, finalmente, una vista decidiría si y dónde mostrarla. No hace falta introducir un sistema de servicios para comprender esta secuencia.
+Sería posible transportar gran cantidad de valores individuales mediante mecanismos no tipados, pero en una vista que presenta una colección estructurada resulta más claro utilizar un modelo fuerte. El compilador y el editor pueden ayudar a comprobar el acceso a propiedades, y el código expresa qué tipo de datos recibe.
 
-En el código ejecutable del curso no añadimos `Descripcion` durante 1.2; la clase suministrada mantiene únicamente las tres propiedades necesarias, y el reto se concentra en variar el nombre de una instancia. Con ello mantenemos un ejercicio acotado y reproducible.
+No estamos enseñando una prohibición absoluta de `ViewData`. Lo usamos para el título porque esa es una responsabilidad de presentación sencilla. La regla pedagógica es elegir un mecanismo coherente con la información que se necesita representar.
 
-## 1.2.13. Cómo comprobar la separación mediante evidencias
+Al completar el punto 1.2, el alumno debe poder diferenciar el contrato `@model`, el valor `Model` recibido por la vista, los valores de título aportados al layout y los textos estáticos escritos en el archivo Razor. Esa distinción será especialmente útil cuando en 1.5 introduzcamos una parcial con su propio contrato de modelo.
+
+## Casos de diagnóstico y evidencias
+
+**Relación con la práctica P1.2.**
+
+La práctica construye un recorrido comprobable en cuatro estados, partiendo del resultado de 1.1: inspeccionar la clase `Producto`, navegar a un controlador que aún no envía datos, activar una lista fija y pasarla mediante `View(productos)`, habilitar el `@foreach` de la vista y, finalmente, mostrar un enlace de navegación. Después se modifica el nombre de un producto para constatar que la vista utiliza los valores del modelo en vez de tener nombres escritos directamente en su HTML.
+
+Es necesario **observar cada estado antes de activar el siguiente**, porque el objetivo principal no es acabar cuanto antes una página sino explicar por qué apareció cada elemento: la cantidad depende de la entrega del modelo, el listado depende de la lógica de presentación y el enlace depende del layout.
+
+Al finalizar, debe poder responderse a la pregunta: *«Cuando cambio el nombre de Cuaderno por Bloc, ¿qué archivo modifico y por qué no tengo que reescribir la vista?»*. La respuesta debe enlazar las responsabilidades de Modelo, Controlador y Vista que acabamos de estudiar.
+
+**Referencias técnicas.**
+
+- Microsoft Learn, patrón MVC y separación de responsabilidades: https://learn.microsoft.com/aspnet/core/mvc/overview?view=aspnetcore-8.0
+- Microsoft Learn, tutorial de controladores MVC: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/adding-controller?view=aspnetcore-8.0
+- Microsoft Learn, sintaxis Razor y vistas tipadas: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/razor?view=aspnetcore-8.0
+
+
+---
+
+**Comparar tres situaciones que parecen la misma avería.**
+
+Los tres estados siguientes pueden producir una pantalla sin filas visibles, pero representan problemas conceptualmente distintos:
+
+**Situación A: no se entregó un modelo.** La acción utiliza `return View()`, la vista recibe `null` y muestra el mensaje preparado para ese caso. La página puede responder 200. Es un comportamiento correcto para el estado inicial didáctico.
+
+**Situación B: se entregó un modelo, pero el bucle está comentado.** La acción envía tres objetos, `Model.Count` informa de la cantidad correcta y el navegador no muestra las filas porque todavía no se ha activado su bloque de representación. El problema, si lo tratáramos como una aplicación final, sería de contenido visual de la vista, no de recuperación de datos.
+
+**Situación C: se entregó una lista vacía.** No es el estado que ejecutamos con nuestros datos fijos, pero podemos razonarlo a partir del contrato: `Model` no sería `null`, `Model.Count` sería cero y un `foreach` sobre esa lista no produciría filas. En una aplicación real convendría presentar un mensaje específico de catálogo vacío. Una colección vacía y la ausencia de colección no son necesariamente lo mismo.
+
+Estos escenarios revelan por qué las comprobaciones deben observar más de un elemento. Un test que verifica únicamente HTTP 200 no detecta si la lista está correctamente representada. Un test que busca un nombre escrito literalmente en la vista podría pasar incluso si el controlador nunca entregó un modelo. Una comprobación útil debe vincular datos y presentación.
+
+**Los errores de tipado también son distintos.**
+
+Si una vista espera un `Producto` individual y recibe una `List<Producto>`, habrá una incompatibilidad de contrato de modelo. No se resuelve añadiendo más HTML. Lo correcto es revisar la declaración `@model` y el argumento pasado a `View(...)` para garantizar que ambos expresen el mismo tipo de información.
+
+El caso contrario también puede ocurrir: una vista preparada para iterar una colección no puede tratar automáticamente un objeto individual como una lista. En 1.4 tendremos ambas vistas y podremos comprobar por qué conviene que cada una declare explícitamente su tipo.
+
+**Cómo comprobar la separación mediante evidencias.**
 
 Un alumno debería poder defender que MVC se ha utilizado correctamente mostrando **qué cambia y qué no cambia** entre dos ejecuciones. No basta con afirmar que «el código está en tres carpetas».
 
@@ -1049,50 +1074,25 @@ Podemos relacionar estas observaciones con comprobaciones automáticas:
 
 La prueba automatizada del punto 1.2 reconstruye estos estados sobre copias temporales. El objetivo del alumno es entender la causa de cada comprobación; el hecho de que una prueba dé verde no es por sí solo evidencia de comprensión conceptual.
 
-## 1.2.14. Conexión con los próximos capítulos sin adelantar sus contenidos
+**Conexión con los próximos capítulos sin adelantar sus contenidos.**
 
 Una vez entendido qué parte del código representa datos, qué parte decide el resultado y qué parte lo presenta, el resto del módulo gana sentido. En 1.3 exploraremos la ubicación de los archivos y la configuración. En 1.4 veremos cómo una acción recibe un identificador y entrega un único `Producto` a una vista de detalle; será una aplicación directa del mismo contrato que ya hemos utilizado. En 1.5 extraeremos la representación repetida de un producto a una parcial Razor, lo que permitirá reutilizar el mismo marcado desde diferentes vistas.
 
 Es importante no confundir el alcance de este primer día con el de una aplicación empresarial terminada. Nuestro catálogo no tiene operaciones de escritura, persistencia, gestión de usuarios ni validación de formularios. El hecho de que funcione y esté organizado con MVC no implica que disponga ya de esas capacidades. En M02 añadiremos las funcionalidades necesarias de manera incremental, reutilizando la separación de responsabilidades que acabamos de establecer.
 
-
-
-## 1.2.15. Distinguir Model, ViewData y contenido fijo
-
-Una vista MVC puede obtener información de maneras diferentes. Para entender la estructura del proyecto es importante reconocer qué se utiliza en cada caso, sin concluir que todas las formas son intercambiables.
-
-La directiva `@model` declara el tipo de modelo que la vista espera. Cuando el controlador ejecuta `return View(productos)`, la colección se entrega como el modelo de esa vista. Es el mecanismo principal de nuestro ejemplo porque el listado necesita objetos con propiedades conocidas: `Id`, `Nombre` y `Precio`.
-
-El proyecto también utiliza `ViewData["Title"]` para establecer el título del documento. Se trata de un valor de presentación que el layout puede consultar. No define los productos del catálogo ni sustituye a la colección que recorre `@foreach`. En este caso es suficiente para comunicar una cadena sencilla a la estructura compartida.
-
-Por otra parte, el propio archivo Razor contiene texto fijo, como encabezados y explicaciones docentes. Ese texto aparece aunque no cambien los productos. No todo carácter de HTML procede de una propiedad del modelo; una plantilla combina estructura fija con contenido que depende de los datos recibidos.
-
-### Una comprobación aplicada al catálogo
-
-En `Views/Productos/Index.cshtml` encontrarás un encabezado que describe el punto del curso, un párrafo que muestra `Model.Count` y una lista que recorre `Model`. El encabezado es texto fijo de la plantilla; el contador depende de la colección; los nombres dependen de cada instancia.
-
-Si cambiamos Cuaderno por Bloc en el controlador, el encabezado y la estructura de la lista deberían permanecer iguales. Solo se modifica el nombre representado para ese objeto. Si cambiamos el texto del encabezado en la vista, la colección de datos seguirá teniendo los mismos productos.
-
-Esta distinción permite diagnosticar incidencias con mayor precisión. Un error en un título estático puede resolverse en Razor; un dato equivocado del producto requiere investigar qué valor se preparó para el modelo; un problema de navegación común puede estar en el layout.
-
-### Por qué no abusar de valores sueltos
-
-Sería posible transportar gran cantidad de valores individuales mediante mecanismos no tipados, pero en una vista que presenta una colección estructurada resulta más claro utilizar un modelo fuerte. El compilador y el editor pueden ayudar a comprobar el acceso a propiedades, y el código expresa qué tipo de datos recibe.
-
-No estamos enseñando una prohibición absoluta de `ViewData`. Lo usamos para el título porque esa es una responsabilidad de presentación sencilla. La regla pedagógica es elegir un mecanismo coherente con la información que se necesita representar.
-
-Al completar el punto 1.2, el alumno debe poder diferenciar el contrato `@model`, el valor `Model` recibido por la vista, los valores de título aportados al layout y los textos estáticos escritos en el archivo Razor. Esa distinción será especialmente útil cuando en 1.5 introduzcamos una parcial con su propio contrato de modelo.
-
-
 # 1.3. Estructura, convenciones y puesta en marcha de un proyecto ASP.NET Core MVC
 
-## Objetivos del capítulo
+
+
+**Objetivos del capítulo.**
 
 Este capítulo permitirá al alumno **orientarse dentro de un proyecto MVC real sin depender de memorizar carpetas**. Al terminar podrá identificar el archivo de proyecto, el punto de entrada, los controladores, los modelos, las vistas y los recursos estáticos; relacionar rutas de archivos con rutas URL; entender qué papel desempeña el archivo de configuración; y modificar un recurso web sin confundirlo con una vista Razor.
 
 Partimos de `CursoWeb.Mvc` en su estado completo del punto 1.2: la ruta `/Productos` ya muestra tres productos y dispone de navegación. El ejercicio de 1.3 no vuelve a construir el catálogo, sino que analiza cómo se organiza y se inicia y añade ejemplos mínimos de configuración y archivos estáticos. Reservamos el diseño de rutas más avanzado y las acciones con parámetros para el punto 1.4.
 
-## 1.3.1. De un proyecto C# a una aplicación web
+## Leer el proyecto y sus archivos
+
+**De un proyecto C# a una aplicación web.**
 
 Un proyecto MVC sigue siendo un **proyecto .NET**: tiene un archivo `.csproj`, compila código C# y genera ensamblados. Su particularidad es que incorpora el SDK web de ASP.NET Core, archivos Razor y una aplicación anfitriona capaz de atender HTTP.
 
@@ -1114,7 +1114,7 @@ El proyecto de este capítulo no necesita ningún paquete externo adicional para
 
 El archivo `.csproj` **no es la aplicación ejecutándose**: describe cómo construirla. El arranque real está en `Program.cs` y se ejecuta cuando iniciamos el proyecto. La compilación puede producir `bin/` y `obj/`, carpetas generadas que no deben confundirse con los archivos fuente y que se excluyen de Git.
 
-## 1.3.2. Mapa real de carpetas: identificar responsabilidades por su ubicación
+**Mapa real de carpetas: identificar responsabilidades por su ubicación.**
 
 En la versión correspondiente al punto 1.3, el árbol de mayor interés es el siguiente:
 
@@ -1170,7 +1170,51 @@ CursoWeb.Mvc/
 
 En proyectos profesionales pueden existir carpetas adicionales, por ejemplo `Services`, `Data`, `DTOs` o `ViewModels`. No son requisitos de MVC para funcionar; responden a necesidades concretas y las introduciremos solo cuando el temario lo necesite.
 
-## 1.3.3. Program.cs: qué ocurre al arrancar y qué ocurre ante una petición
+**Dos formas de leer el árbol del proyecto.**
+
+El explorador de soluciones muestra una lista de archivos, pero la estructura cobra sentido cuando la analizamos desde dos perspectivas diferentes.
+
+La primera es la **perspectiva de construcción**: preguntamos qué compila, qué archivos forman parte de la aplicación y qué resultados genera el SDK. En ella son centrales `CursoWeb.Mvc.csproj`, las clases C#, las vistas Razor, `Program.cs` y las carpetas temporales `bin` y `obj`. La segunda es la **perspectiva de ejecución HTTP**: preguntamos qué recibe el navegador y por qué. En esta intervienen las rutas registradas, los controladores, el motor de vistas, el layout y los archivos publicados desde `wwwroot`.
+
+Una misma carpeta puede resultar relevante para ambas perspectivas, pero no con la misma función. Las vistas `.cshtml` forman parte del proyecto y son necesarias para representar HTML; no tienen por qué aparecer publicadas como archivos individuales. Los archivos CSS se incorporan al proyecto y, además, pueden ser servidos directamente como recursos estáticos. Los archivos C# se compilan, pero no se devuelven como texto al navegador por la configuración habitual de MVC.
+
+Este doble enfoque evita dos errores frecuentes. El primero consiste en creer que todo archivo visible en el explorador corresponde a una URL. El segundo consiste en creer que todas las respuestas web tienen que provenir de un archivo físico con el mismo nombre que la dirección solicitada.
+
+**El resultado de compilar no es el árbol fuente.**
+
+Cuando el SDK construye el proyecto, genera ensamblados y artefactos intermedios. `obj` contiene archivos utilizados en fases de compilación y restauración; `bin` contiene resultados de la compilación para una configuración y un framework concretos. Estos directorios pueden regenerarse y, por ello, se excluyen normalmente del repositorio.
+
+En un curso basado en versiones independientes del mismo proyecto, esta diferencia es especialmente importante. Cada carpeta `PROYECTO/1.1`, `1.2`, etc. tiene su propia copia del código fuente para permitir una actividad reproducible. No se debe versionar el resultado `bin/Release/net8.0` de cada una como si fuera material docente. El alumno aprenderá más ejecutando `dotnet build` sobre la fuente que recibiendo un ensamblado precompilado.
+
+La evolución entre capítulos también explica por qué no pretendemos que el alumno vuelva a escribir todos los archivos en cada punto. Una vez que ha entendido un componente, la siguiente versión conserva la funcionalidad previa y concentra los cambios en el nuevo objetivo didáctico.
+
+**El archivo csproj como declaración de capacidades.**
+
+La primera línea del archivo de proyecto selecciona `Microsoft.NET.Sdk.Web`. Esta elección no equivale a ejecutar un servidor, sino a declarar que construimos una aplicación web con un conjunto determinado de objetivos, referencias y tareas de compilación.
+
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+
+`TargetFramework` es el framework de destino del proyecto, no necesariamente la versión exacta de cada dependencia que pudiéramos añadir después. En nuestro ejemplo, el framework se fija en .NET 8 porque ese es el alcance del curso. Los conocimientos previos de C# y Web API permiten al alumnado reconocer que sigue tratándose de un proyecto de .NET, con su proceso de restauración, compilación y ejecución.
+
+`Nullable` ayuda a expresar y diagnosticar riesgos relacionados con referencias nulas. Es pertinente para nuestros tipos `Producto` y para el contrato nullable del listado, aunque aquí no profundizaremos en todas las reglas del compilador. `ImplicitUsings` reduce algunas declaraciones `using` repetitivas en archivos C#. Ninguna de las dos propiedades crea controladores por sí misma: afectan a la compilación del código.
+
+Un error de restauración, un error de compilación de C# y un fallo HTTP de ejecución tienen naturaleza diferente. Si no se puede restaurar el proyecto, el navegador todavía no es una herramienta diagnóstica útil. Si compila pero el endpoint devuelve 404, debemos investigar rutas y acciones, no necesariamente el archivo `.csproj`.
+
+**Tres operaciones del SDK que conviene diferenciar.**
+
+~~~bash
+dotnet restore
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+`restore` resuelve las referencias de paquetes necesarias para el proyecto. `build` compila los archivos pertinentes y genera resultados. `run` inicia una aplicación y puede realizar tareas de compilación antes de ejecutar, salvo que se indique otra cosa. Por eso en una demostración de aula preferimos mantener claras las tres etapas: cuando falla una de ellas, resulta más fácil identificar qué capa debemos investigar.
+
+No hace falta explicar ahora todos los parámetros del SDK ni construir una infraestructura de CI compleja. Sin embargo, el alumno debe reconocer cuál es el directorio de trabajo y cuál es el proyecto que realmente está lanzando. Ejecutar un comando correcto en la carpeta equivocada puede dar lugar a confusiones difíciles de detectar con una simple inspección del navegador.
+
+## Arranque, servicios y configuración
+
+**Program.cs: qué ocurre al arrancar y qué ocurre ante una petición.**
 
 El código de arranque actual contiene las operaciones esenciales:
 
@@ -1220,7 +1264,7 @@ flowchart TD
 
 El ejemplo utiliza la ruta convencional con controlador y acción predeterminados. Durante 1.3 la identificamos y seguimos; en 1.4 explicaremos sus opciones y su relación con rutas por atributos, parámetros y resultados HTTP.
 
-## 1.3.4. appsettings.json: configuración distinta del código fuente
+**appsettings.json: configuración distinta del código fuente.**
 
 Un proyecto web necesita configuraciones que pueden cambiar según dónde y cómo se ejecute. ASP.NET Core carga valores desde fuentes de configuración, entre ellas archivos JSON, variables de entorno y argumentos de ejecución.
 
@@ -1260,7 +1304,74 @@ El texto `{Nombre}` de la plantilla de logging es un marcador de valor; permite 
 
 **Seguridad básica.** Los archivos de configuración del proyecto pueden contener ajustes, pero **no se deben subir secretos reales** a un repositorio público. Este curso solo usa valores didácticos. El hecho de que un archivo esté fuera de `wwwroot` no impide que un usuario con acceso al repositorio GitHub pueda leerlo.
 
-## 1.3.5. wwwroot: rutas físicas y URLs no son lo mismo
+**Los servicios se registran antes de que lleguen peticiones.**
+
+En `Program.cs` hemos utilizado `builder.Services.AddControllersWithViews()`. Su posición no es arbitraria: registramos servicios durante la construcción del host, antes de iniciar el proceso de atención de solicitudes. La llamada aporta infraestructura de controladores, vistas y funcionalidades relacionadas que después utilizará MVC.
+
+Es útil separar la frase «registrar servicios» de «crear nuestros tres productos». La primera operación pertenece a la configuración de la aplicación y se realiza al arrancar. La segunda ocurre en nuestro controlador, cuando ejecutamos una acción que crea la lista de datos fijos. No son dos maneras de llamar a lo mismo.
+
+Esta diferencia será importante cuando se incorporen servicios de aplicación en capítulos posteriores. La infraestructura de MVC puede obtener dependencias desde el contenedor integrado de .NET. No necesitamos explicar aquí sus ciclos de vida ni crear interfaces adicionales: basta con reconocer que `AddControllersWithViews` prepara las capacidades de la aplicación antes del procesamiento de peticiones.
+
+La llamada `builder.Build()` marca el paso de configurar el host a construir la instancia de aplicación. A partir de ella utilizamos `app` para preparar el pipeline y los endpoints. Finalmente `app.Run()` inicia la atención de solicitudes. Esta organización no es una peculiaridad estética del archivo: refleja momentos diferentes del ciclo de vida del proceso.
+
+**El orden de middleware y la selección de endpoints.**
+
+ASP.NET Core procesa solicitudes mediante una secuencia de componentes configurados en el host. En nuestro ejemplo aparecen `UseStaticFiles`, `UseRouting` y `MapControllerRoute`. Es importante observar que **registrar una ruta no significa abrir un archivo**: establece qué endpoints pueden seleccionarse para una petición.
+
+Una forma de comprender el pipeline consiste en seguir dos solicitudes distintas que entran por el mismo servidor.
+
+En `GET /Productos`, el archivo `wwwroot/Productos` no existe. La aplicación puede seleccionar el endpoint del controlador y ejecutar una acción que devuelve un resultado de vista. La respuesta será HTML generado en el servidor.
+
+En `GET /css/catalogo.css`, el archivo estático se encuentra bajo `wwwroot/css`. El middleware de archivos estáticos puede atender la solicitud y devolver el recurso con su tipo de contenido, sin ejecutar `ProductosController.Index()`. El hecho de que ambos recursos se sirvan desde un mismo puerto no significa que sigan el mismo camino interno.
+
+En ambos casos podemos observar con `curl -i` el código HTTP y el tipo de contenido. La elección de `UseStaticFiles` no obliga al navegador a cargar cada archivo por sí solo: para aplicar una hoja CSS, la página HTML debe enlazarla mediante una etiqueta adecuada. Esta es la razón por la que el paso 1.3.4 utiliza un fragmento comentado en el layout.
+
+**Qué sucedería si faltara UseStaticFiles.**
+
+Si elimináramos el middleware de archivos estáticos y no hubiera otro mecanismo configurado para servirlos, las solicitudes directas a las rutas de CSS y texto de la raíz web dejarían de funcionar de la manera demostrada. Sin embargo, los archivos permanecerían físicamente en el proyecto. Esto evidencia otra vez que **existencia física de un archivo** y **publicación por HTTP** son conceptos distintos.
+
+No pedimos realizar ese cambio como ejercicio de ejecución en P1.3 porque desestabilizaría otros apartados y obligaría a restaurar configuración compartida. Podemos razonar sobre la consecuencia a partir de la función de `UseStaticFiles`, y la batería de regresión comprueba que los recursos siguen respondiendo tras nuestros cambios.
+
+**Leer appsettings.json como una fuente de valores.**
+
+En el archivo `appsettings.json` existe una sección didáctica:
+
+~~~json
+"Curso": {
+  "Nombre": "Curso MVC de productos",
+  "Edicion": "Laboratorio NET8"
+}
+~~~
+
+No todas las claves de un archivo JSON tienen que pertenecer a una lista fija de propiedades del framework. `Curso` es una sección que hemos creado para nuestra aplicación. El sistema de configuración nos permite consultar valores mediante una clave jerárquica como `Curso:Nombre`.
+
+La notación con dos puntos expresa la jerarquía entre sección y propiedad. Es distinta del acceso a objetos C# con el punto y de las rutas de archivos con la barra. En nuestro caso, la lectura:
+
+~~~csharp
+app.Configuration["Curso:Nombre"]
+~~~
+
+obtiene un valor de tipo cadena. Si quisiéramos expresar una configuración compleja, ASP.NET Core también permite enlazar secciones a clases tipadas, pero no necesitamos introducir ese mecanismo para una única entrada textual.
+
+**Configuración y código: qué cambia y qué permanece.**
+
+El código del paso 1.3.3 muestra una llamada a logging:
+
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+
+La cadena de la sección `Curso` aporta el valor, mientras que la plantilla del mensaje define cómo registrarlo. Si cambia el valor de configuración y reiniciamos la aplicación, el código puede seguir siendo el mismo y el mensaje reflejar el valor actualizado. De esta manera comprobamos la utilidad de externalizar un ajuste que no merece ser una constante compilada dentro del controlador.
+
+No debemos atribuir esta operación a una vista Razor. El mensaje aparece en el registro del proceso y no se convierte automáticamente en texto visible en `/Productos`. Para mostrarlo allí tendríamos que decidir explícitamente cómo entregar ese dato a una vista, una actividad que no forma parte del objetivo concreto de 1.3.
+
+**Sobre los distintos orígenes de configuración.**
+
+ASP.NET Core puede combinar información procedente de archivos JSON, variables de entorno, argumentos y otros proveedores. No existe una única regla universal de prioridad para cualquier configuración personalizada: depende del host y de los proveedores registrados. En las aplicaciones creadas con los valores habituales de `WebApplication.CreateBuilder` hay un orden predeterminado documentado, que puede modificarse.
+
+En este capítulo leemos una sección estable de `appsettings.json` y lanzamos la aplicación con un argumento explícito para la URL. No es necesario memorizar toda la precedencia de proveedores, pero sí evitar la idea errónea de que `appsettings.json` es el único origen posible o de que necesariamente determina el puerto de cualquier despliegue.
+
+## Recursos públicos y respuestas HTTP
+
+**wwwroot: rutas físicas y URLs no son lo mismo.**
 
 El archivo `wwwroot/css/catalogo.css` está ubicado físicamente bajo la raíz web del proyecto. Su URL por defecto es `/css/catalogo.css`, sin incluir el nombre de carpeta `wwwroot`. Esto ocurre porque `UseStaticFiles()` expone los recursos desde esa raíz.
 
@@ -1302,34 +1413,7 @@ Un archivo fuera de `wwwroot` puede seguir siendo accesible de otra manera si de
 
 Además, retirar un enlace HTML **no despublica** el archivo que ya está en `wwwroot`. Un usuario que conozca o adivine su URL puede solicitarlo directamente. Esta distinción será esencial en el reto práctico.
 
-## 1.3.6. Layout, vistas y Tag Helpers: convenciones de presentación
-
-La página `/Productos` se compone de la vista `Views/Productos/Index.cshtml` y del layout compartido `Views/Shared/_Layout.cshtml`. El archivo `_ViewStart.cshtml` establece ese layout; `_ViewImports.cshtml` define importaciones y habilita Tag Helpers para las vistas.
-
-El layout contiene una zona para las hojas de estilo, navegación y `@RenderBody()`. En nuestro ejercicio activaremos dos enlaces comentados:
-
-~~~cshtml
-<link rel="stylesheet" href="/css/catalogo.css" />
-<a href="/recursos/guia-publica.txt">Guía pública</a>
-~~~
-
-Se trata de HTML con rutas de recursos estáticos. La vista `Index.cshtml` no necesita saber dónde está la hoja CSS ni incorporar cada enlace de navegación; es una decisión de diseño compartida.
-
-En el día 2 estudiaremos Tag Helpers como `asp-for` y `asp-action`. De momento conviene conocer su lugar de registro, pero no anticipar su sintaxis en formularios. Del mismo modo, las vistas tipadas que ya utilizamos en `1.2` se profundizarán en `1.5`.
-
-Un error frecuente consiste en pensar que una carpeta llamada `Views` se distribuye al navegador como si fuera un directorio de archivos web. No es así en nuestro proyecto: son archivos fuente para generar una respuesta **del lado del servidor**. Las hojas CSS, en cambio, sí se entregan como recursos separados al navegador.
-
-## 1.3.7. Convenciones, ventajas y límites
-
-Las convenciones de MVC reducen configuración repetitiva. Los nombres `ProductosController`, `Index` y `Views/Productos/Index.cshtml` bastan en nuestro ejercicio para conectar acción y vista. La carpeta `Shared` permite compartir el layout. `wwwroot` evita escribir una acción para cada CSS.
-
-No hay que convertir esas convenciones en leyes universales. Una aplicación puede personalizar rutas, nombres de vistas y proveedores de contenido estático. Para avanzar con seguridad, primero aprenderemos el funcionamiento convencional; después abordaremos las personalizaciones que el temario sí necesita.
-
-La organización del proyecto también favorece el aprendizaje incremental: añadir un modelo de producto no modifica necesariamente el layout, y cambiar el CSS no requiere modificar la clase del dominio. Esa es una continuación directa del principio de responsabilidades MVC aprendido en el capítulo 1.2.
-
-**Qué no haremos todavía:** estructurar una solución de múltiples proyectos, configurar contenedores de dependencias personalizados, introducir infraestructura de autenticación, publicar en IIS/Docker, aplicar bundling complejo ni estudiar todos los orígenes de configuración del host. Esas decisiones no ayudan al objetivo limitado de este capítulo.
-
-## 1.3.8. El reto de distinguir archivos públicos y archivos del proyecto
+**El reto de distinguir archivos públicos y archivos del proyecto.**
 
 La práctica termina con una comprobación sencilla pero reveladora: habilitar en el layout el enlace comentado **Aviso de laboratorio**, que apunta a un archivo ubicado en `wwwroot/recursos`. Después se solicitará por URL otro archivo de texto, `DOCUMENTACION/nota-interna.txt`, situado fuera de `wwwroot`.
 
@@ -1337,159 +1421,7 @@ El primero debe responder HTTP 200 y el segundo 404 en nuestro proyecto. Más in
 
 El código completo, las instrucciones para activar el enlace, los resultados esperados y las pruebas automáticas de ambas respuestas están en `P1.3`. El reto no requiere conocimientos de seguridad avanzados ni recursos externos.
 
-## 1.3.9. Problemas frecuentes
-
-**«Una vista Razor se abre por su ruta de archivo».** En el flujo MVC habitual se solicita una URL asociada a una acción; la infraestructura localiza la vista y genera HTML. La ruta física del archivo no se equipara a una URL pública.
-
-**«Para servir un CSS tengo que crear un controlador».** No en esta aplicación: `UseStaticFiles()` y `wwwroot` ya cubren esa necesidad.
-
-**«Si no hay enlace, el recurso está oculto».** No. Los archivos estáticos pueden solicitarse directamente si se conoce la URL y están publicados.
-
-**«Todo el contenido del proyecto está disponible en el navegador».** No por defecto. El código C#, los archivos de construcción y otros recursos del proyecto no se sirven automáticamente como estáticos por esta configuración.
-
-**«Program.cs se ejecuta por cada petición».** No. Configura y arranca el proceso una vez; los controladores atienden las peticiones que llegan después.
-
-**«El perfil de Visual Studio y appsettings.json son idénticos».** No. `launchSettings.json` describe perfiles de lanzamiento local; `appsettings.json` aporta configuración de aplicación y es solo uno de los orígenes posibles.
-
-**«El archivo de configuración incluye valores seguros porque no está en wwwroot».** Esto no justifica guardar contraseñas en un repositorio. Los recursos y las políticas de despliegue deben distinguirse del control de acceso al código fuente.
-
-## 1.3.10. Preparación para la práctica y el punto 1.4
-
-La práctica `P1.3` parte de una página `/Productos` ya funcional, sigue el árbol de archivos, activa un registro de configuración, incorpora una hoja CSS, habilita un enlace a un documento estático y resuelve un reto sobre publicación de recursos.
-
-El alumno debe terminar explicando **en qué carpeta se modifica una cosa y por qué**, además de haber comprobado cada resultado. Esta capacidad permite avanzar al punto `1.4`, donde los controladores atenderán nuevas acciones, parámetros y rutas.
-
-### Referencias de Microsoft Learn
-
-- Estructura básica de un proyecto MVC: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/start-mvc?view=aspnetcore-8.0
-- Archivos estáticos en ASP.NET Core: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/static-files?view=aspnetcore-8.0
-- Configuración en ASP.NET Core: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/?view=aspnetcore-8.0
-- Vistas Razor y convenciones: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/overview?view=aspnetcore-8.0
-
-
----
-
-
-## 1.3.11. Dos formas de leer el árbol del proyecto
-
-El explorador de soluciones muestra una lista de archivos, pero la estructura cobra sentido cuando la analizamos desde dos perspectivas diferentes.
-
-La primera es la **perspectiva de construcción**: preguntamos qué compila, qué archivos forman parte de la aplicación y qué resultados genera el SDK. En ella son centrales `CursoWeb.Mvc.csproj`, las clases C#, las vistas Razor, `Program.cs` y las carpetas temporales `bin` y `obj`. La segunda es la **perspectiva de ejecución HTTP**: preguntamos qué recibe el navegador y por qué. En esta intervienen las rutas registradas, los controladores, el motor de vistas, el layout y los archivos publicados desde `wwwroot`.
-
-Una misma carpeta puede resultar relevante para ambas perspectivas, pero no con la misma función. Las vistas `.cshtml` forman parte del proyecto y son necesarias para representar HTML; no tienen por qué aparecer publicadas como archivos individuales. Los archivos CSS se incorporan al proyecto y, además, pueden ser servidos directamente como recursos estáticos. Los archivos C# se compilan, pero no se devuelven como texto al navegador por la configuración habitual de MVC.
-
-Este doble enfoque evita dos errores frecuentes. El primero consiste en creer que todo archivo visible en el explorador corresponde a una URL. El segundo consiste en creer que todas las respuestas web tienen que provenir de un archivo físico con el mismo nombre que la dirección solicitada.
-
-### El resultado de compilar no es el árbol fuente
-
-Cuando el SDK construye el proyecto, genera ensamblados y artefactos intermedios. `obj` contiene archivos utilizados en fases de compilación y restauración; `bin` contiene resultados de la compilación para una configuración y un framework concretos. Estos directorios pueden regenerarse y, por ello, se excluyen normalmente del repositorio.
-
-En un curso basado en versiones independientes del mismo proyecto, esta diferencia es especialmente importante. Cada carpeta `PROYECTO/1.1`, `1.2`, etc. tiene su propia copia del código fuente para permitir una actividad reproducible. No se debe versionar el resultado `bin/Release/net8.0` de cada una como si fuera material docente. El alumno aprenderá más ejecutando `dotnet build` sobre la fuente que recibiendo un ensamblado precompilado.
-
-La evolución entre capítulos también explica por qué no pretendemos que el alumno vuelva a escribir todos los archivos en cada punto. Una vez que ha entendido un componente, la siguiente versión conserva la funcionalidad previa y concentra los cambios en el nuevo objetivo didáctico.
-
-## 1.3.12. El archivo csproj como declaración de capacidades
-
-La primera línea del archivo de proyecto selecciona `Microsoft.NET.Sdk.Web`. Esta elección no equivale a ejecutar un servidor, sino a declarar que construimos una aplicación web con un conjunto determinado de objetivos, referencias y tareas de compilación.
-
-~~~xml
-<Project Sdk="Microsoft.NET.Sdk.Web">
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
-</Project>
-~~~
-
-`TargetFramework` es el framework de destino del proyecto, no necesariamente la versión exacta de cada dependencia que pudiéramos añadir después. En nuestro ejemplo, el framework se fija en .NET 8 porque ese es el alcance del curso. Los conocimientos previos de C# y Web API permiten al alumnado reconocer que sigue tratándose de un proyecto de .NET, con su proceso de restauración, compilación y ejecución.
-
-`Nullable` ayuda a expresar y diagnosticar riesgos relacionados con referencias nulas. Es pertinente para nuestros tipos `Producto` y para el contrato nullable del listado, aunque aquí no profundizaremos en todas las reglas del compilador. `ImplicitUsings` reduce algunas declaraciones `using` repetitivas en archivos C#. Ninguna de las dos propiedades crea controladores por sí misma: afectan a la compilación del código.
-
-Un error de restauración, un error de compilación de C# y un fallo HTTP de ejecución tienen naturaleza diferente. Si no se puede restaurar el proyecto, el navegador todavía no es una herramienta diagnóstica útil. Si compila pero el endpoint devuelve 404, debemos investigar rutas y acciones, no necesariamente el archivo `.csproj`.
-
-### Tres operaciones del SDK que conviene diferenciar
-
-~~~bash
-dotnet restore
-dotnet build
-dotnet run --no-launch-profile --urls http://localhost:5091
-~~~
-
-`restore` resuelve las referencias de paquetes necesarias para el proyecto. `build` compila los archivos pertinentes y genera resultados. `run` inicia una aplicación y puede realizar tareas de compilación antes de ejecutar, salvo que se indique otra cosa. Por eso en una demostración de aula preferimos mantener claras las tres etapas: cuando falla una de ellas, resulta más fácil identificar qué capa debemos investigar.
-
-No hace falta explicar ahora todos los parámetros del SDK ni construir una infraestructura de CI compleja. Sin embargo, el alumno debe reconocer cuál es el directorio de trabajo y cuál es el proyecto que realmente está lanzando. Ejecutar un comando correcto en la carpeta equivocada puede dar lugar a confusiones difíciles de detectar con una simple inspección del navegador.
-
-## 1.3.13. Los servicios se registran antes de que lleguen peticiones
-
-En `Program.cs` hemos utilizado `builder.Services.AddControllersWithViews()`. Su posición no es arbitraria: registramos servicios durante la construcción del host, antes de iniciar el proceso de atención de solicitudes. La llamada aporta infraestructura de controladores, vistas y funcionalidades relacionadas que después utilizará MVC.
-
-Es útil separar la frase «registrar servicios» de «crear nuestros tres productos». La primera operación pertenece a la configuración de la aplicación y se realiza al arrancar. La segunda ocurre en nuestro controlador, cuando ejecutamos una acción que crea la lista de datos fijos. No son dos maneras de llamar a lo mismo.
-
-Esta diferencia será importante cuando se incorporen servicios de aplicación en capítulos posteriores. La infraestructura de MVC puede obtener dependencias desde el contenedor integrado de .NET. No necesitamos explicar aquí sus ciclos de vida ni crear interfaces adicionales: basta con reconocer que `AddControllersWithViews` prepara las capacidades de la aplicación antes del procesamiento de peticiones.
-
-La llamada `builder.Build()` marca el paso de configurar el host a construir la instancia de aplicación. A partir de ella utilizamos `app` para preparar el pipeline y los endpoints. Finalmente `app.Run()` inicia la atención de solicitudes. Esta organización no es una peculiaridad estética del archivo: refleja momentos diferentes del ciclo de vida del proceso.
-
-## 1.3.14. El orden de middleware y la selección de endpoints
-
-ASP.NET Core procesa solicitudes mediante una secuencia de componentes configurados en el host. En nuestro ejemplo aparecen `UseStaticFiles`, `UseRouting` y `MapControllerRoute`. Es importante observar que **registrar una ruta no significa abrir un archivo**: establece qué endpoints pueden seleccionarse para una petición.
-
-Una forma de comprender el pipeline consiste en seguir dos solicitudes distintas que entran por el mismo servidor.
-
-En `GET /Productos`, el archivo `wwwroot/Productos` no existe. La aplicación puede seleccionar el endpoint del controlador y ejecutar una acción que devuelve un resultado de vista. La respuesta será HTML generado en el servidor.
-
-En `GET /css/catalogo.css`, el archivo estático se encuentra bajo `wwwroot/css`. El middleware de archivos estáticos puede atender la solicitud y devolver el recurso con su tipo de contenido, sin ejecutar `ProductosController.Index()`. El hecho de que ambos recursos se sirvan desde un mismo puerto no significa que sigan el mismo camino interno.
-
-En ambos casos podemos observar con `curl -i` el código HTTP y el tipo de contenido. La elección de `UseStaticFiles` no obliga al navegador a cargar cada archivo por sí solo: para aplicar una hoja CSS, la página HTML debe enlazarla mediante una etiqueta adecuada. Esta es la razón por la que el paso 1.3.4 utiliza un fragmento comentado en el layout.
-
-### Qué sucedería si faltara UseStaticFiles
-
-Si elimináramos el middleware de archivos estáticos y no hubiera otro mecanismo configurado para servirlos, las solicitudes directas a las rutas de CSS y texto de la raíz web dejarían de funcionar de la manera demostrada. Sin embargo, los archivos permanecerían físicamente en el proyecto. Esto evidencia otra vez que **existencia física de un archivo** y **publicación por HTTP** son conceptos distintos.
-
-No pedimos realizar ese cambio como ejercicio de ejecución en P1.3 porque desestabilizaría otros apartados y obligaría a restaurar configuración compartida. Podemos razonar sobre la consecuencia a partir de la función de `UseStaticFiles`, y la batería de regresión comprueba que los recursos siguen respondiendo tras nuestros cambios.
-
-## 1.3.15. Leer appsettings.json como una fuente de valores
-
-En el archivo `appsettings.json` existe una sección didáctica:
-
-~~~json
-"Curso": {
-  "Nombre": "Curso MVC de productos",
-  "Edicion": "Laboratorio NET8"
-}
-~~~
-
-No todas las claves de un archivo JSON tienen que pertenecer a una lista fija de propiedades del framework. `Curso` es una sección que hemos creado para nuestra aplicación. El sistema de configuración nos permite consultar valores mediante una clave jerárquica como `Curso:Nombre`.
-
-La notación con dos puntos expresa la jerarquía entre sección y propiedad. Es distinta del acceso a objetos C# con el punto y de las rutas de archivos con la barra. En nuestro caso, la lectura:
-
-~~~csharp
-app.Configuration["Curso:Nombre"]
-~~~
-
-obtiene un valor de tipo cadena. Si quisiéramos expresar una configuración compleja, ASP.NET Core también permite enlazar secciones a clases tipadas, pero no necesitamos introducir ese mecanismo para una única entrada textual.
-
-### Configuración y código: qué cambia y qué permanece
-
-El código del paso 1.3.3 muestra una llamada a logging:
-
-~~~csharp
-app.Logger.LogInformation(
-    "P1.3 configuracion: {Nombre}",
-    app.Configuration["Curso:Nombre"]);
-~~~
-
-La cadena de la sección `Curso` aporta el valor, mientras que la plantilla del mensaje define cómo registrarlo. Si cambia el valor de configuración y reiniciamos la aplicación, el código puede seguir siendo el mismo y el mensaje reflejar el valor actualizado. De esta manera comprobamos la utilidad de externalizar un ajuste que no merece ser una constante compilada dentro del controlador.
-
-No debemos atribuir esta operación a una vista Razor. El mensaje aparece en el registro del proceso y no se convierte automáticamente en texto visible en `/Productos`. Para mostrarlo allí tendríamos que decidir explícitamente cómo entregar ese dato a una vista, una actividad que no forma parte del objetivo concreto de 1.3.
-
-### Sobre los distintos orígenes de configuración
-
-ASP.NET Core puede combinar información procedente de archivos JSON, variables de entorno, argumentos y otros proveedores. No existe una única regla universal de prioridad para cualquier configuración personalizada: depende del host y de los proveedores registrados. En las aplicaciones creadas con los valores habituales de `WebApplication.CreateBuilder` hay un orden predeterminado documentado, que puede modificarse.
-
-En este capítulo leemos una sección estable de `appsettings.json` y lanzamos la aplicación con un argumento explícito para la URL. No es necesario memorizar toda la precedencia de proveedores, pero sí evitar la idea errónea de que `appsettings.json` es el único origen posible o de que necesariamente determina el puerto de cualquier despliegue.
-
-## 1.3.16. Una lectura rigurosa de la raíz web
+**Una lectura rigurosa de la raíz web.**
 
 El nombre `wwwroot` tiene una función precisa: se utiliza como raíz de archivos web para el middleware estático en la configuración convencional de la aplicación. Una solicitud a `/recursos/guia-publica.txt` no contiene el nombre `wwwroot` en su ruta URL, aunque el archivo físico esté ubicado dentro de esa carpeta.
 
@@ -1507,7 +1439,7 @@ La correspondencia depende de que la aplicación esté configurada para servir e
 
 Esto es particularmente relevante para la seguridad básica. Un archivo colocado bajo `wwwroot` puede quedar accesible por URL aunque nunca aparezca en un menú. No debemos guardar allí documentos privados, credenciales, claves o materiales que no pretendemos publicar. Del mismo modo, guardar una cadena ficticia fuera de `wwwroot` no garantiza su secreto si el repositorio está disponible públicamente en GitHub.
 
-### ¿Qué enseña el recurso fuera de wwwroot?
+**¿Qué enseña el recurso fuera de wwwroot?.**
 
 En `DOCUMENTACION/nota-interna.txt` hemos creado un ejemplo de archivo que pertenece al proyecto, pero no se publica como recurso estático en la configuración actual. La URL `/DOCUMENTACION/nota-interna.txt` devuelve 404 porque el middleware no utiliza esa carpeta como raíz web y no existe una acción que la atienda.
 
@@ -1515,7 +1447,7 @@ Este resultado confirma **una propiedad de la configuración actual**, no una ga
 
 El reto de 1.3 plantea precisamente esta comparación. Habilitar el enlace a `aviso-laboratorio.txt` modifica la navegación visible, pero no altera el estado de publicación del archivo: ya estaba dentro de `wwwroot` desde el principio.
 
-## 1.3.17. Tipos de recursos y cabeceras: razonar a partir de HTTP
+**Tipos de recursos y cabeceras: razonar a partir de HTTP.**
 
 Cuando solicitamos un archivo CSS esperamos una respuesta que el navegador pueda tratar como hoja de estilos. Un código 200 es necesario para demostrar la entrega satisfactoria en nuestro ejemplo, pero **no es suficiente**: también es relevante que el tipo de contenido sea `text/css`.
 
@@ -1534,7 +1466,36 @@ La primera requiere que MVC encuentre el controlador y renderice su vista. Las d
 
 La comprobación enseña más que aprender de memoria una lista de carpetas. Permite construir una hipótesis sobre qué parte de ASP.NET Core debe procesar una URL y contrastarla con el resultado. En problemas reales, esta habilidad ayuda a distinguir un fallo de rutas, un recurso estático ausente y una respuesta generada correctamente pero sin el formato esperado.
 
-## 1.3.18. Convenciones de vistas y archivos compartidos
+## Vistas, layouts y convenciones
+
+**Layout, vistas y Tag Helpers: convenciones de presentación.**
+
+La página `/Productos` se compone de la vista `Views/Productos/Index.cshtml` y del layout compartido `Views/Shared/_Layout.cshtml`. El archivo `_ViewStart.cshtml` establece ese layout; `_ViewImports.cshtml` define importaciones y habilita Tag Helpers para las vistas.
+
+El layout contiene una zona para las hojas de estilo, navegación y `@RenderBody()`. En nuestro ejercicio activaremos dos enlaces comentados:
+
+~~~cshtml
+<link rel="stylesheet" href="/css/catalogo.css" />
+<a href="/recursos/guia-publica.txt">Guía pública</a>
+~~~
+
+Se trata de HTML con rutas de recursos estáticos. La vista `Index.cshtml` no necesita saber dónde está la hoja CSS ni incorporar cada enlace de navegación; es una decisión de diseño compartida.
+
+En el día 2 estudiaremos Tag Helpers como `asp-for` y `asp-action`. De momento conviene conocer su lugar de registro, pero no anticipar su sintaxis en formularios. Del mismo modo, las vistas tipadas que ya utilizamos en `1.2` se profundizarán en `1.5`.
+
+Un error frecuente consiste en pensar que una carpeta llamada `Views` se distribuye al navegador como si fuera un directorio de archivos web. No es así en nuestro proyecto: son archivos fuente para generar una respuesta **del lado del servidor**. Las hojas CSS, en cambio, sí se entregan como recursos separados al navegador.
+
+**Convenciones, ventajas y límites.**
+
+Las convenciones de MVC reducen configuración repetitiva. Los nombres `ProductosController`, `Index` y `Views/Productos/Index.cshtml` bastan en nuestro ejercicio para conectar acción y vista. La carpeta `Shared` permite compartir el layout. `wwwroot` evita escribir una acción para cada CSS.
+
+No hay que convertir esas convenciones en leyes universales. Una aplicación puede personalizar rutas, nombres de vistas y proveedores de contenido estático. Para avanzar con seguridad, primero aprenderemos el funcionamiento convencional; después abordaremos las personalizaciones que el temario sí necesita.
+
+La organización del proyecto también favorece el aprendizaje incremental: añadir un modelo de producto no modifica necesariamente el layout, y cambiar el CSS no requiere modificar la clase del dominio. Esa es una continuación directa del principio de responsabilidades MVC aprendido en el capítulo 1.2.
+
+**Qué no haremos todavía:** estructurar una solución de múltiples proyectos, configurar contenedores de dependencias personalizados, introducir infraestructura de autenticación, publicar en IIS/Docker, aplicar bundling complejo ni estudiar todos los orígenes de configuración del host. Esas decisiones no ayudan al objetivo limitado de este capítulo.
+
+**Convenciones de vistas y archivos compartidos.**
 
 Las carpetas `Views/Home` y `Views/Productos` tienen nombres que coinciden con los controladores de la aplicación. No es casualidad: MVC dispone de reglas de búsqueda de vistas que aprovechan esas convenciones. Cuando `HomeController.Index()` devuelve `View()` sin nombre explícito, la infraestructura busca un archivo de vista correspondiente a la acción, por ejemplo `Views/Home/Index.cshtml`.
 
@@ -1544,7 +1505,41 @@ El layout compartido reduce duplicación. Si todas las páginas deben presentar 
 
 `_ViewStart.cshtml` establece la selección del layout para las vistas; `_ViewImports.cshtml` facilita directivas comunes. Aunque sus nombres son parecidos, tienen tareas distintas. En P1.5 utilizaremos además una vista parcial compartida que no necesita ejecutarse como una página independiente, lo cual reforzará la diferencia entre archivos fuente de presentación y URLs públicas.
 
-## 1.3.19. Una estrategia de diagnóstico basada en carpetas
+## Diagnóstico y preparación de la siguiente práctica
+
+**Problemas frecuentes.**
+
+**«Una vista Razor se abre por su ruta de archivo».** En el flujo MVC habitual se solicita una URL asociada a una acción; la infraestructura localiza la vista y genera HTML. La ruta física del archivo no se equipara a una URL pública.
+
+**«Para servir un CSS tengo que crear un controlador».** No en esta aplicación: `UseStaticFiles()` y `wwwroot` ya cubren esa necesidad.
+
+**«Si no hay enlace, el recurso está oculto».** No. Los archivos estáticos pueden solicitarse directamente si se conoce la URL y están publicados.
+
+**«Todo el contenido del proyecto está disponible en el navegador».** No por defecto. El código C#, los archivos de construcción y otros recursos del proyecto no se sirven automáticamente como estáticos por esta configuración.
+
+**«Program.cs se ejecuta por cada petición».** No. Configura y arranca el proceso una vez; los controladores atienden las peticiones que llegan después.
+
+**«El perfil de Visual Studio y appsettings.json son idénticos».** No. `launchSettings.json` describe perfiles de lanzamiento local; `appsettings.json` aporta configuración de aplicación y es solo uno de los orígenes posibles.
+
+**«El archivo de configuración incluye valores seguros porque no está en wwwroot».** Esto no justifica guardar contraseñas en un repositorio. Los recursos y las políticas de despliegue deben distinguirse del control de acceso al código fuente.
+
+**Preparación para la práctica y el punto 1.4.**
+
+La práctica `P1.3` parte de una página `/Productos` ya funcional, sigue el árbol de archivos, activa un registro de configuración, incorpora una hoja CSS, habilita un enlace a un documento estático y resuelve un reto sobre publicación de recursos.
+
+El alumno debe terminar explicando **en qué carpeta se modifica una cosa y por qué**, además de haber comprobado cada resultado. Esta capacidad permite avanzar al punto `1.4`, donde los controladores atenderán nuevas acciones, parámetros y rutas.
+
+**Referencias de Microsoft Learn.**
+
+- Estructura básica de un proyecto MVC: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/start-mvc?view=aspnetcore-8.0
+- Archivos estáticos en ASP.NET Core: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/static-files?view=aspnetcore-8.0
+- Configuración en ASP.NET Core: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/?view=aspnetcore-8.0
+- Vistas Razor y convenciones: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/overview?view=aspnetcore-8.0
+
+
+---
+
+**Una estrategia de diagnóstico basada en carpetas.**
 
 Cuando una página deja de funcionar, la tentación es abrir todos los archivos del proyecto y buscar un error al azar. La estructura MVC permite una secuencia más controlada.
 
@@ -1552,7 +1547,7 @@ Si `/Productos` devuelve 404, primero comprobamos la configuración de rutas y q
 
 Esta estrategia vincula **síntoma observable → responsabilidad probable → archivo concreto**. No garantiza que todo fallo real se resuelva siguiendo un único camino, pero evita modificar clases de dominio para corregir un enlace CSS o modificar rutas para solucionar un valor de configuración.
 
-### Caso de estudio: se ha copiado el proyecto, pero no aparecen los cambios
+**Caso de estudio: se ha copiado el proyecto, pero no aparecen los cambios.**
 
 Imaginemos que un alumno abre el proyecto de `PROYECTO/1.2` en una ventana y ejecuta el de `PROYECTO/1.3` desde una terminal. Puede guardar una modificación correcta en el archivo equivocado y concluir que Razor o el compilador no funcionan.
 
@@ -1560,7 +1555,7 @@ La primera comprobación no debe ser reescribir el código. Debemos identificar 
 
 Si se producen dos intentos de arranque sobre el mismo puerto, el segundo puede fallar porque ya existe un proceso escuchando. No debe diagnosticarse automáticamente como un error de MVC ni del controlador: es una condición del entorno de ejecución.
 
-## 1.3.20. Cómo comprobar que hemos entendido la estructura
+**Cómo comprobar que hemos entendido la estructura.**
 
 Un resultado útil de aprendizaje no consiste en memorizar que «los CSS están en wwwroot». El alumno debe poder explicar **qué ocurre si se cambia una pieza y qué otras deberían permanecer iguales**.
 
@@ -1572,16 +1567,19 @@ La última pregunta de razonamiento reúne todos los conceptos: *si un archivo d
 
 Ese razonamiento es la base del capítulo siguiente. Al añadir acciones y rutas más específicas en 1.4, distinguir entre una ruta HTTP publicada y una ubicación física del proyecto dejará de ser opcional: será necesario para explicar por qué dos direcciones diferentes pueden terminar utilizando la misma vista Razor.
 
-
 # 1.4. Controladores, acciones, parámetros y routing en ASP.NET Core MVC
 
-## Objetivos de aprendizaje
+
+
+**Objetivos de aprendizaje.**
 
 Al finalizar este punto, el alumno sabrá **seguir una URL hasta su acción MVC**, añadir acciones nuevas a un controlador, distinguir una respuesta HTML de una respuesta de texto o JSON, utilizar parámetros provenientes de la URL y controlar los resultados HTTP de éxito y error. También comprenderá **el enrutamiento convencional frente al enrutamiento por atributos**, aplicando ambos al catálogo de productos.
 
 Se trabaja sobre el proyecto 1.4, continuación funcional del 1.3. El listado de productos y su navegación ya funcionan. Construiremos una acción de estado, un detalle tipado y otra dirección para la misma clase de información. El reto final devolverá una respuesta JSON breve desde un controlador MVC para conectar con los conocimientos previos de Web API.
 
-## 1.4.1. Qué es una acción MVC y cómo se selecciona
+## Acciones, rutas convencionales y rutas por atributos
+
+**Qué es una acción MVC y cómo se selecciona.**
 
 En los ejemplos anteriores, `ProductosController` tenía una acción `Index()` que recibía una petición GET y devolvía `View(productos)`. Cuando abrimos `/Productos`, ASP.NET Core no busca un archivo `Productos.html` en el disco. El sistema de enrutamiento identifica un **endpoint** MVC y ejecuta la acción correspondiente.
 
@@ -1614,7 +1612,7 @@ Una URL como `/Productos/Detalle/2` permite obtener los valores de ruta: control
 
 Una **coincidencia de ruta** no garantiza que la acción devuelva 200. Puede seleccionar la acción correctamente, pero esta determinar que el producto no existe y devolver 404. Por eso distinguiremos entre «no hay endpoint que coincida» y «el endpoint se ejecuta y responde con un resultado de error».
 
-### Reutilizar la lista de productos sin base de datos
+**Reutilizar la lista de productos sin base de datos.**
 
 El proyecto 1.3 construía la lista directamente dentro de `Index()`. Para añadir una acción `Detalle(id)` sin escribir una segunda lista distinta, la versión 1.4 extrae los mismos datos a un método privado:
 
@@ -1636,25 +1634,117 @@ public IActionResult Index()
 
 La lista **no es persistente**, y el método la crea en memoria cada vez que se solicita. Usamos esta refactorización mínima exclusivamente para compartir los mismos datos entre el listado, la ficha y el reto. El método privado **no es una acción pública**; no se publica automáticamente como una URL. En M02 sustituiremos los datos fijos por la persistencia con EF Core.
 
-## 1.4.2. Restricciones de verbo HTTP y respuestas distintas de View
+**Enrutamiento convencional frente a rutas por atributos.**
 
-El atributo `[HttpGet]` indica que una acción está destinada a manejar solicitudes GET. En este ejercicio lo utilizamos sin una plantilla de URL propia para permitir que la acción `Estado()` se alcance por la ruta convencional:
+Hasta ahora el registro de `MapControllerRoute` determina el patrón general. Cuando necesitamos una dirección que no respeta `/Productos/NombreAccion/id`, podemos definir **una plantilla de ruta sobre una acción**.
+
+Añadiremos:
 
 ~~~csharp
-[HttpGet]
-public IActionResult Estado()
+[HttpGet("/catalogo/ficha/{id:int}")]
+public IActionResult Ficha(int id)
 {
-    return Content("Catalogo MVC disponible", "text/plain");
+    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return View("Detalle", producto);
 }
 ~~~
 
-Una solicitud a `GET /Productos/Estado` devolverá **HTTP 200**, contenido de tipo texto y la cadena `Catalogo MVC disponible`. No hay vista `Estado.cshtml`: `Content()` crea un tipo de resultado HTTP distinto de `View()`.
+La plantilla absoluta `"/catalogo/ficha/{id:int}"` indica una dirección nueva, por ejemplo `GET /catalogo/ficha/2`, aunque el controlador se llame `ProductosController`. El prefijo `/` señala una plantilla absoluta. `{id:int}` exige que el segmento de la ruta pueda interpretarse como entero; una petición `/catalogo/ficha/no-numero` **no cumple la restricción** y no alcanza esta acción, por lo que obtendrá 404.
 
-Esto demuestra algo esencial para quien ya conoce Web API: **un controlador MVC no está obligado a devolver HTML**. La acción elige un resultado apropiado para la necesidad de la interfaz. Al mismo tiempo, una aplicación que principalmente muestra vistas no tiene por qué convertirse por ello en una API REST completa.
+La acción `Ficha` utiliza la misma colección y retorna `View("Detalle", producto)` para **reutilizar explícitamente** la vista de detalle. Si utilizáramos `return View(producto);` sin especificar nombre, MVC intentaría localizar la vista de nombre `Ficha` por convención. Esta diferencia entre nombre de acción y nombre de vista es uno de los objetivos principales del ejemplo.
 
-En el punto 2.1 utilizaremos formularios GET/POST. Aquí no introducimos métodos para alterar datos; solo recibimos consultas GET y comparamos sus respuestas.
+Con rutas por atributos, una acción seleccionada exclusivamente por su plantilla no adquiere necesariamente una URL convencional equivalente. En nuestro caso, `/Productos/Ficha/2` no corresponde al endpoint definido; la dirección prevista es `/catalogo/ficha/2`.
 
-## 1.4.3. Parámetros de una acción: el detalle de producto
+Los dos enfoques pueden coexistir en una aplicación. **No significa que una ruta por atributos sea siempre mejor** ni que debamos reemplazar el patrón convencional para todas las páginas. Lo importante es saber qué URL se publica en cada caso y qué restricción acepta.
+
+~~~mermaid
+flowchart TD
+    A["GET /Productos/Detalle/2"] --> B["Patrón convencional"]
+    B --> C["ProductosController.Detalle(id=2)"]
+    D["GET /catalogo/ficha/2"] --> E["Plantilla por atributos"]
+    E --> F["ProductosController.Ficha(id=2)"]
+    C --> G["Vista Detalle.cshtml"]
+    F --> G
+    G --> H["HTML HTTP 200"]
+    X["GET /catalogo/ficha/no-numero"] --> Y["Restricción {id:int} no coincide"]
+    Y --> Z["HTTP 404"]
+~~~
+
+**Razonar sobre los segmentos de una ruta antes de programar.**
+
+Una ruta MVC no es el nombre de un archivo. Es una regla utilizada por la infraestructura de endpoints para asociar una solicitud HTTP con código ejecutable. La plantilla convencional de nuestro proyecto:
+
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+
+contiene tres posiciones. Los dos primeros valores tienen nombres y valores predeterminados; el último segmento es opcional. La sintaxis con llaves representa parámetros de ruta, no variables de C# declaradas dentro de `Program.cs`. Su misión es describir **cómo interpretar los segmentos de una URL**.
+
+Para comprenderla, conviene leer las siguientes direcciones sin acudir todavía al navegador:
+
+~~~text
+/
+ /Home
+ /Home/Index
+ /Productos
+ /Productos/Index
+ /Productos/Detalle/1
+ /Productos/Detalle/2
+ /Productos/Detalle/99
+~~~
+
+Los espacios iniciales que aparecen en esta representación son únicamente parte de la indentación del documento, no caracteres que deban teclearse. En cada caso, identificamos primero el controlador, después la acción y finalmente el eventual parámetro `id`. Una vez comprendida la regla podemos predecir qué método **podría** ejecutarse, pero aún no qué código HTTP devolverá.
+
+**Coincidencia de plantilla frente a existencia de acción.**
+
+Una URL podría ajustarse formalmente a los segmentos `controller/action/id` y, sin embargo, no existir una acción pública compatible dentro de la aplicación. La regla de ruta no inventa métodos; solo ayuda a seleccionar los endpoints registrados a partir del código de controladores.
+
+También puede ocurrir lo contrario: una acción pública existe, pero su atributo de ruta establece un patrón específico que no coincide con la dirección que suponíamos por su nombre. Esto sucede con `Ficha(int id)`, que tiene una URL explícita `/catalogo/ficha/{id:int}`. La acción no debe interpretarse como si fuera necesariamente accesible por `/Productos/Ficha/2`.
+
+Esta diferencia es una de las razones por las que conviene enseñar enrutamiento después de haber ejecutado acciones sencillas: el alumno ya sabe que una acción puede devolver una vista y, por tanto, puede concentrarse en **por qué fue seleccionada**.
+
+**La diferencia entre una dirección, una ruta y un recurso.**
+
+Al navegar por Internet utilizamos direcciones completas, pero en el código del curso solemos escribir únicamente la parte que identifica un endpoint dentro de la aplicación. Es importante distinguir estos conceptos porque un error puede producirse en cualquiera de ellos.
+
+La dirección completa de nuestro laboratorio tiene esquema, host, puerto y ruta:
+
+~~~text
+http://localhost:5091/Productos/Detalle/2
+~~~
+
+`http` identifica el esquema utilizado; `localhost` es el host; `5091` es el puerto; `/Productos/Detalle/2` es el camino que la aplicación utiliza para seleccionar el endpoint. Cambiar el puerto en el navegador sin cambiar dónde escucha Kestrel puede impedir conectar con el proceso. Cambiar el último segmento, en cambio, puede seleccionar otro producto sin modificar el host.
+
+La ruta convencional definida en `Program.cs` interpreta los segmentos del camino. Por tanto, no es lo mismo preguntar «¿qué servidor atiende la solicitud?» que preguntar «¿qué acción MVC corresponde a esta ruta?». La primera pregunta pertenece al entorno de ejecución y la segunda al enrutamiento de la aplicación.
+
+**Un recurso puede no corresponder a un archivo.**
+
+La página `/Productos/Detalle/2` no necesita un archivo físico llamado `2.html`. La acción recibe el valor 2, obtiene un objeto y pide al motor Razor que represente una vista. El resultado generado puede contener el nombre Lápiz, pero ese HTML no se obtiene necesariamente de un archivo estático con la misma URL.
+
+En cambio, `/css/catalogo.css` puede resolverse a un recurso estático de `wwwroot`. Ambos casos utilizan HTTP, pero no es correcto deducir por la forma de la URL que uno u otro debe ser obligatoriamente un archivo del sistema operativo.
+
+Esta distinción une los capítulos 1.3 y 1.4. En el primero descubrimos la raíz web y los archivos estáticos; en el segundo añadimos endpoints que ejecutan código. La aplicación contiene ambos tipos de respuesta y una misma URL base no determina que todo se sirva por el mismo mecanismo.
+
+**Un ejemplo de error que no se arregla creando otra vista.**
+
+Supongamos que un alumno escribe `/catalogo/ficha/2` y recibe 404. Podría interpretar que debe crear `Views/Productos/Ficha.cshtml`. Sin embargo, la acción preparada devuelve `View("Detalle", producto)`, lo que indica explícitamente que desea utilizar la vista existente `Detalle.cshtml`.
+
+Antes de crear archivos, debemos comprobar si la ruta por atributo se ha activado. Mientras el bloque `PASO 1.4.4` esté comentado, el endpoint no existe en la versión que ejecutamos. Crear una vista adicional no resolvería esa ausencia de ruta.
+
+Si la acción está activa y selecciona correctamente el producto, la llamada `View("Detalle", producto)` ya proporciona el nombre de la vista. El aprendizaje consiste en separar **encontrar la acción** de **encontrar el archivo de representación**.
+
+**Por qué esa distinción ahorra trabajo.**
+
+En una aplicación más grande, múltiples rutas pueden llevar a una misma representación. Si copiamos una vista por cada dirección sin que exista una necesidad de diseño diferente, aumentamos innecesariamente el mantenimiento. El proyecto del curso muestra una alternativa concreta y sencilla: reutilizar una vista y expresar su nombre cuando la convención basada en el nombre de la acción no es apropiada.
+
+No estamos promoviendo que todas las acciones utilicen siempre la misma plantilla. Solo demostramos que la elección de la ruta y la elección de la vista son decisiones independientes que podemos coordinar de forma explícita.
+
+## Parámetros, búsqueda y decisiones de la acción
+
+**Parámetros de una acción: el detalle de producto.**
 
 Vamos a introducir una acción `Detalle(int id)`. La ruta convencional puede capturar el tercer segmento de una URL y la infraestructura de **model binding** convertirlo a un parámetro `int` del método. El binding toma valores de distintas partes de la petición según el caso; durante este capítulo nos centraremos en el valor de ruta `id`.
 
@@ -1706,186 +1796,7 @@ Este ejemplo utiliza `@Model` porque cada solicitud de detalle recibe **un objet
 
 La función de `<dl>`, `<dt>` y `<dd>` es representar relaciones nombre/valor en HTML, como identificador, nombre y precio. No cambian el tipo de resultado HTTP. Los atributos `id` del HTML permiten identificar los valores en el navegador y en las pruebas.
 
-## 1.4.4. IActionResult, resultados concretos y códigos de estado
-
-En una acción hemos utilizado varios métodos de retorno. Es importante no tratar `return View(...)`, `return Content(...)` y `return NotFound()` como si todos significaran «mostrar una página».
-
-| Instrucción del controlador | Resultado habitual en este capítulo | Qué recibe el cliente |
-|---|---|---|
-| `return View(producto);` | 200, `text/html` | HTML generado desde Razor |
-| `return Content("...", "text/plain");` | 200, `text/plain` | Texto sin layout |
-| `return BadRequest("...");` | 400 | Resultado de error con información explicativa |
-| `return NotFound();` | 404 | Respuesta de recurso no encontrado |
-| `return Ok(new { ... });` | 200, formato JSON negociado habitualmente | Datos JSON del objeto anónimo |
-
-El tipo declarado `IActionResult` permite devolver diferentes tipos concretos de resultado desde una misma acción. Una firma `ActionResult<T>` es frecuente en Web API cuando se desea describir un tipo de dato de éxito y posibles errores; aquí utilizamos `IActionResult` para no desviar la práctica hacia el diseño de API.
-
-### 404: dos situaciones que conviene distinguir
-
-Si `GET /no-existe` no coincide con ninguna ruta de nuestra aplicación, el sistema de enrutamiento termina sin ejecutar una acción de catálogo. Si `GET /Productos/Detalle/99` coincide con `Detalle(int id)`, **la acción sí se ejecuta**, intenta buscar el producto y decide `NotFound()`. Ambas situaciones pueden producir 404, pero sus causas y soluciones no son iguales.
-
-### 400 frente a 404
-
-Un identificador que nuestra acción considera inválido, como 0, obtiene 400 por una regla explícita del código. Un identificador válido en formato pero inexistente, como 99, obtiene 404. El código de estado **no aparece automáticamente por el hecho de usar un int**: lo decidimos deliberadamente en estos métodos. Verificaremos la diferencia mediante HTTP.
-
-## 1.4.5. Enrutamiento convencional frente a rutas por atributos
-
-Hasta ahora el registro de `MapControllerRoute` determina el patrón general. Cuando necesitamos una dirección que no respeta `/Productos/NombreAccion/id`, podemos definir **una plantilla de ruta sobre una acción**.
-
-Añadiremos:
-
-~~~csharp
-[HttpGet("/catalogo/ficha/{id:int}")]
-public IActionResult Ficha(int id)
-{
-    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
-    if (producto is null)
-    {
-        return NotFound();
-    }
-
-    return View("Detalle", producto);
-}
-~~~
-
-La plantilla absoluta `"/catalogo/ficha/{id:int}"` indica una dirección nueva, por ejemplo `GET /catalogo/ficha/2`, aunque el controlador se llame `ProductosController`. El prefijo `/` señala una plantilla absoluta. `{id:int}` exige que el segmento de la ruta pueda interpretarse como entero; una petición `/catalogo/ficha/no-numero` **no cumple la restricción** y no alcanza esta acción, por lo que obtendrá 404.
-
-La acción `Ficha` utiliza la misma colección y retorna `View("Detalle", producto)` para **reutilizar explícitamente** la vista de detalle. Si utilizáramos `return View(producto);` sin especificar nombre, MVC intentaría localizar la vista de nombre `Ficha` por convención. Esta diferencia entre nombre de acción y nombre de vista es uno de los objetivos principales del ejemplo.
-
-Con rutas por atributos, una acción seleccionada exclusivamente por su plantilla no adquiere necesariamente una URL convencional equivalente. En nuestro caso, `/Productos/Ficha/2` no corresponde al endpoint definido; la dirección prevista es `/catalogo/ficha/2`.
-
-Los dos enfoques pueden coexistir en una aplicación. **No significa que una ruta por atributos sea siempre mejor** ni que debamos reemplazar el patrón convencional para todas las páginas. Lo importante es saber qué URL se publica en cada caso y qué restricción acepta.
-
-~~~mermaid
-flowchart TD
-    A["GET /Productos/Detalle/2"] --> B["Patrón convencional"]
-    B --> C["ProductosController.Detalle(id=2)"]
-    D["GET /catalogo/ficha/2"] --> E["Plantilla por atributos"]
-    E --> F["ProductosController.Ficha(id=2)"]
-    C --> G["Vista Detalle.cshtml"]
-    F --> G
-    G --> H["HTML HTTP 200"]
-    X["GET /catalogo/ficha/no-numero"] --> Y["Restricción {id:int} no coincide"]
-    Y --> Z["HTTP 404"]
-~~~
-
-## 1.4.6. Enlaces de navegación desde la vista del listado
-
-Una ficha de detalle resulta mucho más útil cuando se puede abrir desde el listado. La vista de `Index` ya recorre la colección `Model`. Dentro de cada elemento de la lista añadiremos:
-
-~~~cshtml
-<a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
-~~~
-
-Razor inserta el valor de `producto.Id` en el atributo `href`. Para los tres objetos, las URLs serán `/Productos/Detalle/1`, `/Productos/Detalle/2` y `/Productos/Detalle/3`. Cada enlace usa la misma acción pero envía un **valor de parámetro diferente**.
-
-El código está comentado en el proyecto como `PASO 1.4.5` para que el alumno lo active después de crear y verificar la acción `Detalle`. Activar el enlace antes no impide que el listado cargue, pero conduciría a una URL todavía sin acción y provocaría una navegación fallida. La secuencia docente evita ese problema.
-
-En este punto escribimos el atributo `href` directamente para visualizar qué URL se forma. En M02 aprenderemos los Tag Helpers que permiten generar enlaces y formularios usando metadata MVC en lugar de escribir siempre las rutas a mano.
-
-## 1.4.7. Reto: devolver JSON desde un controlador MVC
-
-El reto conecta las distintas ideas del capítulo: crear una acción con parámetro, publicarla mediante una plantilla de atributo, seleccionar un producto y decidir entre un resultado **200 JSON** y un **404**.
-
-El método, incluido comentado en el proyecto, es:
-
-~~~csharp
-[HttpGet("/catalogo/resumen/{id:int}")]
-public IActionResult Resumen(int id)
-{
-    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
-    if (producto is null)
-    {
-        return NotFound();
-    }
-
-    return Ok(new { producto.Id, producto.Nombre });
-}
-~~~
-
-La URL `/catalogo/resumen/2` selecciona el producto Lápiz y produce un objeto JSON semejante a:
-
-~~~json
-{"id":2,"nombre":"Lápiz"}
-~~~
-
-La serialización JSON habitual de ASP.NET Core utiliza nombres de propiedades en `camelCase` para este resultado. No ejecuta una vista Razor ni modifica la plantilla de datos. Una consulta `/catalogo/resumen/99` devuelve 404 porque el método no encuentra un producto. Si se solicita un segmento no entero, la ruta con `{id:int}` no coincide y también se obtiene 404, en ese caso sin ejecutar la acción.
-
-Para un desarrollador que conoce Web API, esto confirma que **MVC comparte los tipos fundamentales de resultado HTTP**, aunque nuestro curso utilice principalmente vistas Razor para representar la interfaz del usuario. En M04 construiremos una API auxiliar mínima que será consumida desde Blazor; el propósito de este reto es observar formatos de respuesta, no enseñar toda la disciplina de diseño de API.
-
-## 1.4.8. Errores habituales y diagnóstico
-
-**«La ruta existe, luego siempre responde 200».** Falso. `Detalle(99)` y `Detalle(0)` coinciden con una acción pero responden 404 y 400, respectivamente, por decisiones expresas del controlador.
-
-**«Tengo que crear una vista Estado.cshtml».** No, porque la acción usa `Content()`. Solo necesitamos una vista si elegimos un resultado de vista.
-
-**«La ruta Ficha se construye como /Productos/Ficha/2».** No en este ejemplo. El atributo `[HttpGet("/catalogo/ficha/{id:int}")]` define otra URL, que no coincide con el patrón convencional habitual de esa acción.
-
-**«No entiendo por qué la ficha Ficha utiliza Detalle.cshtml».** Porque la instrucción `View("Detalle", producto)` señala explícitamente el nombre de la vista compartida por ambas acciones.
-
-**«La acción no recibe el id».** Revisar que la ruta tiene el tercer segmento y que la firma recibe `int id`. En el caso del atributo hay que escribir `{id:int}` y llamar igual al parámetro que la plantilla vincula.
-
-**«Al activar el comentario, aparece un error de compilación».** Comprobar que se han quitado **los dos** delimitadores del bloque y no se han alterado las llaves, la indentación semántica ni las llamadas a métodos.
-
-**«Una respuesta 404 siempre significa que el servidor está apagado».** No. Un servidor apagado provoca normalmente un error de conexión. Un 404 es una respuesta HTTP que el servidor ha generado.
-
-**«El navegador recibe un objeto Producto cuando abre el detalle».** No directamente: `View(producto)` usa el objeto en el servidor para producir HTML. En el reto `Ok(new { ... })` sí se serializa un objeto a JSON.
-
-## 1.4.9. Relación con P1.4 y continuidad
-
-La práctica comienza inspeccionando el controlador existente y la lista compartida; activa `Estado()` y observa texto plano; activa `Detalle(int id)` y comprueba 200/400/404; incorpora una ruta por atributos; añade enlaces por producto en la vista; y realiza el reto JSON, igualmente comentado en el proyecto.
-
-La batería de pruebas compila y ejecuta **cada estado solicitado** y verifica sus respuestas reales a través de HTTP, sin reemplazar la comprensión manual de la navegación. Se preservan también las pruebas de regresión de los capítulos 1.1 a 1.3.
-
-El capítulo siguiente, **1.5**, profundizará en la sintaxis Razor, la composición de vistas, los layouts y las vistas parciales usando las páginas y el detalle funcional de este capítulo.
-
-### Fuentes y referencias
-
-- Microsoft Learn, enrutamiento a acciones de controlador: https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/routing?view=aspnetcore-8.0
-- Microsoft Learn, solicitudes mediante controladores: https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/actions?view=aspnetcore-8.0
-- Microsoft Learn, resultados de acciones de controlador: https://learn.microsoft.com/en-us/aspnet/core/web-api/action-return-types?view=aspnetcore-8.0
-- Microsoft Learn, vistas Razor y tipado de modelos: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/overview?view=aspnetcore-8.0
-
-
----
-
-
-## 1.4.10. Razonar sobre los segmentos de una ruta antes de programar
-
-Una ruta MVC no es el nombre de un archivo. Es una regla utilizada por la infraestructura de endpoints para asociar una solicitud HTTP con código ejecutable. La plantilla convencional de nuestro proyecto:
-
-~~~csharp
-app.MapControllerRoute(
-    name: "default",
-    pattern: "{controller=Home}/{action=Index}/{id?}");
-~~~
-
-contiene tres posiciones. Los dos primeros valores tienen nombres y valores predeterminados; el último segmento es opcional. La sintaxis con llaves representa parámetros de ruta, no variables de C# declaradas dentro de `Program.cs`. Su misión es describir **cómo interpretar los segmentos de una URL**.
-
-Para comprenderla, conviene leer las siguientes direcciones sin acudir todavía al navegador:
-
-~~~text
-/
- /Home
- /Home/Index
- /Productos
- /Productos/Index
- /Productos/Detalle/1
- /Productos/Detalle/2
- /Productos/Detalle/99
-~~~
-
-Los espacios iniciales que aparecen en esta representación son únicamente parte de la indentación del documento, no caracteres que deban teclearse. En cada caso, identificamos primero el controlador, después la acción y finalmente el eventual parámetro `id`. Una vez comprendida la regla podemos predecir qué método **podría** ejecutarse, pero aún no qué código HTTP devolverá.
-
-### Coincidencia de plantilla frente a existencia de acción
-
-Una URL podría ajustarse formalmente a los segmentos `controller/action/id` y, sin embargo, no existir una acción pública compatible dentro de la aplicación. La regla de ruta no inventa métodos; solo ayuda a seleccionar los endpoints registrados a partir del código de controladores.
-
-También puede ocurrir lo contrario: una acción pública existe, pero su atributo de ruta establece un patrón específico que no coincide con la dirección que suponíamos por su nombre. Esto sucede con `Ficha(int id)`, que tiene una URL explícita `/catalogo/ficha/{id:int}`. La acción no debe interpretarse como si fuera necesariamente accesible por `/Productos/Ficha/2`.
-
-Esta diferencia es una de las razones por las que conviene enseñar enrutamiento después de haber ejecutado acciones sencillas: el alumno ya sabe que una acción puede devolver una vista y, por tanto, puede concentrarse en **por qué fue seleccionada**.
-
-## 1.4.11. El model binding explicado con el parámetro más simple
+**El model binding explicado con el parámetro más simple.**
 
 Cuando `Detalle(int id)` recibe una petición a `/Productos/Detalle/2`, el valor textual `2` de la ruta se vincula al parámetro `id` de tipo `int`. Ese mecanismo forma parte del enlace de modelos de MVC, conocido como *model binding*.
 
@@ -1914,7 +1825,7 @@ public IActionResult Detalle(int id)
 
 En este capítulo nos interesa la ruta como origen del dato. MVC también puede enlazar valores desde parámetros de consulta, formularios y otras fuentes, pero su estudio sistemático llegará en M02 con operaciones GET y POST. Adelantar formularios completos aquí impediría dedicar el tiempo suficiente a distinguir la selección de una acción de su resultado.
 
-### Tres clases de ausencia o invalidez
+**Tres clases de ausencia o invalidez.**
 
 Podemos distinguir casos que parecen parecidos:
 
@@ -1926,7 +1837,7 @@ Podemos distinguir casos que parecen parecidos:
 
 El caso de un segmento no numérico requiere todavía otra explicación. Si utilizamos una ruta con la restricción `{id:int}`, como la acción `Ficha`, la coincidencia se descarta antes de ejecutar el método. Con la ruta convencional sin esa restricción, el comportamiento depende del proceso de enlace del parámetro y de la validación configurada. Para no mezclar situaciones distintas, las pruebas de P1.4 verifican un segmento no entero específicamente sobre la ruta por atributos.
 
-## 1.4.12. Leer una acción como una sucesión de decisiones
+**Leer una acción como una sucesión de decisiones.**
 
 Un método de controlador puede entenderse como una secuencia de preguntas:
 
@@ -1938,7 +1849,7 @@ Un método de controlador puede entenderse como una secuencia de preguntas:
 
 La primera pregunta no se resuelve dentro de `Detalle(int id)`, sino durante la selección del endpoint. Las demás sí pueden observarse en el código del método. Este orden evita escribir una acción que intente renderizar una vista antes de comprobar que tiene un objeto válido.
 
-### Evitar un resultado incorrecto cuando no existe el producto
+**Evitar un resultado incorrecto cuando no existe el producto.**
 
 Supongamos que quitáramos `if (producto is null) return NotFound();` y enviáramos un valor nulo a una vista tipada `Producto` que accede a `Model.Nombre`. La representación podría fallar por ausencia del objeto esperado. Sería un error de ejecución de la vista, no una respuesta 404 diseñada deliberadamente.
 
@@ -1946,7 +1857,185 @@ El tratamiento correcto del ejemplo consiste en reconocer que no existe el produ
 
 En una aplicación real, la clasificación de respuestas de error debe seguir las reglas funcionales y el contrato esperado por los clientes. Aquí elegimos casos explícitos para que el alumnado los pueda predecir y verificar sin necesidad de una infraestructura de errores más compleja.
 
-## 1.4.13. Diferencias entre IActionResult y el contenido concreto
+**Restricciones de ruta y validación de dominio.**
+
+La plantilla `{id:int}` exige que el segmento pueda interpretarse como entero. Esta restricción participa en el enrutamiento: ayuda a decidir si el endpoint puede seleccionarse. No demuestra que el valor sea un identificador válido de un producto.
+
+Un entero como 99 puede satisfacer la restricción de ruta y, sin embargo, no corresponder a ningún registro. Por eso `Ficha(99)` debe seguir buscando el producto y decidir qué hacer al no encontrarlo.
+
+La acción `Detalle(int id)` incorpora además la regla didáctica de que el identificador debe ser mayor que cero. Esa regla no está expresada en la plantilla convencional. Si la dirección contiene `0`, el método se ejecuta y devuelve 400.
+
+En el reto `Resumen` conservamos la restricción `{id:int}` y buscamos el producto. Para un entero inexistente la acción se ejecuta y devuelve 404; para texto no entero no se selecciona el endpoint. Los códigos son iguales, pero el origen técnico no lo es.
+
+Esta distinción es importante al depurar sistemas web. Una comprobación correcta no consiste solo en memorizar que un navegador muestra una página «Not Found». Debemos identificar si no existía la ruta, si no existía una acción compatible o si la acción devolvió deliberadamente ese resultado.
+
+**Diagramas de decisiones sin convertir la clase en una API completa.**
+
+Podemos describir la acción `Detalle` mediante un esquema narrativo:
+
+~~~text
+GET /Productos/Detalle/{id}
+           |
+      ¿id <= 0?
+       /       \
+      Sí       No
+      |         |
+  HTTP 400   Buscar producto
+                |
+           ¿Existe id?
+            /       \
+           No       Sí
+           |         |
+       HTTP 404  View(producto)
+                     |
+                 HTTP 200 HTML
+~~~
+
+La representación es simplificada: primero debe existir un endpoint seleccionado y el modelo de parámetros debe poder enlazarse como corresponde. Su utilidad está en mostrar que una **misma acción** puede producir códigos de estado distintos según el valor de entrada y el resultado de la búsqueda.
+
+Con la acción de texto `Estado()` la decisión es más sencilla: recibe GET y devuelve una respuesta textual. No intenta seleccionar un producto ni renderizar la vista. Esta diferencia ayuda a reconocer cuándo no debemos diseñar una acción más compleja de lo necesario.
+
+**Estado HTTP y mensaje visual.**
+
+Al abrir una URL 404, el navegador puede mostrar su propio texto de error o una respuesta vacía, según cómo se procese el resultado. El texto visible no forma parte necesariamente de la vista de productos. Por eso el ejercicio verifica el código HTTP con herramientas de red, en lugar de exigir una página de errores con una apariencia determinada.
+
+El tratamiento visual de errores de producción, las páginas personalizadas y los mecanismos globales de excepción existen, pero no forman parte del objetivo acotado de P1.4.
+
+**Por qué el orden de las comprobaciones importa.**
+
+El método `Detalle(int id)` comienza comprobando que el identificador sea mayor que cero. Solo después busca un objeto dentro de la lista. Finalmente, si existe, representa una vista.
+
+Este orden facilita la lectura del método. La validación sencilla de entrada aparece al principio, la búsqueda de datos ocupa la parte central y la decisión de representación queda al final. Si el identificador no cumple la regla, no necesitamos continuar. Si el producto no existe, tampoco tenemos un objeto válido que entregar a la vista.
+
+La forma de la acción se puede leer como una sucesión de retornos anticipados:
+
+~~~csharp
+if (id <= 0)
+{
+    return BadRequest("El identificador debe ser mayor que cero.");
+}
+
+var producto = ObtenerProductosEjemplo()
+    .FirstOrDefault(p => p.Id == id);
+
+if (producto is null)
+{
+    return NotFound();
+}
+
+return View(producto);
+~~~
+
+Es posible escribir código equivalente con otros estilos, pero esta estructura es especialmente didáctica porque cada condición conduce a un resultado HTTP visible. No tenemos que descifrar un bloque de `if/else` profundamente anidado para identificar las ramas.
+
+**Qué demuestra cada prueba del método.**
+
+Para el caso de `id=0`, el método debe terminar en `BadRequest`. Para `id=99`, el identificador no es rechazado por el primer `if`, pero la búsqueda devuelve `null` y se utiliza `NotFound`. Para `id=2`, el código supera ambas comprobaciones y crea un resultado de vista.
+
+Estas tres rutas de ejecución cubren las decisiones esenciales del método sin exigir conocimientos avanzados de testing. Son además situaciones independientes: cambiar la comprobación de cero no debería hacer desaparecer el producto de id 2.
+
+La prueba E2E añade la infraestructura de enrutamiento y HTTP. Por tanto, comprueba no solo que el método tiene unas ramas determinadas, sino también que las URLs del proyecto permiten alcanzarlas y que la respuesta final representa el resultado previsto.
+
+**Evitar suposiciones sobre el enlace de modelos.**
+
+El enlace de modelos de ASP.NET Core puede obtener valores de varias fuentes de la petición. Para este capítulo seleccionamos el caso más pequeño y claro: un identificador que procede de la ruta. La sintaxis `int id` permite al framework preparar un argumento de tipo entero para la acción.
+
+No debemos concluir que toda cadena recibida del navegador es automáticamente válida o que la plataforma convierte cualquier texto arbitrario al valor que la aplicación necesita. Los valores pueden faltar, no cumplir una restricción o no corresponder a un objeto del dominio.
+
+En `Ficha(int id)` utilizamos una plantilla con `{id:int}`. Esta es una **restricción de ruta**: ayuda a descartar direcciones cuyos segmentos no cumplan el formato entero. No es un mecanismo de autorización ni una garantía de existencia del producto.
+
+**Distinguir forma y significado.**
+
+El valor 99 tiene forma de entero y satisface la restricción. Sin embargo, no tiene significado como identificador de uno de nuestros tres productos, porque la lista contiene únicamente los ids 1, 2 y 3.
+
+El valor 0 también tiene forma de entero, pero la acción `Detalle` lo considera inválido según una regla explícita. Esa regla expresa una decisión de aplicación, no una propiedad intrínseca de todas las rutas con números.
+
+El texto `no-numero` no cumple la restricción `int` del atributo de `Ficha`, por lo que la dirección no coincide con ese endpoint. Este comportamiento se resuelve en la selección de rutas, antes de buscar un producto.
+
+Estos tres ejemplos permiten enseñar que **una entrada puede ser sintácticamente correcta y semánticamente inválida**. Más adelante, al estudiar validación de formularios, necesitaremos separar de nuevo esos niveles. Por ahora basta con reconocerlos en un único parámetro.
+
+**El contrato visible de una ficha de detalle.**
+
+La vista `Detalle.cshtml` muestra un objeto `Producto` mediante una estructura HTML que incluye identificador, nombre y precio. Se trata de una interfaz de consulta. No dispone todavía de un formulario para modificar los valores ni de operaciones de persistencia.
+
+La URL contiene el identificador solicitado, pero el contenido de la ficha procede del objeto que la acción encontró. Por eso puede ocurrir que una dirección sea correcta y, sin embargo, el objeto no exista. La acción debe distinguir ese caso y no intentar dibujar una ficha inválida.
+
+**Por qué la vista es tipada.**
+
+La declaración `@model Producto` facilita leer y comprobar expresiones como `@Model.Nombre`. En lugar de pasar una colección genérica de valores sueltos al archivo Razor, entregamos un objeto cuyo tipo expresa qué propiedades contiene.
+
+En el listado el contrato era distinto, porque necesitábamos recorrer varias instancias. En el detalle el contrato se concentra en una. Esta variación es razonable: las vistas no tienen por qué compartir exactamente el mismo tipo de modelo aunque pertenezcan al mismo controlador.
+
+**El enlace de vuelta al catálogo.**
+
+La ficha dispone de un enlace hacia `/Productos`. Al pulsarlo, el navegador envía una nueva solicitud y el servidor ejecuta de nuevo la acción correspondiente al listado. No se trata de una llamada directa de un método C# de la vista de detalle al método del controlador. Es navegación HTTP y, por eso, participa el enrutamiento.
+
+Esta precisión prepara al alumno para comprender después los formularios y la navegación de aplicaciones Blazor sin confundir eventos de interfaz con llamadas internas a métodos del servidor.
+
+**El valor de los casos negativos en una práctica.**
+
+Los ejemplos iniciales de programación suelen centrarse en hacer que una operación tenga éxito. Sin embargo, una aplicación web también debe responder de forma predecible cuando la entrada no corresponde a un recurso válido.
+
+El capítulo 1.4 incluye deliberadamente casos negativos:
+
+- El id 99 no existe en la colección y debe producir 404.
+- El id 0 se rechaza en `Detalle` y debe producir 400.
+- Un texto no entero no coincide con la restricción de ruta de `Ficha`.
+- Una dirección convencional no publicada para la acción `Ficha` debe responder 404.
+
+La función de estas comprobaciones no es hacer el ejercicio más largo sin motivo. Cada caso distingue un mecanismo técnico diferente que el alumno deberá reconocer después en aplicaciones reales.
+
+Una batería que probara únicamente `/Productos/Detalle/2` podría pasar aunque el código omitiera la comprobación de identificadores inválidos. Otra que comprobara solamente 404 podría ocultar que ninguna ruta funciona. Necesitamos una combinación de casos positivos y negativos.
+
+**La importancia de no falsear el resultado esperado.**
+
+Si la acción devuelve 400 para el id 0, no deberíamos modificar el test para esperar 200 y conseguir un resultado verde. El código y la expectativa didáctica deben concordar. De la misma manera, si el reto propone una respuesta JSON, no es aceptable sustituirla por texto plano únicamente porque contenga el mismo nombre.
+
+La trazabilidad del curso exige que el enunciado, el código activable y las pruebas describan el mismo comportamiento. Esa regla se aplica especialmente a los retos, que no se consideran completos por el mero hecho de estar explicados verbalmente.
+
+## Resultados HTTP y representación
+
+**Restricciones de verbo HTTP y respuestas distintas de View.**
+
+El atributo `[HttpGet]` indica que una acción está destinada a manejar solicitudes GET. En este ejercicio lo utilizamos sin una plantilla de URL propia para permitir que la acción `Estado()` se alcance por la ruta convencional:
+
+~~~csharp
+[HttpGet]
+public IActionResult Estado()
+{
+    return Content("Catalogo MVC disponible", "text/plain");
+}
+~~~
+
+Una solicitud a `GET /Productos/Estado` devolverá **HTTP 200**, contenido de tipo texto y la cadena `Catalogo MVC disponible`. No hay vista `Estado.cshtml`: `Content()` crea un tipo de resultado HTTP distinto de `View()`.
+
+Esto demuestra algo esencial para quien ya conoce Web API: **un controlador MVC no está obligado a devolver HTML**. La acción elige un resultado apropiado para la necesidad de la interfaz. Al mismo tiempo, una aplicación que principalmente muestra vistas no tiene por qué convertirse por ello en una API REST completa.
+
+En el punto 2.1 utilizaremos formularios GET/POST. Aquí no introducimos métodos para alterar datos; solo recibimos consultas GET y comparamos sus respuestas.
+
+**IActionResult, resultados concretos y códigos de estado.**
+
+En una acción hemos utilizado varios métodos de retorno. Es importante no tratar `return View(...)`, `return Content(...)` y `return NotFound()` como si todos significaran «mostrar una página».
+
+| Instrucción del controlador | Resultado habitual en este capítulo | Qué recibe el cliente |
+|---|---|---|
+| `return View(producto);` | 200, `text/html` | HTML generado desde Razor |
+| `return Content("...", "text/plain");` | 200, `text/plain` | Texto sin layout |
+| `return BadRequest("...");` | 400 | Resultado de error con información explicativa |
+| `return NotFound();` | 404 | Respuesta de recurso no encontrado |
+| `return Ok(new { ... });` | 200, formato JSON negociado habitualmente | Datos JSON del objeto anónimo |
+
+El tipo declarado `IActionResult` permite devolver diferentes tipos concretos de resultado desde una misma acción. Una firma `ActionResult<T>` es frecuente en Web API cuando se desea describir un tipo de dato de éxito y posibles errores; aquí utilizamos `IActionResult` para no desviar la práctica hacia el diseño de API.
+
+**: dos situaciones que conviene distinguir.**
+
+Si `GET /no-existe` no coincide con ninguna ruta de nuestra aplicación, el sistema de enrutamiento termina sin ejecutar una acción de catálogo. Si `GET /Productos/Detalle/99` coincide con `Detalle(int id)`, **la acción sí se ejecuta**, intenta buscar el producto y decide `NotFound()`. Ambas situaciones pueden producir 404, pero sus causas y soluciones no son iguales.
+
+**frente a 404.**
+
+Un identificador que nuestra acción considera inválido, como 0, obtiene 400 por una regla explícita del código. Un identificador válido en formato pero inexistente, como 99, obtiene 404. El código de estado **no aparece automáticamente por el hecho de usar un int**: lo decidimos deliberadamente en estos métodos. Verificaremos la diferencia mediante HTTP.
+
+**Diferencias entre IActionResult y el contenido concreto.**
 
 La firma `public IActionResult Detalle(int id)` declara que la acción devolverá un objeto compatible con la interfaz de resultados MVC. Eso no define por sí solo el formato ni el estado de la respuesta. El valor devuelto en cada rama concreta completa la decisión.
 
@@ -1976,13 +2065,13 @@ representa un error HTTP 400 y aporta una explicación sencilla.
 
 El alumno que conoce Web API reconocerá varios de estos métodos. La idea importante es que **MVC y Web API utilizan infraestructura compartida de ASP.NET Core** y no dos protocolos HTTP diferentes. Lo que cambia en una aplicación orientada a páginas suele ser qué resultados predominan y cómo se organizan la presentación y la navegación.
 
-### ¿Por qué no usamos siempre el mismo tipo de resultado?
+**¿Por qué no usamos siempre el mismo tipo de resultado?.**
 
 Porque las necesidades del cliente son distintas. Un navegador necesita HTML para representar la ficha. Una comprobación simple de estado puede utilizar texto. Una llamada pensada para consumir datos estructurados puede recibir JSON. Los resultados HTTP permiten hacer explícita esa diferencia.
 
 No hay nada que impida devolver JSON desde un controlador `Controller`, como demostraremos en el reto. Esto no significa que toda aplicación MVC deba diseñar sus endpoints como una API pública ni que una vista deba consumir obligatoriamente otra API para mostrar datos. El curso reserva el consumo de API para Blazor en M04.
 
-## 1.4.14. Cuando una acción reutiliza una vista cuyo nombre es diferente
+**Cuando una acción reutiliza una vista cuyo nombre es diferente.**
 
 En el caso convencional, `ProductosController.Detalle()` devuelve `View(producto)` y MVC busca una vista relacionada con el nombre de la acción, `Detalle.cshtml`. Sin embargo, `Ficha(int id)` no quiere introducir una segunda plantilla visual idéntica.
 
@@ -2008,79 +2097,11 @@ La cadena `"Detalle"` del resultado indica explícitamente qué vista se selecci
 
 Esto permite comprobar una idea fundamental: dos URL pueden producir el mismo HTML sin que existan dos copias de la plantilla. Además de evitar duplicación, el mecanismo muestra que **la selección de una acción** y **la búsqueda de la vista** son decisiones relacionadas pero independientes.
 
-### ¿Cuándo habría que utilizar otra vista?
+**¿Cuándo habría que utilizar otra vista?.**
 
 Si el requisito pidiera una presentación diferente para `Ficha`, podríamos preparar otro archivo Razor y devolverlo explícitamente. Pero mientras la representación requerida sea la misma, resulta más simple reutilizar el archivo existente. El diseño debe responder a necesidades reales; no conviene multiplicar vistas únicamente porque hemos añadido otra URL.
 
-## 1.4.15. Restricciones de ruta y validación de dominio
-
-La plantilla `{id:int}` exige que el segmento pueda interpretarse como entero. Esta restricción participa en el enrutamiento: ayuda a decidir si el endpoint puede seleccionarse. No demuestra que el valor sea un identificador válido de un producto.
-
-Un entero como 99 puede satisfacer la restricción de ruta y, sin embargo, no corresponder a ningún registro. Por eso `Ficha(99)` debe seguir buscando el producto y decidir qué hacer al no encontrarlo.
-
-La acción `Detalle(int id)` incorpora además la regla didáctica de que el identificador debe ser mayor que cero. Esa regla no está expresada en la plantilla convencional. Si la dirección contiene `0`, el método se ejecuta y devuelve 400.
-
-En el reto `Resumen` conservamos la restricción `{id:int}` y buscamos el producto. Para un entero inexistente la acción se ejecuta y devuelve 404; para texto no entero no se selecciona el endpoint. Los códigos son iguales, pero el origen técnico no lo es.
-
-Esta distinción es importante al depurar sistemas web. Una comprobación correcta no consiste solo en memorizar que un navegador muestra una página «Not Found». Debemos identificar si no existía la ruta, si no existía una acción compatible o si la acción devolvió deliberadamente ese resultado.
-
-## 1.4.16. Diagramas de decisiones sin convertir la clase en una API completa
-
-Podemos describir la acción `Detalle` mediante un esquema narrativo:
-
-~~~text
-GET /Productos/Detalle/{id}
-           |
-      ¿id <= 0?
-       /       \
-      Sí       No
-      |         |
-  HTTP 400   Buscar producto
-                |
-           ¿Existe id?
-            /       \
-           No       Sí
-           |         |
-       HTTP 404  View(producto)
-                     |
-                 HTTP 200 HTML
-~~~
-
-La representación es simplificada: primero debe existir un endpoint seleccionado y el modelo de parámetros debe poder enlazarse como corresponde. Su utilidad está en mostrar que una **misma acción** puede producir códigos de estado distintos según el valor de entrada y el resultado de la búsqueda.
-
-Con la acción de texto `Estado()` la decisión es más sencilla: recibe GET y devuelve una respuesta textual. No intenta seleccionar un producto ni renderizar la vista. Esta diferencia ayuda a reconocer cuándo no debemos diseñar una acción más compleja de lo necesario.
-
-### Estado HTTP y mensaje visual
-
-Al abrir una URL 404, el navegador puede mostrar su propio texto de error o una respuesta vacía, según cómo se procese el resultado. El texto visible no forma parte necesariamente de la vista de productos. Por eso el ejercicio verifica el código HTTP con herramientas de red, en lugar de exigir una página de errores con una apariencia determinada.
-
-El tratamiento visual de errores de producción, las páginas personalizadas y los mecanismos globales de excepción existen, pero no forman parte del objetivo acotado de P1.4.
-
-## 1.4.17. Generar enlaces a partir de datos del modelo
-
-La vista del listado trabaja con una colección. Cada elemento tiene un identificador que puede utilizarse para crear la dirección de su ficha:
-
-~~~cshtml
-@foreach (var producto in Model)
-{
-    <li data-id="@producto.Id">
-        @producto.Nombre
-        <a href="/Productos/Detalle/@producto.Id">Ver detalle</a>
-    </li>
-}
-~~~
-
-No escribimos manualmente tres URLs independientes; el mismo fragmento Razor se ejecuta para cada objeto y utiliza su `Id`. Esto facilita añadir productos sin tener que modificar el marcado de navegación por cada nueva instancia.
-
-Al mismo tiempo, la URL generada no es un dato de dominio del producto: es parte de cómo la aplicación decide navegar a sus acciones. El modelo solo aporta el identificador. La vista decide dónde situarlo dentro de una dirección. En M02 estudiaremos los Tag Helpers de enlaces para evitar depender de cadenas URL escritas a mano, pero en este capítulo la forma explícita facilita seguir el recorrido.
-
-### Riesgos de activar un enlace antes que la acción
-
-Durante la práctica mantenemos el enlace comentado hasta comprobar que `Detalle(int id)` funciona. Un enlace podría estar bien construido visualmente y conducir a una dirección que devuelve 404, porque todavía no existe el endpoint. El hecho de que el HTML contenga un `href` no garantiza que el servidor atienda esa ruta.
-
-Este detalle enseña la importancia de comprobar la funcionalidad extremo a extremo. Un test de la vista podría confirmar que se generó una etiqueta `<a>`, pero otro test debe comprobar que su destino responde de manera correcta.
-
-## 1.4.18. Tabla de predicciones antes de ejecutar una solicitud
+**Tabla de predicciones antes de ejecutar una solicitud.**
 
 Antes de abrir las direcciones de la práctica, el alumno debe ser capaz de completar una predicción. Con las acciones del capítulo activadas, los siguientes resultados deberían ser razonables:
 
@@ -2101,21 +2122,7 @@ Antes de abrir las direcciones de la práctica, el alumno debe ser capaz de comp
 
 La tabla no debe convertirse en un ejercicio de memorizar códigos. Lo importante es poder **explicar la columna de motivos** y relacionarla con una línea de código del proyecto. Si el resultado real difiere de la predicción, conviene localizar exactamente qué bloque está activado y qué versión de proyecto se ejecuta.
 
-## 1.4.19. Reutilización de datos y coherencia entre acciones
-
-La función privada `ObtenerProductosEjemplo()` es deliberadamente sencilla. Gracias a ella, `Index`, `Detalle` y `Ficha` consultan la misma definición de datos, sin copiar tres listas en distintos métodos. El reto `Resumen` hace lo mismo para su respuesta JSON.
-
-Esta estructura no es todavía un repositorio de datos. No almacena información entre peticiones ni coordina transacciones. Simplemente evita duplicación en la demostración. Sin embargo, permite entender qué cambiará en M02: cuando exista una forma persistente de obtener productos, las acciones deberán pedir esa información a la capa apropiada en lugar de reconstruir siempre una lista fija.
-
-Si copiáramos la lista completa en cada acción, podríamos cometer un error difícil de detectar: `Index` mostraría Lápiz por 1,20 €, pero `Detalle` lo mostraría por otro importe al haberse editado solo una copia. Compartir una única función de construcción reduce esa incoherencia, incluso en un programa pequeño.
-
-### Alcance de static en el ejemplo
-
-El método es `private static`. El modificador `private` significa que no se expone como acción pública del controlador. `static` indica que puede ejecutarse sin utilizar estado de una instancia concreta de `ProductosController`. La propiedad que nos importa en P1.4 es **que centraliza los datos de ejemplo y no crea una ruta HTTP**.
-
-No se utiliza una lista estática mutable compartida. El método devuelve una nueva colección con objetos de ejemplo. Esto evita introducir problemas de concurrencia y persistencia que no son necesarios para estudiar el enrutamiento.
-
-## 1.4.20. Cómo leer evidencias de una prueba HTTP real
+**Cómo leer evidencias de una prueba HTTP real.**
 
 Al comprobar `/Productos/Detalle/2`, conviene observar tres cosas separadas: el código **200**, el tipo de contenido **HTML** y un fragmento que identifique al producto **Lápiz**. Cada una aporta una evidencia diferente.
 
@@ -2125,118 +2132,13 @@ Para `/catalogo/resumen/2` el razonamiento es parecido, pero el contenido espera
 
 Para los casos 400 y 404 la evidencia principal es el estado HTTP. En este curso no exigimos una página de error visual personalizada. El aprendizaje se centra en seleccionar resultados adecuados y distinguir enrutamiento de decisiones de la acción.
 
-## 1.4.21. Activación incremental y regresión
-
-El proyecto del capítulo conserva la funcionalidad de las prácticas anteriores. En cada etapa activamos un bloque de código marcado, compilamos, iniciamos y comprobamos un resultado nuevo. No desactivamos el listado al habilitar `Estado` ni eliminamos la ficha al añadir `Ficha`.
-
-Esto permite enseñar el desarrollo incremental con un criterio verificable: **la nueva capacidad aparece y las anteriores permanecen operativas**. Cuando activamos el reto, además de comprobar JSON 200, debemos confirmar que `/Productos` continúa mostrando sus tres elementos y que `/Productos/Detalle/2` sigue ofreciendo HTML.
-
-La práctica incluye una ejecución automatizada de seis estados mediante copias temporales. No requiere que el alumno ejecute continuamente el test durante todas las explicaciones, pero sí permite demostrar de forma objetiva que los bloques propuestos no son pseudocódigo inconexo y que las rutas publicadas funcionan.
-
-Con estos conceptos, el punto 1.5 podrá centrarse en enriquecer la presentación Razor sin volver a explicar desde cero cómo se obtiene el producto ni cómo se selecciona una acción.
-
-
-
-## 1.4.22. La diferencia entre una dirección, una ruta y un recurso
-
-Al navegar por Internet utilizamos direcciones completas, pero en el código del curso solemos escribir únicamente la parte que identifica un endpoint dentro de la aplicación. Es importante distinguir estos conceptos porque un error puede producirse en cualquiera de ellos.
-
-La dirección completa de nuestro laboratorio tiene esquema, host, puerto y ruta:
-
-~~~text
-http://localhost:5091/Productos/Detalle/2
-~~~
-
-`http` identifica el esquema utilizado; `localhost` es el host; `5091` es el puerto; `/Productos/Detalle/2` es el camino que la aplicación utiliza para seleccionar el endpoint. Cambiar el puerto en el navegador sin cambiar dónde escucha Kestrel puede impedir conectar con el proceso. Cambiar el último segmento, en cambio, puede seleccionar otro producto sin modificar el host.
-
-La ruta convencional definida en `Program.cs` interpreta los segmentos del camino. Por tanto, no es lo mismo preguntar «¿qué servidor atiende la solicitud?» que preguntar «¿qué acción MVC corresponde a esta ruta?». La primera pregunta pertenece al entorno de ejecución y la segunda al enrutamiento de la aplicación.
-
-### Un recurso puede no corresponder a un archivo
-
-La página `/Productos/Detalle/2` no necesita un archivo físico llamado `2.html`. La acción recibe el valor 2, obtiene un objeto y pide al motor Razor que represente una vista. El resultado generado puede contener el nombre Lápiz, pero ese HTML no se obtiene necesariamente de un archivo estático con la misma URL.
-
-En cambio, `/css/catalogo.css` puede resolverse a un recurso estático de `wwwroot`. Ambos casos utilizan HTTP, pero no es correcto deducir por la forma de la URL que uno u otro debe ser obligatoriamente un archivo del sistema operativo.
-
-Esta distinción une los capítulos 1.3 y 1.4. En el primero descubrimos la raíz web y los archivos estáticos; en el segundo añadimos endpoints que ejecutan código. La aplicación contiene ambos tipos de respuesta y una misma URL base no determina que todo se sirva por el mismo mecanismo.
-
-## 1.4.23. Por qué el orden de las comprobaciones importa
-
-El método `Detalle(int id)` comienza comprobando que el identificador sea mayor que cero. Solo después busca un objeto dentro de la lista. Finalmente, si existe, representa una vista.
-
-Este orden facilita la lectura del método. La validación sencilla de entrada aparece al principio, la búsqueda de datos ocupa la parte central y la decisión de representación queda al final. Si el identificador no cumple la regla, no necesitamos continuar. Si el producto no existe, tampoco tenemos un objeto válido que entregar a la vista.
-
-La forma de la acción se puede leer como una sucesión de retornos anticipados:
-
-~~~csharp
-if (id <= 0)
-{
-    return BadRequest("El identificador debe ser mayor que cero.");
-}
-
-var producto = ObtenerProductosEjemplo()
-    .FirstOrDefault(p => p.Id == id);
-
-if (producto is null)
-{
-    return NotFound();
-}
-
-return View(producto);
-~~~
-
-Es posible escribir código equivalente con otros estilos, pero esta estructura es especialmente didáctica porque cada condición conduce a un resultado HTTP visible. No tenemos que descifrar un bloque de `if/else` profundamente anidado para identificar las ramas.
-
-### Qué demuestra cada prueba del método
-
-Para el caso de `id=0`, el método debe terminar en `BadRequest`. Para `id=99`, el identificador no es rechazado por el primer `if`, pero la búsqueda devuelve `null` y se utiliza `NotFound`. Para `id=2`, el código supera ambas comprobaciones y crea un resultado de vista.
-
-Estas tres rutas de ejecución cubren las decisiones esenciales del método sin exigir conocimientos avanzados de testing. Son además situaciones independientes: cambiar la comprobación de cero no debería hacer desaparecer el producto de id 2.
-
-La prueba E2E añade la infraestructura de enrutamiento y HTTP. Por tanto, comprueba no solo que el método tiene unas ramas determinadas, sino también que las URLs del proyecto permiten alcanzarlas y que la respuesta final representa el resultado previsto.
-
-## 1.4.24. Evitar suposiciones sobre el enlace de modelos
-
-El enlace de modelos de ASP.NET Core puede obtener valores de varias fuentes de la petición. Para este capítulo seleccionamos el caso más pequeño y claro: un identificador que procede de la ruta. La sintaxis `int id` permite al framework preparar un argumento de tipo entero para la acción.
-
-No debemos concluir que toda cadena recibida del navegador es automáticamente válida o que la plataforma convierte cualquier texto arbitrario al valor que la aplicación necesita. Los valores pueden faltar, no cumplir una restricción o no corresponder a un objeto del dominio.
-
-En `Ficha(int id)` utilizamos una plantilla con `{id:int}`. Esta es una **restricción de ruta**: ayuda a descartar direcciones cuyos segmentos no cumplan el formato entero. No es un mecanismo de autorización ni una garantía de existencia del producto.
-
-### Distinguir forma y significado
-
-El valor 99 tiene forma de entero y satisface la restricción. Sin embargo, no tiene significado como identificador de uno de nuestros tres productos, porque la lista contiene únicamente los ids 1, 2 y 3.
-
-El valor 0 también tiene forma de entero, pero la acción `Detalle` lo considera inválido según una regla explícita. Esa regla expresa una decisión de aplicación, no una propiedad intrínseca de todas las rutas con números.
-
-El texto `no-numero` no cumple la restricción `int` del atributo de `Ficha`, por lo que la dirección no coincide con ese endpoint. Este comportamiento se resuelve en la selección de rutas, antes de buscar un producto.
-
-Estos tres ejemplos permiten enseñar que **una entrada puede ser sintácticamente correcta y semánticamente inválida**. Más adelante, al estudiar validación de formularios, necesitaremos separar de nuevo esos niveles. Por ahora basta con reconocerlos en un único parámetro.
-
-## 1.4.25. Un ejemplo de error que no se arregla creando otra vista
-
-Supongamos que un alumno escribe `/catalogo/ficha/2` y recibe 404. Podría interpretar que debe crear `Views/Productos/Ficha.cshtml`. Sin embargo, la acción preparada devuelve `View("Detalle", producto)`, lo que indica explícitamente que desea utilizar la vista existente `Detalle.cshtml`.
-
-Antes de crear archivos, debemos comprobar si la ruta por atributo se ha activado. Mientras el bloque `PASO 1.4.4` esté comentado, el endpoint no existe en la versión que ejecutamos. Crear una vista adicional no resolvería esa ausencia de ruta.
-
-Si la acción está activa y selecciona correctamente el producto, la llamada `View("Detalle", producto)` ya proporciona el nombre de la vista. El aprendizaje consiste en separar **encontrar la acción** de **encontrar el archivo de representación**.
-
-### Por qué esa distinción ahorra trabajo
-
-En una aplicación más grande, múltiples rutas pueden llevar a una misma representación. Si copiamos una vista por cada dirección sin que exista una necesidad de diseño diferente, aumentamos innecesariamente el mantenimiento. El proyecto del curso muestra una alternativa concreta y sencilla: reutilizar una vista y expresar su nombre cuando la convención basada en el nombre de la acción no es apropiada.
-
-No estamos promoviendo que todas las acciones utilicen siempre la misma plantilla. Solo demostramos que la elección de la ruta y la elección de la vista son decisiones independientes que podemos coordinar de forma explícita.
-
-## 1.4.26. Comparar tres respuestas del mismo controlador
+**Comparar tres respuestas del mismo controlador.**
 
 Cuando el alumnado ya conoce Web API, resulta útil mostrar en una misma clase las tres formas de salida que el capítulo introduce:
 
-~~~csharp
-return Content("Catalogo MVC disponible", "text/plain");
-~~~
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
 
-~~~csharp
-return View(producto);
-~~~
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
 
 ~~~csharp
 return Ok(new { producto.Id, producto.Nombre });
@@ -2248,52 +2150,67 @@ No obstante, las tres salidas no contienen información equivalente. El texto de
 
 Esa diferencia de contenido también debe verificarse. Una respuesta JSON con dos campos no es una copia del HTML de la ficha, aunque ambos se refieran al mismo producto. El código de controlador ha decidido qué representación preparar en cada endpoint.
 
-### El formato de salida como parte de un contrato
+**El formato de salida como parte de un contrato.**
 
 Un cliente que espera JSON no debería recibir HTML sin que esa diferencia se considere relevante. Aunque ambos cuerpos puedan contener el nombre «Lápiz», sus formatos y significados son distintos. Por eso el test del reto comprueba tanto el estado 200 como el tipo de contenido JSON y las propiedades del objeto.
 
 Del mismo modo, una solicitud de Estado no exige un layout HTML completo. El resultado de texto no tiene que incluir navegación ni hojas de estilo. Pretender que todas las respuestas de un controlador sean visualmente idénticas equivaldría a ignorar la flexibilidad de `IActionResult`.
 
-## 1.4.27. El contrato visible de una ficha de detalle
+## Datos compartidos y enlaces de navegación
 
-La vista `Detalle.cshtml` muestra un objeto `Producto` mediante una estructura HTML que incluye identificador, nombre y precio. Se trata de una interfaz de consulta. No dispone todavía de un formulario para modificar los valores ni de operaciones de persistencia.
+**Enlaces de navegación desde la vista del listado.**
 
-La URL contiene el identificador solicitado, pero el contenido de la ficha procede del objeto que la acción encontró. Por eso puede ocurrir que una dirección sea correcta y, sin embargo, el objeto no exista. La acción debe distinguir ese caso y no intentar dibujar una ficha inválida.
+Una ficha de detalle resulta mucho más útil cuando se puede abrir desde el listado. La vista de `Index` ya recorre la colección `Model`. Dentro de cada elemento de la lista añadiremos:
 
-### Por qué la vista es tipada
+~~~cshtml
+<a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
+~~~
 
-La declaración `@model Producto` facilita leer y comprobar expresiones como `@Model.Nombre`. En lugar de pasar una colección genérica de valores sueltos al archivo Razor, entregamos un objeto cuyo tipo expresa qué propiedades contiene.
+Razor inserta el valor de `producto.Id` en el atributo `href`. Para los tres objetos, las URLs serán `/Productos/Detalle/1`, `/Productos/Detalle/2` y `/Productos/Detalle/3`. Cada enlace usa la misma acción pero envía un **valor de parámetro diferente**.
 
-En el listado el contrato era distinto, porque necesitábamos recorrer varias instancias. En el detalle el contrato se concentra en una. Esta variación es razonable: las vistas no tienen por qué compartir exactamente el mismo tipo de modelo aunque pertenezcan al mismo controlador.
+El código está comentado en el proyecto como `PASO 1.4.5` para que el alumno lo active después de crear y verificar la acción `Detalle`. Activar el enlace antes no impide que el listado cargue, pero conduciría a una URL todavía sin acción y provocaría una navegación fallida. La secuencia docente evita ese problema.
 
-### El enlace de vuelta al catálogo
+En este punto escribimos el atributo `href` directamente para visualizar qué URL se forma. En M02 aprenderemos los Tag Helpers que permiten generar enlaces y formularios usando metadata MVC en lugar de escribir siempre las rutas a mano.
 
-La ficha dispone de un enlace hacia `/Productos`. Al pulsarlo, el navegador envía una nueva solicitud y el servidor ejecuta de nuevo la acción correspondiente al listado. No se trata de una llamada directa de un método C# de la vista de detalle al método del controlador. Es navegación HTTP y, por eso, participa el enrutamiento.
+**Generar enlaces a partir de datos del modelo.**
 
-Esta precisión prepara al alumno para comprender después los formularios y la navegación de aplicaciones Blazor sin confundir eventos de interfaz con llamadas internas a métodos del servidor.
+La vista del listado trabaja con una colección. Cada elemento tiene un identificador que puede utilizarse para crear la dirección de su ficha:
 
-## 1.4.28. El valor de los casos negativos en una práctica
+~~~cshtml
+@foreach (var producto in Model)
+{
+    <li data-id="@producto.Id">
+        @producto.Nombre
+        <a href="/Productos/Detalle/@producto.Id">Ver detalle</a>
+    </li>
+}
+~~~
 
-Los ejemplos iniciales de programación suelen centrarse en hacer que una operación tenga éxito. Sin embargo, una aplicación web también debe responder de forma predecible cuando la entrada no corresponde a un recurso válido.
+No escribimos manualmente tres URLs independientes; el mismo fragmento Razor se ejecuta para cada objeto y utiliza su `Id`. Esto facilita añadir productos sin tener que modificar el marcado de navegación por cada nueva instancia.
 
-El capítulo 1.4 incluye deliberadamente casos negativos:
+Al mismo tiempo, la URL generada no es un dato de dominio del producto: es parte de cómo la aplicación decide navegar a sus acciones. El modelo solo aporta el identificador. La vista decide dónde situarlo dentro de una dirección. En M02 estudiaremos los Tag Helpers de enlaces para evitar depender de cadenas URL escritas a mano, pero en este capítulo la forma explícita facilita seguir el recorrido.
 
-- El id 99 no existe en la colección y debe producir 404.
-- El id 0 se rechaza en `Detalle` y debe producir 400.
-- Un texto no entero no coincide con la restricción de ruta de `Ficha`.
-- Una dirección convencional no publicada para la acción `Ficha` debe responder 404.
+**Riesgos de activar un enlace antes que la acción.**
 
-La función de estas comprobaciones no es hacer el ejercicio más largo sin motivo. Cada caso distingue un mecanismo técnico diferente que el alumno deberá reconocer después en aplicaciones reales.
+Durante la práctica mantenemos el enlace comentado hasta comprobar que `Detalle(int id)` funciona. Un enlace podría estar bien construido visualmente y conducir a una dirección que devuelve 404, porque todavía no existe el endpoint. El hecho de que el HTML contenga un `href` no garantiza que el servidor atienda esa ruta.
 
-Una batería que probara únicamente `/Productos/Detalle/2` podría pasar aunque el código omitiera la comprobación de identificadores inválidos. Otra que comprobara solamente 404 podría ocultar que ninguna ruta funciona. Necesitamos una combinación de casos positivos y negativos.
+Este detalle enseña la importancia de comprobar la funcionalidad extremo a extremo. Un test de la vista podría confirmar que se generó una etiqueta `<a>`, pero otro test debe comprobar que su destino responde de manera correcta.
 
-### La importancia de no falsear el resultado esperado
+**Reutilización de datos y coherencia entre acciones.**
 
-Si la acción devuelve 400 para el id 0, no deberíamos modificar el test para esperar 200 y conseguir un resultado verde. El código y la expectativa didáctica deben concordar. De la misma manera, si el reto propone una respuesta JSON, no es aceptable sustituirla por texto plano únicamente porque contenga el mismo nombre.
+La función privada `ObtenerProductosEjemplo()` es deliberadamente sencilla. Gracias a ella, `Index`, `Detalle` y `Ficha` consultan la misma definición de datos, sin copiar tres listas en distintos métodos. El reto `Resumen` hace lo mismo para su respuesta JSON.
 
-La trazabilidad del curso exige que el enunciado, el código activable y las pruebas describan el mismo comportamiento. Esa regla se aplica especialmente a los retos, que no se consideran completos por el mero hecho de estar explicados verbalmente.
+Esta estructura no es todavía un repositorio de datos. No almacena información entre peticiones ni coordina transacciones. Simplemente evita duplicación en la demostración. Sin embargo, permite entender qué cambiará en M02: cuando exista una forma persistente de obtener productos, las acciones deberán pedir esa información a la capa apropiada en lugar de reconstruir siempre una lista fija.
 
-## 1.4.29. Comparar comportamiento funcional y organización del código
+Si copiáramos la lista completa en cada acción, podríamos cometer un error difícil de detectar: `Index` mostraría Lápiz por 1,20 €, pero `Detalle` lo mostraría por otro importe al haberse editado solo una copia. Compartir una única función de construcción reduce esa incoherencia, incluso en un programa pequeño.
+
+**Alcance de static en el ejemplo.**
+
+El método es `private static`. El modificador `private` significa que no se expone como acción pública del controlador. `static` indica que puede ejecutarse sin utilizar estado de una instancia concreta de `ProductosController`. La propiedad que nos importa en P1.4 es **que centraliza los datos de ejemplo y no crea una ruta HTTP**.
+
+No se utiliza una lista estática mutable compartida. El método devuelve una nueva colección con objetos de ejemplo. Esto evita introducir problemas de concurrencia y persistencia que no son necesarios para estudiar el enrutamiento.
+
+**Comparar comportamiento funcional y organización del código.**
 
 Dos implementaciones pueden producir la misma página en el navegador, pero tener una organización distinta. En nuestra versión inicial, `Index()` construía directamente los tres productos. En el proyecto de 1.4, la lista se obtiene mediante un método privado compartido.
 
@@ -2303,13 +2220,91 @@ Si los datos se hubieran copiado en `Index`, `Detalle` y `Ficha`, el ejercicio f
 
 Al utilizar `ObtenerProductosEjemplo()`, las acciones consultan la misma definición de los productos. No es todavía una arquitectura empresarial completa ni una implementación de repositorio; es una mejora limitada para reducir duplicación.
 
-### Cómo distinguir una refactorización de un requisito nuevo
+**Cómo distinguir una refactorización de un requisito nuevo.**
 
 Cuando extraemos la lista a un método, buscamos conservar los resultados anteriores. Cuando añadimos `Detalle(int id)`, estamos incorporando una nueva capacidad observable. Ambas tareas pueden estar relacionadas, pero sus criterios de comprobación son diferentes.
 
 La primera exige que el catálogo continúe mostrando los mismos tres productos. La segunda exige que exista una URL de detalle que acepte identificadores y devuelva respuestas apropiadas. Esta separación permite escribir pruebas útiles y evita confundir mejoras internas con nuevas funcionalidades.
 
-## 1.4.30. Un recorrido narrado de extremo a extremo
+## Reto JSON, pruebas y diagnóstico
+
+**Reto: devolver JSON desde un controlador MVC.**
+
+El reto conecta las distintas ideas del capítulo: crear una acción con parámetro, publicarla mediante una plantilla de atributo, seleccionar un producto y decidir entre un resultado **200 JSON** y un **404**.
+
+El método, incluido comentado en el proyecto, es:
+
+~~~csharp
+[HttpGet("/catalogo/resumen/{id:int}")]
+public IActionResult Resumen(int id)
+{
+    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return Ok(new { producto.Id, producto.Nombre });
+}
+~~~
+
+La URL `/catalogo/resumen/2` selecciona el producto Lápiz y produce un objeto JSON semejante a:
+
+~~~json
+{"id":2,"nombre":"Lápiz"}
+~~~
+
+La serialización JSON habitual de ASP.NET Core utiliza nombres de propiedades en `camelCase` para este resultado. No ejecuta una vista Razor ni modifica la plantilla de datos. Una consulta `/catalogo/resumen/99` devuelve 404 porque el método no encuentra un producto. Si se solicita un segmento no entero, la ruta con `{id:int}` no coincide y también se obtiene 404, en ese caso sin ejecutar la acción.
+
+Para un desarrollador que conoce Web API, esto confirma que **MVC comparte los tipos fundamentales de resultado HTTP**, aunque nuestro curso utilice principalmente vistas Razor para representar la interfaz del usuario. En M04 construiremos una API auxiliar mínima que será consumida desde Blazor; el propósito de este reto es observar formatos de respuesta, no enseñar toda la disciplina de diseño de API.
+
+**Errores habituales y diagnóstico.**
+
+**«La ruta existe, luego siempre responde 200».** Falso. `Detalle(99)` y `Detalle(0)` coinciden con una acción pero responden 404 y 400, respectivamente, por decisiones expresas del controlador.
+
+**«Tengo que crear una vista Estado.cshtml».** No, porque la acción usa `Content()`. Solo necesitamos una vista si elegimos un resultado de vista.
+
+**«La ruta Ficha se construye como /Productos/Ficha/2».** No en este ejemplo. El atributo `[HttpGet("/catalogo/ficha/{id:int}")]` define otra URL, que no coincide con el patrón convencional habitual de esa acción.
+
+**«No entiendo por qué la ficha Ficha utiliza Detalle.cshtml».** Porque la instrucción `View("Detalle", producto)` señala explícitamente el nombre de la vista compartida por ambas acciones.
+
+**«La acción no recibe el id».** Revisar que la ruta tiene el tercer segmento y que la firma recibe `int id`. En el caso del atributo hay que escribir `{id:int}` y llamar igual al parámetro que la plantilla vincula.
+
+**«Al activar el comentario, aparece un error de compilación».** Comprobar que se han quitado **los dos** delimitadores del bloque y no se han alterado las llaves, la indentación semántica ni las llamadas a métodos.
+
+**«Una respuesta 404 siempre significa que el servidor está apagado».** No. Un servidor apagado provoca normalmente un error de conexión. Un 404 es una respuesta HTTP que el servidor ha generado.
+
+**«El navegador recibe un objeto Producto cuando abre el detalle».** No directamente: `View(producto)` usa el objeto en el servidor para producir HTML. En el reto `Ok(new { ... })` sí se serializa un objeto a JSON.
+
+**Relación con P1.4 y continuidad.**
+
+La práctica comienza inspeccionando el controlador existente y la lista compartida; activa `Estado()` y observa texto plano; activa `Detalle(int id)` y comprueba 200/400/404; incorpora una ruta por atributos; añade enlaces por producto en la vista; y realiza el reto JSON, igualmente comentado en el proyecto.
+
+La batería de pruebas compila y ejecuta **cada estado solicitado** y verifica sus respuestas reales a través de HTTP, sin reemplazar la comprensión manual de la navegación. Se preservan también las pruebas de regresión de los capítulos 1.1 a 1.3.
+
+El capítulo siguiente, **1.5**, profundizará en la sintaxis Razor, la composición de vistas, los layouts y las vistas parciales usando las páginas y el detalle funcional de este capítulo.
+
+**Fuentes y referencias.**
+
+- Microsoft Learn, enrutamiento a acciones de controlador: https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/routing?view=aspnetcore-8.0
+- Microsoft Learn, solicitudes mediante controladores: https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/actions?view=aspnetcore-8.0
+- Microsoft Learn, resultados de acciones de controlador: https://learn.microsoft.com/en-us/aspnet/core/web-api/action-return-types?view=aspnetcore-8.0
+- Microsoft Learn, vistas Razor y tipado de modelos: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/overview?view=aspnetcore-8.0
+
+
+---
+
+**Activación incremental y regresión.**
+
+El proyecto del capítulo conserva la funcionalidad de las prácticas anteriores. En cada etapa activamos un bloque de código marcado, compilamos, iniciamos y comprobamos un resultado nuevo. No desactivamos el listado al habilitar `Estado` ni eliminamos la ficha al añadir `Ficha`.
+
+Esto permite enseñar el desarrollo incremental con un criterio verificable: **la nueva capacidad aparece y las anteriores permanecen operativas**. Cuando activamos el reto, además de comprobar JSON 200, debemos confirmar que `/Productos` continúa mostrando sus tres elementos y que `/Productos/Detalle/2` sigue ofreciendo HTML.
+
+La práctica incluye una ejecución automatizada de seis estados mediante copias temporales. No requiere que el alumno ejecute continuamente el test durante todas las explicaciones, pero sí permite demostrar de forma objetiva que los bloques propuestos no son pseudocódigo inconexo y que las rutas publicadas funcionan.
+
+Con estos conceptos, el punto 1.5 podrá centrarse en enriquecer la presentación Razor sin volver a explicar desde cero cómo se obtiene el producto ni cómo se selecciona una acción.
+
+**Un recorrido narrado de extremo a extremo.**
 
 Consideremos la solicitud `GET /Productos/Detalle/2` en la versión final del capítulo. El navegador construye una petición HTTP dirigida al proceso local. La infraestructura ASP.NET Core recibe la solicitud y utiliza los endpoints MVC registrados para seleccionar `ProductosController.Detalle(int id)`.
 
@@ -2321,13 +2316,13 @@ Si repetimos el recorrido para `/Productos/Detalle/99`, los pasos cambian a part
 
 Si solicitamos `/catalogo/ficha/2`, la selección inicial del endpoint ocurre mediante un atributo de ruta, no mediante la forma convencional. Después, la acción elige explícitamente la vista `Detalle` para representar el mismo producto. Esto explica por qué un cambio en la ruta no obliga a duplicar el HTML de la ficha.
 
-### Reconocer los límites del recorrido
+**Reconocer los límites del recorrido.**
 
 Este ejemplo no realiza consultas a una base de datos ni autentica al usuario. Tampoco depende de un servicio externo. El flujo es suficientemente completo para enseñar MVC, rutas, resultados y Razor, pero sigue siendo una aplicación didáctica de consulta.
 
 Cuando incorporemos EF Core en M02, la forma de obtener los datos cambiará. La idea general de recibir una solicitud, validar su entrada, localizar el recurso y devolver un resultado apropiado continuará siendo útil.
 
-## 1.4.31. Criterio de dominio del punto 1.4
+**Criterio de dominio del punto 1.4.**
 
 Para considerar aprendido el capítulo, el alumno debería poder responder sin consultar una solución:
 
@@ -2337,10 +2332,11 @@ Cada respuesta debe hacer referencia a un archivo o línea real del proyecto, no
 
 El capítulo 1.5 reutilizará esos resultados de detalle para profundizar en cómo Razor compone la presentación. Por eso es importante cerrar antes esta distinción: **las rutas seleccionan acciones, las acciones eligen resultados y las vistas representan datos**.
 
-
 # 1.5. Vistas Razor, modelos tipados, layouts y vistas parciales
 
-## Objetivos y contexto
+
+
+**Objetivos y contexto.**
 
 En el punto 1.4 construimos una acción de detalle de producto, comprobamos distintos resultados HTTP y añadimos enlaces desde el listado. Ahora el foco se traslada a **cómo se produce y se organiza el HTML de una aplicación ASP.NET Core MVC**.
 
@@ -2348,7 +2344,9 @@ Al terminar, el alumno podrá interpretar las directivas y expresiones básicas 
 
 No adelantaremos los formularios y los Tag Helpers de entrada de datos de M02. El dominio sigue siendo un pequeño catálogo de tres productos y no necesita una base de datos.
 
-## 1.5.1. Qué es Razor y dónde se ejecuta
+## Razor y modelos fuertemente tipados
+
+**Qué es Razor y dónde se ejecuta.**
 
 **Razor** es la sintaxis de plantillas de ASP.NET Core que combina HTML con expresiones y bloques de C#. En MVC, la infraestructura de vistas procesa los archivos `.cshtml` **en el servidor**, usando el modelo que la acción entrega, y genera el HTML de la respuesta HTTP.
 
@@ -2378,11 +2376,11 @@ El símbolo `@` tiene diferentes usos según el contexto. Es importante diferenc
 
 Como en cualquier plantilla, **la estructura importa**. El C# dentro de `@if` o `@foreach` puede utilizarse para controlar el marcado generado, pero no conviene trasladar a las vistas las consultas a bases de datos o las reglas empresariales del sistema. Las vistas deben centrarse en la presentación.
 
-### HTML codificado de forma segura
+**HTML codificado de forma segura.**
 
 Cuando Razor genera contenido desde una expresión ordinaria, codifica caracteres que podrían interpretarse como HTML. Esta protección es relevante para mostrar nombres escritos por usuarios, aunque todavía utilicemos datos fijos. Evitaremos utilizar `Html.Raw` sobre texto no confiable. El hecho de que en la respuesta aparezca una entidad HTML para una letra acentuada no implica que se haya perdido el texto: el navegador la representa correctamente.
 
-## 1.5.2. Una vista de lista y una vista de detalle no reciben el mismo modelo
+**Una vista de lista y una vista de detalle no reciben el mismo modelo.**
 
 El proyecto utiliza dos vistas tipadas. La vista del catálogo declara:
 
@@ -2415,7 +2413,7 @@ y consulta `@Model.Id`, `@Model.Nombre` y `@Model.Precio`. Para una acción `Det
 
 **No debemos intercambiar los contratos**: una vista que declara `Producto` no puede tratar automáticamente su modelo como una lista. El contrato tipado facilita comprender el código y detecta errores de acceso a propiedades. Una vista también puede utilizar un *view model* distinto del tipo de dominio; por ahora emplearemos `Producto` directamente, porque la práctica se concentra en la sintaxis Razor y no en arquitecturas de capas.
 
-### Una condición de presentación adicional
+**Una condición de presentación adicional.**
 
 En el proyecto 1.5 existe un bloque comentado del listado:
 
@@ -2430,7 +2428,95 @@ Se activa **dentro del `else` que garantiza que `Model` no es nulo**. La condici
 
 Cuando el alumnado lo habilita en P1.5.2, comprobará que el contador sigue mostrando tres y se añade un texto nuevo. Esta separación entre datos y formato será la base de la vista parcial que aparecerá después.
 
-## 1.5.3. El layout: la estructura compartida de la página
+**El proceso de representación Razor visto desde dentro.**
+
+Razor permite escribir una plantilla legible que combina HTML y C#. Sin embargo, para utilizar correctamente las vistas MVC debemos distinguir el archivo de plantilla, el modelo que recibe y la respuesta finalmente enviada al navegador. La vista no es una copia de HTML estático. Durante la representación, la plataforma ejecuta expresiones y bloques Razor para generar el documento resultante.
+
+En nuestro catálogo, el controlador `ProductosController.Index()` devuelve una colección de objetos `Producto`. La vista `Views/Productos/Index.cshtml` recibe esa colección como `Model` y produce marcado a partir de los objetos. El layout proporciona la estructura HTML exterior. Si activamos una vista parcial, su contenido se incorpora como otro fragmento dentro de la misma respuesta.
+
+Este proceso puede observarse sin necesidad de conocer los detalles internos del compilador de Razor. Abrimos una vista `.cshtml` y vemos expresiones como `@Model.Count`. Después abrimos el navegador y, mediante las herramientas de desarrollo, examinamos el HTML resultante. Allí aparece un número y no la expresión Razor que lo produjo.
+
+**Separar el código fuente del contenido entregado.**
+
+Por ejemplo, la plantilla contiene:
+
+~~~cshtml
+<h3>@Model.Nombre</h3>
+~~~
+
+Para un producto cuyo nombre es Lápiz, el resultado conceptual es:
+
+~~~html
+<h3>Lápiz</h3>
+~~~
+
+El contenido de la respuesta puede codificar algunos caracteres de manera equivalente mediante entidades HTML; eso no cambia la propiedad de que el navegador presenta el texto del producto. La transformación se realiza en el servidor antes de enviar el resultado.
+
+De la misma manera, un bucle:
+
+~~~cshtml
+@foreach (var producto in Model)
+{
+    <li>@producto.Nombre</li>
+}
+~~~
+
+no crea una etiqueta `<li>` que contenga código C# visible en el cliente. Produce varios elementos HTML, tantos como objetos recorra la colección. En nuestro caso hay tres productos, de modo que pueden generarse tres elementos.
+
+Esta observación constituye una de las diferencias más importantes entre aprender sintaxis Razor y limitarse a copiar una plantilla. El alumnado debe poder explicar no solo **qué se escribe**, sino **qué fragmento de respuesta genera cada instrucción**.
+
+**La directiva @model como contrato fuerte.**
+
+En el catálogo hemos utilizado:
+
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+
+En la ficha de detalle y en la parcial utilizamos:
+
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+
+La diferencia responde a la estructura de los datos. El listado recorre una colección; la ficha y la tarjeta trabajan con un único producto.
+
+Cuando una vista declara el tipo de su modelo, las expresiones C# pueden acceder a las propiedades conocidas para ese tipo. La lista tiene `Count` y permite iterar elementos, mientras que el objeto `Producto` contiene `Id`, `Nombre` y `Precio`. No debemos intentar consultar `Model.Nombre` cuando `Model` representa una lista ni llamar a `Model.Count` cuando es un producto individual.
+
+**Contrato de la vista parcial frente al contrato de la vista principal.**
+
+En `Index.cshtml`, durante el `foreach`, la variable `producto` tiene el tipo `Producto`. Al pasarla a la parcial con `model="producto"`, el archivo `_TarjetaProducto.cshtml` puede declarar `@model Producto`. No necesita recibir toda la colección porque su objetivo es representar únicamente una tarjeta.
+
+En `Detalle.cshtml`, `Model` ya es un `Producto`. Podemos enviarlo a la misma parcial utilizando `model="Model"`. La parcial no necesita conocer si su dato procede de una lista, una ficha o cualquier otro origen compatible: recibe el contrato que necesita y genera su HTML.
+
+Esta separación hace que una misma representación pueda reutilizarse en diferentes contextos sin introducir nuevas clases de controlador ni copiar el mismo marcado.
+
+**Por qué el código de presentación puede contener condiciones.**
+
+Una vista Razor no es un archivo de HTML puro. La directiva `@if` permite decidir si aparece una sección, y `@foreach` permite repetir estructuras. Este comportamiento es necesario para construir páginas basadas en datos, pero exige criterio para no trasladar al archivo de vista decisiones que pertenecen al dominio.
+
+En el capítulo preparamos una condición de presentación:
+
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+
+Su única responsabilidad es mostrar un mensaje cuando la lista contiene al menos tres elementos. No cambia la colección ni aplica ninguna regla comercial. Además, la situamos dentro del `else` de una comprobación anterior, de forma que sabemos que `Model` no es nulo cuando accedemos a `Count`.
+
+En el reto, una condición de precio aparece dentro de la parcial:
+
+~~~cshtml
+@if (Model.Precio < 3m)
+{
+    <strong class="etiqueta-economico">Precio económico</strong>
+}
+~~~
+
+El precio es un valor decimal del modelo y `3m` es un literal decimal de C#. La etiqueta se añade únicamente a la representación de productos que cumplen el criterio. En nuestro conjunto de datos, Lápiz cuesta 1,20 €, mientras que Cuaderno y Carpeta superan el umbral.
+
+**Cuándo convendría trasladar una decisión fuera de Razor.**
+
+Si la condición pasara a determinar quién puede comprar un producto, qué impuestos se aplican o qué precio final debe persistirse, estaríamos en un ámbito de lógica empresarial. Sería peligroso mantener esa regla solo en el HTML de una parcial porque podría necesitarse también en otras interfaces y servicios.
+
+La decisión `Precio < 3m` del reto tiene un alcance explícitamente didáctico y visual. No ofrece descuentos reales ni determina la disponibilidad del producto. La mantenemos en Razor porque el ejercicio consiste en demostrar **la reutilización de una regla simple de presentación**.
+
+## Composición mediante layout y secciones
+
+**El layout: la estructura compartida de la página.**
 
 Si cada vista copiara su propio `<html>`, `<head>`, navegación, hojas CSS y pie, un cambio de diseño tendría que repetirse en todas las páginas. En MVC, el **layout** permite reunir esta estructura común.
 
@@ -2472,7 +2558,7 @@ Por eso las vistas completas comparten el layout sin repetir en cada archivo la 
 
 Conviene evitar una confusión habitual: `_ViewStart.cshtml` interviene en las **vistas completas**, pero **no se ejecuta al representar una vista parcial**. Una parcial incluida dentro de otra página no introduce por sí sola un segundo layout. Esta distinción se volverá visible cuando añadamos tarjetas en 1.5.4.
 
-### Títulos que dependen de cada vista
+**Títulos que dependen de cada vista.**
 
 Cada página puede indicar un valor mediante `ViewData["Title"]`:
 
@@ -2484,7 +2570,7 @@ Cada página puede indicar un valor mediante `ViewData["Title"]`:
 
 La vista proporciona un valor y el layout lo utiliza dentro de `<title>`. Así el título del navegador cambia sin tener que crear varios layouts. Para datos más complejos, el modelo tipado es la opción principal; aquí `ViewData` se usa únicamente como mecanismo sencillo de comunicación de presentación con la estructura común.
 
-## 1.5.4. Secciones de un layout: contenido opcional que depende de la página
+**Secciones de un layout: contenido opcional que depende de la página.**
 
 Un layout también puede reservar una posición para contenido adicional que solo algunas vistas definen, mediante una **sección Razor**. Nuestro proyecto prepara este bloque comentado en el layout:
 
@@ -2511,7 +2597,45 @@ Al activar ambos bloques, la página de detalle escribe su mensaje en el lugar d
 
 Una sección no debe confundirse con una vista parcial. La sección es contenido definido por la vista para ser colocado en una zona prevista del layout. Una parcial, en cambio, es un **archivo de marcado reutilizable** que una vista puede representar pasándole un modelo.
 
-## 1.5.5. Vistas parciales: evitar repetir marcado
+**Qué aporta el layout y qué no aporta.**
+
+El layout define la estructura común de una página MVC: documento HTML, cabecera, navegación, hojas de estilo, zona principal y pie. Esto evita repetir un mismo bloque de marcado en todas las vistas.
+
+En el proyecto, `Views/_ViewStart.cshtml` selecciona `_Layout`:
+
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+
+Después, cada vista concreta define el contenido que se insertará en `@RenderBody()`. El título del documento también puede variar mediante `ViewData["Title"]`, permitiendo que la pestaña del navegador refleje si estamos en el catálogo o en una ficha individual.
+
+Si un alumno añadiera manualmente un segundo `<html>` completo dentro de `Index.cshtml`, estaría duplicando responsabilidades del layout. La composición correcta consiste en dejar que la vista se concentre en su contenido y que el layout aporte la estructura exterior.
+
+El layout no sirve para recuperar los datos del catálogo ni sustituye al controlador. Puede presentar elementos compartidos y utilizar ciertos valores de presentación, pero no debemos hacer depender la lógica de negocio de cómo esté estructurada la cabecera del sitio.
+
+**El ciclo de vida de una sección opcional.**
+
+Una sección Razor permite que una vista defina contenido destinado a una región específica del layout. Nuestro ejercicio incorpora dos bloques que deben entenderse conjuntamente.
+
+En el layout:
+
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+
+En la vista de detalle:
+
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+
+La vista declara la sección y el layout define dónde se representa. Como el parámetro `required` es `false`, otras vistas que no declaran esa sección pueden seguir utilizándolo sin tener que añadir texto vacío.
+
+**Qué demuestra la comparación con el catálogo.**
+
+La ficha de Lápiz incluye una sección de notas y el catálogo no la declara. Si el layout está correctamente preparado, ambos recorridos siguen funcionando. Eso es más informativo que comprobar únicamente que aparece una etiqueta `<aside>`: confirma que la nueva posibilidad de personalizar una página no obliga a alterar todas las demás.
+
+El alumno también debe comprender por qué el código se activa en ambos archivos en el mismo paso. Si se declara una sección en una vista sin que exista un mecanismo apropiado para representarla o ignorarla, el motor de vistas puede detectar una sección sin consumir. La práctica evita deliberadamente dejar el proyecto en ese estado intermedio.
+
+Las secciones pertenecen a la composición de una vista completa con su layout. No constituyen un mecanismo general para enviar contenido desde cualquier vista parcial. Por eso el mensaje `NotasPagina` se define en `Detalle.cshtml` y no en `_TarjetaProducto.cshtml`.
+
+## Vistas parciales y reutilización
+
+**Vistas parciales: evitar repetir marcado.**
 
 Supongamos que el mismo producto debe presentarse como tarjeta tanto en el catálogo como dentro de su propia ficha. Podríamos copiar el mismo `<article>` en ambos archivos, pero entonces cualquier cambio de presentación tendría que repetirse. Para evitarlo utilizaremos una **vista parcial**.
 
@@ -2531,7 +2655,7 @@ Nuestro proyecto incorpora `Views/Shared/_TarjetaProducto.cshtml`, inicialmente 
 
 El archivo real añade comentarios docentes y el bloque opcional del reto. La parcial recibe un solo `Producto`, presenta su nombre y precio y produce un enlace de detalle. Como se encuentra en `Views/Shared`, puede localizarse desde las vistas del catálogo y de la ficha por las convenciones de búsqueda de vistas.
 
-### Llamar a una parcial con el Partial Tag Helper
+**Llamar a una parcial con el Partial Tag Helper.**
 
 Para representar la tarjeta dentro de la página de listado utilizamos:
 
@@ -2548,7 +2672,7 @@ El Tag Helper construye el fragmento de HTML de forma asíncrona, sin que el alu
 
 **Resultado:** en el catálogo aparecen **tres tarjetas**, una por producto. La página ya mostraba un listado sencillo; activamos otra representación deliberadamente para poder comparar ambas y observar el uso de la parcial sin borrar el ejercicio anterior.
 
-### Reutilizar la misma parcial en el detalle
+**Reutilizar la misma parcial en el detalle.**
 
 En `Views/Productos/Detalle.cshtml` se activa más adelante:
 
@@ -2568,34 +2692,13 @@ La diferencia entre las dos invocaciones es intencionada:
 
 El atributo `model` no debe confundirse con la directiva `@model`. El primero es un atributo del Tag Helper que pasa un objeto; el segundo declara el tipo esperado por el archivo Razor que va a representarlo.
 
-### Qué no debe hacer una parcial
+**Qué no debe hacer una parcial.**
 
 Una vista parcial resulta apropiada para repetir marcado y lógica **simple de presentación**. No conviene ocultar dentro de ella acceso a una base de datos ni usarla como solución universal para construir páginas complejas. En esta práctica, la parcial **recibe datos**, y el controlador sigue siendo el que obtiene los productos.
 
 Si se necesita lógica propia compleja para preparar un fragmento reutilizable, ASP.NET Core dispone también de otros mecanismos, como View Components. No forman parte del alcance de este capítulo.
 
-## 1.5.6. El reto: una condición de precio centralizada en la parcial
-
-El reto utiliza lo que acabamos de aprender: al modificar **una única vista parcial** debemos poder cambiar el HTML de la tarjeta en **dos páginas**.
-
-Dentro de `Views/Shared/_TarjetaProducto.cshtml` existe un bloque de código comentado:
-
-~~~cshtml
-@if (Model.Precio < 3m)
-{
-    <strong class="etiqueta-economico">Precio económico</strong>
-}
-~~~
-
-La condición compara el precio decimal del producto con tres unidades monetarias. El código del curso contiene estos valores: Cuaderno 4,50, Lápiz 1,20 y Carpeta 3,75. Por tanto, el mensaje aparece únicamente para **Lápiz**.
-
-Esta expresión es apropiada en la parcial porque la usamos como una decisión **visual y local del ejercicio**; no estamos implementando una política real de descuentos ni alterando los precios. El umbral es ficticio y está explicado en el Markdown de prácticas.
-
-Al activar el reto, la vista parcial añade la etiqueta a la tarjeta de Lápiz dentro del catálogo y dentro de `/Productos/Detalle/2`. La ficha de Cuaderno (`id=1`) no debe mostrarla. El archivo `Index.cshtml`, el archivo `Detalle.cshtml` y el controlador permanecen sin cambios adicionales.
-
-Con ello se demuestra directamente el valor de la reutilización: **una modificación localizada produce un comportamiento coherente dondequiera que se represente la misma parcial**.
-
-## 1.5.7. Flujo de composición de una respuesta HTML
+**Flujo de composición de una respuesta HTML.**
 
 Los elementos del ejercicio se relacionan de la siguiente manera:
 
@@ -2619,209 +2722,25 @@ El diagrama representa la **composición conceptual** del HTML. El motor Razor c
 
 Cuando la página de detalle define la sección `NotasPagina`, el layout también coloca su contenido en la zona `RenderSectionAsync`. La parcial no necesita conocer esa sección ni declararla.
 
-## 1.5.8. Errores habituales
-
-**«Una parcial es una página que el navegador solicita por separado».** En este caso, no. Se representa dentro de otra vista del servidor. No necesitamos crear una acción ni una ruta HTTP para `_TarjetaProducto.cshtml`.
-
-**«Si llamo a `<partial>` desde un `foreach` se ejecuta el layout por cada elemento».** No. El layout es el envoltorio de la vista completa; la parcial no ejecuta `_ViewStart.cshtml` ni inserta otro documento HTML completo.
-
-**«Puedo usar cualquier propiedad en `@Model` sin importar el tipo».** No. La directiva `@model` declara qué tipo de datos recibirá el archivo. El listado y el detalle tienen modelos diferentes; la parcial espera un `Producto` individual.
-
-**«La sección del detalle aparece automáticamente con solo definir `@section`».** No. El layout debe contener un marcador de representación con el nombre correspondiente, o la vista debe atender de otra forma el contrato de secciones. Activaremos ambos bloques juntos.
-
-**«Razor permite escribir C# en las vistas, por tanto allí va toda la lógica».** No. Razor facilita decisiones de presentación; las operaciones de dominio o persistencia deben separarse de esas decisiones visuales.
-
-**«Si la parcial tiene código comentado, sus etiquetas pueden aparecer en HTML».** Los comentarios Razor `@* ... *@` no se envían en el cuerpo HTML. Al retirarlos correctamente, el bloque comienza a generar contenido.
-
-**«El Tag Helper `<partial>` es un componente Blazor».** No. Ambos pueden compartir sintaxis Razor, pero las vistas parciales MVC se renderizan como fragmentos de una respuesta HTML; los componentes Blazor tienen otro modelo de ejecución que veremos en M03.
-
-## 1.5.9. Continuidad y alcance del módulo M01
-
-La práctica 1.5 reproduce los conceptos en estados pequeños y observables: vistas tipadas ya existentes, condición Razor, layout con sección opcional, tarjeta parcial en el listado, reutilización de la tarjeta en el detalle y reto de etiqueta según precio. Cada estado se compila y se prueba contra Kestrel mediante HTTP real.
-
-Con esta práctica se completa el **contenido funcional previsto de M01**: desde la primera petición hasta un catálogo con listados y fichas Razor reutilizables. Los **formularios, model binding de POST, validación con DataAnnotations y EF Core** se incorporarán en el M02, no en este módulo.
-
-Para afianzar lo aprendido, recorre las cinco etapas del módulo con los proyectos incluidos y comprueba que cada cambio de código corresponde a un comportamiento observable. La práctica ofrece los procedimientos necesarios para continuar el desarrollo del catálogo.
-
-### Referencias técnicas
-
-- Microsoft Learn, Razor syntax: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/razor?view=aspnetcore-8.0
-- Microsoft Learn, layouts: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/layout?view=aspnetcore-8.0
-- Microsoft Learn, partial views: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/partial?view=aspnetcore-8.0
-- Microsoft Learn, Partial Tag Helper: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/tag-helpers/built-in/partial-tag-helper?view=aspnetcore-8.0
-
-
-## 1.5.10. El proceso de representación Razor visto desde dentro
-
-Razor permite escribir una plantilla legible que combina HTML y C#. Sin embargo, para utilizar correctamente las vistas MVC debemos distinguir el archivo de plantilla, el modelo que recibe y la respuesta finalmente enviada al navegador. La vista no es una copia de HTML estático. Durante la representación, la plataforma ejecuta expresiones y bloques Razor para generar el documento resultante.
-
-En nuestro catálogo, el controlador `ProductosController.Index()` devuelve una colección de objetos `Producto`. La vista `Views/Productos/Index.cshtml` recibe esa colección como `Model` y produce marcado a partir de los objetos. El layout proporciona la estructura HTML exterior. Si activamos una vista parcial, su contenido se incorpora como otro fragmento dentro de la misma respuesta.
-
-Este proceso puede observarse sin necesidad de conocer los detalles internos del compilador de Razor. Abrimos una vista `.cshtml` y vemos expresiones como `@Model.Count`. Después abrimos el navegador y, mediante las herramientas de desarrollo, examinamos el HTML resultante. Allí aparece un número y no la expresión Razor que lo produjo.
-
-### Separar el código fuente del contenido entregado
-
-Por ejemplo, la plantilla contiene:
-
-~~~cshtml
-<h3>@Model.Nombre</h3>
-~~~
-
-Para un producto cuyo nombre es Lápiz, el resultado conceptual es:
-
-~~~html
-<h3>Lápiz</h3>
-~~~
-
-El contenido de la respuesta puede codificar algunos caracteres de manera equivalente mediante entidades HTML; eso no cambia la propiedad de que el navegador presenta el texto del producto. La transformación se realiza en el servidor antes de enviar el resultado.
-
-De la misma manera, un bucle:
-
-~~~cshtml
-@foreach (var producto in Model)
-{
-    <li>@producto.Nombre</li>
-}
-~~~
-
-no crea una etiqueta `<li>` que contenga código C# visible en el cliente. Produce varios elementos HTML, tantos como objetos recorra la colección. En nuestro caso hay tres productos, de modo que pueden generarse tres elementos.
-
-Esta observación constituye una de las diferencias más importantes entre aprender sintaxis Razor y limitarse a copiar una plantilla. El alumnado debe poder explicar no solo **qué se escribe**, sino **qué fragmento de respuesta genera cada instrucción**.
-
-## 1.5.11. La directiva @model como contrato fuerte
-
-En el catálogo hemos utilizado:
-
-~~~cshtml
-@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
-~~~
-
-En la ficha de detalle y en la parcial utilizamos:
-
-~~~cshtml
-@model CursoWeb.Mvc.Models.Producto
-~~~
-
-La diferencia responde a la estructura de los datos. El listado recorre una colección; la ficha y la tarjeta trabajan con un único producto.
-
-Cuando una vista declara el tipo de su modelo, las expresiones C# pueden acceder a las propiedades conocidas para ese tipo. La lista tiene `Count` y permite iterar elementos, mientras que el objeto `Producto` contiene `Id`, `Nombre` y `Precio`. No debemos intentar consultar `Model.Nombre` cuando `Model` representa una lista ni llamar a `Model.Count` cuando es un producto individual.
-
-### Contrato de la vista parcial frente al contrato de la vista principal
-
-En `Index.cshtml`, durante el `foreach`, la variable `producto` tiene el tipo `Producto`. Al pasarla a la parcial con `model="producto"`, el archivo `_TarjetaProducto.cshtml` puede declarar `@model Producto`. No necesita recibir toda la colección porque su objetivo es representar únicamente una tarjeta.
-
-En `Detalle.cshtml`, `Model` ya es un `Producto`. Podemos enviarlo a la misma parcial utilizando `model="Model"`. La parcial no necesita conocer si su dato procede de una lista, una ficha o cualquier otro origen compatible: recibe el contrato que necesita y genera su HTML.
-
-Esta separación hace que una misma representación pueda reutilizarse en diferentes contextos sin introducir nuevas clases de controlador ni copiar el mismo marcado.
-
-## 1.5.12. Por qué el código de presentación puede contener condiciones
-
-Una vista Razor no es un archivo de HTML puro. La directiva `@if` permite decidir si aparece una sección, y `@foreach` permite repetir estructuras. Este comportamiento es necesario para construir páginas basadas en datos, pero exige criterio para no trasladar al archivo de vista decisiones que pertenecen al dominio.
-
-En el capítulo preparamos una condición de presentación:
-
-~~~cshtml
-@if (Model.Count >= 3)
-{
-    <p id="catalogo-completo">El catálogo contiene al menos tres productos.</p>
-}
-~~~
-
-Su única responsabilidad es mostrar un mensaje cuando la lista contiene al menos tres elementos. No cambia la colección ni aplica ninguna regla comercial. Además, la situamos dentro del `else` de una comprobación anterior, de forma que sabemos que `Model` no es nulo cuando accedemos a `Count`.
-
-En el reto, una condición de precio aparece dentro de la parcial:
-
-~~~cshtml
-@if (Model.Precio < 3m)
-{
-    <strong class="etiqueta-economico">Precio económico</strong>
-}
-~~~
-
-El precio es un valor decimal del modelo y `3m` es un literal decimal de C#. La etiqueta se añade únicamente a la representación de productos que cumplen el criterio. En nuestro conjunto de datos, Lápiz cuesta 1,20 €, mientras que Cuaderno y Carpeta superan el umbral.
-
-### Cuándo convendría trasladar una decisión fuera de Razor
-
-Si la condición pasara a determinar quién puede comprar un producto, qué impuestos se aplican o qué precio final debe persistirse, estaríamos en un ámbito de lógica empresarial. Sería peligroso mantener esa regla solo en el HTML de una parcial porque podría necesitarse también en otras interfaces y servicios.
-
-La decisión `Precio < 3m` del reto tiene un alcance explícitamente didáctico y visual. No ofrece descuentos reales ni determina la disponibilidad del producto. La mantenemos en Razor porque el ejercicio consiste en demostrar **la reutilización de una regla simple de presentación**.
-
-## 1.5.13. Qué aporta el layout y qué no aporta
-
-El layout define la estructura común de una página MVC: documento HTML, cabecera, navegación, hojas de estilo, zona principal y pie. Esto evita repetir un mismo bloque de marcado en todas las vistas.
-
-En el proyecto, `Views/_ViewStart.cshtml` selecciona `_Layout`:
-
-~~~cshtml
-@{
-    Layout = "_Layout";
-}
-~~~
-
-Después, cada vista concreta define el contenido que se insertará en `@RenderBody()`. El título del documento también puede variar mediante `ViewData["Title"]`, permitiendo que la pestaña del navegador refleje si estamos en el catálogo o en una ficha individual.
-
-Si un alumno añadiera manualmente un segundo `<html>` completo dentro de `Index.cshtml`, estaría duplicando responsabilidades del layout. La composición correcta consiste en dejar que la vista se concentre en su contenido y que el layout aporte la estructura exterior.
-
-El layout no sirve para recuperar los datos del catálogo ni sustituye al controlador. Puede presentar elementos compartidos y utilizar ciertos valores de presentación, pero no debemos hacer depender la lógica de negocio de cómo esté estructurada la cabecera del sitio.
-
-## 1.5.14. El ciclo de vida de una sección opcional
-
-Una sección Razor permite que una vista defina contenido destinado a una región específica del layout. Nuestro ejercicio incorpora dos bloques que deben entenderse conjuntamente.
-
-En el layout:
-
-~~~cshtml
-<aside id="notas-del-layout" aria-label="Notas de la página">
-    @await RenderSectionAsync("NotasPagina", required: false)
-</aside>
-~~~
-
-En la vista de detalle:
-
-~~~cshtml
-@section NotasPagina
-{
-    <p id="nota-pagina-detalle">Detalle construido con una vista Razor tipada.</p>
-}
-~~~
-
-La vista declara la sección y el layout define dónde se representa. Como el parámetro `required` es `false`, otras vistas que no declaran esa sección pueden seguir utilizándolo sin tener que añadir texto vacío.
-
-### Qué demuestra la comparación con el catálogo
-
-La ficha de Lápiz incluye una sección de notas y el catálogo no la declara. Si el layout está correctamente preparado, ambos recorridos siguen funcionando. Eso es más informativo que comprobar únicamente que aparece una etiqueta `<aside>`: confirma que la nueva posibilidad de personalizar una página no obliga a alterar todas las demás.
-
-El alumno también debe comprender por qué el código se activa en ambos archivos en el mismo paso. Si se declara una sección en una vista sin que exista un mecanismo apropiado para representarla o ignorarla, el motor de vistas puede detectar una sección sin consumir. La práctica evita deliberadamente dejar el proyecto en ese estado intermedio.
-
-Las secciones pertenecen a la composición de una vista completa con su layout. No constituyen un mecanismo general para enviar contenido desde cualquier vista parcial. Por eso el mensaje `NotasPagina` se define en `Detalle.cshtml` y no en `_TarjetaProducto.cshtml`.
-
-## 1.5.15. Extraer una estructura repetida a una parcial
+**Extraer una estructura repetida a una parcial.**
 
 Supongamos que cada producto debe mostrar su nombre, precio y enlace. Podríamos copiar ese HTML en `Index.cshtml` y en `Detalle.cshtml`, pero la duplicación introduciría un coste de mantenimiento: cualquier modificación del formato debería reproducirse en ambos archivos.
 
 La parcial `_TarjetaProducto.cshtml` concentra ese marcado:
 
-~~~cshtml
-@model CursoWeb.Mvc.Models.Producto
-
-<article class="tarjeta-producto" data-producto-id="@Model.Id">
-    <h3>@Model.Nombre</h3>
-    <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
-    <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
-</article>
-~~~
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
 
 Ahora la vista de listado necesita solamente iterar los productos y pasar uno a uno a la parcial. La vista de detalle puede pasar directamente su único `Model`.
 
 La ventaja no es únicamente escribir menos líneas. Al existir **una sola implementación del marcado de tarjeta**, corregir una etiqueta o modificar un texto cambia todos los lugares que utilizan esa parcial. El reto de precio económico ofrece una demostración concreta: añadimos la condición en un archivo y la observamos en dos páginas.
 
-### Por qué la parcial está en Shared
+**Por qué la parcial está en Shared.**
 
 `Views/Shared` es una ubicación convencional para componentes de presentación reutilizables entre diferentes vistas. Si la tarjeta perteneciera exclusivamente a una pantalla del catálogo, podríamos plantearnos una ubicación más cercana a esa vista. En nuestro ejemplo es compartida por dos vistas, así que el nombre `_TarjetaProducto.cshtml` y su ubicación en `Shared` comunican su propósito.
 
 El prefijo de guion bajo es una convención habitual de archivos de infraestructura o fragmentos Razor. No convierte la parcial en una acción privada de controlador ni proporciona por sí solo mecanismos de seguridad. La diferencia relevante es que se procesa como fragmento dentro de otra vista.
 
-## 1.5.16. El Partial Tag Helper: qué significa cada atributo
+**El Partial Tag Helper: qué significa cada atributo.**
 
 La invocación:
 
@@ -2841,7 +2760,7 @@ Esto significa que la etiqueta `<partial>` no debe interpretarse como una etique
 
 El elemento produce un **fragmento dentro de una respuesta**. No abre una conexión HTTP adicional por cada tarjeta, no genera un controlador separado y no crea automáticamente un layout por tarjeta. En el listado hay tres objetos; por tanto, el `foreach` hace tres invocaciones de la parcial, incorporando tres fragmentos en el HTML que recibe el navegador.
 
-### Diferenciar Partial Tag Helper, sección y componente Blazor
+**Diferenciar Partial Tag Helper, sección y componente Blazor.**
 
 Los tres conceptos pueden aparecer en archivos con sintaxis Razor, pero cumplen funciones distintas.
 
@@ -2849,7 +2768,98 @@ Una **vista parcial MVC** es un fragmento de presentación reutilizable que se i
 
 En M03 conoceremos el modelo de componentes de Blazor. En M01 evitamos llamar «componente interactivo» a la vista parcial porque eso crearía expectativas incorrectas: nuestra tarjeta se genera del lado del servidor como HTML, y hacer clic en su enlace provoca una navegación HTTP convencional.
 
-## 1.5.17. El reto como prueba de reutilización real
+**Diseño HTML, clases CSS e identificadores de prueba.**
+
+La parcial utiliza elementos semánticos como `<article>` y `<h3>`, y la vista del detalle utiliza una lista de definiciones con `<dl>`. La finalidad es aportar una estructura razonable para los datos, no enseñar un curso completo de CSS o accesibilidad en este apartado.
+
+Las clases `tarjeta-producto` y `tarjeta-precio` permiten aplicar estilos coherentes a las tarjetas, tanto en el catálogo como en una ficha. La clase `etiqueta-economico` pertenece al fragmento que se activa en el reto y dispone de un estilo mínimo en la hoja del proyecto.
+
+Los atributos como `data-producto-id` son útiles para inspeccionar qué producto se está representando. También permiten escribir verificaciones que distingan tres tarjetas diferentes en lugar de comprobar únicamente que aparece tres veces la palabra «producto».
+
+El alumno debe evitar una solución frágil que identifique cada tarjeta solo por su posición visual. La representación está basada en un modelo que tiene `Id`, de modo que podemos comprobar su correspondencia con los objetos de la lista.
+
+**Representación visual frente a corrección funcional.**
+
+Que el HTML contenga tres elementos `article` no demuestra por sí solo que estén bien distribuidos en la pantalla o que el contraste de colores sea adecuado. Las pruebas HTTP automatizadas confirman la estructura y los datos, pero una inspección visual en un navegador permite evaluar su disposición.
+
+También ocurre lo contrario: tres tarjetas pueden parecer correctas a simple vista y esconder enlaces de detalle incorrectos. Por eso combinamos observación visual con comprobaciones de URLs, modelos y contenido HTML.
+
+**Problemas de mantenimiento que la parcial previene.**
+
+Imaginemos que el requisito cambia de «Precio» a «Importe» en la tarjeta. Con la parcial basta con modificar un archivo. El catálogo y la ficha utilizarían la nueva presentación, siempre que ambos sigan representando la misma parcial.
+
+Si en lugar de ello tuviéramos dos copias del HTML, una podría seguir mostrando «Precio» y la otra «Importe». No sería un error de compilación, y una prueba que solo visitara el listado podría no detectar la incoherencia.
+
+Otra situación similar aparece con los enlaces. Si decidimos cambiar la dirección de detalle de producto, conviene revisar todos los lugares que generan URLs. En nuestro curso el enlace de la tarjeta está centralizado en la parcial, mientras que el listado clásico conserva otro enlace para comparar formas de presentación. En un proyecto mayor habría que valorar si esas dos formas deben también compartir un mecanismo de generación de enlaces.
+
+La reutilización es beneficiosa cuando varios lugares necesitan realmente el mismo marcado. No significa que deba extraerse absolutamente cada elemento HTML a su propio archivo parcial. Una separación excesiva puede hacer más difícil leer el conjunto de la vista.
+
+**Método de diagnóstico cuando una parcial falla.**
+
+Si al activar el bloque 1.5.4 no aparecen tarjetas, podemos seguir un diagnóstico ordenado.
+
+Primero comprobamos que la página `/Productos` devuelve 200 y muestra el listado clásico. Si no funciona, el problema puede estar fuera de la nueva parcial y conviene recuperar el estado del capítulo anterior.
+
+Segundo, verificamos que el bloque `PASO 1.5.4` ya no está dentro del comentario Razor. Los comentarios `@* ... *@` no producen HTML, así que una parcial correctamente escrita pero nunca invocada no aparecerá en la respuesta.
+
+Tercero, comprobamos el nombre `_TarjetaProducto` y su ubicación bajo `Views/Shared`. Si el motor no encuentra la parcial, no puede sustituir la etiqueta por el fragmento correspondiente.
+
+Cuarto, revisamos la directiva `@model Producto` y el objeto suministrado mediante `model="producto"`. Un error de tipado puede impedir representar correctamente el fragmento.
+
+Quinto, observamos el HTML resultante y el CSS. Si las tarjetas están en el HTML pero no se aprecian visualmente, probablemente no se trata de una falta de datos ni de una ruta MVC ausente, sino de un problema de presentación.
+
+Esta secuencia es más útil que cambiar aleatoriamente el controlador, el layout y los estilos sin una hipótesis clara.
+
+## Reto de presentación, pruebas y cierre
+
+**El reto: una condición de precio centralizada en la parcial.**
+
+El reto utiliza lo que acabamos de aprender: al modificar **una única vista parcial** debemos poder cambiar el HTML de la tarjeta en **dos páginas**.
+
+Dentro de `Views/Shared/_TarjetaProducto.cshtml` existe un bloque de código comentado:
+
+*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+
+La condición compara el precio decimal del producto con tres unidades monetarias. El código del curso contiene estos valores: Cuaderno 4,50, Lápiz 1,20 y Carpeta 3,75. Por tanto, el mensaje aparece únicamente para **Lápiz**.
+
+Esta expresión es apropiada en la parcial porque la usamos como una decisión **visual y local del ejercicio**; no estamos implementando una política real de descuentos ni alterando los precios. El umbral es ficticio y está explicado en el Markdown de prácticas.
+
+Al activar el reto, la vista parcial añade la etiqueta a la tarjeta de Lápiz dentro del catálogo y dentro de `/Productos/Detalle/2`. La ficha de Cuaderno (`id=1`) no debe mostrarla. El archivo `Index.cshtml`, el archivo `Detalle.cshtml` y el controlador permanecen sin cambios adicionales.
+
+Con ello se demuestra directamente el valor de la reutilización: **una modificación localizada produce un comportamiento coherente dondequiera que se represente la misma parcial**.
+
+**Errores habituales.**
+
+**«Una parcial es una página que el navegador solicita por separado».** En este caso, no. Se representa dentro de otra vista del servidor. No necesitamos crear una acción ni una ruta HTTP para `_TarjetaProducto.cshtml`.
+
+**«Si llamo a `<partial>` desde un `foreach` se ejecuta el layout por cada elemento».** No. El layout es el envoltorio de la vista completa; la parcial no ejecuta `_ViewStart.cshtml` ni inserta otro documento HTML completo.
+
+**«Puedo usar cualquier propiedad en `@Model` sin importar el tipo».** No. La directiva `@model` declara qué tipo de datos recibirá el archivo. El listado y el detalle tienen modelos diferentes; la parcial espera un `Producto` individual.
+
+**«La sección del detalle aparece automáticamente con solo definir `@section`».** No. El layout debe contener un marcador de representación con el nombre correspondiente, o la vista debe atender de otra forma el contrato de secciones. Activaremos ambos bloques juntos.
+
+**«Razor permite escribir C# en las vistas, por tanto allí va toda la lógica».** No. Razor facilita decisiones de presentación; las operaciones de dominio o persistencia deben separarse de esas decisiones visuales.
+
+**«Si la parcial tiene código comentado, sus etiquetas pueden aparecer en HTML».** Los comentarios Razor `@* ... *@` no se envían en el cuerpo HTML. Al retirarlos correctamente, el bloque comienza a generar contenido.
+
+**«El Tag Helper `<partial>` es un componente Blazor».** No. Ambos pueden compartir sintaxis Razor, pero las vistas parciales MVC se renderizan como fragmentos de una respuesta HTML; los componentes Blazor tienen otro modelo de ejecución que veremos en M03.
+
+**Continuidad y alcance del módulo M01.**
+
+La práctica 1.5 reproduce los conceptos en estados pequeños y observables: vistas tipadas ya existentes, condición Razor, layout con sección opcional, tarjeta parcial en el listado, reutilización de la tarjeta en el detalle y reto de etiqueta según precio. Cada estado se compila y se prueba contra Kestrel mediante HTTP real.
+
+Con esta práctica se completa el **contenido funcional previsto de M01**: desde la primera petición hasta un catálogo con listados y fichas Razor reutilizables. Los **formularios, model binding de POST, validación con DataAnnotations y EF Core** se incorporarán en el M02, no en este módulo.
+
+Para afianzar lo aprendido, recorre las cinco etapas del módulo con los proyectos incluidos y comprueba que cada cambio de código corresponde a un comportamiento observable. La práctica ofrece los procedimientos necesarios para continuar el desarrollo del catálogo.
+
+**Referencias técnicas.**
+
+- Microsoft Learn, Razor syntax: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/razor?view=aspnetcore-8.0
+- Microsoft Learn, layouts: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/layout?view=aspnetcore-8.0
+- Microsoft Learn, partial views: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/partial?view=aspnetcore-8.0
+- Microsoft Learn, Partial Tag Helper: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/tag-helpers/built-in/partial-tag-helper?view=aspnetcore-8.0
+
+**El reto como prueba de reutilización real.**
 
 El reto pide que la parcial incorpore una etiqueta cuando `Precio < 3m`. No se trata simplemente de añadir una condición cualquiera: la localización de esa condición es la parte central del ejercicio.
 
@@ -2868,49 +2878,7 @@ Para los tres objetos de ejemplo debemos observar:
 
 Estas predicciones se obtienen comparando los precios del modelo con el umbral. La prueba debe comprobar también la ausencia de la etiqueta donde no corresponde, no únicamente su presencia en la ficha de Lápiz.
 
-## 1.5.18. Diseño HTML, clases CSS e identificadores de prueba
-
-La parcial utiliza elementos semánticos como `<article>` y `<h3>`, y la vista del detalle utiliza una lista de definiciones con `<dl>`. La finalidad es aportar una estructura razonable para los datos, no enseñar un curso completo de CSS o accesibilidad en este apartado.
-
-Las clases `tarjeta-producto` y `tarjeta-precio` permiten aplicar estilos coherentes a las tarjetas, tanto en el catálogo como en una ficha. La clase `etiqueta-economico` pertenece al fragmento que se activa en el reto y dispone de un estilo mínimo en la hoja del proyecto.
-
-Los atributos como `data-producto-id` son útiles para inspeccionar qué producto se está representando. También permiten escribir verificaciones que distingan tres tarjetas diferentes en lugar de comprobar únicamente que aparece tres veces la palabra «producto».
-
-El alumno debe evitar una solución frágil que identifique cada tarjeta solo por su posición visual. La representación está basada en un modelo que tiene `Id`, de modo que podemos comprobar su correspondencia con los objetos de la lista.
-
-### Representación visual frente a corrección funcional
-
-Que el HTML contenga tres elementos `article` no demuestra por sí solo que estén bien distribuidos en la pantalla o que el contraste de colores sea adecuado. Las pruebas HTTP automatizadas confirman la estructura y los datos, pero una inspección visual en un navegador permite evaluar su disposición.
-
-También ocurre lo contrario: tres tarjetas pueden parecer correctas a simple vista y esconder enlaces de detalle incorrectos. Por eso combinamos observación visual con comprobaciones de URLs, modelos y contenido HTML.
-
-## 1.5.19. Problemas de mantenimiento que la parcial previene
-
-Imaginemos que el requisito cambia de «Precio» a «Importe» en la tarjeta. Con la parcial basta con modificar un archivo. El catálogo y la ficha utilizarían la nueva presentación, siempre que ambos sigan representando la misma parcial.
-
-Si en lugar de ello tuviéramos dos copias del HTML, una podría seguir mostrando «Precio» y la otra «Importe». No sería un error de compilación, y una prueba que solo visitara el listado podría no detectar la incoherencia.
-
-Otra situación similar aparece con los enlaces. Si decidimos cambiar la dirección de detalle de producto, conviene revisar todos los lugares que generan URLs. En nuestro curso el enlace de la tarjeta está centralizado en la parcial, mientras que el listado clásico conserva otro enlace para comparar formas de presentación. En un proyecto mayor habría que valorar si esas dos formas deben también compartir un mecanismo de generación de enlaces.
-
-La reutilización es beneficiosa cuando varios lugares necesitan realmente el mismo marcado. No significa que deba extraerse absolutamente cada elemento HTML a su propio archivo parcial. Una separación excesiva puede hacer más difícil leer el conjunto de la vista.
-
-## 1.5.20. Método de diagnóstico cuando una parcial falla
-
-Si al activar el bloque 1.5.4 no aparecen tarjetas, podemos seguir un diagnóstico ordenado.
-
-Primero comprobamos que la página `/Productos` devuelve 200 y muestra el listado clásico. Si no funciona, el problema puede estar fuera de la nueva parcial y conviene recuperar el estado del capítulo anterior.
-
-Segundo, verificamos que el bloque `PASO 1.5.4` ya no está dentro del comentario Razor. Los comentarios `@* ... *@` no producen HTML, así que una parcial correctamente escrita pero nunca invocada no aparecerá en la respuesta.
-
-Tercero, comprobamos el nombre `_TarjetaProducto` y su ubicación bajo `Views/Shared`. Si el motor no encuentra la parcial, no puede sustituir la etiqueta por el fragmento correspondiente.
-
-Cuarto, revisamos la directiva `@model Producto` y el objeto suministrado mediante `model="producto"`. Un error de tipado puede impedir representar correctamente el fragmento.
-
-Quinto, observamos el HTML resultante y el CSS. Si las tarjetas están en el HTML pero no se aprecian visualmente, probablemente no se trata de una falta de datos ni de una ruta MVC ausente, sino de un problema de presentación.
-
-Esta secuencia es más útil que cambiar aleatoriamente el controlador, el layout y los estilos sin una hipótesis clara.
-
-## 1.5.21. Estrategia de pruebas para una vista parcial
+**Estrategia de pruebas para una vista parcial.**
 
 Las pruebas del capítulo representan seis estados de la misma aplicación y verifican que cada nueva responsabilidad produce el resultado previsto. El punto clave es que no se sustituye la comprobación de capítulos anteriores.
 
@@ -2920,7 +2888,7 @@ Finalmente, el reto necesita verificar tanto casos positivos como negativos. Enc
 
 Las pruebas automáticas funcionan sobre Kestrel y comprueban HTML y códigos HTTP. No simulan todo el comportamiento de un navegador gráfico, pero proporcionan evidencia de que las vistas y los Tag Helpers producen los fragmentos previstos.
 
-## 1.5.22. Una lectura integrada del resultado de M01
+**Una lectura integrada del resultado de M01.**
 
 Tras los cinco puntos, el alumno puede recorrer una cadena completa sin introducir tecnologías nuevas. El navegador solicita `/Productos`; el enrutamiento selecciona `Index()`; la acción entrega los objetos `Producto`; la vista Razor tipada los recorre; la parcial representa tarjetas; el layout incorpora navegación y estructura; el servidor envía HTML.
 
