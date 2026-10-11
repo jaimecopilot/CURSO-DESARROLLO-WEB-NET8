@@ -66,6 +66,8 @@ def main():
         "Los fragmentos mostrados en su forma activa pueden no coincidir literalmente con el proyecto que los conserva comentados. La revisión de esos casos exige comprobar el script E2E y la documentación de activación.",
         "No declarar 100% de trazabilidad solo por las etiquetas PASO y RETO o por una prueba HTTP genérica.", ""]
     DEST.write_text("\n".join(report),encoding="utf-8")
+    if counts.get("PARCIAL",0) or counts.get("NO_ACREDITADO",0):
+        raise AssertionError("Existen fragmentos sin cobertura suficientemente acreditada en proyectos; ver matriz.")
     print("BLOQUES ANALIZADOS",len(results),"ESTADOS",dict(counts))
     for x in results:
         if x["estado"] != "LITERAL": print("REVISAR",x)
