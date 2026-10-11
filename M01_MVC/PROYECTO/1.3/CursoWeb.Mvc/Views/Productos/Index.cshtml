@@ -1,0 +1,23 @@
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+@{
+    ViewData["Title"] = "Productos y responsabilidades MVC";
+}
+
+<h1>1.2 | Modelo, Vista y Controlador</h1>
+<p id="proposito-vista">La vista decide cómo presentar los datos, pero no inventa el catálogo.</p>
+
+@if (Model is null)
+{
+    <p id="sin-modelo">El controlador todavía no ha entregado una lista a la vista.</p>
+}
+else
+{
+    <p id="numero-productos">El controlador ha enviado <strong>@Model.Count</strong> productos.</p>
+
+    <ul id="listado-productos">
+    @foreach (var producto in Model)
+    {
+        <li data-id="@producto.Id">@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+    }
+    </ul>
+}
