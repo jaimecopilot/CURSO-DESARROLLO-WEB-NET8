@@ -1,6 +1,8 @@
 # M01 — Fundamentos de ASP.NET Core MVC
 ## Cuaderno de prácticas
 
+**AUTOR: JAIME GALLO**
+
 ### Índice del módulo
 
 - **P1.1. Primera aplicación MVC y recorrido de una petición HTTP**

@@ -136,6 +136,13 @@ def sequence_svg(src: str) -> str:
 
 DIAGRAM_COUNT=0
 
+def author_from_markdown(source: str) -> str:
+    """Obtener el texto del autor solo del documento Markdown."""
+    labels=re.findall(r"(?m)^\*\*(AUTOR:[ \t]*[^\r\n*]+)\*\*[ \t]*$",source)
+    if len(labels)!=1:
+        raise ValueError("El Markdown debe contener exactamente una línea **AUTOR: ...**")
+    return labels[0].strip()
+
 def fence_render(tokens, idx, options, env):
     global DIAGRAM_COUNT
     tok=tokens[idx]
@@ -166,10 +173,21 @@ CSS_TEMPLATE=r"""
 @page {
   size: A4;
   margin: 18mm 16mm 19mm 16mm;
+  @top-right { content: "__MD_AUTHOR__"; font: 8.5pt "DejaVu Sans"; color: #42586a; }
   @bottom-right { content: "Página " counter(page); font: 8pt "DejaVu Sans"; color: #64748B; }
+}
+/* En portada no aparece cabecera ni numeración. */
+@page:first {
+  @top-right { content: none; }
+  @bottom-right { content: none; }
 }
 html { font-family: "DejaVu Sans", sans-serif; }
 body { font-size: 9.3pt; line-height: 1.46; color: #1e293b; }
+.cover { height: 235mm; box-sizing: border-box; padding-top: 60mm; break-after: page; }
+.cover h1.doc-title { font-size: 27pt; line-height: 1.25; margin-bottom: 10mm; }
+.cover h2 { font-size: 16pt; margin: 0; color: #52687a; }
+.cover p { margin-top: 27mm; font-size: 13pt; letter-spacing: .25pt; }
+.cover strong { color: #12324b; }
 h1,h2,h3,h4 { font-weight: 700; line-height: 1.2; break-after: avoid; color: #12324b; }
 h1 { font-size: 20pt; margin: 0 0 10pt; }
 h1.doc-title { font-size: 22pt; padding: 12pt 0 16pt; border-bottom: 2pt solid #2c647b; }
@@ -206,6 +224,7 @@ p code, li code, td code { font-family: "DejaVu Sans Mono", monospace; font-size
 .chapter-meta { color: #5e7c90; }
 """
 def document_html(markdown: str, title: str, kind: str) -> str:
+    author=author_from_markdown(markdown)
     md=MarkdownIt("commonmark",{"html":True}).enable("table").enable("strikethrough")
     md.renderer.rules["fence"]=fence_render
     body=md.render(markdown)
@@ -224,8 +243,15 @@ def document_html(markdown: str, title: str, kind: str) -> str:
         return f"<h1>{val}</h1>"
     body=re.sub(r"<h1>(.*?)</h1>",heading,body,flags=re.S)
     if len(toc)!=5: raise ValueError(f"Índice de {title}: se esperaban 5 capítulos, hallados {toc}")
+    # Maquetar título, subtítulo y línea de autor ya existentes en Markdown como portada.
+    cover_re=(r'(<h1 class="doc-title">.*?</h1>\s*<h2>.*?</h2>\s*'
+              r'<p><strong>'+re.escape(escape(author))+r'</strong></p>)')
+    body,cover_count=re.subn(cover_re,r'<section class="cover">\1</section>',
+                            body,count=1,flags=re.S)
+    if cover_count!=1:
+        raise ValueError("No se reconoció la portada canónica con autor")
     # El índice procede exclusivamente del Markdown. No crear otro índice editorial.
-    css=CSS_TEMPLATE
+    css=CSS_TEMPLATE.replace("__MD_AUTHOR__",author.replace("\\","\\\\").replace('"','\\"'))
     css+=HTML_FORMATTER.get_style_defs(".highlight")
     return f"""<!doctype html><html lang="es"><head><meta charset="utf-8"><title>{escape(title)}</title>
     <style>{css}</style></head><body>{body}</body></html>"""
@@ -290,13 +316,24 @@ def check_pdf(file: Path, md: str, diagram_count: int, source_bytes: bytes, file
     if diagram_count != len(re.findall(r"^~~~mermaid\b",md,re.M)):
         raise AssertionError(f"{file.name}: no se convirtieron todos los diagramas a SVG")
     doc=fitz.open(str(file))
+    author=author_from_markdown(md)
     for i,p in enumerate(doc):
+        boxes=p.search_for(author)
+        if len(boxes)!=1:
+            raise AssertionError(f"{file.name}, página {i+1}: texto del autor aparece {len(boxes)} veces, se esperaba 1")
+        if i==0:
+            if boxes[0].y0 < 90:
+                raise AssertionError(f"{file.name}: autor en cabecera en lugar de portada")
+            if "Índice del módulo" in p.get_text("text"):
+                raise AssertionError(f"{file.name}: índice mezclado con la portada")
+        elif boxes[0].y0 > 55:
+            raise AssertionError(f"{file.name}, página {i+1}: falta el autor en la cabecera superior")
         if not p.get_text().strip(): raise AssertionError(f"{file.name}: página {i+1} completamente vacía")
         w=p.rect.width
         for x0,y0,x1,y1,*rest in p.get_text("words"):
             if x0<1 or x1>w-1:
                 raise AssertionError(f"{file.name}: texto fuera de margen horizontal en página {i+1}")
-    print(f"PDF VALIDADO: {file.name}, {len(reader.pages)} páginas, {diagram_count} diagramas, fuente Markdown incrustada IDENTICA byte por byte; ratio palabras {fraction:.1%}")
+    print(f"PDF VALIDADO: {file.name}, {len(reader.pages)} páginas, {diagram_count} diagramas, AUTOR en portada y cabeceras posteriores validado, fuente Markdown incrustada IDENTICA byte por byte; ratio palabras {fraction:.1%}")
 
 def main():
     from validar_m01 import run
@@ -310,7 +347,10 @@ def main():
           "|---|---:|---:|---:|---:|"]
     for item in results:
         text.append(f"| {item['tipo']} | {item['palabras_markdown']} | {item['caracteres_markdown']} | {item['paginas_pdf']} | {item['diagramas_renderizados']} |")
-    text += ["","## Huellas de fuente canónica","","| Documento | SHA-256 del MD que está incrustado en el PDF | Coincidencia byte por byte |","|---|---|---|"]
+    text += ["","## Autor procedente del Markdown","",
+             "Los dos PDF presentan **AUTOR: JAIME GALLO** en portada y en la cabecera de cada página siguiente.",
+             "El texto repetido en la cabecera se toma de la línea canónica del Markdown correspondiente; no se introduce un autor independiente en el generador.",
+             "","## Huellas de fuente canónica","","| Documento | SHA-256 del MD que está incrustado en el PDF | Coincidencia byte por byte |","|---|---|---|"]
     for item in results:
         text.append(f"| {item['tipo']} | `{item['md_sha256']}` | {item['fuente_incrustada_igual']} |")
     text += ["","## Alcance y límites","",

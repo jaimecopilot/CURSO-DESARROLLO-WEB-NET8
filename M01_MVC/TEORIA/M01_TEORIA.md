@@ -1,6 +1,8 @@
 # M01 — Fundamentos de ASP.NET Core MVC
 ## Material teórico
 
+**AUTOR: JAIME GALLO**
+
 ### Índice del módulo
 
 - **1.1. Introducción al desarrollo web con ASP.NET Core**
