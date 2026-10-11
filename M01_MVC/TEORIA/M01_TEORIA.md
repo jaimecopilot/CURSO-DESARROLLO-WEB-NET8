@@ -1129,6 +1129,210 @@ El alumno debe terminar explicando **en qué carpeta se modifica una cosa y por 
 
 ---
 
+
+## 1.3.11. Dos formas de leer el árbol del proyecto
+
+El explorador de soluciones muestra una lista de archivos, pero la estructura cobra sentido cuando la analizamos desde dos perspectivas diferentes.
+
+La primera es la **perspectiva de construcción**: preguntamos qué compila, qué archivos forman parte de la aplicación y qué resultados genera el SDK. En ella son centrales `CursoWeb.Mvc.csproj`, las clases C#, las vistas Razor, `Program.cs` y las carpetas temporales `bin` y `obj`. La segunda es la **perspectiva de ejecución HTTP**: preguntamos qué recibe el navegador y por qué. En esta intervienen las rutas registradas, los controladores, el motor de vistas, el layout y los archivos publicados desde `wwwroot`.
+
+Una misma carpeta puede resultar relevante para ambas perspectivas, pero no con la misma función. Las vistas `.cshtml` forman parte del proyecto y son necesarias para representar HTML; no tienen por qué aparecer publicadas como archivos individuales. Los archivos CSS se incorporan al proyecto y, además, pueden ser servidos directamente como recursos estáticos. Los archivos C# se compilan, pero no se devuelven como texto al navegador por la configuración habitual de MVC.
+
+Este doble enfoque evita dos errores frecuentes. El primero consiste en creer que todo archivo visible en el explorador corresponde a una URL. El segundo consiste en creer que todas las respuestas web tienen que provenir de un archivo físico con el mismo nombre que la dirección solicitada.
+
+### El resultado de compilar no es el árbol fuente
+
+Cuando el SDK construye el proyecto, genera ensamblados y artefactos intermedios. `obj` contiene archivos utilizados en fases de compilación y restauración; `bin` contiene resultados de la compilación para una configuración y un framework concretos. Estos directorios pueden regenerarse y, por ello, se excluyen normalmente del repositorio.
+
+En un curso basado en versiones independientes del mismo proyecto, esta diferencia es especialmente importante. Cada carpeta `PROYECTO/1.1`, `1.2`, etc. tiene su propia copia del código fuente para permitir una actividad reproducible. No se debe versionar el resultado `bin/Release/net8.0` de cada una como si fuera material docente. El alumno aprenderá más ejecutando `dotnet build` sobre la fuente que recibiendo un ensamblado precompilado.
+
+La evolución entre capítulos también explica por qué no pretendemos que el alumno vuelva a escribir todos los archivos en cada punto. Una vez que ha entendido un componente, la siguiente versión conserva la funcionalidad previa y concentra los cambios en el nuevo objetivo didáctico.
+
+## 1.3.12. El archivo csproj como declaración de capacidades
+
+La primera línea del archivo de proyecto selecciona `Microsoft.NET.Sdk.Web`. Esta elección no equivale a ejecutar un servidor, sino a declarar que construimos una aplicación web con un conjunto determinado de objetivos, referencias y tareas de compilación.
+
+~~~xml
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>
+~~~
+
+`TargetFramework` es el framework de destino del proyecto, no necesariamente la versión exacta de cada dependencia que pudiéramos añadir después. En nuestro ejemplo, el framework se fija en .NET 8 porque ese es el alcance del curso. Los conocimientos previos de C# y Web API permiten al alumnado reconocer que sigue tratándose de un proyecto de .NET, con su proceso de restauración, compilación y ejecución.
+
+`Nullable` ayuda a expresar y diagnosticar riesgos relacionados con referencias nulas. Es pertinente para nuestros tipos `Producto` y para el contrato nullable del listado, aunque aquí no profundizaremos en todas las reglas del compilador. `ImplicitUsings` reduce algunas declaraciones `using` repetitivas en archivos C#. Ninguna de las dos propiedades crea controladores por sí misma: afectan a la compilación del código.
+
+Un error de restauración, un error de compilación de C# y un fallo HTTP de ejecución tienen naturaleza diferente. Si no se puede restaurar el proyecto, el navegador todavía no es una herramienta diagnóstica útil. Si compila pero el endpoint devuelve 404, debemos investigar rutas y acciones, no necesariamente el archivo `.csproj`.
+
+### Tres operaciones del SDK que conviene diferenciar
+
+~~~bash
+dotnet restore
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+`restore` resuelve las referencias de paquetes necesarias para el proyecto. `build` compila los archivos pertinentes y genera resultados. `run` inicia una aplicación y puede realizar tareas de compilación antes de ejecutar, salvo que se indique otra cosa. Por eso en una demostración de aula preferimos mantener claras las tres etapas: cuando falla una de ellas, resulta más fácil identificar qué capa debemos investigar.
+
+No hace falta explicar ahora todos los parámetros del SDK ni construir una infraestructura de CI compleja. Sin embargo, el alumno debe reconocer cuál es el directorio de trabajo y cuál es el proyecto que realmente está lanzando. Ejecutar un comando correcto en la carpeta equivocada puede dar lugar a confusiones difíciles de detectar con una simple inspección del navegador.
+
+## 1.3.13. Los servicios se registran antes de que lleguen peticiones
+
+En `Program.cs` hemos utilizado `builder.Services.AddControllersWithViews()`. Su posición no es arbitraria: registramos servicios durante la construcción del host, antes de iniciar el proceso de atención de solicitudes. La llamada aporta infraestructura de controladores, vistas y funcionalidades relacionadas que después utilizará MVC.
+
+Es útil separar la frase «registrar servicios» de «crear nuestros tres productos». La primera operación pertenece a la configuración de la aplicación y se realiza al arrancar. La segunda ocurre en nuestro controlador, cuando ejecutamos una acción que crea la lista de datos fijos. No son dos maneras de llamar a lo mismo.
+
+Esta diferencia será importante cuando se incorporen servicios de aplicación en capítulos posteriores. La infraestructura de MVC puede obtener dependencias desde el contenedor integrado de .NET. No necesitamos explicar aquí sus ciclos de vida ni crear interfaces adicionales: basta con reconocer que `AddControllersWithViews` prepara las capacidades de la aplicación antes del procesamiento de peticiones.
+
+La llamada `builder.Build()` marca el paso de configurar el host a construir la instancia de aplicación. A partir de ella utilizamos `app` para preparar el pipeline y los endpoints. Finalmente `app.Run()` inicia la atención de solicitudes. Esta organización no es una peculiaridad estética del archivo: refleja momentos diferentes del ciclo de vida del proceso.
+
+## 1.3.14. El orden de middleware y la selección de endpoints
+
+ASP.NET Core procesa solicitudes mediante una secuencia de componentes configurados en el host. En nuestro ejemplo aparecen `UseStaticFiles`, `UseRouting` y `MapControllerRoute`. Es importante observar que **registrar una ruta no significa abrir un archivo**: establece qué endpoints pueden seleccionarse para una petición.
+
+Una forma de comprender el pipeline consiste en seguir dos solicitudes distintas que entran por el mismo servidor.
+
+En `GET /Productos`, el archivo `wwwroot/Productos` no existe. La aplicación puede seleccionar el endpoint del controlador y ejecutar una acción que devuelve un resultado de vista. La respuesta será HTML generado en el servidor.
+
+En `GET /css/catalogo.css`, el archivo estático se encuentra bajo `wwwroot/css`. El middleware de archivos estáticos puede atender la solicitud y devolver el recurso con su tipo de contenido, sin ejecutar `ProductosController.Index()`. El hecho de que ambos recursos se sirvan desde un mismo puerto no significa que sigan el mismo camino interno.
+
+En ambos casos podemos observar con `curl -i` el código HTTP y el tipo de contenido. La elección de `UseStaticFiles` no obliga al navegador a cargar cada archivo por sí solo: para aplicar una hoja CSS, la página HTML debe enlazarla mediante una etiqueta adecuada. Esta es la razón por la que el paso 1.3.4 utiliza un fragmento comentado en el layout.
+
+### Qué sucedería si faltara UseStaticFiles
+
+Si elimináramos el middleware de archivos estáticos y no hubiera otro mecanismo configurado para servirlos, las solicitudes directas a las rutas de CSS y texto de la raíz web dejarían de funcionar de la manera demostrada. Sin embargo, los archivos permanecerían físicamente en el proyecto. Esto evidencia otra vez que **existencia física de un archivo** y **publicación por HTTP** son conceptos distintos.
+
+No pedimos realizar ese cambio como ejercicio de ejecución en P1.3 porque desestabilizaría otros apartados y obligaría a restaurar configuración compartida. Podemos razonar sobre la consecuencia a partir de la función de `UseStaticFiles`, y la batería de regresión comprueba que los recursos siguen respondiendo tras nuestros cambios.
+
+## 1.3.15. Leer appsettings.json como una fuente de valores
+
+En el archivo `appsettings.json` existe una sección didáctica:
+
+~~~json
+"Curso": {
+  "Nombre": "Curso MVC de productos",
+  "Edicion": "Laboratorio NET8"
+}
+~~~
+
+No todas las claves de un archivo JSON tienen que pertenecer a una lista fija de propiedades del framework. `Curso` es una sección que hemos creado para nuestra aplicación. El sistema de configuración nos permite consultar valores mediante una clave jerárquica como `Curso:Nombre`.
+
+La notación con dos puntos expresa la jerarquía entre sección y propiedad. Es distinta del acceso a objetos C# con el punto y de las rutas de archivos con la barra. En nuestro caso, la lectura:
+
+~~~csharp
+app.Configuration["Curso:Nombre"]
+~~~
+
+obtiene un valor de tipo cadena. Si quisiéramos expresar una configuración compleja, ASP.NET Core también permite enlazar secciones a clases tipadas, pero no necesitamos introducir ese mecanismo para una única entrada textual.
+
+### Configuración y código: qué cambia y qué permanece
+
+El código del paso 1.3.3 muestra una llamada a logging:
+
+~~~csharp
+app.Logger.LogInformation(
+    "P1.3 configuracion: {Nombre}",
+    app.Configuration["Curso:Nombre"]);
+~~~
+
+La cadena de la sección `Curso` aporta el valor, mientras que la plantilla del mensaje define cómo registrarlo. Si cambia el valor de configuración y reiniciamos la aplicación, el código puede seguir siendo el mismo y el mensaje reflejar el valor actualizado. De esta manera comprobamos la utilidad de externalizar un ajuste que no merece ser una constante compilada dentro del controlador.
+
+No debemos atribuir esta operación a una vista Razor. El mensaje aparece en el registro del proceso y no se convierte automáticamente en texto visible en `/Productos`. Para mostrarlo allí tendríamos que decidir explícitamente cómo entregar ese dato a una vista, una actividad que no forma parte del objetivo concreto de 1.3.
+
+### Sobre los distintos orígenes de configuración
+
+ASP.NET Core puede combinar información procedente de archivos JSON, variables de entorno, argumentos y otros proveedores. No existe una única regla universal de prioridad para cualquier configuración personalizada: depende del host y de los proveedores registrados. En las aplicaciones creadas con los valores habituales de `WebApplication.CreateBuilder` hay un orden predeterminado documentado, que puede modificarse.
+
+En este capítulo leemos una sección estable de `appsettings.json` y lanzamos la aplicación con un argumento explícito para la URL. No es necesario memorizar toda la precedencia de proveedores, pero sí evitar la idea errónea de que `appsettings.json` es el único origen posible o de que necesariamente determina el puerto de cualquier despliegue.
+
+## 1.3.16. Una lectura rigurosa de la raíz web
+
+El nombre `wwwroot` tiene una función precisa: se utiliza como raíz de archivos web para el middleware estático en la configuración convencional de la aplicación. Una solicitud a `/recursos/guia-publica.txt` no contiene el nombre `wwwroot` en su ruta URL, aunque el archivo físico esté ubicado dentro de esa carpeta.
+
+Podemos expresar la correspondencia del ejemplo:
+
+~~~text
+Ruta física:
+CursoWeb.Mvc/wwwroot/recursos/guia-publica.txt
+
+Ruta HTTP:
+http://localhost:5091/recursos/guia-publica.txt
+~~~
+
+La correspondencia depende de que la aplicación esté configurada para servir estáticos desde su raíz web. No debe interpretarse como una ley del protocolo HTTP ni como una equivalencia entre todas las carpetas del repositorio y rutas públicas.
+
+Esto es particularmente relevante para la seguridad básica. Un archivo colocado bajo `wwwroot` puede quedar accesible por URL aunque nunca aparezca en un menú. No debemos guardar allí documentos privados, credenciales, claves o materiales que no pretendemos publicar. Del mismo modo, guardar una cadena ficticia fuera de `wwwroot` no garantiza su secreto si el repositorio está disponible públicamente en GitHub.
+
+### ¿Qué enseña el recurso fuera de wwwroot?
+
+En `DOCUMENTACION/nota-interna.txt` hemos creado un ejemplo de archivo que pertenece al proyecto, pero no se publica como recurso estático en la configuración actual. La URL `/DOCUMENTACION/nota-interna.txt` devuelve 404 porque el middleware no utiliza esa carpeta como raíz web y no existe una acción que la atienda.
+
+Este resultado confirma **una propiedad de la configuración actual**, no una garantía absoluta aplicable a cualquier servidor. Un administrador podría crear otra configuración que sirviera contenido de esa carpeta, o un controlador podría leer y devolver su texto. La seguridad depende de todas las vías de acceso al recurso, no solo de una convención de ubicación.
+
+El reto de 1.3 plantea precisamente esta comparación. Habilitar el enlace a `aviso-laboratorio.txt` modifica la navegación visible, pero no altera el estado de publicación del archivo: ya estaba dentro de `wwwroot` desde el principio.
+
+## 1.3.17. Tipos de recursos y cabeceras: razonar a partir de HTTP
+
+Cuando solicitamos un archivo CSS esperamos una respuesta que el navegador pueda tratar como hoja de estilos. Un código 200 es necesario para demostrar la entrega satisfactoria en nuestro ejemplo, pero **no es suficiente**: también es relevante que el tipo de contenido sea `text/css`.
+
+Del mismo modo, un archivo de texto publicado puede producir un cuerpo con líneas sencillas y una cabecera de contenido textual, mientras que una acción MVC que devuelve una vista produce HTML. Un navegador puede mostrar ambos, pero su significado técnico es diferente.
+
+Un pequeño diagnóstico consiste en comparar estas solicitudes:
+
+~~~bash
+curl -i http://localhost:5091/Productos
+curl -i http://localhost:5091/css/catalogo.css
+curl -i http://localhost:5091/recursos/guia-publica.txt
+curl -i http://localhost:5091/DOCUMENTACION/nota-interna.txt
+~~~
+
+La primera requiere que MVC encuentre el controlador y renderice su vista. Las dos siguientes corresponden a archivos estáticos públicos. La última no encuentra un recurso publicado por la configuración existente.
+
+La comprobación enseña más que aprender de memoria una lista de carpetas. Permite construir una hipótesis sobre qué parte de ASP.NET Core debe procesar una URL y contrastarla con el resultado. En problemas reales, esta habilidad ayuda a distinguir un fallo de rutas, un recurso estático ausente y una respuesta generada correctamente pero sin el formato esperado.
+
+## 1.3.18. Convenciones de vistas y archivos compartidos
+
+Las carpetas `Views/Home` y `Views/Productos` tienen nombres que coinciden con los controladores de la aplicación. No es casualidad: MVC dispone de reglas de búsqueda de vistas que aprovechan esas convenciones. Cuando `HomeController.Index()` devuelve `View()` sin nombre explícito, la infraestructura busca un archivo de vista correspondiente a la acción, por ejemplo `Views/Home/Index.cshtml`.
+
+Esta búsqueda no convierte `Views` en un directorio público de archivos. La ruta de la solicitud sigue siendo `/Home/Index` o `/`, y el documento final se genera en el servidor.
+
+El layout compartido reduce duplicación. Si todas las páginas deben presentar los mismos enlaces, sería un error copiar el HTML del menú en cada vista concreta. Al editar `Views/Shared/_Layout.cshtml`, el cambio se aplica a las páginas que utilizan ese layout.
+
+`_ViewStart.cshtml` establece la selección del layout para las vistas; `_ViewImports.cshtml` facilita directivas comunes. Aunque sus nombres son parecidos, tienen tareas distintas. En P1.5 utilizaremos además una vista parcial compartida que no necesita ejecutarse como una página independiente, lo cual reforzará la diferencia entre archivos fuente de presentación y URLs públicas.
+
+## 1.3.19. Una estrategia de diagnóstico basada en carpetas
+
+Cuando una página deja de funcionar, la tentación es abrir todos los archivos del proyecto y buscar un error al azar. La estructura MVC permite una secuencia más controlada.
+
+Si `/Productos` devuelve 404, primero comprobamos la configuración de rutas y que exista `ProductosController.Index()`. Si devuelve 200 pero no aparecen nombres, revisamos el modelo entregado y el archivo de vista. Si los nombres aparecen sin estilos, verificamos la referencia CSS del layout, la ubicación física del recurso y su respuesta HTTP. Si la configuración `Curso:Nombre` no aparece en el registro, inspeccionamos `appsettings.json` y la línea de `Program.cs` que la lee.
+
+Esta estrategia vincula **síntoma observable → responsabilidad probable → archivo concreto**. No garantiza que todo fallo real se resuelva siguiendo un único camino, pero evita modificar clases de dominio para corregir un enlace CSS o modificar rutas para solucionar un valor de configuración.
+
+### Caso de estudio: se ha copiado el proyecto, pero no aparecen los cambios
+
+Imaginemos que un alumno abre el proyecto de `PROYECTO/1.2` en una ventana y ejecuta el de `PROYECTO/1.3` desde una terminal. Puede guardar una modificación correcta en el archivo equivocado y concluir que Razor o el compilador no funcionan.
+
+La primera comprobación no debe ser reescribir el código. Debemos identificar el directorio de ejecución y el archivo que se ha modificado. Después detener y volver a lanzar la copia correspondiente. Esta incidencia es especialmente probable en un curso que conserva estados autónomos, de modo que la práctica incorpora explícitamente la ubicación de cada versión.
+
+Si se producen dos intentos de arranque sobre el mismo puerto, el segundo puede fallar porque ya existe un proceso escuchando. No debe diagnosticarse automáticamente como un error de MVC ni del controlador: es una condición del entorno de ejecución.
+
+## 1.3.20. Cómo comprobar que hemos entendido la estructura
+
+Un resultado útil de aprendizaje no consiste en memorizar que «los CSS están en wwwroot». El alumno debe poder explicar **qué ocurre si se cambia una pieza y qué otras deberían permanecer iguales**.
+
+Si habilita `catalogo.css` en el layout, el servidor de MVC seguirá devolviendo el mismo catálogo de productos: el cambio afecta a la apariencia. Si habilita el enlace a `guia-publica.txt`, la cantidad de productos no debería variar. Si activa el registro del valor `Curso:Nombre`, el navegador no debería mostrar nuevas filas por ese hecho.
+
+Estas afirmaciones permiten construir pruebas de regresión significativas. La versión 1.3 se valida con cinco estados en los que, además del cambio puntual, permanecen operativos `/` y `/Productos`. Así comprobamos que la nueva configuración, el CSS y la navegación no han roto la aplicación ya estudiada.
+
+La última pregunta de razonamiento reúne todos los conceptos: *si un archivo de texto existe en el repositorio pero su URL devuelve 404, ¿qué información necesitamos para decidir si se trata de un comportamiento esperado?* Necesitamos conocer su ubicación, qué raíz web utiliza el middleware, si la aplicación dispone de otra ruta que pueda atender la petición y si el servidor está realmente respondiendo. La mera existencia del archivo no resuelve la cuestión.
+
+Ese razonamiento es la base del capítulo siguiente. Al añadir acciones y rutas más específicas en 1.4, distinguir entre una ruta HTTP publicada y una ubicación física del proyecto dejará de ser opcional: será necesario para explicar por qué dos direcciones diferentes pueden terminar utilizando la misma vista Razor.
+
+
 # 1.4. Controladores, acciones, parámetros y routing en ASP.NET Core MVC
 
 ## Objetivos de aprendizaje
