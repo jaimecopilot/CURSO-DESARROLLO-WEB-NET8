@@ -296,16 +296,51 @@ La prueba automatizada del proyecto comprueba los recorridos HTTP de la aplicaci
 
 **En Windows, `curl` parece devolver un objeto en vez de texto HTTP.** Dependiendo de la versión de PowerShell, `curl` puede ser un alias de otro comando. Ejecutar `curl.exe -i http://localhost:5091/` o usar la pestaña Red del navegador.
 
-## G. Ejercicio de consolidación
+## G. Consolidación y reto 1.1 — distinguir metadatos HTTP y HTML
 
-Sin crear nuevos controladores ni copiar código externo, explica y comprueba lo siguiente:
+### G.1. Observación y razonamiento
 
-1. Abre sucesivamente `/` y `/Home/Index`, y verifica que ambas rutas producen la misma página. Identifica en `Program.cs` qué valores predeterminados permiten la primera URL.
-2. Compara la solicitud del documento principal con la de `/css/site.css`: observa método, código, tipo de contenido y la presencia o ausencia de la cabecera `X-Curso-Paso`.
-3. Responde: «¿Por qué la aplicación puede responder correctamente 200 a `/` y 404 a otra ruta sin haber dejado de funcionar?». Justifica la respuesta desde la selección de endpoints.
-4. Señala cuál de los pasos 1.1.4 y 1.1.5 modifica una cabecera HTTP y cuál modifica el cuerpo de respuesta. Compruébalo con las herramientas de red.
+Con la aplicación funcionando, verifica que `/` y `/Home/Index` corresponden a la misma acción; compara el documento HTML con `/css/site.css`; explica por qué una URL inexistente recibe 404 sin que falle el servidor. Identifica qué cambia cuando activas el paso 1.1.4 (cabecera) y el 1.1.5 (cuerpo HTML).
 
-**Resultado de consolidación:** puedes explicar el recorrido de una solicitud, no solo reproducir comandos. Esta comprensión será necesaria para organizar modelos, controladores y vistas en los siguientes puntos del módulo.
+### G.2. Reto práctico — agregar una segunda cabecera y un texto de diagnóstico
+
+**Objetivo:** modificar simultáneamente los metadatos de respuesta y el contenido de una vista, demostrando que pertenecen a responsabilidades diferentes. El código del reto **ya está en el proyecto**, pero permanece comentado para que puedas activarlo. Primero resuelve el reto y después compara con el código proporcionado.
+
+**Preparación:** utiliza `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc` y deja activados los pasos 1.1.4 y 1.1.5. Detén la aplicación antes de editar.
+
+**Acción 1 — controlador.** En `Controllers/HomeController.cs`, localiza las líneas marcadas `RETO 1.1`. Descomenta exclusivamente la asignación:
+
+~~~csharp
+// RETO 1.1 — Cambiar una cabecera de respuesta sin tocar la vista.
+Response.Headers["X-Curso-Reto"] = "HTTP-y-HTML";
+~~~
+
+Esta instrucción añade la cabecera `X-Curso-Reto` a la respuesta HTTP del documento principal, sin modificar el HTML y sin afectar a la respuesta del CSS. Almacena la cadena «HTTP-y-HTML» como valor de la cabecera, no como texto de pantalla.
+
+**Acción 2 — vista.** En `Views/Home/Index.cshtml`, busca el bloque `RETO 1.1 (inicio)`. Elimina **solo** las dos líneas que delimitan el comentario Razor `@* ... *@`, dejando este HTML activo:
+
+~~~cshtml
+<p id="reto-1-1">El servidor genera el HTML y envía las cabeceras HTTP por separado.</p>
+~~~
+
+El atributo `id` facilita localizar el nuevo elemento en las herramientas de desarrollo y en las pruebas automatizadas. El texto se enviará dentro del cuerpo HTML y aparecerá bajo el contenido existente. La vista no está añadiendo por sí misma ninguna cabecera HTTP.
+
+**Acción 3 — ejecutar.** Desde la carpeta del proyecto:
+
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Accede a `http://localhost:5091/`. Debes ver el texto «El servidor genera el HTML y envía las cabeceras HTTP por separado». En F12 → Red → solicitud del documento → cabeceras de respuesta, comprueba `X-Curso-Reto: HTTP-y-HTML`. También puedes ejecutar `curl -i http://localhost:5091/` desde otra terminal.
+
+**Acción 4 — contrastar.** Visita `/css/site.css` y verifica que no aparece la cabecera personalizada; responde una solicitud atendida por archivos estáticos, no por `HomeController.Index()`.
+
+**Código de solución y activación:** las instrucciones anteriores contienen la solución completa para comparar con tu intento. No hay que crear nuevos archivos ni copiar código externo. El reto se activa **sobre el proyecto que ya contiene todos los bloques identificados**.
+
+**Prueba automatizada del reto:** desde la raíz del repositorio, `bash M01_MVC/TESTS/1.1_e2e.sh` incluye el estado `reto`. Ejecuta en una copia temporal la aplicación con los ejercicios anteriores y el reto activados; verifica que compila, que devuelve HTTP 200, que existe `X-Curso-Reto` y que el párrafo aparece únicamente al activar la variante.
+
+**Resultado esperado:** distinguir, señalando el archivo y la línea concreta, un cambio de cabeceras (controlador) de un cambio de representación (vista). El reto tiene una solución guiada y comprobable; no implica nuevos conceptos fuera de 1.1.
 
 ## H. Continuidad del proyecto
 
@@ -638,19 +673,62 @@ Este script construye el proyecto en su estado inicial y activa las demás combi
 
 **Un 404 en `/Productos`.** Comprobar que `ProductosController.cs` está en `Controllers`, que existe `Index()` y que el programa registra la ruta convencional. No confundir esta URL con `/api/productos`, que no existe en nuestra aplicación MVC.
 
-## G. Ejercicio de consolidación
+## G. Consolidación y reto 1.2 — modificar los datos sin reescribir la vista
 
-Con el proyecto completo y funcional, modifica **únicamente el dato fijo del controlador** para que el primer producto se llame **Bloc** en lugar de **Cuaderno**. No cambies los nombres en la vista.
+### G.1. Enunciado
 
-Reconstruye y ejecuta de nuevo. Deben seguir apareciendo tres productos, pero el primero se mostrará como Bloc. Después, comprueba que el segundo y el tercero mantienen su nombre y precio.
+Con todos los pasos 1.2.3, 1.2.4 y 1.2.5 activos y la página `/Productos` funcionando, cambia el primer producto de **Cuaderno** a **Bloc**, manteniendo `Id = 1`, `Precio = 4.50m` y la cantidad total de **tres** productos. No toques `Views/Productos/Index.cshtml`.
 
-Explica por escrito:
+**Pregunta que debes resolver:** si cambia el nombre en el controlador pero no se modifica el bucle `@foreach` de la vista, ¿por qué cambia automáticamente el texto mostrado al usuario?
 
-- Por qué bastó editar el valor `Nombre` del objeto construido en el controlador.
-- Qué cambiarías si quisieras mostrar los nombres con otra etiqueta HTML sin alterar los datos.
-- Qué pieza necesitarías ampliar el día 2 para dejar de perder modificaciones al reiniciar el proceso.
+### G.2. Código preparado dentro del proyecto
 
-**Solución orientativa para contrastar al terminar:** el controlador facilita un nuevo valor del modelo; la vista ya lee `producto.Nombre` y por eso lo muestra automáticamente. La etiqueta HTML se cambia en la vista, no en la clase del dominio. Para persistir modificaciones necesitaremos añadir almacenamiento, que introduciremos en el CRUD con EF Core de M02.
+Abre `M01_MVC/PROYECTO/1.2/CursoWeb.Mvc/Controllers/ProductosController.cs`. Dentro de la lista del **paso 1.2.3**, una vez retirados los delimitadores de comentario de dicho paso, encontrarás las siguientes líneas:
+
+~~~csharp
+new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+// RETO 1.2 — Comentar la línea de Cuaderno y descomentar la siguiente:
+// new() { Id = 1, Nombre = "Bloc", Precio = 4.50m },
+new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+~~~
+
+**Acción 1:** comenta únicamente la primera declaración de producto (Cuaderno), añadiendo `//` delante. **Acción 2:** elimina las dos barras `//` delante de la declaración de Bloc. No modifiques las restantes.
+
+Así queda la parte relevante de la solución, con la variante anterior conservada como referencia:
+
+~~~csharp
+// new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+// RETO 1.2 — Comentar la línea de Cuaderno y descomentar la siguiente:
+new() { Id = 1, Nombre = "Bloc", Precio = 4.50m },
+new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+~~~
+
+**Por qué funciona:** la lista `productos` sigue conteniendo tres instancias de `Producto`. La primera tiene un valor diferente para `Nombre`; la vista simplemente accede a `producto.Nombre` en su bucle y, por eso, mostrará «Bloc». No hay lógica de negocio nueva ni se ha duplicado la definición de la vista.
+
+### G.3. Ejecutar y comprobar el reto
+
+Desde el directorio `M01_MVC/PROYECTO/1.2/CursoWeb.Mvc`:
+
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Abre `http://localhost:5091/Productos`. Debes obtener **Bloc, Lápiz y Carpeta**, conservando los precios y el contador de tres productos. Comprueba que ya no aparece «Cuaderno» en la lista. La ruta alternativa `/Productos/Index` debe mostrar exactamente lo mismo.
+
+**Prueba automatizada del reto:** desde la raíz del repositorio, `bash M01_MVC/TESTS/1.2_e2e.sh`. El escenario `reto` reconstruye una copia temporal del proyecto con el listado y la navegación activados, cambia la línea de Cuaderno por la de Bloc, compila y verifica realmente la respuesta HTTP y sus tres productos. El estado inicial del alumno no se modifica.
+
+### G.4. Preguntas y solución razonada
+
+**¿Qué archivo cambiarías para mostrar los nombres en una etiqueta HTML diferente?** `Views/Productos/Index.cshtml`, ya que decide la presentación.
+
+**¿Qué cambiarías para modificar el precio inicial?** El valor de `Precio` del objeto en la acción `ProductosController.Index()`; la vista lo consume con `producto.Precio`.
+
+**¿Por qué el cambio se pierde si se revierte el código o se reinicia sin recompilarlo?** Los datos del catálogo son creados en memoria por el método; no son registros de una base de datos. La persistencia se introducirá en el día 2.
+
+**Conclusión del reto:** se han utilizado **dos variantes de código ya presentes** en el proyecto; se ha ejecutado el nuevo estado sin inventar piezas ausentes y se ha demostrado la separación entre suministro de datos y representación.
 
 ## H. Continuidad hacia 1.3
 

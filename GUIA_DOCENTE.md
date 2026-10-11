@@ -58,6 +58,14 @@ Se considera completado M01 cuando listado/detalle y navegación funcionan; M02 
 
 Las evidencias de prueba automatizada deben cubrir los recorridos clave de extremo a extremo, y cada estado intermedio que se indique ejecutar debe compilar o estar acompañado de un estado correcto de activación. Separar evidencias internas de los documentos docentes.
 
+## Regla obligatoria para los retos
+
+Los **retos y ejercicios de consolidación con código** son parte del material práctico, no sugerencias vagas. Cada reto programable debe contener dentro de `Mxx_PRACTICAS.md`: enunciado, objetivo, preparación, ubicación exacta de los archivos, código completo que se activa o cambia, explicación de cada cambio, comandos de ejecución, resultado esperado y soluciones razonadas para consulta. El código debe estar **también en el proyecto del capítulo**, identificado mediante comentarios o variantes reproducibles para que el alumno comente y descomente los bloques adecuados. Si un cambio no puede expresarse en comentarios sin invalidar el archivo, se proporciona una variante completa de ese archivo con instrucciones precisas.
+
+Se probará mediante compilación y E2E cada reto que se indique ejecutar, incluyendo comprobaciones de sus resultados específicos y regresión de los ejercicios anteriores. El reto puede ser una variante breve de un paso anterior; no debe introducir contenidos fuera del temario ni sobrepasar el tiempo práctico asignado. Los retos conceptuales o de observación no necesitan bloques de código artificiales, pero sí un resultado comprobable.
+
+**Criterio de cierre de capítulo:** teoría, ejercicios guiados **y retos** explicados en Markdown, código localizado en el proyecto y pruebas realmente ejecutadas; nunca considerar completo un reto si solo figura un enunciado o una respuesta verbal.
+
 ## Política editorial
 
 Material docente por módulo: TEORIA/Mxx_TEORIA.md, PRACTICAS/Mxx_PRACTICAS.md y sus dos PDF. Construcción punto a punto: cada capítulo N.N se añade a los documentos acumulativos del módulo. Un capítulo no se declara cerrado hasta tener teoría completa, práctica íntegra, proyecto trazable y evidencias técnicas. Generar PDF solo al cerrar los Markdown. No incluir anotaciones internas de edición, auditorías ni informes de CI en el material del alumno.

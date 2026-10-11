@@ -22,6 +22,8 @@ dotnet run --no-launch-profile --urls http://localhost:5091
 3. **1.2.4:** en `Views/Productos/Index.cshtml`, eliminar las dos líneas del comentario Razor `@* PASO 1.2.4 (inicio)` y `PASO 1.2.4 (fin) *@`. Aparecen tres filas de productos.
 4. **1.2.5:** en `Views/Shared/_Layout.cshtml`, quitar los delimitadores del comentario Razor del paso para habilitar el enlace de navegación `Productos`.
 
+5. **RETO 1.2:** con los pasos 1.2.3–1.2.5 activos, comentar la línea de producto `Cuaderno` y descomentar la línea ya proporcionada de `Bloc` dentro de `ProductosController.Index()`. El recuento sigue siendo 3; la vista muestra Bloc en lugar de Cuaderno. El código, su explicación y la comprobación están en P1.2, apartado G.
+
 Detener y volver a ejecutar para observar los cambios de cada estado.
 
 La práctica completa está en `../../../PRACTICAS/M01_PRACTICAS.md`, sección P1.2.
@@ -30,4 +32,4 @@ La práctica completa está en `../../../PRACTICAS/M01_PRACTICAS.md`, sección P
 
 Desde la raíz del repositorio: `bash M01_MVC/TESTS/1.2_e2e.sh`.
 
-Se comprueban por separado el estado inicial, la entrega de modelo, la presentación de productos y la navegación, con compilación y peticiones HTTP reales. Las variantes se realizan en copias temporales del proyecto para no alterar el material del alumno.
+Se comprueban por separado el estado inicial, la entrega de modelo, la presentación de productos, la navegación y el reto, con compilación y peticiones HTTP reales. Las variantes se realizan en copias temporales del proyecto para no alterar el material del alumno.

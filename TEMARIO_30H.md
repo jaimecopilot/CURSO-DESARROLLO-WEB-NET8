@@ -110,6 +110,8 @@ Cada punto N.N tendrá:
 4. Prueba(s) de compilación y funcionales que ejerciten **los estados que se ordene ejecutar**. Los flujos navegador→UI→servidor/datos se validarán E2E cuando proceda.
 5. Evidencia técnica en documentación de verificación separada de la destinada al alumno. Ninguna prueba se declarará ejecutada sin logs/resultado real.
 
+**Los retos programables también son pasos completos:** enunciado y solución con código en `Mxx_PRACTICAS.md`, bloque o variante comentada en el proyecto del mismo capítulo, instrucciones de activación, explicación, resultado esperado y E2E propio. Se aplica retroactivamente a los retos de 1.1 y 1.2 y a todos los capítulos posteriores; no basta un reto formulado como pregunta sin código cuando exige modificar la aplicación.
+
 En los proyectos debe conservarse la trazabilidad de cada paso, no solo la solución final. Si el cambio afecta a Razor/JSON/configuración u otro archivo incompatible con conmutación por comentarios, se ofrecerá variante de archivo o estado inicial identificable; no se entregará código que compile solo al final.
 
 ## 6. Entregables documentales y fases de publicación
