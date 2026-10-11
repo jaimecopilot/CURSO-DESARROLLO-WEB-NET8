@@ -1,5 +1,8 @@
 # M01 — Diagnóstico editorial y trazabilidad del contenido ampliado
 
+> **Nota histórica:** las observaciones de este documento originaron la reestructuración ya aplicada. Los cambios y evidencias finales figuran en [M01_CIERRE_EDITORIAL.md](M01_CIERRE_EDITORIAL.md). El presente informe se conserva para trazabilidad y no describe el estado vigente.
+
+
 **Estado:** revisión editorial abierta; no confundir una compilación satisfactoria con un curso pedagógicamente cerrado.
 
 ## Hallazgos comprobados sobre los Markdown
