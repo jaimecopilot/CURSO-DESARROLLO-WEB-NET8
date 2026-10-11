@@ -69,10 +69,10 @@ T = explicación en minutos; P = trabajo práctico en minutos. A = aplicación M
 
 | Punto y contenidos fundamentales | Práctica guiada y comprobación observable | Proyecto | T | P |
 |---|---|---|---:|---:|
-| **4.1** HttpClient, GET/POST, DTO, JSON, async y fallos HTTP | P4.1: configurar HttpClient; consultar catálogo remoto, publicar producto y mostrar error de petición | B + API disponible | 30 | 65 |
-| **4.2** capa de servicio e inyección de dependencias | P4.2: extraer llamadas HTTP de componentes a IProductosApiService e inyectarlo | B | 20 | 45 |
-| **4.3** API auxiliar pequeña | P4.3: ejecutar y entender API de Productos (GET/POST, datos en memoria); modificar respuesta simple | API | 15 | 80 |
-| **4.4** autenticación/autorización, Identity introductorio, roles/claims conceptual, AuthorizeView | P4.4: usar demo local preconfigurada de inicio de sesión y página protegida; comprobar usuario anónimo/autenticado | B, demo de seguridad limitada | 25 | 50 |
+| **4.1** HttpClient, GET/POST, DTO, JSON, async y fallos HTTP | P4.1: configurar HttpClient; consultar catálogo remoto, publicar producto y mostrar error de petición | B + API disponible | 30 | 80 |
+| **4.2** capa de servicio e inyección de dependencias | P4.2: extraer llamadas HTTP de componentes a IProductosApiService e inyectarlo | B | 20 | 55 |
+| **4.3** API auxiliar pequeña | P4.3: ejecutar y entender API de Productos (GET/POST, datos en memoria); modificar respuesta simple | API | 15 | 45 |
+| **4.4** autenticación/autorización, Identity introductorio, roles/claims conceptual, AuthorizeView | P4.4: usar demo local preconfigurada de inicio de sesión y página protegida; comprobar usuario anónimo/autenticado | B, demo de seguridad limitada | 25 | 60 |
 | **Subtotal** | +30 min de repaso y dudas | | **90** | **240** |
 
 **Dependencia resuelta:** el docente entrega al inicio de M04 la API auxiliar ya funcional para P4.1 (no se presupone aprendizaje de un proyecto externo). En P4.3 se recorre su implementación y se realizan modificaciones controladas; en P4.2 se extrae y reorganiza el consumo. La entrega de API es material del curso.
