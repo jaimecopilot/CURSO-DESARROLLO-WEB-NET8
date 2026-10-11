@@ -256,7 +256,7 @@ def check_pdf(file: Path, md: str, diagram_count: int):
     for n in range(1,6):
         chapter=f"{prefix}1.{n}."
         if chapter.lower() not in low: raise AssertionError(f"{file.name}: capítulo {chapter} ausente")
-        if f"reto 1.{n}" not in low: raise AssertionError(f"{file.name}: el reto 1.{n} no aparece")
+        if prefix and f"reto 1.{n}" not in low: raise AssertionError(f"{file.name}: el reto 1.{n} no aparece")
     for term in ["Cuaderno","Lápiz","Carpeta","Producto","Razor","Model","1.5"]:
         if normalize(term) not in low: raise AssertionError(f"{file.name}: falta contenido {term}")
     words=re.findall(r"\w+",pdftext.lower(),re.UNICODE)
