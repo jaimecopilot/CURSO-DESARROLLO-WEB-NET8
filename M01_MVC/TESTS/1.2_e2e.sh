@@ -75,8 +75,16 @@ run_scenario() {
   fi
   if [[ "$state" == "datos-vista" || "$state" == "completo" ]]; then
     grep -Fq 'id="listado-productos"' "$TMP/body-$state"
-    for product in Cuaderno Lápiz Carpeta; do grep -Fq "$product" "$TMP/body-$state"; done
-    [[ $(grep -c 'data-id="' "$TMP/body-$state") == 3 ]]
+    # Razor codifica caracteres acentuados en HTML: comprobar texto decodificado.
+    python3 - "$TMP/body-$state" <<'PY'
+from html import unescape
+from pathlib import Path
+import sys
+html = unescape(Path(sys.argv[1]).read_text(encoding="utf-8"))
+for product in ("Cuaderno", "Lápiz", "Carpeta"):
+    assert product in html, f"No se muestra el producto {product}"
+assert html.count('data-id="') == 3, "El listado no tiene exactamente tres elementos"
+PY
   else
     ! grep -Fq 'id="listado-productos"' "$TMP/body-$state"
   fi
