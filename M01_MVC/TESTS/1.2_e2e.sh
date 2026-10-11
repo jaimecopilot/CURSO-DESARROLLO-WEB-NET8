@@ -36,7 +36,12 @@ run_scenario() {
 
   local code
   code=$(curl -sS -D "$TMP/headers-$state" -o "$TMP/body-$state" -w "%{http_code}" "$BASE/Productos")
-  [[ "$code" == "200" ]]
+  if [[ "$code" != "200" ]]; then
+    echo "Error: GET /Productos devolvió HTTP $code en $state" >&2
+    cat "$TMP/$state.log" >&2
+    cat "$TMP/body-$state" >&2
+    exit 1
+  fi
   grep -iq '^Content-Type: text/html' "$TMP/headers-$state"
   grep -Fq '1.2 | Modelo, Vista y Controlador' "$TMP/body-$state"
   grep -Fq 'proposito-vista' "$TMP/body-$state"
@@ -56,6 +61,10 @@ run_scenario() {
   code=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE/no-existe")
   [[ "$code" == "404" ]]
 
+  if [[ "$state" == "datos-vista" || "$state" == "completo" ]]; then
+    echo "Verificación de HTML renderizado en $state:"
+    grep -nE 'numero-productos|listado-productos|data-id|Cuaderno|Lápiz|Carpeta' "$TMP/body-$state" || true
+  fi
   if [[ "$state" == "base" ]]; then
     grep -Fq 'id="sin-modelo"' "$TMP/body-$state"
     ! grep -Fq 'id="numero-productos"' "$TMP/body-$state"
