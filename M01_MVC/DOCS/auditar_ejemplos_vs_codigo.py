@@ -68,5 +68,5 @@ def main():
     DEST.write_text("\n".join(report),encoding="utf-8")
     print("BLOQUES ANALIZADOS",len(results),"ESTADOS",dict(counts))
     for x in results:
-        if x["estado"] in ("PARCIAL","NO_ACREDITADO"): print("REVISAR",x)
+        if x["estado"] != "LITERAL": print("REVISAR",x)
 if __name__=="__main__": main()
