@@ -265,7 +265,7 @@ Este es el comportamiento observable que prueba que los dos fragmentos están ac
 | Caso que se debe probar | Operación | Resultado correcto |
 |---|---|---|
 | Plantilla oficial | Abrir el sitio temporal en 5095 tras `dotnet new mvc` | Página de bienvenida MVC |
-| Aplicación del curso | GET `/` en 5091 | 200 y encabezado `1.1 | Primer recorrido MVC` |
+| Aplicación del curso | GET `/` en 5091 | 200 y encabezado `Primer recorrido MVC` |
 | Cabecera del controlador | GET `/` tras activar 1.1.4 | `X-Curso-Paso: 1.1.4` |
 | Contenido de la vista | GET `/` tras activar 1.1.5 | Visible `Contenido añadido durante la práctica` |
 | Ruta alternativa | GET `/Home/Index` | 200 y mismo contenido |
