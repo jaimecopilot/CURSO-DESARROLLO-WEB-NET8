@@ -17,6 +17,9 @@ THEORY=(M01/"TEORIA"/"M01_TEORIA.md").read_text(encoding="utf-8")
 # necesarios para ejecutar ese paso (pueden permanecer comentados).
 SPECS={
 "1.1":[
+ ("1.1.1","Controllers/HomeController.cs","PASO 1.1.1",["public IActionResult Index()","return View();"]),
+ ("1.1.2","Program.cs","PASO 1.1.2",["builder.Services.AddControllersWithViews();"]),
+ ("1.1.3","Program.cs","PASO 1.1.3",["app.UseStaticFiles();","app.UseRouting();"]),
  ("1.1.4","Controllers/HomeController.cs","PASO 1.1.4",['Response.Headers["X-Curso-Paso"] = "1.1.4";']),
  ("1.1.5","Views/Home/Index.cshtml","PASO 1.1.5",['<section id="marca-paso-1-1-5">']),
  ("RETO 1.1","Controllers/HomeController.cs","RETO 1.1",['Response.Headers["X-Curso-Reto"] = "HTTP-y-HTML";']),
@@ -33,6 +36,7 @@ SPECS={
  ("1.3.1","CursoWeb.Mvc.csproj","Microsoft.NET.Sdk.Web",["<TargetFramework>net8.0</TargetFramework>"]),
  ("1.3.2","Program.cs","AddControllersWithViews",["app.UseStaticFiles();","app.UseRouting();","app.MapControllerRoute("]),
  ("1.3.3","Program.cs","PASO 1.3.3",['app.Configuration["Curso:Nombre"]','app.Logger.LogInformation(']),
+ ("1.3.3","appsettings.json",'"Curso"', ['"Nombre": "Curso MVC de productos"','"Edicion": "Laboratorio NET8"']),
  ("1.3.4","Views/Shared/_Layout.cshtml","PASO 1.3.4",['href="/css/catalogo.css"']),
  ("1.3.4","wwwroot/css/catalogo.css","PASO 1.3.4",["main.container"]),
  ("1.3.5","Views/Shared/_Layout.cshtml","PASO 1.3.5",['href="/recursos/guia-publica.txt"']),
@@ -81,6 +85,7 @@ def audit():
            "| Punto | Pasos y reto en MD | Correspondencias de código | E2E |",
            "|---|---|---:|---|"]
     total=0
+    details=[]
     for point,specs in SPECS.items():
         base=M01/"PROYECTO"/point/"CursoWeb.Mvc"
         ptext=practical[point]
@@ -103,13 +108,15 @@ def audit():
                     f"{point}: {label} no explicado en MD")
             seen.setdefault(label,0)
             seen[label]+=1
+            details.append(f"| {label} | `PROYECTO/{point}/CursoWeb.Mvc/{relpath}` | "
+                           f"`{marker}` | {len(fragments)} |")
         # Requisitos que se explican en prácticas aunque no se activen por comentario.
         if point=="1.3":
             for name in ["appsettings.json","wwwroot/recursos/guia-publica.txt",
                          "wwwroot/recursos/aviso-laboratorio.txt","DOCUMENTACION/nota-interna.txt"]:
                 require((base/name).is_file(), f"P1.3: falta el archivo de laboratorio {name}")
         # Marcadores de pasos activables que usan scripts; no basta con ver nombres en README.
-        markers=[m for m in seen if m.startswith("RETO ") or (m[0].isdigit() and m not in ["1.2.2","1.3.1","1.3.2","1.4.1","1.5.1"])]
+        markers=[m for m in seen if m.startswith("RETO ") or (m[0].isdigit() and m not in ["1.1.1","1.1.2","1.1.3","1.2.2","1.3.1","1.3.2","1.4.1","1.5.1"])]
         for marker in markers:
             if marker.startswith("RETO ") or marker not in ("1.1.4",):
                 require(marker in test or (marker=="1.3.3" and "configuracion 1.3.3" in test),
@@ -120,6 +127,9 @@ def audit():
         total+=entries
         lines.append(f"| P{point} | {len(seen)} etapas distintas, incluido reto | {entries} | {expected_counts[point]} escenarios |")
     lines+=["",f"**Total: {total} correspondencias de código comprobadas.**","",
+            "## Matriz detallada paso → archivo → comprobación","",
+            "| Paso/reto | Archivo real del proyecto | Marca en fuente | Fragmentos contrastados |",
+            "|---|---|---|---:|",*details,"",
             "**Límite:** los fragmentos conceptuales de teoría que no se presentan como ejercicios ejecutables no generan código nuevo. "
             "Las pruebas E2E de cada punto verifican las activaciones de los ejercicios, incluida la regresión del catálogo. "
             "Esta auditoría no acredita observación visual de los PDF ni la ejecución manual en Visual Studio.",""]
