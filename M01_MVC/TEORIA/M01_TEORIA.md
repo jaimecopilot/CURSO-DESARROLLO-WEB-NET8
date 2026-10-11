@@ -1609,6 +1609,293 @@ El capítulo siguiente, **1.5**, profundizará en la sintaxis Razor, la composic
 
 ---
 
+
+## 1.4.10. Razonar sobre los segmentos de una ruta antes de programar
+
+Una ruta MVC no es el nombre de un archivo. Es una regla utilizada por la infraestructura de endpoints para asociar una solicitud HTTP con código ejecutable. La plantilla convencional de nuestro proyecto:
+
+~~~csharp
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+~~~
+
+contiene tres posiciones. Los dos primeros valores tienen nombres y valores predeterminados; el último segmento es opcional. La sintaxis con llaves representa parámetros de ruta, no variables de C# declaradas dentro de `Program.cs`. Su misión es describir **cómo interpretar los segmentos de una URL**.
+
+Para comprenderla, conviene leer las siguientes direcciones sin acudir todavía al navegador:
+
+~~~text
+/
+ /Home
+ /Home/Index
+ /Productos
+ /Productos/Index
+ /Productos/Detalle/1
+ /Productos/Detalle/2
+ /Productos/Detalle/99
+~~~
+
+Los espacios iniciales que aparecen en esta representación son únicamente parte de la indentación del documento, no caracteres que deban teclearse. En cada caso, identificamos primero el controlador, después la acción y finalmente el eventual parámetro `id`. Una vez comprendida la regla podemos predecir qué método **podría** ejecutarse, pero aún no qué código HTTP devolverá.
+
+### Coincidencia de plantilla frente a existencia de acción
+
+Una URL podría ajustarse formalmente a los segmentos `controller/action/id` y, sin embargo, no existir una acción pública compatible dentro de la aplicación. La regla de ruta no inventa métodos; solo ayuda a seleccionar los endpoints registrados a partir del código de controladores.
+
+También puede ocurrir lo contrario: una acción pública existe, pero su atributo de ruta establece un patrón específico que no coincide con la dirección que suponíamos por su nombre. Esto sucede con `Ficha(int id)`, que tiene una URL explícita `/catalogo/ficha/{id:int}`. La acción no debe interpretarse como si fuera necesariamente accesible por `/Productos/Ficha/2`.
+
+Esta diferencia es una de las razones por las que conviene enseñar enrutamiento después de haber ejecutado acciones sencillas: el alumno ya sabe que una acción puede devolver una vista y, por tanto, puede concentrarse en **por qué fue seleccionada**.
+
+## 1.4.11. El model binding explicado con el parámetro más simple
+
+Cuando `Detalle(int id)` recibe una petición a `/Productos/Detalle/2`, el valor textual `2` de la ruta se vincula al parámetro `id` de tipo `int`. Ese mecanismo forma parte del enlace de modelos de MVC, conocido como *model binding*.
+
+El código de la acción no necesita buscar manualmente un segmento en una cadena de URL:
+
+~~~csharp
+[HttpGet]
+public IActionResult Detalle(int id)
+{
+    if (id <= 0)
+    {
+        return BadRequest("El identificador debe ser mayor que cero.");
+    }
+
+    var producto = ObtenerProductosEjemplo()
+        .FirstOrDefault(p => p.Id == id);
+
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return View(producto);
+}
+~~~
+
+En este capítulo nos interesa la ruta como origen del dato. MVC también puede enlazar valores desde parámetros de consulta, formularios y otras fuentes, pero su estudio sistemático llegará en M02 con operaciones GET y POST. Adelantar formularios completos aquí impediría dedicar el tiempo suficiente a distinguir la selección de una acción de su resultado.
+
+### Tres clases de ausencia o invalidez
+
+Podemos distinguir casos que parecen parecidos:
+
+**Falta el segmento de id.** En esta acción, con `int id` no anulable y la plantilla convencional con `id?`, la ausencia del segmento conduce a un valor predeterminado que nuestra comprobación rechaza, produciendo un 400. El resultado depende de cómo está definido el método y de que no hemos añadido una convención de validación automática propia de un controlador API.
+
+**Existe el segmento y contiene 0.** El binding produce un valor entero; la acción se ejecuta y nuestra regla `id <= 0` devuelve 400. Es una decisión expresa de esta demostración.
+
+**Existe un entero positivo que no corresponde a un producto.** La acción puede buscarlo, pero no encuentra ningún objeto, y devuelve `NotFound()`, es decir, 404. El código de estado describe un resultado distinto del 400.
+
+El caso de un segmento no numérico requiere todavía otra explicación. Si utilizamos una ruta con la restricción `{id:int}`, como la acción `Ficha`, la coincidencia se descarta antes de ejecutar el método. Con la ruta convencional sin esa restricción, el comportamiento depende del proceso de enlace del parámetro y de la validación configurada. Para no mezclar situaciones distintas, las pruebas de P1.4 verifican un segmento no entero específicamente sobre la ruta por atributos.
+
+## 1.4.12. Leer una acción como una sucesión de decisiones
+
+Un método de controlador puede entenderse como una secuencia de preguntas:
+
+1. ¿La solicitud permite seleccionar este endpoint?
+2. ¿Se ha obtenido un valor de entrada que podamos utilizar?
+3. ¿Es válido para las reglas simples del ejercicio?
+4. ¿Existe el objeto solicitado?
+5. ¿Qué resultado HTTP debemos devolver?
+
+La primera pregunta no se resuelve dentro de `Detalle(int id)`, sino durante la selección del endpoint. Las demás sí pueden observarse en el código del método. Este orden evita escribir una acción que intente renderizar una vista antes de comprobar que tiene un objeto válido.
+
+### Evitar un resultado incorrecto cuando no existe el producto
+
+Supongamos que quitáramos `if (producto is null) return NotFound();` y enviáramos un valor nulo a una vista tipada `Producto` que accede a `Model.Nombre`. La representación podría fallar por ausencia del objeto esperado. Sería un error de ejecución de la vista, no una respuesta 404 diseñada deliberadamente.
+
+El tratamiento correcto del ejemplo consiste en reconocer que no existe el producto y devolver un resultado apropiado **antes de ejecutar la vista**. Esto enseña un patrón de decisión que será reutilizable cuando más adelante consultemos registros persistentes.
+
+En una aplicación real, la clasificación de respuestas de error debe seguir las reglas funcionales y el contrato esperado por los clientes. Aquí elegimos casos explícitos para que el alumnado los pueda predecir y verificar sin necesidad de una infraestructura de errores más compleja.
+
+## 1.4.13. Diferencias entre IActionResult y el contenido concreto
+
+La firma `public IActionResult Detalle(int id)` declara que la acción devolverá un objeto compatible con la interfaz de resultados MVC. Eso no define por sí solo el formato ni el estado de la respuesta. El valor devuelto en cada rama concreta completa la decisión.
+
+~~~csharp
+return View(producto);
+~~~
+
+indica que deseamos representar una vista con datos. En nuestro caso, esa vista es `Views/Productos/Detalle.cshtml` y produce HTML.
+
+~~~csharp
+return Content("Catalogo MVC disponible", "text/plain");
+~~~
+
+indica que queremos devolver un cuerpo de texto plano. No hay una vista ni un layout en esa respuesta.
+
+~~~csharp
+return NotFound();
+~~~
+
+representa un error HTTP 404, útil cuando la acción no encontró el producto solicitado.
+
+~~~csharp
+return BadRequest("El identificador debe ser mayor que cero.");
+~~~
+
+representa un error HTTP 400 y aporta una explicación sencilla.
+
+El alumno que conoce Web API reconocerá varios de estos métodos. La idea importante es que **MVC y Web API utilizan infraestructura compartida de ASP.NET Core** y no dos protocolos HTTP diferentes. Lo que cambia en una aplicación orientada a páginas suele ser qué resultados predominan y cómo se organizan la presentación y la navegación.
+
+### ¿Por qué no usamos siempre el mismo tipo de resultado?
+
+Porque las necesidades del cliente son distintas. Un navegador necesita HTML para representar la ficha. Una comprobación simple de estado puede utilizar texto. Una llamada pensada para consumir datos estructurados puede recibir JSON. Los resultados HTTP permiten hacer explícita esa diferencia.
+
+No hay nada que impida devolver JSON desde un controlador `Controller`, como demostraremos en el reto. Esto no significa que toda aplicación MVC deba diseñar sus endpoints como una API pública ni que una vista deba consumir obligatoriamente otra API para mostrar datos. El curso reserva el consumo de API para Blazor en M04.
+
+## 1.4.14. Cuando una acción reutiliza una vista cuyo nombre es diferente
+
+En el caso convencional, `ProductosController.Detalle()` devuelve `View(producto)` y MVC busca una vista relacionada con el nombre de la acción, `Detalle.cshtml`. Sin embargo, `Ficha(int id)` no quiere introducir una segunda plantilla visual idéntica.
+
+Podemos escribir:
+
+~~~csharp
+[HttpGet("/catalogo/ficha/{id:int}")]
+public IActionResult Ficha(int id)
+{
+    var producto = ObtenerProductosEjemplo()
+        .FirstOrDefault(p => p.Id == id);
+
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return View("Detalle", producto);
+}
+~~~
+
+La cadena `"Detalle"` del resultado indica explícitamente qué vista se selecciona. La plantilla del atributo indica la **ruta externa** del endpoint. Son dos responsabilidades diferentes, aunque ambas aparezcan en el mismo método.
+
+Esto permite comprobar una idea fundamental: dos URL pueden producir el mismo HTML sin que existan dos copias de la plantilla. Además de evitar duplicación, el mecanismo muestra que **la selección de una acción** y **la búsqueda de la vista** son decisiones relacionadas pero independientes.
+
+### ¿Cuándo habría que utilizar otra vista?
+
+Si el requisito pidiera una presentación diferente para `Ficha`, podríamos preparar otro archivo Razor y devolverlo explícitamente. Pero mientras la representación requerida sea la misma, resulta más simple reutilizar el archivo existente. El diseño debe responder a necesidades reales; no conviene multiplicar vistas únicamente porque hemos añadido otra URL.
+
+## 1.4.15. Restricciones de ruta y validación de dominio
+
+La plantilla `{id:int}` exige que el segmento pueda interpretarse como entero. Esta restricción participa en el enrutamiento: ayuda a decidir si el endpoint puede seleccionarse. No demuestra que el valor sea un identificador válido de un producto.
+
+Un entero como 99 puede satisfacer la restricción de ruta y, sin embargo, no corresponder a ningún registro. Por eso `Ficha(99)` debe seguir buscando el producto y decidir qué hacer al no encontrarlo.
+
+La acción `Detalle(int id)` incorpora además la regla didáctica de que el identificador debe ser mayor que cero. Esa regla no está expresada en la plantilla convencional. Si la dirección contiene `0`, el método se ejecuta y devuelve 400.
+
+En el reto `Resumen` conservamos la restricción `{id:int}` y buscamos el producto. Para un entero inexistente la acción se ejecuta y devuelve 404; para texto no entero no se selecciona el endpoint. Los códigos son iguales, pero el origen técnico no lo es.
+
+Esta distinción es importante al depurar sistemas web. Una comprobación correcta no consiste solo en memorizar que un navegador muestra una página «Not Found». Debemos identificar si no existía la ruta, si no existía una acción compatible o si la acción devolvió deliberadamente ese resultado.
+
+## 1.4.16. Diagramas de decisiones sin convertir la clase en una API completa
+
+Podemos describir la acción `Detalle` mediante un esquema narrativo:
+
+~~~text
+GET /Productos/Detalle/{id}
+           |
+      ¿id <= 0?
+       /       \
+      Sí       No
+      |         |
+  HTTP 400   Buscar producto
+                |
+           ¿Existe id?
+            /       \
+           No       Sí
+           |         |
+       HTTP 404  View(producto)
+                     |
+                 HTTP 200 HTML
+~~~
+
+La representación es simplificada: primero debe existir un endpoint seleccionado y el modelo de parámetros debe poder enlazarse como corresponde. Su utilidad está en mostrar que una **misma acción** puede producir códigos de estado distintos según el valor de entrada y el resultado de la búsqueda.
+
+Con la acción de texto `Estado()` la decisión es más sencilla: recibe GET y devuelve una respuesta textual. No intenta seleccionar un producto ni renderizar la vista. Esta diferencia ayuda a reconocer cuándo no debemos diseñar una acción más compleja de lo necesario.
+
+### Estado HTTP y mensaje visual
+
+Al abrir una URL 404, el navegador puede mostrar su propio texto de error o una respuesta vacía, según cómo se procese el resultado. El texto visible no forma parte necesariamente de la vista de productos. Por eso el ejercicio verifica el código HTTP con herramientas de red, en lugar de exigir una página de errores con una apariencia determinada.
+
+El tratamiento visual de errores de producción, las páginas personalizadas y los mecanismos globales de excepción existen, pero no forman parte del objetivo acotado de P1.4.
+
+## 1.4.17. Generar enlaces a partir de datos del modelo
+
+La vista del listado trabaja con una colección. Cada elemento tiene un identificador que puede utilizarse para crear la dirección de su ficha:
+
+~~~cshtml
+@foreach (var producto in Model)
+{
+    <li data-id="@producto.Id">
+        @producto.Nombre
+        <a href="/Productos/Detalle/@producto.Id">Ver detalle</a>
+    </li>
+}
+~~~
+
+No escribimos manualmente tres URLs independientes; el mismo fragmento Razor se ejecuta para cada objeto y utiliza su `Id`. Esto facilita añadir productos sin tener que modificar el marcado de navegación por cada nueva instancia.
+
+Al mismo tiempo, la URL generada no es un dato de dominio del producto: es parte de cómo la aplicación decide navegar a sus acciones. El modelo solo aporta el identificador. La vista decide dónde situarlo dentro de una dirección. En M02 estudiaremos los Tag Helpers de enlaces para evitar depender de cadenas URL escritas a mano, pero en este capítulo la forma explícita facilita seguir el recorrido.
+
+### Riesgos de activar un enlace antes que la acción
+
+Durante la práctica mantenemos el enlace comentado hasta comprobar que `Detalle(int id)` funciona. Un enlace podría estar bien construido visualmente y conducir a una dirección que devuelve 404, porque todavía no existe el endpoint. El hecho de que el HTML contenga un `href` no garantiza que el servidor atienda esa ruta.
+
+Este detalle enseña la importancia de comprobar la funcionalidad extremo a extremo. Un test de la vista podría confirmar que se generó una etiqueta `<a>`, pero otro test debe comprobar que su destino responde de manera correcta.
+
+## 1.4.18. Tabla de predicciones antes de ejecutar una solicitud
+
+Antes de abrir las direcciones de la práctica, el alumno debe ser capaz de completar una predicción. Con las acciones del capítulo activadas, los siguientes resultados deberían ser razonables:
+
+| Solicitud | ¿Selecciona una acción? | Respuesta prevista | Motivo |
+|---|---|---|---|
+| `GET /Productos` | Sí, Index | 200 HTML | Lista de productos |
+| `GET /Productos/Estado` | Sí, Estado | 200 texto | `Content()` |
+| `GET /Productos/Detalle/1` | Sí, Detalle | 200 HTML | Existe Cuaderno |
+| `GET /Productos/Detalle/2` | Sí, Detalle | 200 HTML | Existe Lápiz |
+| `GET /Productos/Detalle/99` | Sí, Detalle | 404 | No existe id 99 |
+| `GET /Productos/Detalle/0` | Sí, Detalle | 400 | La acción rechaza id 0 |
+| `GET /catalogo/ficha/2` | Sí, Ficha | 200 HTML | Ruta por atributos |
+| `GET /catalogo/ficha/99` | Sí, Ficha | 404 | Id entero inexistente |
+| `GET /catalogo/ficha/no-numero` | No | 404 | No coincide `id:int` |
+| `GET /Productos/Ficha/2` | No en este proyecto | 404 | Ficha usa ruta absoluta |
+| `GET /catalogo/resumen/2` | Sí, Resumen cuando el reto está activo | 200 JSON | `Ok(new {...})` |
+| `GET /catalogo/resumen/99` | Sí, Resumen cuando el reto está activo | 404 | Id no encontrado |
+
+La tabla no debe convertirse en un ejercicio de memorizar códigos. Lo importante es poder **explicar la columna de motivos** y relacionarla con una línea de código del proyecto. Si el resultado real difiere de la predicción, conviene localizar exactamente qué bloque está activado y qué versión de proyecto se ejecuta.
+
+## 1.4.19. Reutilización de datos y coherencia entre acciones
+
+La función privada `ObtenerProductosEjemplo()` es deliberadamente sencilla. Gracias a ella, `Index`, `Detalle` y `Ficha` consultan la misma definición de datos, sin copiar tres listas en distintos métodos. El reto `Resumen` hace lo mismo para su respuesta JSON.
+
+Esta estructura no es todavía un repositorio de datos. No almacena información entre peticiones ni coordina transacciones. Simplemente evita duplicación en la demostración. Sin embargo, permite entender qué cambiará en M02: cuando exista una forma persistente de obtener productos, las acciones deberán pedir esa información a la capa apropiada en lugar de reconstruir siempre una lista fija.
+
+Si copiáramos la lista completa en cada acción, podríamos cometer un error difícil de detectar: `Index` mostraría Lápiz por 1,20 €, pero `Detalle` lo mostraría por otro importe al haberse editado solo una copia. Compartir una única función de construcción reduce esa incoherencia, incluso en un programa pequeño.
+
+### Alcance de static en el ejemplo
+
+El método es `private static`. El modificador `private` significa que no se expone como acción pública del controlador. `static` indica que puede ejecutarse sin utilizar estado de una instancia concreta de `ProductosController`. La propiedad que nos importa en P1.4 es **que centraliza los datos de ejemplo y no crea una ruta HTTP**.
+
+No se utiliza una lista estática mutable compartida. El método devuelve una nueva colección con objetos de ejemplo. Esto evita introducir problemas de concurrencia y persistencia que no son necesarios para estudiar el enrutamiento.
+
+## 1.4.20. Cómo leer evidencias de una prueba HTTP real
+
+Al comprobar `/Productos/Detalle/2`, conviene observar tres cosas separadas: el código **200**, el tipo de contenido **HTML** y un fragmento que identifique al producto **Lápiz**. Cada una aporta una evidencia diferente.
+
+El 200 indica un resultado de éxito; el tipo de contenido indica que se devolvió HTML; el nombre demuestra que la vista utilizó el objeto correcto. Si solo verificamos 200, una acción que devolviera una página vacía podría superar la prueba. Si solo verificamos que aparece Lápiz, podríamos estar observando un texto fijo colocado accidentalmente en otra respuesta.
+
+Para `/catalogo/resumen/2` el razonamiento es parecido, pero el contenido esperado es JSON. No basta con encontrar las letras «Lápiz» en el cuerpo: debemos comprobar que puede interpretarse como JSON y que las propiedades correctas contienen los datos previstos.
+
+Para los casos 400 y 404 la evidencia principal es el estado HTTP. En este curso no exigimos una página de error visual personalizada. El aprendizaje se centra en seleccionar resultados adecuados y distinguir enrutamiento de decisiones de la acción.
+
+## 1.4.21. Activación incremental y regresión
+
+El proyecto del capítulo conserva la funcionalidad de las prácticas anteriores. En cada etapa activamos un bloque de código marcado, compilamos, iniciamos y comprobamos un resultado nuevo. No desactivamos el listado al habilitar `Estado` ni eliminamos la ficha al añadir `Ficha`.
+
+Esto permite enseñar el desarrollo incremental con un criterio verificable: **la nueva capacidad aparece y las anteriores permanecen operativas**. Cuando activamos el reto, además de comprobar JSON 200, debemos confirmar que `/Productos` continúa mostrando sus tres elementos y que `/Productos/Detalle/2` sigue ofreciendo HTML.
+
+La práctica incluye una ejecución automatizada de seis estados mediante copias temporales. No requiere que el alumno ejecute continuamente el test durante todas las explicaciones, pero sí permite demostrar de forma objetiva que los bloques propuestos no son pseudocódigo inconexo y que las rutas publicadas funcionan.
+
+Con estos conceptos, el punto 1.5 podrá centrarse en enriquecer la presentación Razor sin volver a explicar desde cero cómo se obtiene el producto ni cómo se selecciona una acción.
+
+
 # 1.5. Vistas Razor, modelos tipados, layouts y vistas parciales
 
 ## Objetivos y contexto
