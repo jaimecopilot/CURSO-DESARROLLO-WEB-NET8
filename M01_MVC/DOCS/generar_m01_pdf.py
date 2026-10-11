@@ -386,7 +386,7 @@ def check_pdf(file: Path, md: str, diagram_count: int, source_bytes: bytes, file
                 # comienza en página nueva. El de la cabecera debe corresponder
                 # con uno de los cinco títulos del Markdown (o con el índice).
                 expected_any=[normalize("Índice del módulo")]
-                expected_any += [normalize(re.sub(r"^#\\s*", "",m.group(0))) for m in re.finditer(
+                expected_any += [normalize(re.sub(r"^#\s*", "",m.group(0))) for m in re.finditer(
                     r"(?m)^# (?:P)?1\.[1-5]\.\s+[^\r\n]+", md)]
                 header_txt=normalize(header)
                 if not any(v in header_txt for v in expected_any):
