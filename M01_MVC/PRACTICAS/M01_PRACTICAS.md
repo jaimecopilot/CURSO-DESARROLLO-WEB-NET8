@@ -349,6 +349,229 @@ Accede a `http://localhost:5091/`. Debes ver el texto «El servidor genera el HT
 
 ---
 
+
+## I. Laboratorio ampliado 1.1 — Reconstruir las pruebas desde el navegador
+
+Este laboratorio amplía la observación de la primera página sin cambiar el proyecto ni añadir tecnologías nuevas. Utilizaremos los mismos fragmentos de código comentados del ejercicio y compararemos lo que revela el navegador con lo que muestra una herramienta de línea de comandos.
+
+### I.1. Diferenciar el documento principal y los recursos
+
+Inicia la aplicación del punto 1.1:
+
+~~~bash
+cd M01_MVC/PROYECTO/1.1/CursoWeb.Mvc
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Con el servidor ejecutándose, abre una pestaña privada del navegador y visita `http://localhost:5091/`. Abre las herramientas de desarrollo con F12, selecciona la pestaña Red o Network y recarga la página.
+
+Localiza la solicitud del documento principal. Debe corresponder a la raíz `/` y devolver el HTML de `Views/Home/Index.cshtml`. No confundas la solicitud del documento con la hoja de estilos `/css/site.css`. Aunque ambas aparezcan asociadas a la misma página visible, sus cuerpos y tipos de contenido son distintos.
+
+Anota para cada solicitud el método, la URL, el código de estado y el tipo de contenido. No hace falta copiar todas las cabeceras: basta con las que permitan explicar qué recurso se pidió y qué respondió el servidor.
+
+| Observación | Documento principal | Hoja de estilos |
+|---|---|---|
+| Ruta | `/` | `/css/site.css` |
+| Método | GET | GET |
+| Código esperado | 200 | 200 |
+| Contenido esperado | HTML | CSS |
+| ¿Interviene HomeController.Index para crear el cuerpo? | Sí | No, lo sirve el middleware estático |
+
+La última fila debe justificarse leyendo `Program.cs` y `HomeController.cs`. No es suficiente responder que «ambos son archivos de la aplicación»: el documento principal procede de una acción que devuelve una vista y el CSS se sirve como recurso estático.
+
+### I.2. Repetir las comprobaciones sin interfaz gráfica
+
+Mantén la aplicación en ejecución. Abre una segunda terminal y ejecuta por separado:
+
+~~~bash
+curl -i http://localhost:5091/
+curl -i http://localhost:5091/Home/Index
+curl -i http://localhost:5091/css/site.css
+curl -i http://localhost:5091/ruta-inexistente
+~~~
+
+La opción `-i` incluye las cabeceras HTTP en la salida. La información puede tener distintas cabeceras adicionales según el sistema operativo y la versión del runtime, pero las comprobaciones relevantes son estables para esta práctica: las dos primeras direcciones responden HTML, la tercera CSS y la última 404.
+
+**Primera pregunta:** ¿por qué hay dos direcciones que llevan al mismo contenido HTML? Consulta la ruta convencional `"{controller=Home}/{action=Index}/{id?}"`. Los valores predeterminados explican que la raíz y `/Home/Index` seleccionen la misma acción.
+
+**Segunda pregunta:** ¿por qué el recurso CSS responde 200 aunque no exista un método `SiteCss()` en el controlador? Porque el proyecto registra `UseStaticFiles()` y el archivo está ubicado en la raíz web.
+
+**Tercera pregunta:** ¿la respuesta 404 significa que la aplicación no funciona? No. En este caso significa que la aplicación ha respondido indicando que no se encuentra un endpoint o recurso para la URL solicitada. Las otras direcciones siguen funcionando.
+
+**Cuarta pregunta:** ¿por qué no es correcto declarar que el navegador ha recibido un objeto C#? Porque el controlador ha seleccionado una vista y Razor ha producido HTML antes de enviar la respuesta.
+
+### I.3. Documentar una captura de evidencia mínima
+
+Conserva en tus apuntes una pequeña tabla con cuatro filas, una por solicitud, y apunta el código de estado y el tipo de contenido observados. No es necesario incorporar capturas de todos los paneles del navegador. El objetivo es que otra persona pueda reproducir el recorrido utilizando exactamente las mismas URLs.
+
+Si alguna solicitud no coincide con lo previsto, identifica primero si el problema afecta al servidor, a la ruta o al cuerpo de la respuesta. Evita modificar varios archivos al mismo tiempo.
+
+## J. Laboratorio ampliado 1.1 — Comparar cambios de controlador y cambios de Razor
+
+En esta actividad usarás dos bloques ya existentes y comentados en el proyecto. No añadas archivos nuevos. El código aparece aquí para poder comparar exactamente qué se activa en cada estado.
+
+### J.1. Estado inicial sin fragmentos activados
+
+Abre `Controllers/HomeController.cs` y localiza:
+
+~~~csharp
+// Response.Headers["X-Curso-Paso"] = "1.1.4";
+~~~
+
+Después abre `Views/Home/Index.cshtml` y localiza:
+
+~~~cshtml
+@* PASO 1.1.5 (inicio)
+<section id="marca-paso-1-1-5">
+    <h2>Contenido añadido durante la práctica</h2>
+    <p>El navegador ha recibido una nueva versión de la vista Razor.</p>
+</section>
+PASO 1.1.5 (fin) *@
+~~~
+
+Ambos fragmentos están preparados. El primero está comentado con `//` porque es C#. El segundo utiliza delimitadores Razor `@* ... *@` porque es una plantilla `.cshtml`. Este detalle no es puramente visual: quitar los delimitadores incorrectos puede generar código que no compila o que Razor no representa como esperamos.
+
+Antes de activarlos, comprueba que la cabecera `X-Curso-Paso` no aparece en la respuesta del documento y que tampoco aparece el elemento `id="marca-paso-1-1-5"` en el HTML. Estos dos resultados negativos permiten reconocer luego qué cambió.
+
+### J.2. Activar únicamente el controlador
+
+Retira las dos barras de comentario de la asignación `Response.Headers`, guarda el archivo, detén y vuelve a ejecutar la aplicación. No actives todavía el bloque Razor.
+
+En otra terminal:
+
+~~~bash
+curl -i http://localhost:5091/
+~~~
+
+Busca la cabecera `X-Curso-Paso: 1.1.4`. A continuación abre el navegador y observa el contenido visible. El encabezado y los párrafos pueden parecer exactamente iguales que en el estado anterior; eso no invalida el resultado porque la modificación está en las cabeceras de la respuesta.
+
+Anota el dato más importante: **la instrucción del controlador se ha ejecutado aunque no se haya añadido ningún elemento HTML**. El alumnado debe poder señalar la línea concreta que explica la cabecera.
+
+Para comprobar el alcance de la modificación, solicita:
+
+~~~bash
+curl -i http://localhost:5091/css/site.css
+~~~
+
+No debes encontrar allí la cabecera personalizada de Home, porque la petición CSS la atiende el middleware estático. Si la encuentras, revisa que no hayas añadido otra instrucción global fuera del ejercicio.
+
+### J.3. Activar únicamente la vista
+
+Vuelve a comentar la asignación `X-Curso-Paso` y activa ahora el bloque `PASO 1.1.5`, retirando las dos líneas delimitadoras del comentario Razor. Compila y vuelve a ejecutar.
+
+La cabecera de diagnóstico no debería aparecer ya. En cambio, el HTML debe incluir una sección con el identificador `marca-paso-1-1-5` y el mensaje sobre la nueva versión de la vista.
+
+En F12 → Elementos o Inspector busca el `section`. Compara esa estructura con el código del archivo `Index.cshtml`. Después examina la respuesta del documento en la pestaña Red y comprueba que el fragmento forma parte del HTML entregado, no de una modificación realizada por código JavaScript del cliente.
+
+El cambio ha afectado a la representación visual de la página. No ha sido necesario tocar `Program.cs` ni la ruta convencional.
+
+### J.4. Activar ambos cambios y explicar la independencia
+
+Activa de nuevo la cabecera, conservando también activo el bloque de la vista. Después de compilar y ejecutar, comprueba ambos resultados en la misma respuesta: la cabecera `X-Curso-Paso` en la zona de metadatos y el `section` en el cuerpo HTML.
+
+Si solo aparece uno, no deberías cambiar el otro fragmento a ciegas. Revisa el archivo responsable del elemento ausente y confirma que estás ejecutando la versión correcta del proyecto.
+
+Esta práctica controlada puede representarse como una matriz:
+
+| Estado | Cabecera HTTP | Elemento HTML |
+|---|---|---|
+| Inicial | Ausente | Ausente |
+| Controlador | Presente | Ausente |
+| Vista | Ausente | Presente |
+| Ambos | Presente | Presente |
+
+La batería `1.1_e2e.sh` reproduce estas combinaciones mediante copias temporales, lo que permite comprobarlas sin modificar el proyecto fuente del alumno.
+
+## K. Laboratorio ampliado 1.1 — Interpretar errores previsibles
+
+### K.1. Error: el servidor no se inicia
+
+Si aparece un error relacionado con el uso del puerto o no puedes abrir `localhost:5091`, verifica que no esté funcionando otra versión del proyecto sobre la misma dirección. Detén procesos anteriores y ejecuta de nuevo desde la carpeta correcta.
+
+No cambies el contenido Razor para resolver un conflicto de puerto. La causa se encuentra antes de que la solicitud llegue a MVC.
+
+### K.2. Error: la ruta alternativa funciona pero la raíz no
+
+Si `/Home/Index` funciona y `/` no, compara la configuración de `MapControllerRoute` con el código proporcionado. La convención del ejercicio utiliza `Home` e `Index` como valores predeterminados. Si alguno se cambió, puede variar el resultado de la raíz.
+
+Antes de introducir otra ruta, restaura el código original y comprueba la diferencia entre el estado que fallaba y la configuración inicial.
+
+### K.3. Error: la página funciona sin estilos
+
+Comprueba `/css/site.css` directamente. Si devuelve 404, revisa la carpeta `wwwroot/css` y la presencia de `UseStaticFiles`. Si responde correctamente pero el navegador no aplica la hoja, inspecciona el atributo `href` del enlace CSS en `_Layout.cshtml` y verifica que el recurso no se encuentre bloqueado o sustituido por otro estilo.
+
+Es importante registrar **qué comprobación concreta falló**. La frase «no tiene estilos» no permite elegir una única solución sin observar la solicitud.
+
+### K.4. Error: el fragmento Razor aparece como texto raro o da un error de vista
+
+Revisa que se hayan eliminado únicamente las dos líneas delimitadoras del comentario Razor. El cuerpo de `<section>` y sus etiquetas deben permanecer tal como están preparados en el proyecto.
+
+No intentes resolverlo suprimiendo todas las marcas `@` del archivo: algunas pertenecen a Razor y son necesarias para el contenido de la vista.
+
+### K.5. Error: el cambio está guardado pero no aparece
+
+Comprueba la carpeta del proyecto. El curso conserva varias versiones con nombres similares porque cada punto debe poder ejecutarse independientemente. Si editas el archivo en `PROYECTO/1.1` pero ejecutas la aplicación de `PROYECTO/1.2`, la modificación no tendrá efecto en la versión que responde a las solicitudes.
+
+El camino correcto de diagnóstico es detener el proceso, comprobar el directorio de trabajo, compilar el proyecto esperado y volver a ejecutar.
+
+## L. Laboratorio ampliado 1.1 — Resolver el reto con dos comprobaciones independientes
+
+El reto 1.1 ya está desarrollado en el apartado G. Aquí ampliamos la comprobación para que su resultado no dependa únicamente de observar un mensaje visible.
+
+### L.1. Código de la cabecera del reto
+
+En `HomeController.cs` permanece comentada esta instrucción:
+
+~~~csharp
+// Response.Headers["X-Curso-Reto"] = "HTTP-y-HTML";
+~~~
+
+Retira el prefijo `//` para activarla. Al ejecutarse la acción Home, la respuesta del documento contendrá la cabecera `X-Curso-Reto`.
+
+### L.2. Código de la vista del reto
+
+En `Views/Home/Index.cshtml` encontramos:
+
+~~~cshtml
+@* RETO 1.1 (inicio)
+<p id="reto-1-1">El servidor genera el HTML y envía las cabeceras HTTP por separado.</p>
+RETO 1.1 (fin) *@
+~~~
+
+Retira las dos líneas de comentario Razor y conserva el párrafo. El atributo `id` ayuda a encontrar el elemento en el HTML y a comprobar su presencia mediante el script E2E.
+
+### L.3. Tres solicitudes para comprobar el comportamiento
+
+Con ambos fragmentos activos, ejecuta:
+
+~~~bash
+curl -i http://localhost:5091/
+curl -i http://localhost:5091/Home/Index
+curl -i http://localhost:5091/css/site.css
+~~~
+
+Las dos primeras solicitudes llegan a la misma acción y deben incorporar el resultado del reto. La tercera accede al recurso CSS y no debe incorporar la cabecera añadida dentro de Home.
+
+En las respuestas HTML, busca el párrafo `reto-1-1`. No debería encontrarse en el contenido de la hoja CSS, porque no estamos sirviendo una vista Razor mediante esa solicitud.
+
+### L.4. Explicación de cierre
+
+Una solución completa del reto debe identificar **dos cambios distintos**. El primero corresponde al controlador y modifica una cabecera. El segundo corresponde a la vista y modifica el HTML. Ambos forman parte de la misma respuesta del documento, pero no son el mismo tipo de información.
+
+El criterio de finalización no es simplemente «todo funciona»: debes poder explicar por qué esos cambios son independientes y por qué no afectan de la misma manera a los recursos estáticos.
+
+## M. Síntesis de 1.1 para estudiar sin el profesor
+
+Antes de continuar con 1.2, verifica que puedes ejecutar el proyecto desde una terminal limpia y repetir el recorrido sin mirar una captura de pantalla de la clase. Debes saber qué comando inicia el servidor, qué URL corresponde a la portada y dónde está el controlador que devuelve la vista.
+
+Después, localiza un archivo HTML de vista y una hoja CSS, y describe por qué el navegador los obtiene mediante mecanismos distintos. No es suficiente señalar carpetas: identifica la acción MVC y el middleware estático que intervienen.
+
+Finalmente, activa de nuevo los bloques del ejercicio y del reto, y comprueba que puedes atribuir cada diferencia al archivo correcto. Si eres capaz de explicar qué cambia al modificar el controlador, qué cambia al modificar Razor y qué sigue funcionando sin cambios, has alcanzado el objetivo de esta primera práctica.
+
+**Relación con la siguiente práctica:** en 1.2 ya no nos limitaremos a representar un HTML fijo. Introduciremos una clase `Producto` y una colección que la acción entrega a la vista. El método de observación seguirá siendo el mismo: un cambio controlado, un resultado visible y una comprobación que relaciona ese resultado con el código.
+
+
 # P1.2. El flujo Modelo–Vista–Controlador
 
 ## A. Identificación
