@@ -441,6 +441,214 @@ La primera práctica se concentra deliberadamente en una única página. Sin emb
 Cuando trabajemos con Blazor, seguiremos necesitando comprender qué es una petición, qué aporta el servidor y qué renderiza el navegador, aunque la composición de la interfaz y la interactividad tengan otro modelo. El objetivo de esta profundización no es memorizar cabeceras: es construir una **cadena de explicaciones comprobables** y aprender a separar lo observado de nuestras suposiciones.
 
 
+
+## 1.1.18. Un modelo mental de la web orientado a peticiones
+
+En una aplicación de escritorio tradicional, el desarrollador suele pensar primero en ventanas y eventos de usuario. En una aplicación web resulta especialmente útil empezar pensando en **peticiones**. El usuario introduce una dirección o pulsa un enlace, el cliente solicita un recurso o endpoint y el servidor procesa la solicitud antes de devolver un resultado.
+
+La interfaz puede parecer una única página, pero el navegador suele efectuar múltiples solicitudes. Primero pide el documento HTML; después puede solicitar hojas CSS, imágenes u otros recursos referenciados en ese documento. En nuestro proyecto inicial, `/` devuelve un documento construido mediante MVC y `/css/site.css` entrega un archivo estático. Ambas respuestas proceden del mismo servidor Kestrel, pero su recorrido interno puede ser distinto.
+
+Este hecho explica por qué la inspección de F12 → Red es más informativa que fijarse solo en el resultado visual. La pantalla puede mostrar un encabezado y unos párrafos, mientras el panel de red registra más de una solicitud. El alumno debe ser capaz de identificar cuál corresponde al documento principal y cuál a los recursos que lo complementan.
+
+### La solicitud del documento y la solicitud de CSS
+
+Podemos comparar dos ejemplos conceptuales:
+
+~~~http
+GET / HTTP/1.1
+Host: localhost:5091
+Accept: text/html
+~~~
+
+y
+
+~~~http
+GET /css/site.css HTTP/1.1
+Host: localhost:5091
+Accept: text/css
+~~~
+
+No estamos afirmando que un navegador envíe exactamente esas tres líneas. Son representaciones simplificadas que permiten estudiar el método, la ruta y una posible preferencia de contenido. La comparación muestra algo estable: en el primer caso pedimos `/` y en el segundo pedimos `/css/site.css`.
+
+El servidor debe decidir qué componente atiende cada petición. En nuestra configuración, el documento se obtiene desde una acción MVC y el archivo CSS desde el middleware de recursos estáticos. Por eso una cabecera añadida exclusivamente dentro de la acción Home no tiene por qué aparecer en la respuesta de `site.css`.
+
+### Qué aporta el método HTTP
+
+El método `GET` indica una operación de recuperación de representación de un recurso. En un desarrollo web real existen otros métodos, pero en este primer punto no necesitamos introducir formularios ni operaciones que cambien datos. Las solicitudes de la práctica son GET y el objetivo es aprender a seguirlas de principio a fin.
+
+No debemos asociar GET únicamente a «abrir una página HTML». El mismo método puede solicitar una hoja CSS, un archivo de texto o datos JSON. El tipo de resultado lo decide el servidor y se comunica mediante la respuesta, especialmente a través de su cabecera de contenido.
+
+## 1.1.19. MVC frente a una Web API: mismos fundamentos, resultados distintos
+
+El alumnado ya conoce Web API, por lo que conviene partir de ese conocimiento y evitar enseñar HTTP desde cero. ASP.NET Core MVC y las API web se apoyan en el mismo framework y pueden convivir en una misma aplicación. Lo que cambia es la responsabilidad predominante de sus endpoints y el resultado que preparan.
+
+Una API suele exponer información estructurada para otros programas. Si el resultado es JSON, el cliente puede interpretarlo como datos y decidir qué interfaz construir. Una aplicación MVC con vistas Razor puede devolver HTML ya preparado para que el navegador lo represente. Ninguna de esas opciones requiere un protocolo de red diferente: ambas utilizan HTTP.
+
+El ejemplo de la primera página devuelve una vista:
+
+~~~csharp
+[HttpGet]
+public IActionResult Index()
+{
+    return View();
+}
+~~~
+
+Una acción de Web API podría devolver un resultado con datos JSON, pero no necesitamos cambiar nuestro controlador inicial para comprender la diferencia. En 1.4 haremos la comparación dentro del mismo proyecto, con `Content()` y `Ok()`, después de haber estudiado los tipos de resultado.
+
+### Qué significa renderizar del lado del servidor
+
+En MVC, la ejecución de Razor que construye la vista ocurre en el servidor. Cuando el navegador recibe la respuesta, las expresiones Razor ya se han evaluado. Esto simplifica la comprensión del primer flujo: el cliente solicita una URL y recibe un documento HTML.
+
+Esta afirmación no implica que una página MVC no pueda utilizar JavaScript ni que sea imposible actualizar parte de una página dinámicamente. Simplemente estamos estudiando el comportamiento mínimo del proyecto suministrado, que no necesita JavaScript de aplicación para mostrar sus contenidos iniciales.
+
+### Una tabla conceptual para evitar confusiones
+
+| Pregunta | MVC con vistas Razor del curso | Web API conocida por el alumno |
+|---|---|---|
+| ¿Qué protocolo se utiliza? | HTTP | HTTP |
+| ¿Cuál es un resultado frecuente? | HTML | JSON |
+| ¿Quién prepara el HTML inicial? | Servidor, mediante Razor | Normalmente otro cliente o capa |
+| ¿Debe existir una vista `.cshtml`? | Si se devuelve `View()` | No para un resultado JSON |
+| ¿Existen controladores y rutas? | Sí, en esta aplicación | Pueden existir |
+| ¿Se pueden devolver errores HTTP? | Sí | Sí |
+| ¿Una acción MVC está obligada a devolver HTML? | No | Tampoco toda API se limita a JSON |
+
+La tabla contiene características habituales, no restricciones absolutas de ASP.NET Core. El objetivo es aprovechar conocimientos previos y concentrarnos en la representación de páginas web, que es la nueva competencia de M01.
+
+## 1.1.20. Observar el HTML generado sin confundirlo con Razor
+
+El archivo `Views/Home/Index.cshtml` contiene marcado HTML y expresiones Razor. Durante el primer recorrido, la acción devuelve `View()` y el motor localiza esa plantilla mediante convenciones. La respuesta que llega al navegador es HTML, no una copia que el cliente deba interpretar como fuente C#.
+
+El archivo principal incluye un encabezado:
+
+~~~cshtml
+<h1>1.1 | Primer recorrido MVC</h1>
+~~~
+
+Esta línea no contiene una expresión dinámica, así que el resultado HTML conserva un elemento parecido. Sin embargo, `@{ ViewData["Title"] = "Primer recorrido MVC"; }` es una instrucción Razor que establece datos de presentación y no aparece literalmente en el HTML final.
+
+Esta diferencia puede parecer poco importante en una página sencilla, pero se volverá esencial en 1.2, donde la vista representa productos a partir de una colección. Si el alumno cree que Razor se ejecuta en el navegador, no podrá explicar correctamente por qué la respuesta HTTP contiene los nombres de los productos y no un bucle de C#.
+
+### Contenido de una respuesta frente a apariencia
+
+El HTML define una estructura documental; las hojas CSS controlan aspectos de presentación. Una respuesta HTML correcta no garantiza que la apariencia sea la esperada. Por ejemplo, si el archivo CSS devuelve 404, los títulos y párrafos todavía pueden aparecer, pero faltarán estilos.
+
+Este es otro motivo para inspeccionar tanto el documento principal como sus recursos. En la práctica no se pide diseñar una página compleja: se pide reconocer **qué parte del sistema es responsable de cada tipo de salida**.
+
+## 1.1.21. Una lectura detallada de Program.cs
+
+`Program.cs` utiliza la forma de arranque simplificada característica de ASP.NET Core moderno:
+
+~~~csharp
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddControllersWithViews();
+
+var app = builder.Build();
+
+app.UseStaticFiles();
+app.UseRouting();
+
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.Run();
+~~~
+
+No debemos leerlo como si cada línea fuera un paso repetido para cada visitante. La mayor parte de estas instrucciones configura el host y la aplicación al arrancar. Una vez que `Run()` está atendiendo solicitudes, los middlewares y endpoints intervienen cuando llegan peticiones.
+
+`CreateBuilder` prepara la configuración del host y el registro de servicios. `AddControllersWithViews` incorpora servicios necesarios para MVC con vistas. `Build` crea la aplicación configurada. `UseStaticFiles` permite responder a solicitudes de recursos estáticos; `UseRouting` participa en el enrutamiento; `MapControllerRoute` registra el patrón convencional; `Run` inicia el proceso de atención.
+
+### ¿Dónde está la lista de rutas?
+
+La ruta convencional describe un patrón que puede relacionar diferentes combinaciones de controlador y acción. No necesitamos declarar una llamada independiente en `Program.cs` por cada método de controlador. Tampoco significa que la aplicación publique automáticamente cualquier método privado: los endpoints MVC se construyen con reglas y metadatos propios de los controladores y sus acciones.
+
+En la primera práctica solo seguimos `HomeController.Index`. Más adelante veremos cómo `ProductosController.Index` encaja en el mismo patrón y cómo un atributo permite definir una dirección distinta.
+
+### ¿Por qué no modificar aún el orden de middleware?
+
+La práctica no pretende enseñar todas las variantes del pipeline ni construir middleware propio. El orden puede ser relevante para el comportamiento de ASP.NET Core, y alterar varias instrucciones a la vez haría más difícil identificar causas. Conservamos la configuración proporcionada y nos concentramos en una pregunta verificable: **qué resultado devuelve cada URL en este proyecto**.
+
+## 1.1.22. Leer las herramientas de desarrollo con método
+
+El panel de red de un navegador contiene mucha información. Para este curso conviene utilizarlo de una forma dirigida, evitando que el alumnado pierda tiempo entre columnas que todavía no necesita interpretar.
+
+Primero abrimos las herramientas de desarrollo y seleccionamos la pestaña **Red / Network**. Después recargamos la página para capturar las solicitudes desde el comienzo. Identificamos el documento principal y abrimos el detalle de esa solicitud.
+
+En la sección de información general observamos la URL y el código de estado. En las cabeceras observamos `Content-Type` y, cuando activamos el paso correspondiente, `X-Curso-Paso`. En el cuerpo de respuesta buscamos el encabezado de nuestra vista y más adelante el bloque `marca-paso-1-1-5`.
+
+Después repetimos el procedimiento para `/css/site.css`. Debemos observar un recurso diferente, con tipo de contenido CSS. La cabecera que se añadió dentro del controlador Home no se espera en esa solicitud, pues corresponde a otro mecanismo de atención.
+
+### ¿Qué información no necesitamos memorizar?
+
+El navegador puede incluir múltiples cabeceras y datos de temporización, almacenamiento en caché y seguridad. No es necesario explicarlos todos para comprender el primer recorrido MVC. Nuestro criterio docente es seleccionar un conjunto pequeño de evidencias que responda a preguntas concretas: ¿qué se pidió?, ¿quién lo atendió?, ¿qué respondió el servidor? y ¿qué parte del contenido cambió después de editar el código?
+
+Una vez que el alumno domina esta secuencia, puede emplearla para diagnosticar problemas más avanzados sin que tengamos que dedicar horas a todas las opciones de la herramienta.
+
+## 1.1.23. Cabeceras personalizadas: datos de control fuera del HTML
+
+El paso 1.1.4 añade una cabecera a la respuesta:
+
+~~~csharp
+Response.Headers["X-Curso-Paso"] = "1.1.4";
+~~~
+
+La instrucción modifica la colección de cabeceras HTTP de la respuesta de la acción. El navegador puede mostrar ese dato en su panel de red, pero no tiene por qué dibujar automáticamente el texto en la página.
+
+Esto permite distinguir **metadatos de transporte** y **cuerpo de la respuesta**. Una cabecera y un párrafo HTML pueden contener la misma cadena, pero eso no significa que tengan el mismo papel. El cuerpo HTML será interpretado como documento; la cabecera forma parte de la información que acompaña a la respuesta.
+
+### Por qué el lugar del código importa
+
+Si escribimos esta instrucción dentro de `HomeController.Index()`, afecta a las respuestas preparadas al ejecutar esa acción. Si la aplicación atendiera otra URL mediante un archivo estático, esa instrucción no se ejecutaría allí. El reto reproduce la diferencia con una segunda cabecera de diagnóstico y un párrafo Razor.
+
+No introducimos cabeceras de autenticación, controles de caché o seguridad porque exigirían explicar conceptos que no pertenecen a este ejercicio. Los nombres personalizados son marcadores sin significado operativo fuera del laboratorio.
+
+## 1.1.24. Tres estrategias incorrectas de depuración
+
+**Estrategia incorrecta 1: modificar el CSS porque una URL devuelve 404.** El CSS no determina por sí solo qué endpoints existen. Antes de editar estilos debemos comprobar qué URL se solicitó y si corresponde a un controlador o archivo estático.
+
+**Estrategia incorrecta 2: modificar el controlador cuando falta un elemento HTML comentado.** Si la acción ya devuelve correctamente una vista, puede que el problema sea simplemente que no se haya activado el bloque Razor del paso 1.1.5. Hay que observar el archivo responsable de la representación.
+
+**Estrategia incorrecta 3: interpretar un error de conexión como HTTP 404.** Un error de conexión puede significar que no hay un proceso escuchando en la dirección indicada. Un 404 es una respuesta del servidor; distinguirlos evita investigar controladores cuando todavía no se ha iniciado correctamente la aplicación.
+
+La técnica correcta consiste en formular una hipótesis y comprobarla con una observación concreta. El alumnado debe aprender a responder con datos y no con conjeturas: URL, método, estado, tipo de contenido y fragmento de resultado.
+
+## 1.1.25. Pequeño caso completo de diagnóstico
+
+Imaginemos que una persona informa: «La aplicación está rota; no se ve como ayer». Esa descripción todavía no permite decidir qué archivo corregir. Podemos convertirla en una secuencia de preguntas útiles.
+
+**¿Se puede abrir `/`?** Si no se establece conexión, revisamos primero la ejecución de Kestrel y el puerto. Si se recibe 404, investigamos el enrutamiento o la dirección. Si se recibe 200, ya tenemos una evidencia positiva sobre la página inicial.
+
+**¿El HTML contiene el encabezado de la práctica?** Si falta, revisamos la vista que se está ejecutando, el proyecto lanzado y si los cambios se han guardado. Si aparece, sabemos que la acción y el resultado de vista han producido al menos una parte reconocible de la página.
+
+**¿Se recibe el CSS?** Si `/css/site.css` responde 404, investigamos su ubicación y `UseStaticFiles`. Si responde 200 con contenido CSS pero el aspecto visual sigue siendo incorrecto, el problema puede depender de las reglas CSS o de su aplicación en el documento.
+
+**¿Se observa la cabecera del ejercicio?** Si activamos `X-Curso-Paso` y no aparece en el documento HTML, comprobamos que la línea realmente está descomentada en la versión de `HomeController` que ejecuta el servidor. No buscamos esa cabecera en la respuesta CSS.
+
+**¿Está el texto añadido en la vista?** Si el `section` de 1.1.5 continúa dentro de un comentario Razor, no producirá contenido. Si está activo y el servidor representa la versión correcta, debe aparecer en el HTML.
+
+Esta secuencia enseña a separar causas. A menudo «la página está rota» equivale a varios problemas diferentes, y cada uno exige observar una pieza concreta antes de modificarla.
+
+## 1.1.26. Construir una explicación técnica reproducible
+
+Al terminar la práctica, el alumno debería poder describir la aplicación sin depender de que otra persona conozca su equipo. Una descripción útil incluye la carpeta de proyecto, el comando de ejecución, la URL observada, el resultado esperado y el archivo donde está el cambio.
+
+Por ejemplo: «En `PROYECTO/1.1/CursoWeb.Mvc`, iniciando la aplicación con `dotnet run --no-launch-profile --urls http://localhost:5091`, la dirección `/` devuelve 200 y representa la vista `Home/Index`. Al activar la línea `X-Curso-Paso` en `HomeController`, esa cabecera aparece en la respuesta del documento principal, pero no en la solicitud del CSS».
+
+Esta explicación relaciona código, configuración y observación. También resulta valiosa cuando otra persona tiene que reproducir el ejercicio o cuando se está preparando un test de integración.
+
+Una afirmación como «lo probé y funciona» es mucho menos útil, porque no deja claro qué funcionalidad se verificó ni cuáles fueron las condiciones de la ejecución.
+
+## 1.1.27. Cierre razonado de la primera etapa
+
+El propósito del capítulo no es enseñar todas las posibilidades de ASP.NET Core, sino construir un recorrido completo y fiable sobre el que se apoyarán los demás contenidos. Hemos identificado el servidor HTTP, el pipeline de ASP.NET Core, los controladores MVC, las vistas Razor y los recursos estáticos, y hemos observado sus respuestas.
+
+El valor de trabajar con una única página inicial es que permite introducir un cambio cada vez. Primero añadimos metadatos HTTP y después un fragmento HTML. Esa separación convierte la práctica en un experimento reproducible: sabemos qué archivo modificamos, qué evidencia esperamos y qué partes de la aplicación deberían permanecer estables.
+
+Cuando en 1.2 aparezca un modelo de producto, no tendremos que reaprender qué es una solicitud ni qué significa una vista. La nueva pregunta será qué datos recibe esa vista y cómo los utiliza. El método de trabajo seguirá siendo el mismo: **razonar, activar un bloque, ejecutar, observar y comprobar que el comportamiento previo no se ha roto**.
+
+
 # 1.2. Arquitectura Model-View-Controller
 
 ## Objetivos
