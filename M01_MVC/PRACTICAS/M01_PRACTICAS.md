@@ -7,7 +7,7 @@
 - **P1.2. El flujo Modelo–Vista–Controlador**
 - **P1.3. Estructura y convenciones del proyecto**
 - **P1.4. Controladores, acciones, parámetros y rutas**
-- P1.5. Vistas tipadas, layout, parciales y navegación
+- **P1.5. Vistas tipadas, layout, parciales y navegación**
 
 # P1.1. Primera aplicación MVC y recorrido de una petición HTTP
 
@@ -1567,3 +1567,407 @@ Al terminar, el alumno debe poder explicar **qué acción MVC se ejecuta para ca
 El reto demuestra, mediante código real comentado y comprobable, que un controlador MVC también puede producir JSON. Todos los fragmentos que se han pedido ejecutar existen en el proyecto del capítulo.
 
 **Conserva este estado funcional.** En el punto **1.5** profundizaremos en las vistas Razor, modelos fuertemente tipados, layouts y vistas parciales, utilizando las fichas que acabamos de construir. Aún no añadiremos formularios ni persistencia: son actividades de M02.
+
+
+---
+
+# P1.5. Vistas Razor tipadas, layouts y vistas parciales
+
+## A. Objetivos y estado inicial
+
+**Objetivo:** reconocer los elementos de la sintaxis Razor que usamos para construir HTML, distinguir el modelo de una vista de lista del modelo de una ficha, ampliar un layout mediante una sección opcional y reutilizar una vista parcial tipada para mostrar productos en el listado y en la ficha individual.
+
+**Reto con código:** incorporar en la parcial una etiqueta visual que aparezca cuando el precio sea inferior a tres unidades. El reto está preparado como bloque Razor comentado dentro del proyecto y debe verificarse tanto en el listado como en el detalle. Aquí se proporciona enunciado, solución, explicación y comandos exactos.
+
+**Teoría relacionada:** capítulo 1.5 del Markdown teórico de M01; conviene tener abiertos los apartados sobre `@model`, expresiones, `@if`, `@foreach`, `@section`, `@RenderBody()` y el Partial Tag Helper.
+
+**Tiempo orientativo de aula:** 20 minutos de teoría y 50 de práctica incluyendo reto. Las explicaciones desarrolladas permiten estudio individual; las comprobaciones automáticas no consumen tiempo de aula.
+
+**Estado inicial:** el proyecto del capítulo **1.5** contiene las páginas completas de P1.4: listado con tres enlaces de detalle, acción `Detalle(int id)`, acción `Ficha(int id)` por atributos y la acción de texto `Estado()`. El reto opcional de P1.4 sigue comentado. Lo nuevo de P1.5 está preparado en archivos Razor con comentarios que el alumno irá retirando.
+
+## B. Preparación
+
+El proyecto se encuentra en:
+
+~~~text
+M01_MVC/PROYECTO/1.5/CursoWeb.Mvc/
+├── Controllers/
+│   ├── HomeController.cs
+│   └── ProductosController.cs
+├── Models/
+│   └── Producto.cs
+├── Views/
+│   ├── _ViewStart.cshtml
+│   ├── _ViewImports.cshtml
+│   ├── Productos/
+│   │   ├── Index.cshtml
+│   │   └── Detalle.cshtml
+│   └── Shared/
+│       ├── _Layout.cshtml
+│       └── _TarjetaProducto.cshtml
+├── wwwroot/
+│   ├── css/
+│   │   ├── site.css
+│   │   └── catalogo.css
+│   └── recursos/
+└── CursoWeb.Mvc.csproj
+~~~
+
+**No editar el proyecto 1.4 para esta práctica:** el de 1.5 conserva la evolución anterior y permite activar los siguientes pasos sin reconstruir otras versiones. El archivo parcial `_TarjetaProducto.cshtml` y sus estilos **ya existen**, aunque inicialmente las vistas todavía no lo incluyen.
+
+Abrir `CursoWeb.Mvc.csproj` en Visual Studio, o ejecutar desde la raíz del repositorio:
+
+~~~bash
+cd M01_MVC/PROYECTO/1.5/CursoWeb.Mvc
+dotnet restore
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+En el navegador comprobar:
+
+~~~text
+http://localhost:5091/
+http://localhost:5091/Productos
+http://localhost:5091/Productos/Detalle/2
+http://localhost:5091/catalogo/ficha/2
+~~~
+
+La portada, el catálogo y las dos rutas de detalle deben funcionar. `/Productos` muestra Cuaderno, Lápiz y Carpeta con enlaces «Ver detalle», pero todavía **no** muestra las tarjetas adicionales ni el mensaje de catálogo completo.
+
+Detener la ejecución antes de modificar los bloques. En los pasos siguientes puedes conservar la misma terminal y lanzar nuevamente `dotnet run --no-launch-profile --urls http://localhost:5091` después de compilar.
+
+## C. Ejercicios guiados
+
+### Paso 1.5.1 — Identificar el tipo de modelo y el origen del título de página
+
+Abrir `Views/Productos/Index.cshtml`. Al principio del archivo observarás:
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+@{
+    ViewData["Title"] = "Catálogo de productos";
+}
+~~~
+
+La directiva `@model` informa al motor Razor de que recibimos **una lista** de `Producto`, o un valor nulo si no se ha proporcionado. El bloque `@{ ... }` ejecuta C# para establecer un título; no dibuja por sí mismo una etiqueta HTML.
+
+Más abajo, la vista tiene una condición `@if (Model is null)`. Cuando no hay modelo presenta un mensaje, y cuando sí lo hay escribe `@Model.Count` y recorre la lista con `@foreach (var producto in Model)`.
+
+Ahora abrir `Views/Productos/Detalle.cshtml`. Su directiva es diferente:
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Detalle del producto";
+}
+~~~
+
+La ficha recibe **un solo producto**. Por eso consulta `@Model.Id`, `@Model.Nombre` y `@Model.Precio` sin recorrer una lista.
+
+Finalmente abrir `Views/Shared/_Layout.cshtml` y localizar:
+
+~~~cshtml
+<title>@ViewData["Title"] - Curso Web .NET 8</title>
+...
+@RenderBody()
+~~~
+
+La etiqueta `<title>` de cada respuesta combina el valor de `ViewData` de la vista con el texto común. `@RenderBody()` establece dónde se inserta el cuerpo de la vista dentro del documento principal.
+
+**Comprobación sin editar nada:** abre `/Productos` y `/Productos/Detalle/2` y compara los títulos de las pestañas. Después utiliza F12 para inspeccionar el HTML y localizar las etiquetas `<h1>`, `<title>` y los nombres de los productos. En la respuesta HTML no se debe encontrar código ejecutable `@Model.Nombre`: Razor ya lo ha evaluado.
+
+**Resultado del paso:** identificas dos contratos de modelo diferentes y una responsabilidad del layout. No se requiere descomentar bloques todavía.
+
+### Paso 1.5.2 — Incorporar una condición Razor de presentación
+
+Abrir `Views/Productos/Index.cshtml` y localizar dentro del bloque `else` el fragmento comentado:
+
+~~~cshtml
+@* PASO 1.5.2 (inicio)
+@if (Model.Count >= 3)
+{
+    <p id="catalogo-completo">El catálogo contiene al menos tres productos.</p>
+}
+PASO 1.5.2 (fin) *@
+~~~
+
+**Acción:** eliminar únicamente las dos líneas delimitadoras del comentario Razor que contienen `PASO 1.5.2`. Mantener la instrucción `@if` y el elemento HTML. El código activo queda:
+
+~~~cshtml
+@if (Model.Count >= 3)
+{
+    <p id="catalogo-completo">El catálogo contiene al menos tres productos.</p>
+}
+~~~
+
+**Explicación:** `Model.Count` obtiene la cantidad de productos que entregó el controlador. La condición compara la cantidad con 3 y decide si incluye el párrafo en el HTML final. No modifica la lista ni crea productos nuevos. El bloque está dentro del `else` que garantiza que `Model` no es nulo.
+
+Compilar y ejecutar:
+
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Abrir `/Productos`. Debe aparecer el mensaje **El catálogo contiene al menos tres productos**, junto al contador de tres productos y la lista existente. La ficha `/Productos/Detalle/2` continúa igual, porque su vista es distinta.
+
+**Comprobación:** en F12 → Red/Network → respuesta de `/Productos`, buscar `id="catalogo-completo"`. Este elemento no estaba presente en el estado inicial; aparece exclusivamente después de activar la condición.
+
+Detener la ejecución para pasar al siguiente ejercicio.
+
+### Paso 1.5.3 — Extender el layout mediante una sección Razor opcional
+
+Este paso requiere **dos cambios coordinados**. En uno, el layout establece dónde mostrará notas adicionales; en el otro, la vista de detalle define qué texto debe ocupar esa zona.
+
+**Primer archivo: `Views/Shared/_Layout.cshtml`.** Localizar:
+
+~~~cshtml
+@* PASO 1.5.3 (inicio)
+<aside id="notas-del-layout" aria-label="Notas de la página">
+    @await RenderSectionAsync("NotasPagina", required: false)
+</aside>
+PASO 1.5.3 (fin) *@
+~~~
+
+Quitar solo las líneas delimitadoras del comentario. El bloque activo queda:
+
+~~~cshtml
+<aside id="notas-del-layout" aria-label="Notas de la página">
+    @await RenderSectionAsync("NotasPagina", required: false)
+</aside>
+~~~
+
+**Qué hace:** `RenderSectionAsync("NotasPagina", required: false)` representa una sección de nombre `NotasPagina` si la vista que se está renderizando la ha definido. Como la sección es **opcional**, no se exige a todas las páginas del sitio que la declaren.
+
+**Segundo archivo: `Views/Productos/Detalle.cshtml`.** Localizar el bloque:
+
+~~~cshtml
+@* PASO 1.5.3 (inicio)
+@section NotasPagina
+{
+    <p id="nota-pagina-detalle">Detalle construido con una vista Razor tipada.</p>
+}
+PASO 1.5.3 (fin) *@
+~~~
+
+Retirar sus dos delimitadores y conservar:
+
+~~~cshtml
+@section NotasPagina
+{
+    <p id="nota-pagina-detalle">Detalle construido con una vista Razor tipada.</p>
+}
+~~~
+
+**Qué hace:** la página de detalle define el contenido que el layout insertará en su zona de notas. Este bloque no genera automáticamente un segundo documento HTML; proporciona un fragmento que el layout representa en la posición elegida.
+
+**Importante:** en esta práctica, **activa ambos bloques antes de compilar**. Una sección definida por una vista debe ser tratada por su layout; no queremos dejar una sección definida pero sin destino.
+
+Compilar, iniciar y visitar `/Productos/Detalle/2`. Debe seguir mostrando la ficha de Lápiz y, fuera de su cuerpo principal, el mensaje **Detalle construido con una vista Razor tipada**.
+
+A continuación visita `/Productos` y `/`. Ambas deben funcionar sin definir la sección, porque el layout utiliza `required: false`. Es normal que la estructura externa del layout exista aunque una página no aporte contenido a dicha zona.
+
+**Resultado de aprendizaje:** has observado la diferencia entre una vista concreta y un diseño compartido, y has visto cómo una sección opcional permite personalizar una región de ese diseño.
+
+Detener el servidor antes de continuar.
+
+### Paso 1.5.4 — Representar una vista parcial por cada producto del catálogo
+
+El proyecto incorpora una **vista parcial tipada** en `Views/Shared/_TarjetaProducto.cshtml`. Abre el archivo y localiza:
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+
+<article class="tarjeta-producto" data-producto-id="@Model.Id">
+    <h3>@Model.Nombre</h3>
+    <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
+    <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
+</article>
+~~~
+
+En el archivo real hay comentarios docentes y un bloque del reto comentado dentro del artículo. **No actives todavía el reto**. La parcial ya contiene todo lo necesario para mostrar una tarjeta de un producto.
+
+**Qué significa el código:** `@model Producto` exige un objeto `Producto` individual; `@Model.Nombre` y `@Model.Precio` generan texto; el atributo `data-producto-id` permite observar qué producto se ha pasado. El enlace conduce a su detalle. No hay lógica de acceso a datos ni acciones HTTP en la parcial.
+
+Abre ahora `Views/Productos/Index.cshtml` y localiza:
+
+~~~cshtml
+@* PASO 1.5.4 (inicio)
+<section id="tarjetas-catalogo" aria-label="Tarjetas reutilizables de productos">
+    <h2>Vista de tarjetas</h2>
+    @foreach (var producto in Model)
+    {
+        <partial name="_TarjetaProducto" model="producto" />
+    }
+</section>
+PASO 1.5.4 (fin) *@
+~~~
+
+**Acción:** eliminar las dos líneas delimitadoras del comentario `PASO 1.5.4`, manteniendo las demás intactas.
+
+Dentro del `foreach`, la variable `producto` se refiere a un objeto de la colección. El Partial Tag Helper `<partial name="_TarjetaProducto" model="producto" />` entrega ese objeto a `_TarjetaProducto.cshtml`, que lo recibe como su `Model`.
+
+**¿Por qué funciona?** Porque en `Views/_ViewImports.cshtml` ya existe el registro de Tag Helpers de MVC:
+
+~~~cshtml
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+~~~
+
+Sin esa directiva, la sintaxis del elemento `<partial>` no se procesaría como esperamos. No hace falta instalar otra biblioteca para el curso.
+
+Compilar y ejecutar:
+
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Abrir `/Productos`. Debajo de la lista clásica debe aparecer la sección **Vista de tarjetas**, con **tres tarjetas**: Cuaderno, Lápiz y Carpeta. Cada tarjeta muestra nombre, precio y un enlace de detalle. El listado anterior continúa visible para comparar las dos formas de representación.
+
+**Comprobación técnica:** en F12 → Red → Response, localizar `id="tarjetas-catalogo"` y exactamente **tres** elementos con `class="tarjeta-producto"`. No se han generado tres peticiones HTTP nuevas para las tarjetas: son fragmentos de una única respuesta HTML.
+
+### Paso 1.5.5 — Reutilizar la misma parcial en la vista de detalle
+
+Detener la aplicación y abrir `Views/Productos/Detalle.cshtml`. Localizar el bloque:
+
+~~~cshtml
+@* PASO 1.5.5 (inicio)
+<section id="tarjeta-detalle" aria-label="Ficha presentada como tarjeta">
+    <h2>Tarjeta reutilizada en el detalle</h2>
+    <partial name="_TarjetaProducto" model="Model" />
+</section>
+PASO 1.5.5 (fin) *@
+~~~
+
+**Acción:** retirar los dos delimitadores del comentario y dejar activo el elemento `<section>` completo.
+
+**Diferencia importante respecto al paso 1.5.4:** en la vista del catálogo pasábamos `model="producto"` porque había un `foreach` sobre una colección. En la vista de detalle, el `Model` ya es un solo `Producto`, por lo que utilizamos `model="Model"`.
+
+La parcial `_TarjetaProducto.cshtml` **no se copia** ni se duplica. Se encuentra en `Views/Shared` y el motor Razor la utiliza desde los dos archivos de vistas.
+
+Compilar y ejecutar de nuevo. Visita `/Productos/Detalle/2`: bajo los datos de la ficha debe aparecer una tarjeta adicional de **Lápiz**, con su nombre, precio y enlace. Visita también `/Productos/Detalle/1`: debe aparecer una tarjeta de **Cuaderno**.
+
+Regresar a `/Productos`: sus tres tarjetas continúan presentes y no han cambiado de estructura.
+
+**Conclusión del paso:** el mismo archivo de parcial puede renderizarse muchas veces con modelos distintos, en páginas diferentes, sin duplicar marcado. Esta es la principal ventaja de la reutilización que se quiere enseñar en P1.5.
+
+## D. Reto 1.5 — Destacar productos económicos reutilizando una única parcial
+
+### Enunciado
+
+El catálogo de prueba tiene estos precios:
+
+| Producto | Precio |
+|---|---:|
+| Cuaderno | 4,50 € |
+| Lápiz | 1,20 € |
+| Carpeta | 3,75 € |
+
+Se pide que las **tarjetas de productos con precio inferior a 3 €** muestren el texto **Precio económico**. La condición debe escribirse **solo en la vista parcial** y afectar automáticamente tanto a las tarjetas del listado como a la tarjeta de la ficha de detalle.
+
+**Resultado esperado:** Lápiz muestra la etiqueta; Cuaderno y Carpeta no. No cambies `ProductosController.cs`, los modelos ni los archivos de las vistas que incluyen la parcial.
+
+### Código del reto incluido en el proyecto
+
+Abrir `Views/Shared/_TarjetaProducto.cshtml` y localizar este fragmento incluido inicialmente como comentario Razor dentro del artículo:
+
+~~~cshtml
+@* RETO 1.5 (inicio)
+@if (Model.Precio < 3m)
+{
+    <strong class="etiqueta-economico">Precio económico</strong>
+}
+RETO 1.5 (fin) *@
+~~~
+
+**Acción 1:** eliminar únicamente las líneas que contienen `@* RETO 1.5 (inicio)` y `RETO 1.5 (fin) *@`, conservando intacto el contenido intermedio. La solución activa es:
+
+~~~cshtml
+@if (Model.Precio < 3m)
+{
+    <strong class="etiqueta-economico">Precio económico</strong>
+}
+~~~
+
+**Explicación de cada parte:** `@if` ejecuta una condición de presentación; `Model.Precio` consulta el precio del objeto actual que la vista parcial recibió; `3m` es un literal decimal de C#; `<strong>` genera un elemento HTML solo cuando el precio satisface la condición. La clase `etiqueta-economico` ya dispone de un estilo básico en `wwwroot/css/site.css`.
+
+**Acción 2:** no modificar ningún otro archivo. La tarjeta parcial se utiliza tanto dentro de las tres tarjetas del catálogo como dentro de la ficha de un producto. Por tanto, una única modificación debe observarse en ambas ubicaciones.
+
+**Acción 3:** compilar e iniciar:
+
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Comprobar primero `http://localhost:5091/Productos`: debe aparecer **una sola etiqueta Precio económico** en la tarjeta de Lápiz. Las tarjetas de Cuaderno y Carpeta no deben recibir esa etiqueta.
+
+Después visitar `http://localhost:5091/Productos/Detalle/2`: la tarjeta reutilizada de Lápiz debe mostrar también la etiqueta. Visitar `http://localhost:5091/Productos/Detalle/1`: la ficha de Cuaderno no debe mostrarla.
+
+### Solución razonada y preguntas
+
+**¿Por qué solo aparece una etiqueta en el catálogo?** Porque se recorre una colección de tres productos, pero solo Lápiz tiene `Precio < 3m`.
+
+**¿Por qué el detalle de Lápiz cambia sin editar `Detalle.cshtml`?** Porque `Detalle.cshtml` representa la misma parcial, pasándole el objeto de Lápiz. La regla se evalúa dentro de la parcial y produce el mismo resultado en ambos lugares.
+
+**¿Qué sucedería si copiáramos la condición en cada vista, en lugar de tenerla en la parcial?** Tendríamos dos sitios donde mantener una misma regla de presentación; sería fácil modificar uno y olvidar el otro.
+
+**¿Hemos calculado un descuento real?** No. La etiqueta es una indicación visual de ejemplo. No cambia precios ni aplica una política comercial.
+
+**¿Dónde comprobar el código?** En este Markdown y en `PROYECTO/1.5/CursoWeb.Mvc/Views/Shared/_TarjetaProducto.cshtml`. El proyecto ya contiene el código; el alumno no necesita inventarlo ni buscar una solución externa.
+
+### Verificación del reto
+
+Desde la **raíz del repositorio**, con la instancia manual detenida, ejecutar:
+
+~~~bash
+bash M01_MVC/TESTS/1.5_e2e.sh
+~~~
+
+El escenario `reto` activa automáticamente la condición en una copia temporal junto con los pasos 1.5.2–1.5.5. Compila, inicia Kestrel y verifica que existe **una** etiqueta en el catálogo, **una** en `Detalle/2` y **ninguna** en `Detalle/1`. También vuelve a comprobar que las páginas y rutas anteriores siguen funcionando.
+
+## E. Tabla de comprobación de la práctica
+
+| Estado | Código activado | Qué debe poder comprobarse |
+|---|---|---|
+| Base | Ningún bloque nuevo | Listado y detalle de P1.4 funcionales |
+| Condición Razor | 1.5.2 | Mensaje «El catálogo contiene al menos tres productos» |
+| Sección del layout | 1.5.2 + ambos bloques 1.5.3 | Nota adicional en ficha; listado y portada funcionan sin sección |
+| Tarjetas en listado | Anteriores + 1.5.4 | Tres tarjetas procedentes de `_TarjetaProducto.cshtml` |
+| Tarjeta en detalle | Anteriores + 1.5.5 | Una tarjeta de producto en cada ficha |
+| **Reto** | Todo lo anterior + RETO 1.5 | Lápiz se etiqueta como económico en catálogo y detalle; los otros productos no |
+
+En cada etapa se debe confirmar al menos una vez que el código compila y el HTML esperado llega al navegador. Las pruebas automatizadas reconstruyen las seis etapas completas con una aplicación HTTP real.
+
+## F. Problemas frecuentes y soluciones
+
+**La vista no encuentra `_TarjetaProducto`.** Comprobar que el archivo está en `Views/Shared/_TarjetaProducto.cshtml`, que se escribe su nombre de forma correcta en el `<partial>` y que se está ejecutando el proyecto de 1.5.
+
+**Aparece literalmente una etiqueta `<partial>` en el HTML sin las tarjetas.** Revisar que `Views/_ViewImports.cshtml` conserva `@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers`. El Tag Helper necesita este registro.
+
+**Al activar el paso 1.5.3 se obtiene un error por secciones no representadas.** Es necesario activar ambos bloques del mismo paso: `RenderSectionAsync` en el layout y `@section` en la vista de detalle. No hay que activar únicamente la mitad correspondiente a una vista.
+
+**La portada o el listado falla después de añadir la sección.** Comprobar que en el layout se escribió `required: false`. Una sección obligatoria exigiría que todas las vistas del sitio la definieran.
+
+**El listado dice que no hay modelo.** En el proyecto de 1.5 el controlador `Index` ya envía una colección. Verificar que se está ejecutando la carpeta correcta y no un proyecto anterior.
+
+**La vista parcial se genera tres veces dentro del detalle.** Revisar que en `Detalle.cshtml` se usa un único `<partial model="Model" />` y no un bucle, porque `Model` ya es un objeto individual.
+
+**No aparece la etiqueta del reto.** Revisar que se han quitado ambas líneas del comentario Razor del bloque `RETO 1.5`, que está activo el paso 1.5.4 o 1.5.5 que incluye la parcial y que se ha reconstruido la aplicación.
+
+**La etiqueta también aparece en Cuaderno.** Comprobar que la comparación es estrictamente `Model.Precio < 3m` y que no se cambió el precio del producto.
+
+**Se intenta colocar el contenido de `@section` dentro de la parcial.** Las secciones están asociadas a vistas completas y sus layouts. El ejercicio define `NotasPagina` en `Detalle.cshtml`, no en `_TarjetaProducto.cshtml`.
+
+**La lista muestra caracteres escapados al inspeccionar el HTML.** Razor puede codificar caracteres como entidades HTML. El navegador presenta el texto correcto; esto no significa que se haya modificado el nombre del producto.
+
+## G. Verificación final de M01 y preparación de M02
+
+Tras completar el reto, recorre el sitio: portada, listado con tres productos, ficha de Lápiz, ficha de Cuaderno, ruta por atributos y recurso CSS. En el listado comprueba la condición de tres productos, las tarjetas y los enlaces; en el detalle comprueba la sección opcional del layout y la tarjeta reutilizada.
+
+Cada funcionalidad debe poder asociarse a una pieza concreta: datos en el controlador, contrato `Producto` en el modelo, presentación en vistas Razor, estructura común en el layout y marcado repetido en la parcial.
+
+**El resultado de M01 es un catálogo consultable y navegable, todavía con datos en memoria**. No hemos desarrollado todavía creación o edición de productos. En M02 añadiremos formularios, binding de GET/POST, validación, Tag Helpers de formularios y persistencia EF Core. Se mantiene así el alcance de las 30 horas acordadas.
+
+El contenido de P1.5, junto con P1.1–P1.4, se conservará en un único `M01_PRACTICAS.md`; no se generan cinco prácticas Markdown independientes. Del mismo modo, la teoría se recoge íntegramente en `M01_TEORIA.md`. Los PDF se generarán tras cerrar y revisar ambos documentos.
