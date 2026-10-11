@@ -587,8 +587,6 @@ El camino correcto de diagnóstico es detener el proceso, comprobar el directori
 **Conservar el proyecto CursoWeb.Mvc y los archivos modificados.** En los siguientes capítulos añadiremos modelos de productos, nuevas acciones y vistas sin repetir toda la creación inicial. No introducimos EF Core todavía: aparecerá en el día 2. La aplicación temporal `.work/PlantillaMvc` se puede eliminar una vez comprendida la plantilla.
 
 
-**Comprobación de cierre.** Verifica que puedes ejecutar la portada, identificar la respuesta HTML y diferenciar una cabecera añadida en el controlador de un fragmento generado por Razor. La página CSS debe seguir sirviéndose de forma independiente.
-
 # P1.2. El flujo Modelo–Vista–Controlador
 
 ## Objetivo y preparación
