@@ -2207,3 +2207,283 @@ Para afianzar lo aprendido, recorre las cinco etapas del módulo con los proyect
 - Microsoft Learn, layouts: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/layout?view=aspnetcore-8.0
 - Microsoft Learn, partial views: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/partial?view=aspnetcore-8.0
 - Microsoft Learn, Partial Tag Helper: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/tag-helpers/built-in/partial-tag-helper?view=aspnetcore-8.0
+
+
+## 1.5.10. El proceso de representación Razor visto desde dentro
+
+Razor permite escribir una plantilla legible que combina HTML y C#. Sin embargo, para utilizar correctamente las vistas MVC debemos distinguir el archivo de plantilla, el modelo que recibe y la respuesta finalmente enviada al navegador. La vista no es una copia de HTML estático. Durante la representación, la plataforma ejecuta expresiones y bloques Razor para generar el documento resultante.
+
+En nuestro catálogo, el controlador `ProductosController.Index()` devuelve una colección de objetos `Producto`. La vista `Views/Productos/Index.cshtml` recibe esa colección como `Model` y produce marcado a partir de los objetos. El layout proporciona la estructura HTML exterior. Si activamos una vista parcial, su contenido se incorpora como otro fragmento dentro de la misma respuesta.
+
+Este proceso puede observarse sin necesidad de conocer los detalles internos del compilador de Razor. Abrimos una vista `.cshtml` y vemos expresiones como `@Model.Count`. Después abrimos el navegador y, mediante las herramientas de desarrollo, examinamos el HTML resultante. Allí aparece un número y no la expresión Razor que lo produjo.
+
+### Separar el código fuente del contenido entregado
+
+Por ejemplo, la plantilla contiene:
+
+~~~cshtml
+<h3>@Model.Nombre</h3>
+~~~
+
+Para un producto cuyo nombre es Lápiz, el resultado conceptual es:
+
+~~~html
+<h3>Lápiz</h3>
+~~~
+
+El contenido de la respuesta puede codificar algunos caracteres de manera equivalente mediante entidades HTML; eso no cambia la propiedad de que el navegador presenta el texto del producto. La transformación se realiza en el servidor antes de enviar el resultado.
+
+De la misma manera, un bucle:
+
+~~~cshtml
+@foreach (var producto in Model)
+{
+    <li>@producto.Nombre</li>
+}
+~~~
+
+no crea una etiqueta `<li>` que contenga código C# visible en el cliente. Produce varios elementos HTML, tantos como objetos recorra la colección. En nuestro caso hay tres productos, de modo que pueden generarse tres elementos.
+
+Esta observación constituye una de las diferencias más importantes entre aprender sintaxis Razor y limitarse a copiar una plantilla. El alumnado debe poder explicar no solo **qué se escribe**, sino **qué fragmento de respuesta genera cada instrucción**.
+
+## 1.5.11. La directiva @model como contrato fuerte
+
+En el catálogo hemos utilizado:
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+~~~
+
+En la ficha de detalle y en la parcial utilizamos:
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+~~~
+
+La diferencia responde a la estructura de los datos. El listado recorre una colección; la ficha y la tarjeta trabajan con un único producto.
+
+Cuando una vista declara el tipo de su modelo, las expresiones C# pueden acceder a las propiedades conocidas para ese tipo. La lista tiene `Count` y permite iterar elementos, mientras que el objeto `Producto` contiene `Id`, `Nombre` y `Precio`. No debemos intentar consultar `Model.Nombre` cuando `Model` representa una lista ni llamar a `Model.Count` cuando es un producto individual.
+
+### Contrato de la vista parcial frente al contrato de la vista principal
+
+En `Index.cshtml`, durante el `foreach`, la variable `producto` tiene el tipo `Producto`. Al pasarla a la parcial con `model="producto"`, el archivo `_TarjetaProducto.cshtml` puede declarar `@model Producto`. No necesita recibir toda la colección porque su objetivo es representar únicamente una tarjeta.
+
+En `Detalle.cshtml`, `Model` ya es un `Producto`. Podemos enviarlo a la misma parcial utilizando `model="Model"`. La parcial no necesita conocer si su dato procede de una lista, una ficha o cualquier otro origen compatible: recibe el contrato que necesita y genera su HTML.
+
+Esta separación hace que una misma representación pueda reutilizarse en diferentes contextos sin introducir nuevas clases de controlador ni copiar el mismo marcado.
+
+## 1.5.12. Por qué el código de presentación puede contener condiciones
+
+Una vista Razor no es un archivo de HTML puro. La directiva `@if` permite decidir si aparece una sección, y `@foreach` permite repetir estructuras. Este comportamiento es necesario para construir páginas basadas en datos, pero exige criterio para no trasladar al archivo de vista decisiones que pertenecen al dominio.
+
+En el capítulo preparamos una condición de presentación:
+
+~~~cshtml
+@if (Model.Count >= 3)
+{
+    <p id="catalogo-completo">El catálogo contiene al menos tres productos.</p>
+}
+~~~
+
+Su única responsabilidad es mostrar un mensaje cuando la lista contiene al menos tres elementos. No cambia la colección ni aplica ninguna regla comercial. Además, la situamos dentro del `else` de una comprobación anterior, de forma que sabemos que `Model` no es nulo cuando accedemos a `Count`.
+
+En el reto, una condición de precio aparece dentro de la parcial:
+
+~~~cshtml
+@if (Model.Precio < 3m)
+{
+    <strong class="etiqueta-economico">Precio económico</strong>
+}
+~~~
+
+El precio es un valor decimal del modelo y `3m` es un literal decimal de C#. La etiqueta se añade únicamente a la representación de productos que cumplen el criterio. En nuestro conjunto de datos, Lápiz cuesta 1,20 €, mientras que Cuaderno y Carpeta superan el umbral.
+
+### Cuándo convendría trasladar una decisión fuera de Razor
+
+Si la condición pasara a determinar quién puede comprar un producto, qué impuestos se aplican o qué precio final debe persistirse, estaríamos en un ámbito de lógica empresarial. Sería peligroso mantener esa regla solo en el HTML de una parcial porque podría necesitarse también en otras interfaces y servicios.
+
+La decisión `Precio < 3m` del reto tiene un alcance explícitamente didáctico y visual. No ofrece descuentos reales ni determina la disponibilidad del producto. La mantenemos en Razor porque el ejercicio consiste en demostrar **la reutilización de una regla simple de presentación**.
+
+## 1.5.13. Qué aporta el layout y qué no aporta
+
+El layout define la estructura común de una página MVC: documento HTML, cabecera, navegación, hojas de estilo, zona principal y pie. Esto evita repetir un mismo bloque de marcado en todas las vistas.
+
+En el proyecto, `Views/_ViewStart.cshtml` selecciona `_Layout`:
+
+~~~cshtml
+@{
+    Layout = "_Layout";
+}
+~~~
+
+Después, cada vista concreta define el contenido que se insertará en `@RenderBody()`. El título del documento también puede variar mediante `ViewData["Title"]`, permitiendo que la pestaña del navegador refleje si estamos en el catálogo o en una ficha individual.
+
+Si un alumno añadiera manualmente un segundo `<html>` completo dentro de `Index.cshtml`, estaría duplicando responsabilidades del layout. La composición correcta consiste en dejar que la vista se concentre en su contenido y que el layout aporte la estructura exterior.
+
+El layout no sirve para recuperar los datos del catálogo ni sustituye al controlador. Puede presentar elementos compartidos y utilizar ciertos valores de presentación, pero no debemos hacer depender la lógica de negocio de cómo esté estructurada la cabecera del sitio.
+
+## 1.5.14. El ciclo de vida de una sección opcional
+
+Una sección Razor permite que una vista defina contenido destinado a una región específica del layout. Nuestro ejercicio incorpora dos bloques que deben entenderse conjuntamente.
+
+En el layout:
+
+~~~cshtml
+<aside id="notas-del-layout" aria-label="Notas de la página">
+    @await RenderSectionAsync("NotasPagina", required: false)
+</aside>
+~~~
+
+En la vista de detalle:
+
+~~~cshtml
+@section NotasPagina
+{
+    <p id="nota-pagina-detalle">Detalle construido con una vista Razor tipada.</p>
+}
+~~~
+
+La vista declara la sección y el layout define dónde se representa. Como el parámetro `required` es `false`, otras vistas que no declaran esa sección pueden seguir utilizándolo sin tener que añadir texto vacío.
+
+### Qué demuestra la comparación con el catálogo
+
+La ficha de Lápiz incluye una sección de notas y el catálogo no la declara. Si el layout está correctamente preparado, ambos recorridos siguen funcionando. Eso es más informativo que comprobar únicamente que aparece una etiqueta `<aside>`: confirma que la nueva posibilidad de personalizar una página no obliga a alterar todas las demás.
+
+El alumno también debe comprender por qué el código se activa en ambos archivos en el mismo paso. Si se declara una sección en una vista sin que exista un mecanismo apropiado para representarla o ignorarla, el motor de vistas puede detectar una sección sin consumir. La práctica evita deliberadamente dejar el proyecto en ese estado intermedio.
+
+Las secciones pertenecen a la composición de una vista completa con su layout. No constituyen un mecanismo general para enviar contenido desde cualquier vista parcial. Por eso el mensaje `NotasPagina` se define en `Detalle.cshtml` y no en `_TarjetaProducto.cshtml`.
+
+## 1.5.15. Extraer una estructura repetida a una parcial
+
+Supongamos que cada producto debe mostrar su nombre, precio y enlace. Podríamos copiar ese HTML en `Index.cshtml` y en `Detalle.cshtml`, pero la duplicación introduciría un coste de mantenimiento: cualquier modificación del formato debería reproducirse en ambos archivos.
+
+La parcial `_TarjetaProducto.cshtml` concentra ese marcado:
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+
+<article class="tarjeta-producto" data-producto-id="@Model.Id">
+    <h3>@Model.Nombre</h3>
+    <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
+    <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
+</article>
+~~~
+
+Ahora la vista de listado necesita solamente iterar los productos y pasar uno a uno a la parcial. La vista de detalle puede pasar directamente su único `Model`.
+
+La ventaja no es únicamente escribir menos líneas. Al existir **una sola implementación del marcado de tarjeta**, corregir una etiqueta o modificar un texto cambia todos los lugares que utilizan esa parcial. El reto de precio económico ofrece una demostración concreta: añadimos la condición en un archivo y la observamos en dos páginas.
+
+### Por qué la parcial está en Shared
+
+`Views/Shared` es una ubicación convencional para componentes de presentación reutilizables entre diferentes vistas. Si la tarjeta perteneciera exclusivamente a una pantalla del catálogo, podríamos plantearnos una ubicación más cercana a esa vista. En nuestro ejemplo es compartida por dos vistas, así que el nombre `_TarjetaProducto.cshtml` y su ubicación en `Shared` comunican su propósito.
+
+El prefijo de guion bajo es una convención habitual de archivos de infraestructura o fragmentos Razor. No convierte la parcial en una acción privada de controlador ni proporciona por sí solo mecanismos de seguridad. La diferencia relevante es que se procesa como fragmento dentro de otra vista.
+
+## 1.5.16. El Partial Tag Helper: qué significa cada atributo
+
+La invocación:
+
+~~~cshtml
+<partial name="_TarjetaProducto" model="producto" />
+~~~
+
+contiene dos atributos con funciones distintas. `name` indica qué archivo de parcial se busca; `model` suministra el objeto que el archivo recibirá como su `Model`.
+
+El Tag Helper se habilita mediante una directiva de `_ViewImports.cshtml`:
+
+~~~cshtml
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+~~~
+
+Esto significa que la etiqueta `<partial>` no debe interpretarse como una etiqueta HTML arbitraria que el navegador tenga que entender. MVC reconoce el Tag Helper durante la representación de la vista y sustituye su uso por el contenido HTML de la parcial.
+
+El elemento produce un **fragmento dentro de una respuesta**. No abre una conexión HTTP adicional por cada tarjeta, no genera un controlador separado y no crea automáticamente un layout por tarjeta. En el listado hay tres objetos; por tanto, el `foreach` hace tres invocaciones de la parcial, incorporando tres fragmentos en el HTML que recibe el navegador.
+
+### Diferenciar Partial Tag Helper, sección y componente Blazor
+
+Los tres conceptos pueden aparecer en archivos con sintaxis Razor, pero cumplen funciones distintas.
+
+Una **vista parcial MVC** es un fragmento de presentación reutilizable que se incluye dentro de otra vista. Una **sección de layout** permite que una vista concreta aporte contenido a una posición definida en el layout. Un **componente Blazor** pertenece a otro modelo de construcción de interfaces y puede manejar parámetros, eventos y estado según su modo de renderizado.
+
+En M03 conoceremos el modelo de componentes de Blazor. En M01 evitamos llamar «componente interactivo» a la vista parcial porque eso crearía expectativas incorrectas: nuestra tarjeta se genera del lado del servidor como HTML, y hacer clic en su enlace provoca una navegación HTTP convencional.
+
+## 1.5.17. El reto como prueba de reutilización real
+
+El reto pide que la parcial incorpore una etiqueta cuando `Precio < 3m`. No se trata simplemente de añadir una condición cualquiera: la localización de esa condición es la parte central del ejercicio.
+
+Si el alumno escribiera una condición en `Index.cshtml` para mostrar el texto en el catálogo y otra en `Detalle.cshtml` para mostrarlo en la ficha, conseguiría un resultado parecido, pero perdería el objetivo didáctico: **centralizar una decisión de presentación en el marcado reutilizable**.
+
+El proyecto ya contiene el código comentado dentro de la parcial, así que no es necesario inventar un archivo de solución ni escribir un nuevo controlador. Basta con retirar los delimitadores del comentario Razor correspondiente. Al hacerlo, el resultado se refleja en todos los lugares que utilizan la parcial.
+
+Para los tres objetos de ejemplo debemos observar:
+
+| Contexto | Modelo suministrado | Etiquetas «Precio económico» esperadas |
+|---|---|---:|
+| Catálogo de tres tarjetas | Cuaderno, Lápiz y Carpeta | 1 |
+| Detalle de Lápiz | Solo Lápiz | 1 |
+| Detalle de Cuaderno | Solo Cuaderno | 0 |
+| Detalle de Carpeta | Solo Carpeta | 0 |
+
+Estas predicciones se obtienen comparando los precios del modelo con el umbral. La prueba debe comprobar también la ausencia de la etiqueta donde no corresponde, no únicamente su presencia en la ficha de Lápiz.
+
+## 1.5.18. Diseño HTML, clases CSS e identificadores de prueba
+
+La parcial utiliza elementos semánticos como `<article>` y `<h3>`, y la vista del detalle utiliza una lista de definiciones con `<dl>`. La finalidad es aportar una estructura razonable para los datos, no enseñar un curso completo de CSS o accesibilidad en este apartado.
+
+Las clases `tarjeta-producto` y `tarjeta-precio` permiten aplicar estilos coherentes a las tarjetas, tanto en el catálogo como en una ficha. La clase `etiqueta-economico` pertenece al fragmento que se activa en el reto y dispone de un estilo mínimo en la hoja del proyecto.
+
+Los atributos como `data-producto-id` son útiles para inspeccionar qué producto se está representando. También permiten escribir verificaciones que distingan tres tarjetas diferentes en lugar de comprobar únicamente que aparece tres veces la palabra «producto».
+
+El alumno debe evitar una solución frágil que identifique cada tarjeta solo por su posición visual. La representación está basada en un modelo que tiene `Id`, de modo que podemos comprobar su correspondencia con los objetos de la lista.
+
+### Representación visual frente a corrección funcional
+
+Que el HTML contenga tres elementos `article` no demuestra por sí solo que estén bien distribuidos en la pantalla o que el contraste de colores sea adecuado. Las pruebas HTTP automatizadas confirman la estructura y los datos, pero una inspección visual en un navegador permite evaluar su disposición.
+
+También ocurre lo contrario: tres tarjetas pueden parecer correctas a simple vista y esconder enlaces de detalle incorrectos. Por eso combinamos observación visual con comprobaciones de URLs, modelos y contenido HTML.
+
+## 1.5.19. Problemas de mantenimiento que la parcial previene
+
+Imaginemos que el requisito cambia de «Precio» a «Importe» en la tarjeta. Con la parcial basta con modificar un archivo. El catálogo y la ficha utilizarían la nueva presentación, siempre que ambos sigan representando la misma parcial.
+
+Si en lugar de ello tuviéramos dos copias del HTML, una podría seguir mostrando «Precio» y la otra «Importe». No sería un error de compilación, y una prueba que solo visitara el listado podría no detectar la incoherencia.
+
+Otra situación similar aparece con los enlaces. Si decidimos cambiar la dirección de detalle de producto, conviene revisar todos los lugares que generan URLs. En nuestro curso el enlace de la tarjeta está centralizado en la parcial, mientras que el listado clásico conserva otro enlace para comparar formas de presentación. En un proyecto mayor habría que valorar si esas dos formas deben también compartir un mecanismo de generación de enlaces.
+
+La reutilización es beneficiosa cuando varios lugares necesitan realmente el mismo marcado. No significa que deba extraerse absolutamente cada elemento HTML a su propio archivo parcial. Una separación excesiva puede hacer más difícil leer el conjunto de la vista.
+
+## 1.5.20. Método de diagnóstico cuando una parcial falla
+
+Si al activar el bloque 1.5.4 no aparecen tarjetas, podemos seguir un diagnóstico ordenado.
+
+Primero comprobamos que la página `/Productos` devuelve 200 y muestra el listado clásico. Si no funciona, el problema puede estar fuera de la nueva parcial y conviene recuperar el estado del capítulo anterior.
+
+Segundo, verificamos que el bloque `PASO 1.5.4` ya no está dentro del comentario Razor. Los comentarios `@* ... *@` no producen HTML, así que una parcial correctamente escrita pero nunca invocada no aparecerá en la respuesta.
+
+Tercero, comprobamos el nombre `_TarjetaProducto` y su ubicación bajo `Views/Shared`. Si el motor no encuentra la parcial, no puede sustituir la etiqueta por el fragmento correspondiente.
+
+Cuarto, revisamos la directiva `@model Producto` y el objeto suministrado mediante `model="producto"`. Un error de tipado puede impedir representar correctamente el fragmento.
+
+Quinto, observamos el HTML resultante y el CSS. Si las tarjetas están en el HTML pero no se aprecian visualmente, probablemente no se trata de una falta de datos ni de una ruta MVC ausente, sino de un problema de presentación.
+
+Esta secuencia es más útil que cambiar aleatoriamente el controlador, el layout y los estilos sin una hipótesis clara.
+
+## 1.5.21. Estrategia de pruebas para una vista parcial
+
+Las pruebas del capítulo representan seis estados de la misma aplicación y verifican que cada nueva responsabilidad produce el resultado previsto. El punto clave es que no se sustituye la comprobación de capítulos anteriores.
+
+Cuando activamos la condición de catálogo completo, los tres enlaces de detalle deben seguir funcionando. Cuando activamos la sección del layout, el listado y la portada deben seguir cargando aunque no la declaren. Cuando incorporamos las tarjetas, debe haber exactamente tres, con los identificadores correctos. Cuando reutilizamos la parcial en el detalle, debe haber una tarjeta para el producto solicitado.
+
+Finalmente, el reto necesita verificar tanto casos positivos como negativos. Encontrar la etiqueta de precio económico una vez no basta: también hay que asegurarse de que no aparece en las tarjetas de Cuaderno y Carpeta. Este tipo de comprobación enseña a razonar sobre todas las ramas de una condición.
+
+Las pruebas automáticas funcionan sobre Kestrel y comprueban HTML y códigos HTTP. No simulan todo el comportamiento de un navegador gráfico, pero proporcionan evidencia de que las vistas y los Tag Helpers producen los fragmentos previstos.
+
+## 1.5.22. Una lectura integrada del resultado de M01
+
+Tras los cinco puntos, el alumno puede recorrer una cadena completa sin introducir tecnologías nuevas. El navegador solicita `/Productos`; el enrutamiento selecciona `Index()`; la acción entrega los objetos `Producto`; la vista Razor tipada los recorre; la parcial representa tarjetas; el layout incorpora navegación y estructura; el servidor envía HTML.
+
+Si el usuario selecciona un enlace de detalle, se produce otra solicitud HTTP, se selecciona `Detalle(int id)` y la vista recibe un solo objeto. El layout y la parcial pueden reutilizarse sin reconstruir por completo la interfaz.
+
+Este recorrido prepara el siguiente módulo. Cuando M02 incorpore formularios y persistencia, no será necesario reaprender qué son un controlador, una vista, un resultado HTTP o un modelo tipado. La arquitectura y las convenciones seguirán siendo reconocibles.
+
+El aprendizaje central no es memorizar sintaxis aislada de Razor, sino comprender **cómo los datos llegan a una representación coherente y reutilizable**, y cómo una modificación localizada debe conservar el comportamiento previo de la aplicación.
