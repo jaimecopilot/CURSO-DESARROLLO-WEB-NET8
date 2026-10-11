@@ -21,6 +21,6 @@ jobs:
         with:
           python-version: "3.12"
       - name: Preparar extractor PDF y analizador Markdown
-        run: python -m pip install "pymupdf>=1.24,<2" "markdown-it-py>=3,<5" "beautifulsoup4>=4.12,<5"
+        run: python -m pip install "pymupdf>=1.24,<2" "markdown-it-py>=3,<5" "beautifulsoup4>=4.12,<5" "rapidfuzz>=3.12,<4"
       - name: Contar punto a punto y comparar texto extraido
         run: python VERIFICACION_INTERNA/auditar_fidelidad_m01.py

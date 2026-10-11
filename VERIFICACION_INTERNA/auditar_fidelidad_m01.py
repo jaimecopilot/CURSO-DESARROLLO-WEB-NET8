@@ -3,6 +3,7 @@
 import re, json, unicodedata, sys
 from collections import Counter
 from pathlib import Path
+from rapidfuzz.distance import Levenshtein
 import fitz
 from markdown_it import MarkdownIt
 from bs4 import BeautifulSoup
@@ -21,6 +22,25 @@ def char_count(txt):
 def normalized_words(txt):
     txt=unicodedata.normalize("NFKC",txt).casefold()
     return re.findall(r"\w+",txt,flags=re.UNICODE)
+
+def ordered_differences(expected, actual):
+    # Cada palabra es un símbolo indivisible; diferencia de edición en orden.
+    words=sorted(set(expected)|set(actual))
+    encoded={word:chr(i+0x1000) for i,word in enumerate(words)}
+    source="".join(encoded[word] for word in expected)
+    result="".join(encoded[word] for word in actual)
+    ops=Levenshtein.editops(source,result)
+    absent=[]
+    additions=[]
+    replacements=[]
+    for op in ops:
+        if op.tag=="delete": absent.append({"posicion_fuente":op.src_pos,"palabra":expected[op.src_pos]})
+        elif op.tag=="insert": additions.append({"posicion_pdf":op.dest_pos,"palabra":actual[op.dest_pos]})
+        elif op.tag=="replace": replacements.append({"posicion_fuente":op.src_pos,"esperado":expected[op.src_pos],"obtenido":actual[op.dest_pos]})
+    return {"omisiones_en_orden":len(absent),"adiciones_en_orden":len(additions),
+            "alteraciones_en_orden":len(replacements),
+            "ejemplos_omisiones":absent[:20],"ejemplos_adiciones":additions[:20],
+            "ejemplos_alteraciones":replacements[:20]}
 
 def divide_md(content):
     matches=list(re.finditer(rx_md,content))
@@ -85,7 +105,8 @@ def audit_one(kind):
         md_counter=Counter(mdtokens);pdf_counter=Counter(pdftokens)
         missing=md_counter-pdf_counter
         added=pdf_counter-md_counter
-        # Puntuación orientativa, NO prueba de fidelidad ni equivalencia.
+        # Comparación adicional que respeta el orden del contenido fuente.
+        alignment=ordered_differences(mdtokens,pdftokens)
         shared=sum((md_counter&pdf_counter).values())
         row={
             "punto":"1."+n,
@@ -105,7 +126,8 @@ def audit_one(kind):
             "faltantes_normalizados":sum(missing.values()),
             "adiciones_normalizadas":sum(added.values()),
             "faltantes_frecuentes":missing.most_common(12),
-            "adiciones_frecuentes":added.most_common(12)
+            "adiciones_frecuentes":added.most_common(12),
+            "alineacion_secuencial":alignment
         }
         rows.append(row)
     return {
@@ -129,7 +151,8 @@ def main():
                   f"{x['md_literal_palabras']}/{x['md_literal_caracteres']} | "
                   f"{x['md_visible_palabras']}/{x['md_visible_caracteres']} | "
                   f"{x['pdf_extraido_palabras']}/{x['pdf_extraido_caracteres']} | "
-                  f"{x['faltantes_normalizados']}/{x['adiciones_normalizadas']}")
+                  f"{x['faltantes_normalizados']}/{x['adiciones_normalizadas']} | "
+                  f"omisiones/alteraciones en orden: {x['alineacion_secuencial']['omisiones_en_orden']}/{x['alineacion_secuencial']['alteraciones_en_orden']}")
         print("JSON_AUDITORIA_INICIO")
         print(json.dumps(r,ensure_ascii=False,indent=2))
         print("JSON_AUDITORIA_FIN")
