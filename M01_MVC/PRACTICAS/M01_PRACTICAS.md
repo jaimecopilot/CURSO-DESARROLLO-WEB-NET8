@@ -4,7 +4,7 @@
 ### Índice del módulo
 
 - **P1.1. Primera aplicación MVC y recorrido de una petición HTTP**
-- P1.2. El flujo Modelo–Vista–Controlador
+- **P1.2. El flujo Modelo–Vista–Controlador**
 - P1.3. Estructura y convenciones del proyecto
 - P1.4. Controladores, acciones, parámetros y rutas
 - P1.5. Vistas tipadas, layout, parciales y navegación
@@ -310,3 +310,350 @@ Sin crear nuevos controladores ni copiar código externo, explica y comprueba lo
 ## H. Continuidad del proyecto
 
 **Conservar el proyecto CursoWeb.Mvc y los archivos modificados.** En los siguientes capítulos añadiremos modelos de productos, nuevas acciones y vistas sin repetir toda la creación inicial. No introducimos EF Core todavía: aparecerá en el día 2. La aplicación temporal `.work/PlantillaMvc` se puede eliminar una vez comprendida la plantilla.
+
+
+---
+
+# P1.2. El flujo Modelo–Vista–Controlador
+
+## A. Identificación
+
+**Objetivo.** Comprender la función de los tres elementos del patrón MVC, ejecutando el recorrido completo de una petición hacia un controlador de productos, entregando una colección de modelos a la vista y activando progresivamente su presentación y navegación.
+
+**Teoría de referencia.** Capítulo 1.2 de `M01_TEORIA.md`: responsabilidades, comunicación entre piezas, `View(productos)`, vistas tipadas y separación de datos frente a marcado.
+
+**Conocimientos previos.** Se presupone completado el punto 1.1 y conocimiento de listas y clases sencillas de C#. No se necesita EF Core ni ninguna base de datos.
+
+**Resultado concreto.** Una página `/Productos` que presenta la cantidad de productos y tres registros con su nombre y precio, enlazada desde la cabecera del sitio. Los datos se mantienen exclusivamente en memoria.
+
+**Duración de referencia.** El plan docente reserva 25 minutos de explicación y unos 35 minutos de trabajo práctico. Se ofrece material de lectura y comprobación detallado que también puede utilizarse fuera del aula; dentro de la sesión, el alumnado realizará los cambios indicados y verificará los resultados más relevantes.
+
+## B. Preparación y punto de partida
+
+El material se construye como **segunda evolución del mismo proyecto MVC**; para que pueda abrirse y probarse sin depender de copias manuales, la versión del capítulo tiene una carpeta propia:
+
+~~~text
+M01_MVC/
+  PROYECTO/
+    1.1/
+      CursoWeb.Mvc/           # Estado conservado del capítulo anterior
+    1.2/
+      CursoWeb.Mvc/           # Continuación del mismo proyecto, con material del punto 1.2
+        CursoWeb.Mvc.csproj
+        Program.cs
+        Models/
+          Producto.cs
+        Controllers/
+          HomeController.cs
+          ProductosController.cs
+        Views/
+          Home/
+            Index.cshtml
+          Productos/
+            Index.cshtml
+          Shared/
+            _Layout.cshtml
+          _ViewStart.cshtml
+          _ViewImports.cshtml
+        wwwroot/
+          css/
+            site.css
+        ...
+~~~
+
+**No editar el proyecto 1.1** para realizar este capítulo. El proyecto 1.2 contiene su funcionalidad anterior y los nuevos archivos necesarios. Cuando terminemos M01, las sucesivas versiones formarán una secuencia didáctica verificable.
+
+Desde la raíz del repositorio:
+
+~~~bash
+cd M01_MVC/PROYECTO/1.2/CursoWeb.Mvc
+dotnet restore
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Abrir `http://localhost:5091/` y comprobar que sigue apareciendo la página de bienvenida del 1.1. Es la primera comprobación de **no regresión**: introducir un controlador nuevo no debe estropear el existente.
+
+Abrir después `http://localhost:5091/Productos`. Debe aparecer:
+
+- Título: **1.2 | Modelo, Vista y Controlador**.
+- Un texto que explica que la vista presenta datos.
+- Mensaje: **El controlador todavía no ha entregado una lista a la vista**.
+
+En este estado, la dirección es válida y responde 200, pero aún no se ha activado la entrega de una lista al resultado de vista.
+
+Antes de seguir, detener la aplicación con **Ctrl+C**; reiniciaremos el proceso entre estados. El alumno puede dejar la terminal abierta en la carpeta del proyecto.
+
+## C. Desarrollo paso a paso
+
+### Paso 1.2.1. Seguir la petición hasta el controlador
+
+Abrir `Program.cs` y localizar la llamada:
+
+~~~csharp
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+~~~
+
+Cuando la URL es `/Productos`, el sistema de rutas interpreta que el segmento `Productos` representa el controlador, mientras que `Index` es la acción predeterminada. El método situado en `Controllers/ProductosController.cs` es:
+
+~~~csharp
+[HttpGet]
+public IActionResult Index()
+{
+    // Dentro encontraremos los bloques de código del ejercicio.
+    return View();
+}
+~~~
+
+Este fragmento muestra solamente las instrucciones activas que explican el comportamiento inicial. La versión real contiene, además, el bloque comentado que habilitaremos en un paso posterior.
+
+**Comprueba la relación con la vista** abriendo `Views/Productos/Index.cshtml`. Es la ruta convencional que utiliza `return View();` desde la acción `Index` del controlador `ProductosController`. La vista muestra un mensaje porque todavía no recibe ningún dato.
+
+Anota estas tres correspondencias:
+
+| Elemento | Ruta o tipo del proyecto | Responsabilidad |
+|---|---|---|
+| URL | `/Productos` | Petición del navegador |
+| Controlador | `Controllers/ProductosController.cs` | Atiende la acción `Index` |
+| Vista | `Views/Productos/Index.cshtml` | Genera la presentación HTML |
+
+**Comprobación:** el navegador debe mostrar una página de `Productos` aunque la lista esté vacía por ausencia de modelo. Un 200 con mensaje no es un 404.
+
+### Paso 1.2.2. Reconocer la clase que representa un producto
+
+Abrir `Models/Producto.cs` y examinar la clase que se ha suministrado:
+
+~~~csharp
+namespace CursoWeb.Mvc.Models;
+
+public sealed class Producto
+{
+    public int Id { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public decimal Precio { get; set; }
+}
+~~~
+
+**Qué debes identificar:** `Id` distingue un producto de otro; `Nombre` recoge el texto que verá el usuario; `Precio` almacena una cantidad decimal. La clase no importa `Microsoft.AspNetCore.Mvc`, no usa `HttpContext` y no conoce archivos `.cshtml`.
+
+No es necesario descomentar nada en este archivo: es un tipo C# válido y **ya está activo**. El objetivo del paso es reconocer el contrato de datos con el que trabajarán el controlador y la vista. La primera página del proyecto puede continuar funcionando aunque esta clase exista y aún no se utilice.
+
+**Pregunta de comprobación:** ¿qué propiedad tendrías que consultar para mostrar el nombre de un producto? ¿Sería necesario acceder al navegador desde la clase? Debes poder responder `Nombre` y «no», respectivamente.
+
+### Paso 1.2.3. Activar el código que entrega modelos a la vista
+
+Abrir `Controllers/ProductosController.cs`. Dentro del método `Index` localizar el siguiente bloque, que se proporciona comentado:
+
+~~~csharp
+/* PASO 1.2.3 INICIO
+var productos = new List<Producto>
+{
+    new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+    new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+    new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+};
+
+return View(productos);
+PASO 1.2.3 FIN */
+
+return View(); // PASO 1.2.3: comentar al activar el envío de datos.
+~~~
+
+En el archivo real, cada línea está indentada dentro del método. No cambies el contenido ni su posición.
+
+**Acción 1:** eliminar completamente **las dos líneas** que empiezan por `/* PASO 1.2.3 INICIO` y `PASO 1.2.3 FIN */`. Conservar las líneas que crean la lista y devuelven `View(productos)`.
+
+**Acción 2:** comentar la **última** instrucción `return View();` que quedaba activa en la acción. No basta con quitar los delimitadores: si dejamos ambas instrucciones de retorno activas, la segunda será inalcanzable y habremos dejado código confuso.
+
+El resultado funcional debe tener esta forma:
+
+~~~csharp
+[HttpGet]
+public IActionResult Index()
+{
+    var productos = new List<Producto>
+    {
+        new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+        new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+        new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+    };
+
+    return View(productos);
+
+    // return View(); // PASO 1.2.3: comentar al activar el envío de datos.
+}
+~~~
+
+**Explicación:**
+
+1. `new List<Producto>` crea una colección en memoria. Todavía no hay base de datos.
+2. Cada inicializador `new()` crea un objeto de tipo `Producto`; C# conoce su tipo por la declaración de la colección.
+3. Los valores `4.50m`, `1.20m` y `3.75m` son cantidades decimales.
+4. `View(productos)` selecciona la vista y le proporciona esa lista como modelo. El controlador no genera manualmente un documento HTML.
+
+Guardar y comprobar desde la carpeta del proyecto:
+
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Visitar `http://localhost:5091/Productos`. El mensaje sin modelo debe haber desaparecido y debe mostrarse: **El controlador ha enviado 3 productos**. Todavía **no** aparece la lista de nombres. Esto es correcto: el controlador ya ha entregado información, pero el bloque que la representa detalladamente sigue comentado.
+
+Detener el servidor antes de continuar.
+
+### Paso 1.2.4. Activar la vista que representa los productos
+
+Abrir `Views/Productos/Index.cshtml`. En la primera línea observarás:
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+~~~
+
+La directiva `@model` especifica que la vista espera una lista de productos de solo lectura o, en el estado inicial, un modelo `null`. Esto no impide que el controlador construya una `List<Producto>` normal: dicha lista implementa `IReadOnlyList<Producto>`.
+
+Localizar el bloque HTML y Razor del ejercicio:
+
+~~~cshtml
+@* PASO 1.2.4 (inicio)
+<ul id="listado-productos">
+@foreach (var producto in Model)
+{
+    <li data-id="@producto.Id">@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+}
+</ul>
+PASO 1.2.4 (fin) *@
+~~~
+
+**Acción:** eliminar únicamente las dos líneas delimitadoras `@* PASO 1.2.4 (inicio)` y `PASO 1.2.4 (fin) *@`. Mantener intacto el bloque `<ul>` y su `@foreach`.
+
+En la versión real, el bloque está dentro del `else` que se ejecuta cuando `Model` no es `null`. No saques el `@foreach` de ese `else`: mantener la estructura permite al ejemplo distinguir correctamente los dos estados.
+
+Después de guardar y ejecutar:
+
+~~~bash
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Acceder de nuevo a `/Productos`. Ahora deben aparecer el contador y **los tres nombres**: Cuaderno, Lápiz y Carpeta, cada uno con su precio. Puede haber diferencias de separador decimal según la configuración regional; para esta prueba interesa identificar los productos y su cantidad.
+
+**Qué cambió:** hemos activado la presentación. No hemos añadido productos al controlador ni cambiado la URL. La vista usa los valores existentes en la propiedad `Model`.
+
+**Observación adicional:** pulsa F12 → Red/Network, recarga `/Productos` y examina el HTML de respuesta. Busca `id="listado-productos"`. El navegador ha recibido elementos `<li>`; no recibe objetos C# ni ejecuta `@foreach`.
+
+Detener el proceso antes del siguiente paso.
+
+### Paso 1.2.5. Activar navegación reutilizando el layout
+
+Abrir `Views/Shared/_Layout.cshtml`, localizar el enlace activo Inicio y, justo después, el fragmento comentado:
+
+~~~cshtml
+<a href="/">Inicio</a>
+@* PASO 1.2.5 (inicio)
+<a href="/Productos">Productos</a>
+PASO 1.2.5 (fin) *@
+~~~
+
+Retirar las dos líneas que delimitan el comentario Razor de **1.2.5**, conservando los dos enlaces. No cambiar `@RenderBody()` ni el resto del layout.
+
+Reiniciar la aplicación, abrir `/` y comprobar que la cabecera incluye los enlaces **Inicio** y **Productos**. Pulsar Productos; debe mostrarse la misma lista de tres productos que acabamos de activar. Pulsar Inicio para regresar al contenido de 1.1.
+
+**Qué hemos aprendido:** cambiar el menú no obliga a tocar la clase `Producto` ni el controlador. El layout es una pieza de presentación reutilizable. En el capítulo 1.5 profundizaremos en layouts y vistas parciales; aquí interesa únicamente la separación entre navegación, selección de datos y representación.
+
+**Comprobación extra:** escribir `http://localhost:5091/Productos/Index` y confirmar que conduce a la misma página que `/Productos`. El funcionamiento se debe al enrutamiento convencional de `Program.cs`.
+
+### Paso 1.2.6. Explicar el recorrido con el código abierto
+
+Con la página Productos cargada, reproduce el recorrido usando los archivos del proyecto:
+
+1. El navegador solicita `GET /Productos`.
+2. La ruta convencional conduce a `ProductosController.Index()`.
+3. La acción crea tres instancias de `Producto` y las reúne en una colección.
+4. `return View(productos)` entrega la colección a la vista correspondiente.
+5. La vista comprueba que `Model` no es `null`, lee `Model.Count` y recorre los elementos.
+6. El layout rodea el resultado con navegación; el servidor envía el HTML.
+7. El navegador interpreta el HTML y muestra la lista.
+
+**Resultado esperado:** debes poder identificar el archivo que interviene en cada una de estas etapas. No es suficiente decir «lo hace MVC»: hay que diferenciar qué pieza hace qué trabajo.
+
+## D. Resultado final y ejecución
+
+Con los tres bloques habilitados, el proyecto compila y `http://localhost:5091/Productos` muestra:
+
+~~~text
+Inicio   Productos
+
+1.2 | Modelo, Vista y Controlador
+La vista decide cómo presentar los datos, pero no inventa el catálogo.
+
+El controlador ha enviado 3 productos.
+
+• Cuaderno — 4.50 €
+• Lápiz — 1.20 €
+• Carpeta — 3.75 €
+~~~
+
+Los textos decimales pueden adoptar el separador regional del proceso. El HTML real incluye el layout, estilos y atributos adicionales. Lo importante es comprobar que el recuento y los tres registros proceden de la colección entregada a la vista.
+
+La página inicial `/` continúa funcionando. La ruta `/Productos/Index` es equivalente a `/Productos`. Un recurso desconocido debe seguir respondiendo 404.
+
+## E. Comprobación funcional por estados
+
+| Estado probado | Cambios activados | Resultado observable |
+|---|---|---|
+| Inicial | Ninguno | `/Productos` devuelve 200 y muestra «todavía no ha entregado una lista» |
+| Entrega de datos | 1.2.3 | Aparece el contador de 3 productos, pero no la lista |
+| Vista activada | 1.2.3 + 1.2.4 | Aparecen contador y tres productos; aún no existe el enlace adicional |
+| Navegación activada | 1.2.3 + 1.2.4 + 1.2.5 | Se añade el enlace Productos y permite navegar al catálogo |
+
+Para realizar una comprobación automatizada, desde la **raíz del repositorio**:
+
+~~~bash
+bash M01_MVC/TESTS/1.2_e2e.sh
+~~~
+
+Este script construye el proyecto en su estado inicial y activa las demás combinaciones mediante copias temporales. Arranca realmente Kestrel y verifica las respuestas HTTP, los textos visibles en el HTML, las rutas, los recursos estáticos y la permanencia de la página de 1.1. Requiere SDK .NET 8, Bash, Python 3 y curl; se utiliza también en GitHub Actions. No sustituye la observación de la interfaz con un navegador durante la clase.
+
+**Criterio de finalización del ejercicio:** puedes explicar por qué el listado no aparece en el estado inicial, por qué el contador aparece antes de activar `@foreach` y por qué el enlace adicional no requiere cambiar el controlador.
+
+## F. Problemas previsibles y soluciones
+
+**Error de compilación por código inalcanzable o varias instrucciones de retorno.** En 1.2.3 se olvidó comentar la instrucción `return View();` original. Debe quedar solamente una ruta de retorno activa en la acción, la que ejecuta `View(productos)`.
+
+**La página sigue diciendo que no recibió modelo.** Comprobar que los delimitadores `/* ... */` del paso 1.2.3 se quitaron, que la instrucción `return View(productos);` está activa y que se ha reiniciado la aplicación.
+
+**El contador muestra tres, pero no hay lista.** Todavía no se ha activado el bloque `@foreach` de 1.2.4. Es un estado didáctico válido, no un error del controlador.
+
+**Se obtiene un error Razor al activar la lista.** Comprobar que se quitaron ambas líneas delimitadoras `@* ... *@` y que permanecen bien emparejadas las llaves del `foreach` y las etiquetas `<ul>` y `<li>`.
+
+**Aparece el listado pero no el enlace Productos.** El menú depende de `Views/Shared/_Layout.cshtml`, no de la vista `Views/Productos/Index.cshtml`. Activar el bloque 1.2.5 y recargar desde la página inicial.
+
+**El navegador abre un proyecto anterior.** La carpeta del capítulo 1.1 tiene el mismo nombre de proyecto, porque es una versión conservada; hay que arrancar explícitamente `PROYECTO/1.2/CursoWeb.Mvc`. No ejecutar ambas copias sobre el mismo puerto.
+
+**Las cantidades monetarias usan otro separador.** `ToString("0.00")` utiliza la configuración regional del proceso cuando no se especifica una cultura. La finalidad de este ejercicio es recorrer datos del modelo, no configurar internacionalización.
+
+**Cambiar la clase `Producto` no modifica mágicamente los valores ya enviados.** La clase define qué atributos existen; son los objetos creados en la acción los que contienen los valores concretos del catálogo. Modificar propiedades de un tipo y modificar las instancias son operaciones diferentes.
+
+**Un 404 en `/Productos`.** Comprobar que `ProductosController.cs` está en `Controllers`, que existe `Index()` y que el programa registra la ruta convencional. No confundir esta URL con `/api/productos`, que no existe en nuestra aplicación MVC.
+
+## G. Ejercicio de consolidación
+
+Con el proyecto completo y funcional, modifica **únicamente el dato fijo del controlador** para que el primer producto se llame **Bloc** en lugar de **Cuaderno**. No cambies los nombres en la vista.
+
+Reconstruye y ejecuta de nuevo. Deben seguir apareciendo tres productos, pero el primero se mostrará como Bloc. Después, comprueba que el segundo y el tercero mantienen su nombre y precio.
+
+Explica por escrito:
+
+- Por qué bastó editar el valor `Nombre` del objeto construido en el controlador.
+- Qué cambiarías si quisieras mostrar los nombres con otra etiqueta HTML sin alterar los datos.
+- Qué pieza necesitarías ampliar el día 2 para dejar de perder modificaciones al reiniciar el proceso.
+
+**Solución orientativa para contrastar al terminar:** el controlador facilita un nuevo valor del modelo; la vista ya lee `producto.Nombre` y por eso lo muestra automáticamente. La etiqueta HTML se cambia en la vista, no en la clase del dominio. Para persistir modificaciones necesitaremos añadir almacenamiento, que introduciremos en el CRUD con EF Core de M02.
+
+## H. Continuidad hacia 1.3
+
+Conservar el resultado de este capítulo. En `1.3` estudiaremos detalladamente las carpetas y convenciones que acabamos de recorrer y prepararemos la organización del proyecto para ampliar más adelante las acciones y las vistas.
+
+**No añadir ahora formularios, EF Core, autenticación ni servicios externos.** En este capítulo se ha demostrado una arquitectura MVC mínima, suficiente para visualizar y comprender el paso de objetos del controlador a la vista.
