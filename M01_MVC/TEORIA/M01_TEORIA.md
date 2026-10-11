@@ -1369,6 +1369,47 @@ ASP.NET Core puede combinar información procedente de archivos JSON, variables 
 
 En este capítulo leemos una sección estable de `appsettings.json` y lanzamos la aplicación con un argumento explícito para la URL. No es necesario memorizar toda la precedencia de proveedores, pero sí evitar la idea errónea de que `appsettings.json` es el único origen posible o de que necesariamente determina el puerto de cualquier despliegue.
 
+
+**El perfil de ejecución local y la configuración de la aplicación.**
+
+El proyecto del punto 1.3 contiene un archivo que es fácil confundir con `appsettings.json`: `Properties/launchSettings.json`. No desempeñan el mismo papel. `appsettings.json` contiene valores que la aplicación puede leer mediante su sistema de configuración. En cambio, `launchSettings.json` describe cómo una herramienta de desarrollo inicia localmente el proyecto.
+
+Nuestro perfil original es el siguiente:
+
+~~~json
+{
+  "profiles": {
+    "CursoWeb.Mvc": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "applicationUrl": "http://localhost:5091",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
+~~~
+
+**Qué significa cada entrada.** `profiles` agrupa los perfiles disponibles; el nombre `CursoWeb.Mvc` permite seleccionar este perfil por su identificador. `commandName: Project` indica que queremos iniciar el propio proyecto web, no un ejecutable ajeno. `launchBrowser: true` solicita a la herramienta que abra el navegador al arrancar, cuando dicha herramienta admite ese comportamiento. No cambia qué controlador procesa la petición. `applicationUrl` declara la dirección local que usará el perfil y la variable `ASPNETCORE_ENVIRONMENT` establece el nombre del entorno de ejecución para esa sesión.
+
+El nombre `Development` resulta relevante porque ASP.NET Core puede elegir opciones y proveedores de configuración según el entorno. Sin embargo, no equivale a un mecanismo de seguridad ni autoriza el almacenamiento de credenciales en el repositorio. El archivo no debe utilizarse como un almacén de secretos. En este laboratorio la variable explica el contexto del proceso y no modifica nuestra lista fija de productos.
+
+**Dos modos de iniciar el mismo código fuente.** Desde la carpeta del proyecto podemos optar por un perfil de desarrollo o ignorar los perfiles. Son formas alternativas de iniciar el programa, de modo que deben probarse **por separado**, deteniendo el proceso anterior:
+
+~~~bash
+dotnet run --launch-profile CursoWeb.Mvc
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+El primer comando selecciona explícitamente el perfil llamado `CursoWeb.Mvc` y usa su configuración de ejecución. El segundo prescinde de `launchSettings.json` y señala directamente la URL con `--urls`. Precisamente este segundo modo aparece de forma habitual en las prácticas porque reproduce el mismo resultado sin depender de los ajustes del editor o de que el perfil local abra un navegador.
+
+En Visual Studio, seleccionar un perfil de inicio y pulsar **Ejecutar** realiza un trabajo equivalente al de preparar una configuración de ejecución y lanzar el proceso. Es importante que el alumno observe la dirección efectiva mostrada en la salida de Kestrel; no debe dar por hecho que todos los proyectos o entornos escuchan en el mismo puerto. Dos copias de `CursoWeb.Mvc` ejecutadas simultáneamente sobre el 5091 pueden provocar un conflicto de escucha.
+
+**Un diagnóstico que evita modificar el archivo equivocado.** Imagina que `GET /Productos` devuelve los mismos tres registros, pero el navegador intenta abrir un puerto diferente. En ese caso debemos revisar primero el perfil o los argumentos de arranque. Cambiar `Models/Producto.cs` no resolvería el problema. Por el contrario, si el servidor escucha correctamente y el mensaje `Curso:Nombre` del paso 1.3.3 no coincide con el esperado, es razonable comprobar `appsettings.json` y el código de lectura de configuración.
+
+Esta distinción también permite entender por qué los scripts E2E no necesitan utilizar el navegador de Visual Studio. Pueden iniciar Kestrel con una dirección conocida y comprobar las respuestas HTTP reales. El mecanismo de prueba cambia, pero se está construyendo y ejecutando la misma aplicación.
+
 ## Recursos públicos y respuestas HTTP
 
 **wwwroot: rutas físicas y URLs no son lo mismo.**
