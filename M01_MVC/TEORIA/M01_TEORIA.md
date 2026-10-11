@@ -7,7 +7,7 @@
 - **1.2. Arquitectura Model-View-Controller**
 - **1.3. Estructura de un proyecto ASP.NET Core MVC**
 - **1.4. Controladores, acciones y routing**
-- 1.5. Introducción a las vistas Razor
+- **1.5. Vistas Razor, modelos tipados, layouts y vistas parciales**
 
 # 1.1. Introducción al desarrollo web con ASP.NET Core
 
@@ -1066,3 +1066,318 @@ El capítulo siguiente, **1.5**, profundizará en la sintaxis Razor, la composic
 - Microsoft Learn, solicitudes mediante controladores: https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/actions?view=aspnetcore-8.0
 - Microsoft Learn, resultados de acciones de controlador: https://learn.microsoft.com/en-us/aspnet/core/web-api/action-return-types?view=aspnetcore-8.0
 - Microsoft Learn, vistas Razor y tipado de modelos: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/overview?view=aspnetcore-8.0
+
+
+---
+
+# 1.5. Vistas Razor, modelos tipados, layouts y vistas parciales
+
+## Objetivos y contexto
+
+En el punto 1.4 construimos una acción de detalle de producto, comprobamos distintos resultados HTTP y añadimos enlaces desde el listado. Ahora el foco se traslada a **cómo se produce y se organiza el HTML de una aplicación ASP.NET Core MVC**.
+
+Al terminar, el alumno podrá interpretar las directivas y expresiones básicas de Razor, comparar una vista de colección con una vista de objeto individual, utilizar un layout común, reconocer una sección opcional, incorporar una vista parcial tipada y reutilizarla desde dos vistas diferentes. También podrá explicar por qué la misma regla de presentación cambia el resultado de distintas páginas sin alterar los controladores.
+
+No adelantaremos los formularios y los Tag Helpers de entrada de datos de M02. El dominio sigue siendo un pequeño catálogo de tres productos y no necesita una base de datos.
+
+## 1.5.1. Qué es Razor y dónde se ejecuta
+
+**Razor** es la sintaxis de plantillas de ASP.NET Core que combina HTML con expresiones y bloques de C#. En MVC, la infraestructura de vistas procesa los archivos `.cshtml` **en el servidor**, usando el modelo que la acción entrega, y genera el HTML de la respuesta HTTP.
+
+No es un lenguaje que el navegador interprete. Cuando el navegador muestra «Lápiz», no está ejecutando `@Model.Nombre`: esa expresión ya se ha evaluado en el servidor. En las herramientas de desarrollo veremos el resultado HTML, no el archivo Razor original como código ejecutable.
+
+Ejemplos básicos:
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+
+<h2>@Model.Nombre</h2>
+<p>Precio: @Model.Precio.ToString("0.00") €</p>
+~~~
+
+La primera línea es una **directiva Razor** y no genera por sí misma un elemento HTML. Declara que la vista recibirá un objeto `Producto` como modelo. Las expresiones `@Model.Nombre` y `@Model.Precio.ToString("0.00")` insertan valores en el marcado. El resultado de una petición de detalle con `id=2` contiene un encabezado con el nombre del producto y un párrafo con el precio.
+
+El símbolo `@` tiene diferentes usos según el contexto. Es importante diferenciarlos antes de comenzar a copiar ejemplos:
+
+| Forma | Qué representa | Ejemplo |
+|---|---|---|
+| `@model` | Directiva que declara el tipo de modelo | `@model Producto` |
+| `@{ ... }` | Bloque de código C# | `@{ ViewData["Title"] = "Catálogo"; }` |
+| `@Model.Nombre` | Expresión cuyo valor se escribe en HTML | `<h3>@Model.Nombre</h3>` |
+| `@if (...) { ... }` | Condición Razor que decide qué fragmento HTML se genera | Mensaje de catálogo amplio |
+| `@foreach (...) { ... }` | Iteración que puede generar elementos HTML repetidos | Tarjetas de productos |
+| `@* ... *@` | Comentario Razor que no se representa en el HTML final | Bloques que activamos en prácticas |
+
+Como en cualquier plantilla, **la estructura importa**. El C# dentro de `@if` o `@foreach` puede utilizarse para controlar el marcado generado, pero no conviene trasladar a las vistas las consultas a bases de datos o las reglas empresariales del sistema. Las vistas deben centrarse en la presentación.
+
+### HTML codificado de forma segura
+
+Cuando Razor genera contenido desde una expresión ordinaria, codifica caracteres que podrían interpretarse como HTML. Esta protección es relevante para mostrar nombres escritos por usuarios, aunque todavía utilicemos datos fijos. Evitaremos utilizar `Html.Raw` sobre texto no confiable. El hecho de que en la respuesta aparezca una entidad HTML para una letra acentuada no implica que se haya perdido el texto: el navegador la representa correctamente.
+
+## 1.5.2. Una vista de lista y una vista de detalle no reciben el mismo modelo
+
+El proyecto utiliza dos vistas tipadas. La vista del catálogo declara:
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+~~~
+
+Esto indica que espera **una colección de productos** y que el modelo podría ser nulo. Su estructura actual comienza con una condición para ese caso y, cuando hay lista, muestra la cantidad y los productos:
+
+~~~cshtml
+@if (Model is null)
+{
+    <p id="sin-modelo">El controlador no ha proporcionado productos.</p>
+}
+else
+{
+    <p id="numero-productos">
+        El controlador ha enviado <strong>@Model.Count</strong> productos.
+    </p>
+}
+~~~
+
+La página de detalle, por su parte, declara:
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+~~~
+
+y consulta `@Model.Id`, `@Model.Nombre` y `@Model.Precio`. Para una acción `Detalle(int id)` que entrega un único objeto, la vista no necesita un `foreach` sobre una colección.
+
+**No debemos intercambiar los contratos**: una vista que declara `Producto` no puede tratar automáticamente su modelo como una lista. El contrato tipado facilita comprender el código y detecta errores de acceso a propiedades. Una vista también puede utilizar un *view model* distinto del tipo de dominio; por ahora emplearemos `Producto` directamente, porque la práctica se concentra en la sintaxis Razor y no en arquitecturas de capas.
+
+### Una condición de presentación adicional
+
+En el proyecto 1.5 existe un bloque comentado del listado:
+
+~~~cshtml
+@if (Model.Count >= 3)
+{
+    <p id="catalogo-completo">El catálogo contiene al menos tres productos.</p>
+}
+~~~
+
+Se activa **dentro del `else` que garantiza que `Model` no es nulo**. La condición consulta los datos existentes y decide si mostrar un mensaje: no altera el catálogo ni recalcula precios, y tampoco introduce persistencia.
+
+Cuando el alumnado lo habilita en P1.5.2, comprobará que el contador sigue mostrando tres y se añade un texto nuevo. Esta separación entre datos y formato será la base de la vista parcial que aparecerá después.
+
+## 1.5.3. El layout: la estructura compartida de la página
+
+Si cada vista copiara su propio `<html>`, `<head>`, navegación, hojas CSS y pie, un cambio de diseño tendría que repetirse en todas las páginas. En MVC, el **layout** permite reunir esta estructura común.
+
+Nuestro archivo `Views/Shared/_Layout.cshtml` contiene elementos como:
+
+~~~cshtml
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <title>@ViewData["Title"] - Curso Web .NET 8</title>
+</head>
+<body>
+    <nav><a href="/">Inicio</a><a href="/Productos">Productos</a></nav>
+    <main>
+        @RenderBody()
+    </main>
+    <footer>Curso ASP.NET Core MVC · .NET 8</footer>
+</body>
+</html>
+~~~
+
+Esta es una representación abreviada para explicar la idea; el archivo real incluye sus hojas de estilo, clases y otros enlaces. La instrucción `@RenderBody()` es especialmente importante: indica dónde se insertará el contenido de la vista concreta que devuelve la acción MVC.
+
+El archivo `Views/_ViewStart.cshtml` establece:
+
+~~~cshtml
+@{
+    Layout = "_Layout";
+}
+~~~
+
+Por eso las vistas completas comparten el layout sin repetir en cada archivo la instrucción de asignación. El archivo `_ViewImports.cshtml`, en cambio, aporta directivas compartidas y el registro de Tag Helpers:
+
+~~~cshtml
+@using CursoWeb.Mvc
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+~~~
+
+Conviene evitar una confusión habitual: `_ViewStart.cshtml` interviene en las **vistas completas**, pero **no se ejecuta al representar una vista parcial**. Una parcial incluida dentro de otra página no introduce por sí sola un segundo layout. Esta distinción se volverá visible cuando añadamos tarjetas en 1.5.4.
+
+### Títulos que dependen de cada vista
+
+Cada página puede indicar un valor mediante `ViewData["Title"]`:
+
+~~~cshtml
+@{
+    ViewData["Title"] = "Detalle del producto";
+}
+~~~
+
+La vista proporciona un valor y el layout lo utiliza dentro de `<title>`. Así el título del navegador cambia sin tener que crear varios layouts. Para datos más complejos, el modelo tipado es la opción principal; aquí `ViewData` se usa únicamente como mecanismo sencillo de comunicación de presentación con la estructura común.
+
+## 1.5.4. Secciones de un layout: contenido opcional que depende de la página
+
+Un layout también puede reservar una posición para contenido adicional que solo algunas vistas definen, mediante una **sección Razor**. Nuestro proyecto prepara este bloque comentado en el layout:
+
+~~~cshtml
+<aside id="notas-del-layout" aria-label="Notas de la página">
+    @await RenderSectionAsync("NotasPagina", required: false)
+</aside>
+~~~
+
+La instrucción `RenderSectionAsync("NotasPagina", required: false)` indica una posición para una sección de ese nombre y declara que **es opcional**. Como no es obligatoria, la portada y la lista no tienen que definirla.
+
+En `Views/Productos/Detalle.cshtml`, otro bloque comentado permite definir:
+
+~~~cshtml
+@section NotasPagina
+{
+    <p id="nota-pagina-detalle">Detalle construido con una vista Razor tipada.</p>
+}
+~~~
+
+Al activar ambos bloques, la página de detalle escribe su mensaje en el lugar dispuesto por el layout, y las demás vistas siguen funcionando. Esta es una forma de mantener la estructura compartida y permitir a cada página completar determinadas zonas.
+
+**Regla importante:** declarar una sección no equivale a renderizarla en el mismo archivo. El layout debe renderizarla o ignorarla. En este ejercicio siempre activaremos **los dos bloques del paso 1.5.3**, de manera que la sección declarada en el detalle tiene un destino en el layout. El propósito es enseñar una combinación válida y reproducible; no se pide al alumno que active solo una de las dos mitades.
+
+Una sección no debe confundirse con una vista parcial. La sección es contenido definido por la vista para ser colocado en una zona prevista del layout. Una parcial, en cambio, es un **archivo de marcado reutilizable** que una vista puede representar pasándole un modelo.
+
+## 1.5.5. Vistas parciales: evitar repetir marcado
+
+Supongamos que el mismo producto debe presentarse como tarjeta tanto en el catálogo como dentro de su propia ficha. Podríamos copiar el mismo `<article>` en ambos archivos, pero entonces cualquier cambio de presentación tendría que repetirse. Para evitarlo utilizaremos una **vista parcial**.
+
+Una vista parcial es un archivo Razor `.cshtml` que genera un fragmento HTML para ser incluido dentro de otra vista. No requiere tener su propia acción ni dispone automáticamente de una página o layout independiente. Puede declarar su propio `@model` para trabajar con un tipo concreto.
+
+Nuestro proyecto incorpora `Views/Shared/_TarjetaProducto.cshtml`, inicialmente así:
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+
+<article class="tarjeta-producto" data-producto-id="@Model.Id">
+    <h3>@Model.Nombre</h3>
+    <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
+    <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
+</article>
+~~~
+
+El archivo real añade comentarios docentes y el bloque opcional del reto. La parcial recibe un solo `Producto`, presenta su nombre y precio y produce un enlace de detalle. Como se encuentra en `Views/Shared`, puede localizarse desde las vistas del catálogo y de la ficha por las convenciones de búsqueda de vistas.
+
+### Llamar a una parcial con el Partial Tag Helper
+
+Para representar la tarjeta dentro de la página de listado utilizamos:
+
+~~~cshtml
+@foreach (var producto in Model)
+{
+    <partial name="_TarjetaProducto" model="producto" />
+}
+~~~
+
+`<partial>` es un **Tag Helper**, habilitado por `_ViewImports.cshtml`. Su atributo `name` indica el nombre de la parcial; `model="producto"` le entrega el objeto actual de la iteración. El código Razor del archivo parcial accede a ese objeto como `Model`.
+
+El Tag Helper construye el fragmento de HTML de forma asíncrona, sin que el alumnado tenga que gestionar ese detalle aquí. No es un componente Blazor ni crea interactividad por sí mismo. En M03 compararemos los componentes Razor de Blazor con las vistas de MVC, para no confundir conceptos que utilizan nombres y archivos parecidos.
+
+**Resultado:** en el catálogo aparecen **tres tarjetas**, una por producto. La página ya mostraba un listado sencillo; activamos otra representación deliberadamente para poder comparar ambas y observar el uso de la parcial sin borrar el ejercicio anterior.
+
+### Reutilizar la misma parcial en el detalle
+
+En `Views/Productos/Detalle.cshtml` se activa más adelante:
+
+~~~cshtml
+<section id="tarjeta-detalle" aria-label="Ficha presentada como tarjeta">
+    <h2>Tarjeta reutilizada en el detalle</h2>
+    <partial name="_TarjetaProducto" model="Model" />
+</section>
+~~~
+
+Aquí `Model` es un único objeto `Producto` y se pasa directamente. La misma vista parcial produce una tarjeta, sin duplicar el código en el archivo de detalle.
+
+La diferencia entre las dos invocaciones es intencionada:
+
+- `model="producto"` recibe el objeto actual de un `foreach` del catálogo.
+- `model="Model"` recibe el objeto completo de la vista de detalle.
+
+El atributo `model` no debe confundirse con la directiva `@model`. El primero es un atributo del Tag Helper que pasa un objeto; el segundo declara el tipo esperado por el archivo Razor que va a representarlo.
+
+### Qué no debe hacer una parcial
+
+Una vista parcial resulta apropiada para repetir marcado y lógica **simple de presentación**. No conviene ocultar dentro de ella acceso a una base de datos ni usarla como solución universal para construir páginas complejas. En esta práctica, la parcial **recibe datos**, y el controlador sigue siendo el que obtiene los productos.
+
+Si se necesita lógica propia compleja para preparar un fragmento reutilizable, ASP.NET Core dispone también de otros mecanismos, como View Components. No forman parte del alcance de este capítulo.
+
+## 1.5.6. El reto: una condición de precio centralizada en la parcial
+
+El reto utiliza lo que acabamos de aprender: al modificar **una única vista parcial** debemos poder cambiar el HTML de la tarjeta en **dos páginas**.
+
+Dentro de `Views/Shared/_TarjetaProducto.cshtml` existe un bloque de código comentado:
+
+~~~cshtml
+@if (Model.Precio < 3m)
+{
+    <strong class="etiqueta-economico">Precio económico</strong>
+}
+~~~
+
+La condición compara el precio decimal del producto con tres unidades monetarias. El código del curso contiene estos valores: Cuaderno 4,50, Lápiz 1,20 y Carpeta 3,75. Por tanto, el mensaje aparece únicamente para **Lápiz**.
+
+Esta expresión es apropiada en la parcial porque la usamos como una decisión **visual y local del ejercicio**; no estamos implementando una política real de descuentos ni alterando los precios. El umbral es ficticio y está explicado en el Markdown de prácticas.
+
+Al activar el reto, la vista parcial añade la etiqueta a la tarjeta de Lápiz dentro del catálogo y dentro de `/Productos/Detalle/2`. La ficha de Cuaderno (`id=1`) no debe mostrarla. El archivo `Index.cshtml`, el archivo `Detalle.cshtml` y el controlador permanecen sin cambios adicionales.
+
+Con ello se demuestra directamente el valor de la reutilización: **una modificación localizada produce un comportamiento coherente dondequiera que se represente la misma parcial**.
+
+## 1.5.7. Flujo de composición de una respuesta HTML
+
+Los elementos del ejercicio se relacionan de la siguiente manera:
+
+~~~mermaid
+flowchart TD
+    N["GET /Productos"] --> C["ProductosController.Index"]
+    C --> V["Views/Productos/Index.cshtml"]
+    V --> F["Razor: @foreach / @if"]
+    F --> P["Shared/_TarjetaProducto.cshtml × 3"]
+    P --> L["Shared/_Layout.cshtml"]
+    V --> L
+    L --> H["HTML HTTP 200"]
+    D["GET /Productos/Detalle/2"] --> DC["ProductosController.Detalle"]
+    DC --> DV["Views/Productos/Detalle.cshtml"]
+    DV --> DP["Shared/_TarjetaProducto.cshtml × 1"]
+    DP --> L
+    DV --> L
+~~~
+
+El diagrama representa la **composición conceptual** del HTML. El motor Razor coordina la ejecución de vistas y parciales; no son servicios HTTP independientes ni se ejecuta un controlador distinto por cada tarjeta. La petición al navegador produce una respuesta HTML que contiene todos los fragmentos.
+
+Cuando la página de detalle define la sección `NotasPagina`, el layout también coloca su contenido en la zona `RenderSectionAsync`. La parcial no necesita conocer esa sección ni declararla.
+
+## 1.5.8. Errores habituales
+
+**«Una parcial es una página que el navegador solicita por separado».** En este caso, no. Se representa dentro de otra vista del servidor. No necesitamos crear una acción ni una ruta HTTP para `_TarjetaProducto.cshtml`.
+
+**«Si llamo a `<partial>` desde un `foreach` se ejecuta el layout por cada elemento».** No. El layout es el envoltorio de la vista completa; la parcial no ejecuta `_ViewStart.cshtml` ni inserta otro documento HTML completo.
+
+**«Puedo usar cualquier propiedad en `@Model` sin importar el tipo».** No. La directiva `@model` declara qué tipo de datos recibirá el archivo. El listado y el detalle tienen modelos diferentes; la parcial espera un `Producto` individual.
+
+**«La sección del detalle aparece automáticamente con solo definir `@section`».** No. El layout debe contener un marcador de representación con el nombre correspondiente, o la vista debe atender de otra forma el contrato de secciones. Activaremos ambos bloques juntos.
+
+**«Razor permite escribir C# en las vistas, por tanto allí va toda la lógica».** No. Razor facilita decisiones de presentación; las operaciones de dominio o persistencia deben separarse de esas decisiones visuales.
+
+**«Si la parcial tiene código comentado, sus etiquetas pueden aparecer en HTML».** Los comentarios Razor `@* ... *@` no se envían en el cuerpo HTML. Al retirarlos correctamente, el bloque comienza a generar contenido.
+
+**«El Tag Helper `<partial>` es un componente Blazor».** No. Ambos pueden compartir sintaxis Razor, pero las vistas parciales MVC se renderizan como fragmentos de una respuesta HTML; los componentes Blazor tienen otro modelo de ejecución que veremos en M03.
+
+## 1.5.9. Continuidad y alcance del módulo M01
+
+La práctica 1.5 reproduce los conceptos en estados pequeños y observables: vistas tipadas ya existentes, condición Razor, layout con sección opcional, tarjeta parcial en el listado, reutilización de la tarjeta en el detalle y reto de etiqueta según precio. Cada estado se compila y se prueba contra Kestrel mediante HTTP real.
+
+Con esta práctica se completa el **contenido funcional previsto de M01**: desde la primera petición hasta un catálogo con listados y fichas Razor reutilizables. Los **formularios, model binding de POST, validación con DataAnnotations y EF Core** se incorporarán en el M02, no en este módulo.
+
+La revisión final de M01 deberá comprobar que los cinco capítulos, sus retos y todas las versiones del proyecto son trazables desde los dos Markdown, y que los PDF reproduzcan la totalidad del contenido tras cerrar las fuentes.
+
+### Referencias técnicas
+
+- Microsoft Learn, Razor syntax: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/razor?view=aspnetcore-8.0
+- Microsoft Learn, layouts: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/layout?view=aspnetcore-8.0
+- Microsoft Learn, partial views: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/partial?view=aspnetcore-8.0
+- Microsoft Learn, Partial Tag Helper: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/tag-helpers/built-in/partial-tag-helper?view=aspnetcore-8.0
