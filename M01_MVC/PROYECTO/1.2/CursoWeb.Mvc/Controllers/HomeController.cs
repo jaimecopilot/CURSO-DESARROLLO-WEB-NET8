@@ -1,0 +1,17 @@
+using Microsoft.AspNetCore.Mvc;
+
+namespace CursoWeb.Mvc.Controllers;
+
+public class HomeController : Controller
+{
+    // PASO 1.1.1 — El navegador envía GET / y la acción devuelve una vista HTML.
+    [HttpGet]
+    public IActionResult Index()
+    {
+        // PASO 1.1.4 — Descomentar solo la siguiente línea para observar
+        // una cabecera de respuesta HTTP generada desde el controlador.
+        // Response.Headers["X-Curso-Paso"] = "1.1.4";
+
+        return View();
+    }
+}
