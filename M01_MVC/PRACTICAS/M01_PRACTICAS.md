@@ -2634,6 +2634,189 @@ La secuencia automatizada comprueba seis estados, incluido el reto. No sustituye
 Una vez comprendidas las acciones y rutas, el siguiente capítulo se centrará en la presentación Razor. Conservaremos los mismos endpoints de catálogo y detalle y aprenderemos a representar productos mediante layouts, secciones y vistas parciales reutilizables.
 
 
+
+## Q. Taller de diagnóstico 1.4 — Entender lo que dice realmente un estado HTTP
+
+Este taller se desarrolla después de tener activos los pasos 1.4.2–1.4.5. No añade nuevos controladores ni vistas: utiliza los métodos ya incluidos en el proyecto para contrastar hipótesis. Su finalidad es que el alumno deje de utilizar el código HTTP 200 como única prueba de que una funcionalidad está bien realizada.
+
+### Q.1. Comprobar tres dimensiones de la misma respuesta
+
+Con la aplicación en ejecución, utiliza:
+
+~~~bash
+curl -i http://localhost:5091/Productos/Detalle/2
+~~~
+
+De la salida identifica tres informaciones. La primera es el **código de estado**, que debería indicar éxito. La segunda es el **tipo de contenido**, que debe corresponder a HTML. La tercera es el **contenido de la ficha**, donde deben aparecer el identificador 2 y el nombre Lápiz.
+
+Si la respuesta fuera 200 pero mostrara Cuaderno, no sería correcta. El endpoint estaría respondiendo, pero habría una discrepancia entre el parámetro solicitado y el objeto representado. Si se devolviera texto plano en vez de HTML, tampoco cumpliría el resultado esperado del ejercicio.
+
+Anota la correspondencia entre la URL solicitada, el valor recibido como `id` y la propiedad `Id` del objeto. Es posible escribir una acción que devuelva siempre el primer producto; por eso debemos comprobar el dato y no solamente la existencia de la página.
+
+### Q.2. Diferenciar una respuesta de error diseñada de un fallo de ejecución
+
+Solicita:
+
+~~~bash
+curl -i http://localhost:5091/Productos/Detalle/99
+curl -i http://localhost:5091/Productos/Detalle/0
+~~~
+
+La primera debería devolver 404. La acción ha sido seleccionada correctamente, pero no encontró un producto con id 99. La segunda debería devolver 400 debido a la regla del propio método que rechaza valores menores o iguales que cero.
+
+En ninguna de las dos situaciones resulta correcto afirmar automáticamente que «MVC se ha caído». El servidor continúa atendiendo solicitudes y ha producido respuestas HTTP previstas por el diseño de la práctica.
+
+Comprueba además `/Productos/Detalle/2` después de solicitar los dos casos de error. La ficha válida debe seguir funcionando; los resultados negativos no deberían alterar el catálogo fijo en memoria.
+
+### Q.3. Comprobar que un error de ruta no es un error de dato
+
+Una vez activada `Ficha`, solicita:
+
+~~~bash
+curl -i http://localhost:5091/catalogo/ficha/no-numero
+curl -i http://localhost:5091/catalogo/ficha/99
+~~~
+
+Las dos solicitudes deben devolver 404, pero por caminos diferentes. La primera no satisface la restricción `{id:int}`; la segunda contiene un número entero y puede seleccionar la acción, pero el objeto no existe.
+
+La diferencia es invisible si únicamente miramos una página de error del navegador. Para explicarla necesitamos leer el atributo de ruta y el código de búsqueda del controlador.
+
+### Q.4. Redactar una incidencia reproducible
+
+Escribe una breve descripción de un caso 404 siguiendo este formato: dirección solicitada, bloque de código activado, acción que se esperaba seleccionar, resultado realmente observado y por qué es correcto o incorrecto según el enunciado.
+
+No incluyas afirmaciones como «hay un problema de rutas» sin especificar la URL. El objetivo es practicar una comunicación técnica que permita a otro alumno reproducir la situación.
+
+## R. Taller de análisis 1.4 — Seguir un producto a través de distintas representaciones
+
+Este taller se ejecuta después de activar también el reto `Resumen`. El proyecto incluye entonces varias maneras de consultar el mismo producto sin cambiar el origen de los datos.
+
+### R.1. Preparar la tabla de correspondencias
+
+Elige Lápiz, cuyo identificador es 2. Comprueba que aparece en la función privada que prepara el catálogo y que las acciones reutilizan la misma colección.
+
+Después consulta:
+
+~~~text
+http://localhost:5091/Productos
+http://localhost:5091/Productos/Detalle/2
+http://localhost:5091/catalogo/ficha/2
+http://localhost:5091/catalogo/resumen/2
+~~~
+
+La primera dirección muestra una colección que contiene Lápiz. La segunda y tercera representan una ficha HTML del mismo producto, aunque se seleccionan mediante rutas diferentes. La última devuelve un resumen JSON.
+
+### R.2. Relacionar el formato con el método de retorno
+
+Abre `ProductosController.cs` y localiza:
+
+~~~csharp
+return View(ObtenerProductosEjemplo());
+~~~
+
+~~~csharp
+return View(producto);
+~~~
+
+~~~csharp
+return View("Detalle", producto);
+~~~
+
+~~~csharp
+return Ok(new { producto.Id, producto.Nombre });
+~~~
+
+Estos fragmentos corresponden a resultados distintos y ya forman parte de las acciones preparadas en el proyecto. No son cuatro formas equivalentes de escribir la misma instrucción. El primero entrega una colección a la vista de listado; el segundo entrega un producto a la vista de detalle por convención; el tercero selecciona explícitamente esa vista; el cuarto devuelve una representación de datos.
+
+En tus apuntes anota el nombre de la acción correspondiente a cada retorno y la URL desde la que puedes observar el resultado.
+
+### R.3. Comparar el modelo enviado con el resultado visible
+
+La vista de detalle recibe un `Producto` con sus propiedades Id, Nombre y Precio. El resumen JSON del reto contiene únicamente Id y Nombre, porque el objeto anónimo de `Ok(new {...})` selecciona esas propiedades.
+
+Esto no significa que el producto haya perdido su precio. Significa que una representación concreta ha elegido publicar un subconjunto de los datos. La selección de formato y de propiedades forma parte del contrato de respuesta del endpoint.
+
+### R.4. Explicar cómo se reutiliza la información
+
+Todas las acciones consultan la misma función `ObtenerProductosEjemplo()`. Al construir una sola colección de referencia se reduce el riesgo de que el listado utilice unos datos y la ficha otros. El proyecto no tiene persistencia: cada solicitud reconstruye los objetos fijos.
+
+No confundas compartir una función que crea datos de ejemplo con compartir un repositorio de base de datos. En M02 cambiará la forma de obtener los productos, pero será útil mantener claras las responsabilidades de la acción, la vista y el mecanismo de almacenamiento.
+
+## S. Taller de comprobación 1.4 — La ruta y el nombre de la vista
+
+### S.1. Comprobar el nombre predeterminado de la vista
+
+En `Detalle(int id)`, después de localizar un producto, la acción utiliza `return View(producto);`. Al no señalar un nombre, MVC aplica convenciones para buscar una vista relacionada con el nombre de la acción.
+
+En nuestro proyecto existe `Views/Productos/Detalle.cshtml`. Debes poder explicar por qué esa ubicación corresponde al controlador Productos y a la acción Detalle.
+
+### S.2. Comprobar un nombre explícito diferente
+
+En `Ficha(int id)` se utiliza `return View("Detalle", producto);`. El nombre de la acción es Ficha, pero se entrega el modelo a la misma vista de Detalle. No necesitamos duplicar la plantilla HTML en un archivo `Ficha.cshtml`.
+
+Abre las dos URLs válidas de detalle y compara su contenido. Si ambas muestran Lápiz con los mismos datos, has observado la reutilización del archivo de presentación a partir de dos acciones.
+
+### S.3. Distinguir la dirección seleccionada de la plantilla seleccionada
+
+La ruta `/catalogo/ficha/2` está definida por el atributo de `Ficha`. La vista seleccionada se llama Detalle. Una es una dirección externa de la aplicación y la otra es un archivo Razor utilizado para producir HTML. Sus nombres no tienen que coincidir.
+
+Este ejercicio ayuda a evitar un error frecuente: crear nuevas vistas para resolver una ruta que no está registrada. Antes de crear archivos debemos comprobar en qué fase del recorrido se produce el problema.
+
+### S.4. Justificar por qué el retorno explicita el nombre
+
+Si `Ficha` devolviera `View(producto)` sin nombre, MVC podría intentar encontrar una vista asociada a la acción Ficha. El proyecto no pretende enseñar una segunda representación distinta; por eso el código usa explícitamente la cadena `"Detalle"`.
+
+No es necesario modificar el método para comprobar este razonamiento. La práctica ya incluye la versión correcta y las pruebas automatizadas verifican que funciona con su ruta por atributos.
+
+## T. Taller de revisión 1.4 — Casos que no deben producirse
+
+La finalidad de una revisión técnica no es demostrar únicamente que las rutas felices funcionan. También debemos pensar en comportamientos inesperados que el ejercicio no permite.
+
+### T.1. No debe aparecer una ficha para un id inexistente
+
+Si `/Productos/Detalle/99` mostrara una ficha con datos del producto 1, habría una discrepancia. La condición del controlador establece que, cuando no se encuentra el objeto, se devuelve `NotFound()`. El test del capítulo comprueba ese comportamiento.
+
+### T.2. No debe aparecer HTML completo en la acción de Estado
+
+La respuesta de `/Productos/Estado` utiliza `Content(..., "text/plain")`. Si mostrara el menú, las hojas de estilo y el cuerpo de una vista Razor, no estaríamos observando el tipo de resultado previsto por el ejercicio.
+
+Esta situación sería diferente de un texto visual que parece simple: debemos comprobar el tipo de contenido y no inferirlo solo por la apariencia del navegador.
+
+### T.3. No debe ser accesible Ficha mediante una ruta no definida
+
+En este proyecto, `Ficha` tiene una plantilla absoluta `/catalogo/ficha/{id:int}`. La dirección `/Productos/Ficha/2` no forma parte del recorrido previsto. Si devolviera una ficha, habría que revisar si se ha añadido otra ruta o cambiado el método más allá de lo indicado.
+
+No se trata de prohibir esa dirección en cualquier aplicación MVC. Se trata de comprobar la configuración concreta que el alumno está estudiando.
+
+### T.4. No debe confundirse la respuesta JSON con una vista Razor
+
+El reto utiliza `Ok(new { producto.Id, producto.Nombre })`. Crear un archivo `Resumen.cshtml` no es necesario y no representa la solución del enunciado.
+
+La comprobación debe confirmar una respuesta JSON válida con las propiedades correctas, no simplemente la presencia del nombre del producto en cualquier cuerpo de respuesta.
+
+### T.5. No deben desaparecer funcionalidades de capítulos anteriores
+
+El listado `/Productos`, la portada `/` y los recursos CSS deben continuar funcionando después de activar las acciones nuevas. Si alguno deja de funcionar, hay una regresión que el alumno debe investigar antes de dar el capítulo por terminado.
+
+Esta es la razón por la que el script `1.4_e2e.sh` prueba también funcionalidades que no se han introducido en 1.4. Una ampliación correcta conserva los contratos previos.
+
+## U. Cierre ampliado del capítulo 1.4
+
+Describe por escrito el recorrido de `GET /catalogo/ficha/2` desde la URL hasta el HTML final. Debes señalar la plantilla del atributo, el parámetro `id`, el método privado que obtiene productos, la búsqueda de Lápiz y la instrucción `View("Detalle", producto)`.
+
+Después describe `GET /catalogo/resumen/2` y explica qué cambia: la acción se selecciona mediante otra plantilla, pero utiliza el mismo origen de datos y elige una respuesta JSON en vez de una vista.
+
+Finalmente, compara `/Productos/Detalle/0`, `/Productos/Detalle/99` y `/catalogo/ficha/no-numero`. Cada uno exige una explicación diferente aunque todos sean casos que no muestran una ficha válida.
+
+Para una comprobación técnica adicional, ejecuta el E2E del capítulo desde la raíz del repositorio:
+
+~~~bash
+bash M01_MVC/TESTS/1.4_e2e.sh
+~~~
+
+Al cerrar el taller, el alumno debería saber predecir qué acción recibe cada URL, qué dato utiliza y por qué produce un estado y formato de respuesta determinados. Con esa base será posible profundizar en Razor y las vistas parciales del siguiente capítulo sin confundir enrutamiento con representación.
+
+
 # P1.5. Vistas Razor tipadas, layouts y vistas parciales
 
 ## A. Objetivos y estado inicial
