@@ -2104,6 +2104,208 @@ La práctica incluye una ejecución automatizada de seis estados mediante copias
 Con estos conceptos, el punto 1.5 podrá centrarse en enriquecer la presentación Razor sin volver a explicar desde cero cómo se obtiene el producto ni cómo se selecciona una acción.
 
 
+
+## 1.4.22. La diferencia entre una dirección, una ruta y un recurso
+
+Al navegar por Internet utilizamos direcciones completas, pero en el código del curso solemos escribir únicamente la parte que identifica un endpoint dentro de la aplicación. Es importante distinguir estos conceptos porque un error puede producirse en cualquiera de ellos.
+
+La dirección completa de nuestro laboratorio tiene esquema, host, puerto y ruta:
+
+~~~text
+http://localhost:5091/Productos/Detalle/2
+~~~
+
+`http` identifica el esquema utilizado; `localhost` es el host; `5091` es el puerto; `/Productos/Detalle/2` es el camino que la aplicación utiliza para seleccionar el endpoint. Cambiar el puerto en el navegador sin cambiar dónde escucha Kestrel puede impedir conectar con el proceso. Cambiar el último segmento, en cambio, puede seleccionar otro producto sin modificar el host.
+
+La ruta convencional definida en `Program.cs` interpreta los segmentos del camino. Por tanto, no es lo mismo preguntar «¿qué servidor atiende la solicitud?» que preguntar «¿qué acción MVC corresponde a esta ruta?». La primera pregunta pertenece al entorno de ejecución y la segunda al enrutamiento de la aplicación.
+
+### Un recurso puede no corresponder a un archivo
+
+La página `/Productos/Detalle/2` no necesita un archivo físico llamado `2.html`. La acción recibe el valor 2, obtiene un objeto y pide al motor Razor que represente una vista. El resultado generado puede contener el nombre Lápiz, pero ese HTML no se obtiene necesariamente de un archivo estático con la misma URL.
+
+En cambio, `/css/catalogo.css` puede resolverse a un recurso estático de `wwwroot`. Ambos casos utilizan HTTP, pero no es correcto deducir por la forma de la URL que uno u otro debe ser obligatoriamente un archivo del sistema operativo.
+
+Esta distinción une los capítulos 1.3 y 1.4. En el primero descubrimos la raíz web y los archivos estáticos; en el segundo añadimos endpoints que ejecutan código. La aplicación contiene ambos tipos de respuesta y una misma URL base no determina que todo se sirva por el mismo mecanismo.
+
+## 1.4.23. Por qué el orden de las comprobaciones importa
+
+El método `Detalle(int id)` comienza comprobando que el identificador sea mayor que cero. Solo después busca un objeto dentro de la lista. Finalmente, si existe, representa una vista.
+
+Este orden facilita la lectura del método. La validación sencilla de entrada aparece al principio, la búsqueda de datos ocupa la parte central y la decisión de representación queda al final. Si el identificador no cumple la regla, no necesitamos continuar. Si el producto no existe, tampoco tenemos un objeto válido que entregar a la vista.
+
+La forma de la acción se puede leer como una sucesión de retornos anticipados:
+
+~~~csharp
+if (id <= 0)
+{
+    return BadRequest("El identificador debe ser mayor que cero.");
+}
+
+var producto = ObtenerProductosEjemplo()
+    .FirstOrDefault(p => p.Id == id);
+
+if (producto is null)
+{
+    return NotFound();
+}
+
+return View(producto);
+~~~
+
+Es posible escribir código equivalente con otros estilos, pero esta estructura es especialmente didáctica porque cada condición conduce a un resultado HTTP visible. No tenemos que descifrar un bloque de `if/else` profundamente anidado para identificar las ramas.
+
+### Qué demuestra cada prueba del método
+
+Para el caso de `id=0`, el método debe terminar en `BadRequest`. Para `id=99`, el identificador no es rechazado por el primer `if`, pero la búsqueda devuelve `null` y se utiliza `NotFound`. Para `id=2`, el código supera ambas comprobaciones y crea un resultado de vista.
+
+Estas tres rutas de ejecución cubren las decisiones esenciales del método sin exigir conocimientos avanzados de testing. Son además situaciones independientes: cambiar la comprobación de cero no debería hacer desaparecer el producto de id 2.
+
+La prueba E2E añade la infraestructura de enrutamiento y HTTP. Por tanto, comprueba no solo que el método tiene unas ramas determinadas, sino también que las URLs del proyecto permiten alcanzarlas y que la respuesta final representa el resultado previsto.
+
+## 1.4.24. Evitar suposiciones sobre el enlace de modelos
+
+El enlace de modelos de ASP.NET Core puede obtener valores de varias fuentes de la petición. Para este capítulo seleccionamos el caso más pequeño y claro: un identificador que procede de la ruta. La sintaxis `int id` permite al framework preparar un argumento de tipo entero para la acción.
+
+No debemos concluir que toda cadena recibida del navegador es automáticamente válida o que la plataforma convierte cualquier texto arbitrario al valor que la aplicación necesita. Los valores pueden faltar, no cumplir una restricción o no corresponder a un objeto del dominio.
+
+En `Ficha(int id)` utilizamos una plantilla con `{id:int}`. Esta es una **restricción de ruta**: ayuda a descartar direcciones cuyos segmentos no cumplan el formato entero. No es un mecanismo de autorización ni una garantía de existencia del producto.
+
+### Distinguir forma y significado
+
+El valor 99 tiene forma de entero y satisface la restricción. Sin embargo, no tiene significado como identificador de uno de nuestros tres productos, porque la lista contiene únicamente los ids 1, 2 y 3.
+
+El valor 0 también tiene forma de entero, pero la acción `Detalle` lo considera inválido según una regla explícita. Esa regla expresa una decisión de aplicación, no una propiedad intrínseca de todas las rutas con números.
+
+El texto `no-numero` no cumple la restricción `int` del atributo de `Ficha`, por lo que la dirección no coincide con ese endpoint. Este comportamiento se resuelve en la selección de rutas, antes de buscar un producto.
+
+Estos tres ejemplos permiten enseñar que **una entrada puede ser sintácticamente correcta y semánticamente inválida**. Más adelante, al estudiar validación de formularios, necesitaremos separar de nuevo esos niveles. Por ahora basta con reconocerlos en un único parámetro.
+
+## 1.4.25. Un ejemplo de error que no se arregla creando otra vista
+
+Supongamos que un alumno escribe `/catalogo/ficha/2` y recibe 404. Podría interpretar que debe crear `Views/Productos/Ficha.cshtml`. Sin embargo, la acción preparada devuelve `View("Detalle", producto)`, lo que indica explícitamente que desea utilizar la vista existente `Detalle.cshtml`.
+
+Antes de crear archivos, debemos comprobar si la ruta por atributo se ha activado. Mientras el bloque `PASO 1.4.4` esté comentado, el endpoint no existe en la versión que ejecutamos. Crear una vista adicional no resolvería esa ausencia de ruta.
+
+Si la acción está activa y selecciona correctamente el producto, la llamada `View("Detalle", producto)` ya proporciona el nombre de la vista. El aprendizaje consiste en separar **encontrar la acción** de **encontrar el archivo de representación**.
+
+### Por qué esa distinción ahorra trabajo
+
+En una aplicación más grande, múltiples rutas pueden llevar a una misma representación. Si copiamos una vista por cada dirección sin que exista una necesidad de diseño diferente, aumentamos innecesariamente el mantenimiento. El proyecto del curso muestra una alternativa concreta y sencilla: reutilizar una vista y expresar su nombre cuando la convención basada en el nombre de la acción no es apropiada.
+
+No estamos promoviendo que todas las acciones utilicen siempre la misma plantilla. Solo demostramos que la elección de la ruta y la elección de la vista son decisiones independientes que podemos coordinar de forma explícita.
+
+## 1.4.26. Comparar tres respuestas del mismo controlador
+
+Cuando el alumnado ya conoce Web API, resulta útil mostrar en una misma clase las tres formas de salida que el capítulo introduce:
+
+~~~csharp
+return Content("Catalogo MVC disponible", "text/plain");
+~~~
+
+~~~csharp
+return View(producto);
+~~~
+
+~~~csharp
+return Ok(new { producto.Id, producto.Nombre });
+~~~
+
+La primera produce texto, la segunda pide HTML de una vista Razor y la tercera produce un resultado con datos que puede serializarse en JSON. Las tres instrucciones pertenecen al ecosistema de resultados HTTP de ASP.NET Core y no necesitan tres servidores diferentes.
+
+No obstante, las tres salidas no contienen información equivalente. El texto de Estado indica que el catálogo está disponible; la vista de detalle puede mostrar identificador, nombre y precio con marcado HTML; el resumen JSON del reto incluye únicamente identificador y nombre.
+
+Esa diferencia de contenido también debe verificarse. Una respuesta JSON con dos campos no es una copia del HTML de la ficha, aunque ambos se refieran al mismo producto. El código de controlador ha decidido qué representación preparar en cada endpoint.
+
+### El formato de salida como parte de un contrato
+
+Un cliente que espera JSON no debería recibir HTML sin que esa diferencia se considere relevante. Aunque ambos cuerpos puedan contener el nombre «Lápiz», sus formatos y significados son distintos. Por eso el test del reto comprueba tanto el estado 200 como el tipo de contenido JSON y las propiedades del objeto.
+
+Del mismo modo, una solicitud de Estado no exige un layout HTML completo. El resultado de texto no tiene que incluir navegación ni hojas de estilo. Pretender que todas las respuestas de un controlador sean visualmente idénticas equivaldría a ignorar la flexibilidad de `IActionResult`.
+
+## 1.4.27. El contrato visible de una ficha de detalle
+
+La vista `Detalle.cshtml` muestra un objeto `Producto` mediante una estructura HTML que incluye identificador, nombre y precio. Se trata de una interfaz de consulta. No dispone todavía de un formulario para modificar los valores ni de operaciones de persistencia.
+
+La URL contiene el identificador solicitado, pero el contenido de la ficha procede del objeto que la acción encontró. Por eso puede ocurrir que una dirección sea correcta y, sin embargo, el objeto no exista. La acción debe distinguir ese caso y no intentar dibujar una ficha inválida.
+
+### Por qué la vista es tipada
+
+La declaración `@model Producto` facilita leer y comprobar expresiones como `@Model.Nombre`. En lugar de pasar una colección genérica de valores sueltos al archivo Razor, entregamos un objeto cuyo tipo expresa qué propiedades contiene.
+
+En el listado el contrato era distinto, porque necesitábamos recorrer varias instancias. En el detalle el contrato se concentra en una. Esta variación es razonable: las vistas no tienen por qué compartir exactamente el mismo tipo de modelo aunque pertenezcan al mismo controlador.
+
+### El enlace de vuelta al catálogo
+
+La ficha dispone de un enlace hacia `/Productos`. Al pulsarlo, el navegador envía una nueva solicitud y el servidor ejecuta de nuevo la acción correspondiente al listado. No se trata de una llamada directa de un método C# de la vista de detalle al método del controlador. Es navegación HTTP y, por eso, participa el enrutamiento.
+
+Esta precisión prepara al alumno para comprender después los formularios y la navegación de aplicaciones Blazor sin confundir eventos de interfaz con llamadas internas a métodos del servidor.
+
+## 1.4.28. El valor de los casos negativos en una práctica
+
+Los ejemplos iniciales de programación suelen centrarse en hacer que una operación tenga éxito. Sin embargo, una aplicación web también debe responder de forma predecible cuando la entrada no corresponde a un recurso válido.
+
+El capítulo 1.4 incluye deliberadamente casos negativos:
+
+- El id 99 no existe en la colección y debe producir 404.
+- El id 0 se rechaza en `Detalle` y debe producir 400.
+- Un texto no entero no coincide con la restricción de ruta de `Ficha`.
+- Una dirección convencional no publicada para la acción `Ficha` debe responder 404.
+
+La función de estas comprobaciones no es hacer el ejercicio más largo sin motivo. Cada caso distingue un mecanismo técnico diferente que el alumno deberá reconocer después en aplicaciones reales.
+
+Una batería que probara únicamente `/Productos/Detalle/2` podría pasar aunque el código omitiera la comprobación de identificadores inválidos. Otra que comprobara solamente 404 podría ocultar que ninguna ruta funciona. Necesitamos una combinación de casos positivos y negativos.
+
+### La importancia de no falsear el resultado esperado
+
+Si la acción devuelve 400 para el id 0, no deberíamos modificar el test para esperar 200 y conseguir un resultado verde. El código y la expectativa didáctica deben concordar. De la misma manera, si el reto propone una respuesta JSON, no es aceptable sustituirla por texto plano únicamente porque contenga el mismo nombre.
+
+La trazabilidad del curso exige que el enunciado, el código activable y las pruebas describan el mismo comportamiento. Esa regla se aplica especialmente a los retos, que no se consideran completos por el mero hecho de estar explicados verbalmente.
+
+## 1.4.29. Comparar comportamiento funcional y organización del código
+
+Dos implementaciones pueden producir la misma página en el navegador, pero tener una organización distinta. En nuestra versión inicial, `Index()` construía directamente los tres productos. En el proyecto de 1.4, la lista se obtiene mediante un método privado compartido.
+
+La presentación del catálogo puede permanecer idéntica, aunque el código se haya organizado de otra manera. Esto demuestra que una **refactorización** puede mejorar la reutilización sin cambiar el comportamiento externo esperado.
+
+Si los datos se hubieran copiado en `Index`, `Detalle` y `Ficha`, el ejercicio funcionaría en su primera versión, pero sería más difícil mantenerlos coherentes. Una modificación del nombre de Lápiz podría aplicarse en una copia y no en las otras.
+
+Al utilizar `ObtenerProductosEjemplo()`, las acciones consultan la misma definición de los productos. No es todavía una arquitectura empresarial completa ni una implementación de repositorio; es una mejora limitada para reducir duplicación.
+
+### Cómo distinguir una refactorización de un requisito nuevo
+
+Cuando extraemos la lista a un método, buscamos conservar los resultados anteriores. Cuando añadimos `Detalle(int id)`, estamos incorporando una nueva capacidad observable. Ambas tareas pueden estar relacionadas, pero sus criterios de comprobación son diferentes.
+
+La primera exige que el catálogo continúe mostrando los mismos tres productos. La segunda exige que exista una URL de detalle que acepte identificadores y devuelva respuestas apropiadas. Esta separación permite escribir pruebas útiles y evita confundir mejoras internas con nuevas funcionalidades.
+
+## 1.4.30. Un recorrido narrado de extremo a extremo
+
+Consideremos la solicitud `GET /Productos/Detalle/2` en la versión final del capítulo. El navegador construye una petición HTTP dirigida al proceso local. La infraestructura ASP.NET Core recibe la solicitud y utiliza los endpoints MVC registrados para seleccionar `ProductosController.Detalle(int id)`.
+
+El valor 2 del tercer segmento se enlaza con el parámetro del método. La acción comprueba que es positivo, obtiene la colección de ejemplo y localiza el producto cuyo identificador es 2. El resultado es el objeto Lápiz, con su nombre y precio.
+
+Como el producto existe, el método devuelve `View(producto)`. La infraestructura MVC localiza `Views/Productos/Detalle.cshtml`, entrega el modelo y representa el HTML. El layout incorpora la navegación y las hojas de estilo compartidas. Finalmente, Kestrel envía la respuesta HTTP al navegador, que representa el contenido.
+
+Si repetimos el recorrido para `/Productos/Detalle/99`, los pasos cambian a partir de la búsqueda: no existe el producto, por lo que la acción devuelve `NotFound()`. No hay una ficha de Lápiz ni un modelo válido que representar. La ruta fue correcta, pero el resultado de aplicación es distinto.
+
+Si solicitamos `/catalogo/ficha/2`, la selección inicial del endpoint ocurre mediante un atributo de ruta, no mediante la forma convencional. Después, la acción elige explícitamente la vista `Detalle` para representar el mismo producto. Esto explica por qué un cambio en la ruta no obliga a duplicar el HTML de la ficha.
+
+### Reconocer los límites del recorrido
+
+Este ejemplo no realiza consultas a una base de datos ni autentica al usuario. Tampoco depende de un servicio externo. El flujo es suficientemente completo para enseñar MVC, rutas, resultados y Razor, pero sigue siendo una aplicación didáctica de consulta.
+
+Cuando incorporemos EF Core en M02, la forma de obtener los datos cambiará. La idea general de recibir una solicitud, validar su entrada, localizar el recurso y devolver un resultado apropiado continuará siendo útil.
+
+## 1.4.31. Criterio de dominio del punto 1.4
+
+Para considerar aprendido el capítulo, el alumno debería poder responder sin consultar una solución:
+
+¿Por qué `/Productos/Detalle/2` devuelve HTML mientras `/Productos/Estado` devuelve texto? ¿Qué diferencia existe entre una URL que no coincide con ninguna ruta y una acción que devuelve `NotFound()`? ¿Por qué `Ficha` puede reutilizar `Detalle.cshtml`? ¿Qué significa `{id:int}` y qué no significa? ¿Qué parte del código crea los datos de ejemplo? ¿Por qué el reto JSON no necesita una nueva vista?
+
+Cada respuesta debe hacer referencia a un archivo o línea real del proyecto, no a una definición memorizada. El éxito consiste en relacionar el recorrido HTTP, la acción ejecutada, el dato utilizado y el resultado devuelto.
+
+El capítulo 1.5 reutilizará esos resultados de detalle para profundizar en cómo Razor compone la presentación. Por eso es importante cerrar antes esta distinción: **las rutas seleccionan acciones, las acciones eligen resultados y las vistas representan datos**.
+
+
 # 1.5. Vistas Razor, modelos tipados, layouts y vistas parciales
 
 ## Objetivos y contexto
