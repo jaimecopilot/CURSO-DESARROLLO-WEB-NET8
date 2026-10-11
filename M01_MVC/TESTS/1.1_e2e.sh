@@ -73,6 +73,14 @@ run_scenario() {
   else
     grep -Fq 'id="marca-paso-1-1-5"' "$TMP/body-$state.html"
   fi
+  if [[ "$state" == "reto" ]]; then
+    grep -iq '^X-Curso-Reto: HTTP-y-HTML' "$TMP/headers-$state.txt"
+    grep -Fq 'id="reto-1-1"' "$TMP/body-$state.html"
+    ! grep -iq '^X-Curso-Reto:' "$TMP/cssheaders-$state.txt"
+  else
+    ! grep -iq '^X-Curso-Reto:' "$TMP/headers-$state.txt"
+    ! grep -Fq 'id="reto-1-1"' "$TMP/body-$state.html"
+  fi
   echo "E2E OK: $state (HTTP 200/404, vista Razor, layout y variantes)"
 
   kill "$PID" 2>/dev/null || true
@@ -82,7 +90,7 @@ run_scenario() {
 
 run_scenario "$SRC" "base"
 
-# Las tres variantes se generan sin modificar el código original del alumno.
+# Las tres variantes de ejercicios y el reto se generan sin modificar el código original del alumno.
 python3 - "$SRC" "$TMP" <<'PY'
 from pathlib import Path
 from shutil import copytree, ignore_patterns
@@ -96,6 +104,7 @@ for name, enable_header, enable_view in [
     ("solo-cabecera", True, False),
     ("solo-vista", False, True),
     ("activado", True, True),
+    ("reto", True, True),
 ]:
     target = temporary / name
     copytree(source, target, ignore=ignore_patterns("obj", "bin"))
@@ -105,6 +114,10 @@ for name, enable_header, enable_view in [
     assert c.count(header_line) == 1, "No se encuentra el paso 1.1.4"
     if enable_header:
         c = c.replace(header_line, header_line[3:])
+    reto_header = '// Response.Headers["X-Curso-Reto"] = "HTTP-y-HTML";'
+    assert c.count(reto_header) == 1, "No se localiza el bloque comentado RETO 1.1"
+    if name == "reto":
+        c = c.replace(reto_header, reto_header[3:])
     controller.write_text(c, encoding="utf-8")
 
     view = target / "Views" / "Home" / "Index.cshtml"
@@ -112,12 +125,17 @@ for name, enable_header, enable_view in [
     assert v.count(razor_start) == 1 and v.count(razor_end) == 1, "No se encuentra el paso 1.1.5"
     if enable_view:
         v = v.replace(razor_start, "").replace(razor_end, "")
+    reto_start, reto_end = '@* RETO 1.1 (inicio)\n', '\nRETO 1.1 (fin) *@'
+    assert v.count(reto_start) == 1 and v.count(reto_end) == 1
+    if name == "reto":
+        v = v.replace(reto_start, "").replace(reto_end, "")
     view.write_text(v, encoding="utf-8")
 PY
 
 run_scenario "$TMP/solo-cabecera" "solo-cabecera"
 run_scenario "$TMP/solo-vista" "solo-vista"
 run_scenario "$TMP/activado" "activado"
+run_scenario "$TMP/reto" "reto"
 
 # La práctica también crea una aplicación desde la plantilla incluida en el SDK.
 echo "Verificando la plantilla oficial MVC de .NET 8"
@@ -141,4 +159,4 @@ kill "$PID" 2>/dev/null || true
 wait "$PID" 2>/dev/null || true
 PID=""
 echo "E2E OK: plantilla MVC creada, compilada y ejecutada."
-echo "Punto 1.1: cinco escenarios E2E reales superados."
+echo "Punto 1.1: seis escenarios E2E reales superados, incluido el reto."
