@@ -143,12 +143,14 @@ def fence_render(tokens, idx, options, env):
         try:
             if content.lstrip().startswith("flowchart"):
                 svg=flowchart_svg(content)
+                figure_type="flow"
             elif content.lstrip().startswith("sequenceDiagram"):
                 svg=sequence_svg(content)
+                figure_type="sequence"
             else:
                 raise ValueError("Tipo Mermaid aún no soportado")
             DIAGRAM_COUNT+=1
-            return '<figure class="diagram">'+svg+'</figure>'
+            return '<figure class="diagram diagram-'+figure_type+'">'+svg+'</figure>'
         except Exception as e:
             raise RuntimeError(f"Error al representar diagrama Mermaid {DIAGRAM_COUNT+1}: {e}")
     aliases={"cshtml":"html+razor", "http":"http", "text":"text","xml":"xml","bash":"bash","csharp":"csharp"}
@@ -193,8 +195,11 @@ p code, li code, td code { font-family: "DejaVu Sans Mono", monospace; font-size
 .highlight { background: transparent; }
 .highlight pre,pre { font-family: "DejaVu Sans Mono", monospace; font-size: 7.75pt; line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; margin: 0; }
 .code-block .highlight pre { white-space: pre-wrap; overflow-wrap: anywhere; }
-.diagram { display: block; text-align: center; margin: 13pt 0; break-inside: avoid; }
-.diagram svg { display: block; max-width: 100%; height: auto; margin: 0 auto; }
+.diagram { display: block; text-align: center; margin: 10pt 0 13pt; break-inside: avoid; }
+.diagram svg { display: block; width: auto; height: auto; margin: 0 auto; }
+.diagram-flow svg { max-width: 122mm; max-height: 70mm; }
+.diagram-sequence svg { max-width: 168mm; max-height: 94mm; }
+.diagram svg { max-width: 100%; }
 .toc { margin: 14pt 0 20pt; border: 0.8pt solid #cbdbe2; padding: 13pt 17pt; background: #f6f9fb; }
 .toc h2 { margin-top: 0; font-size: 13pt; }
 .toc p { font-size: 10pt; margin: 8pt 0; }
