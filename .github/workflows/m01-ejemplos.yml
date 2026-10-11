@@ -1,0 +1,26 @@
+name: M01 - Auditoría completa de ejemplos
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [desarrollo/m01-mvc]
+    paths:
+      - "M01_MVC/DOCS/auditar_ejemplos_vs_codigo.py"
+      - ".github/workflows/m01-ejemplos.yml"
+      - "M01_MVC/PRACTICAS/M01_PRACTICAS.md"
+
+permissions:
+  contents: read
+
+jobs:
+  comparar:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Comparar ejemplos de práctica y código real
+        run: python M01_MVC/DOCS/auditar_ejemplos_vs_codigo.py
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m01-matriz-todos-los-ejemplos
+          path: VERIFICACION_INTERNA/M01_CODIGO_TODOS_LOS_EJEMPLOS.md
+          if-no-files-found: error
