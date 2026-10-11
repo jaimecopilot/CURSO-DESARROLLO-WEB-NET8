@@ -47,14 +47,27 @@ run_scenario() {
   grep -Fq 'resultado-inicial' "$TMP/body-$state.html"
   grep -Fq 'Navegación principal' "$TMP/body-$state.html"
 
+  status=$(curl --silent --show-error -o "$TMP/alternative-$state.html" --write-out "%{http_code}" "$BASE/Home/Index")
+  [[ "$status" == 200 ]] || { echo "GET /Home/Index devolvió $status" >&2; exit 1; }
+  grep -Fq '1.1 | Primer recorrido MVC' "$TMP/alternative-$state.html"
+
+  status=$(curl --silent --show-error -D "$TMP/cssheaders-$state.txt" -o "$TMP/css-$state.txt" --write-out "%{http_code}" "$BASE/css/site.css")
+  [[ "$status" == 200 ]] || { echo "GET /css/site.css devolvió $status" >&2; exit 1; }
+  grep -iq '^Content-Type: text/css' "$TMP/cssheaders-$state.txt"
+  ! grep -iq '^X-Curso-Paso:' "$TMP/cssheaders-$state.txt"
+
   status=$(curl --silent --show-error --output /dev/null --write-out "%{http_code}" "$BASE/ruta-inexistente")
   [[ "$status" == 404 ]] || { echo "Ruta inexistente: $status; se esperaba 404" >&2; exit 1; }
 
-  if [[ "$state" == "base" ]]; then
+  if [[ "$state" == "base" || "$state" == "solo-vista" ]]; then
     ! grep -iq '^X-Curso-Paso:' "$TMP/headers-$state.txt"
-    ! grep -Fq 'id="marca-paso-1-1-5"' "$TMP/body-$state.html"
   else
     grep -iq '^X-Curso-Paso: 1.1.4' "$TMP/headers-$state.txt"
+  fi
+
+  if [[ "$state" == "base" || "$state" == "solo-cabecera" ]]; then
+    ! grep -Fq 'id="marca-paso-1-1-5"' "$TMP/body-$state.html"
+  else
     grep -Fq 'id="marca-paso-1-1-5"' "$TMP/body-$state.html"
   fi
   echo "E2E OK: $state (HTTP 200/404, vista Razor, layout y variantes)"
@@ -66,27 +79,61 @@ run_scenario() {
 
 run_scenario "$SRC" "base"
 
-# La activación se hace en un duplicado temporal del proyecto del alumno.
-mkdir -p "$TMP/activado"
-cp -a "$SRC/." "$TMP/activado/"
-rm -rf "$TMP/activado/bin" "$TMP/activado/obj"
-python3 - "$TMP/activado" <<'PY'
+# Las tres variantes se generan sin modificar el código original del alumno.
+python3 - "$SRC" "$TMP" <<'PY'
 from pathlib import Path
+from shutil import copytree, ignore_patterns
 import sys
 
-root = Path(sys.argv[1])
-controller = root / "Controllers" / "HomeController.cs"
-content = controller.read_text(encoding="utf-8")
-before = '// Response.Headers["X-Curso-Paso"] = "1.1.4";'
-assert content.count(before) == 1, "No existe un bloque activable 1.1.4 único"
-controller.write_text(content.replace(before, 'Response.Headers["X-Curso-Paso"] = "1.1.4";'), encoding="utf-8")
+source, temporary = map(Path, sys.argv[1:])
+header_line = '// Response.Headers["X-Curso-Paso"] = "1.1.4";'
+razor_start, razor_end = '@* PASO 1.1.5 (inicio)\n', '\nPASO 1.1.5 (fin) *@'
 
-view = root / "Views" / "Home" / "Index.cshtml"
-content = view.read_text(encoding="utf-8")
-start, end = '@* PASO 1.1.5 (inicio)\n', '\nPASO 1.1.5 (fin) *@'
-assert content.count(start) == 1 and content.count(end) == 1, "No existe un bloque Razor 1.1.5 único"
-view.write_text(content.replace(start, "").replace(end, ""), encoding="utf-8")
+for name, enable_header, enable_view in [
+    ("solo-cabecera", True, False),
+    ("solo-vista", False, True),
+    ("activado", True, True),
+]:
+    target = temporary / name
+    copytree(source, target, ignore=ignore_patterns("obj", "bin"))
+
+    controller = target / "Controllers" / "HomeController.cs"
+    c = controller.read_text(encoding="utf-8")
+    assert c.count(header_line) == 1, "No se encuentra el paso 1.1.4"
+    if enable_header:
+        c = c.replace(header_line, header_line[3:])
+    controller.write_text(c, encoding="utf-8")
+
+    view = target / "Views" / "Home" / "Index.cshtml"
+    v = view.read_text(encoding="utf-8")
+    assert v.count(razor_start) == 1 and v.count(razor_end) == 1, "No se encuentra el paso 1.1.5"
+    if enable_view:
+        v = v.replace(razor_start, "").replace(razor_end, "")
+    view.write_text(v, encoding="utf-8")
 PY
 
+run_scenario "$TMP/solo-cabecera" "solo-cabecera"
+run_scenario "$TMP/solo-vista" "solo-vista"
 run_scenario "$TMP/activado" "activado"
-echo "Punto 1.1: los dos escenarios E2E han superado las comprobaciones."
+
+# La práctica también crea una aplicación desde la plantilla incluida en el SDK.
+echo "Verificando la plantilla oficial MVC de .NET 8"
+dotnet new mvc -f net8.0 --no-https -n PlantillaMvc -o "$TMP/PlantillaMvc" --no-restore
+dotnet build "$TMP/PlantillaMvc/PlantillaMvc.csproj" -c Release --nologo
+dotnet "$TMP/PlantillaMvc/bin/Release/net8.0/PlantillaMvc.dll" --urls http://127.0.0.1:5095 >"$TMP/template.log" 2>&1 &
+PID=$!
+ready=0
+for i in {1..40}; do
+  if curl --silent --output /dev/null http://127.0.0.1:5095/; then ready=1; break; fi
+  if ! kill -0 "$PID" 2>/dev/null; then break; fi
+  sleep 1
+done
+if [[ "$ready" != 1 ]]; then cat "$TMP/template.log"; echo "Falló la plantilla MVC" >&2; exit 1; fi
+status=$(curl --silent --show-error -o "$TMP/template.html" --write-out "%{http_code}" http://127.0.0.1:5095/)
+[[ "$status" == 200 ]]
+grep -iq '<html' "$TMP/template.html"
+kill "$PID" 2>/dev/null || true
+wait "$PID" 2>/dev/null || true
+PID=""
+echo "E2E OK: plantilla MVC creada, compilada y ejecutada."
+echo "Punto 1.1: cinco escenarios E2E reales superados."
