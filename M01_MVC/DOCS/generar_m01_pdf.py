@@ -136,6 +136,13 @@ def sequence_svg(src: str) -> str:
 
 DIAGRAM_COUNT=0
 
+def metadata_from_markdown(source: str, field: str) -> str:
+    """Devuelve una única declaración canónica de portada para curso, tipo o autor."""
+    hits=re.findall(r"(?m)^\*\*"+re.escape(field)+r":\s*([^\r\n*]+)\*\*\s*$", source)
+    if len(hits)!=1:
+        raise ValueError(f"Se requiere exactamente un metadato **{field}: ...** en el Markdown")
+    return hits[0].strip()
+
 def author_from_markdown(source: str) -> str:
     """Obtener el texto del autor solo del documento Markdown."""
     labels=re.findall(r"(?m)^\*\*(AUTOR:[ \t]*[^\r\n*]+)\*\*[ \t]*$",source)
@@ -172,12 +179,28 @@ def fence_render(tokens, idx, options, env):
 CSS_TEMPLATE=r"""
 @page {
   size: A4;
-  margin: 18mm 16mm 19mm 16mm;
-  @top-right { content: "__MD_AUTHOR__"; font: 8.5pt "DejaVu Sans"; color: #42586a; }
+  margin: 23mm 16mm 19mm 16mm;
+  @top-left {
+    content: "__MD_COURSE__" "\A" string(current_chapter, first);
+    white-space: pre-wrap;
+    width: 117mm;
+    text-align: left;
+    font: 7.1pt "DejaVu Sans";
+    color: #42586a;
+  }
+  @top-right {
+    content: "__MD_TYPE__" "\A" "__MD_AUTHOR__";
+    white-space: pre-wrap;
+    width: 51mm;
+    text-align: right;
+    font: 7.8pt "DejaVu Sans";
+    color: #42586a;
+  }
   @bottom-right { content: "Página " counter(page); font: 8pt "DejaVu Sans"; color: #64748B; }
 }
 /* En portada no aparece cabecera ni numeración. */
 @page:first {
+  @top-left { content: none; }
   @top-right { content: none; }
   @bottom-right { content: none; }
 }
@@ -186,12 +209,14 @@ body { font-size: 9.3pt; line-height: 1.46; color: #1e293b; }
 .cover { height: 235mm; box-sizing: border-box; padding-top: 60mm; break-after: page; }
 .cover h1.doc-title { font-size: 27pt; line-height: 1.25; margin-bottom: 10mm; }
 .cover h2 { font-size: 16pt; margin: 0; color: #52687a; }
-.cover p { margin-top: 27mm; font-size: 13pt; letter-spacing: .25pt; }
+.cover p { margin-top: 8mm; font-size: 12pt; letter-spacing: .15pt; }
+.cover p:first-of-type { margin-top: 25mm; }
 .cover strong { color: #12324b; }
 h1,h2,h3,h4 { font-weight: 700; line-height: 1.2; break-after: avoid; color: #12324b; }
 h1 { font-size: 20pt; margin: 0 0 10pt; }
 h1.doc-title { font-size: 22pt; padding: 12pt 0 16pt; border-bottom: 2pt solid #2c647b; }
-h1.chapter { font-size: 19pt; margin: 0 0 18pt; break-before: page; border-bottom: 1pt solid #93acb7; padding-bottom: 7pt; }
+h1.chapter { font-size: 19pt; margin: 0 0 18pt; break-before: page; border-bottom: 1pt solid #93acb7; padding-bottom: 7pt; string-set: current_chapter content(text); }
+h3.toc-heading { string-set: current_chapter content(text); }
 h2 { font-size: 13.5pt; margin-top: 17pt; }
 h3 { font-size: 11.5pt; margin-top: 14pt; }
 h4 { font-size: 10pt; margin-top: 11pt; }
@@ -225,6 +250,10 @@ p code, li code, td code { font-family: "DejaVu Sans Mono", monospace; font-size
 """
 def document_html(markdown: str, title: str, kind: str) -> str:
     author=author_from_markdown(markdown)
+    course=metadata_from_markdown(markdown,"CURSO")
+    kind_label=metadata_from_markdown(markdown,"TIPO")
+    if kind_label!=("TEORÍA" if kind=="TEORIA" else "PRÁCTICAS"):
+        raise ValueError(f"TIPO de documento distinto a su carpeta: {kind_label}")
     md=MarkdownIt("commonmark",{"html":True}).enable("table").enable("strikethrough")
     md.renderer.rules["fence"]=fence_render
     body=md.render(markdown)
@@ -243,15 +272,25 @@ def document_html(markdown: str, title: str, kind: str) -> str:
         return f"<h1>{val}</h1>"
     body=re.sub(r"<h1>(.*?)</h1>",heading,body,flags=re.S)
     if len(toc)!=5: raise ValueError(f"Índice de {title}: se esperaban 5 capítulos, hallados {toc}")
-    # Maquetar título, subtítulo y línea de autor ya existentes en Markdown como portada.
+    # Maquetar solo metadatos ya presentes en el MD como portada.
     cover_re=(r'(<h1 class="doc-title">.*?</h1>\s*<h2>.*?</h2>\s*'
+              r'<p><strong>CURSO:\s*'+re.escape(escape(course))+r'</strong></p>\s*'
+              r'<p><strong>TIPO:\s*'+re.escape(escape(kind_label))+r'</strong></p>\s*'
               r'<p><strong>'+re.escape(escape(author))+r'</strong></p>)')
     body,cover_count=re.subn(cover_re,r'<section class="cover">\1</section>',
                             body,count=1,flags=re.S)
     if cover_count!=1:
         raise ValueError("No se reconoció la portada canónica con autor")
-    # El índice procede exclusivamente del Markdown. No crear otro índice editorial.
-    css=CSS_TEMPLATE.replace("__MD_AUTHOR__",author.replace("\\","\\\\").replace('"','\\"'))
+    # El índice procede exclusivamente del Markdown; su título sirve de cabecera
+    # hasta la primera página del capítulo 1.1.
+    body=body.replace("<h3>Índice del módulo</h3>",
+                      '<h3 class="toc-heading">Índice del módulo</h3>',1)
+    def css_quote(value: str) -> str:
+        return value.replace("\\","\\\\").replace('"','\\"').replace("\n"," ")
+    css=(CSS_TEMPLATE
+         .replace("__MD_COURSE__",css_quote(course))
+         .replace("__MD_TYPE__",css_quote(kind_label))
+         .replace("__MD_AUTHOR__",css_quote(author)))
     css+=HTML_FORMATTER.get_style_defs(".highlight")
     return f"""<!doctype html><html lang="es"><head><meta charset="utf-8"><title>{escape(title)}</title>
     <style>{css}</style></head><body>{body}</body></html>"""
@@ -317,6 +356,13 @@ def check_pdf(file: Path, md: str, diagram_count: int, source_bytes: bytes, file
         raise AssertionError(f"{file.name}: no se convirtieron todos los diagramas a SVG")
     doc=fitz.open(str(file))
     author=author_from_markdown(md)
+    course=metadata_from_markdown(md,"CURSO")
+    kind_label=metadata_from_markdown(md,"TIPO")
+    chapter_titles=[re.sub(r"^(?:P)?1\.[1-5]\.\s*", "", m.group(0))
+       for m in re.finditer(r"(?m)^# (?:P)?1\.[1-5]\.\s+[^\r\n]+",md)]
+    if len(chapter_titles)!=5:
+        raise AssertionError(f"{file.name}: se esperan cinco títulos de capítulo en Markdown")
+    current_chapter="Índice del módulo"
     for i,p in enumerate(doc):
         boxes=p.search_for(author)
         if len(boxes)!=1:
@@ -326,8 +372,25 @@ def check_pdf(file: Path, md: str, diagram_count: int, source_bytes: bytes, file
                 raise AssertionError(f"{file.name}: autor en cabecera en lugar de portada")
             if "Índice del módulo" in p.get_text("text"):
                 raise AssertionError(f"{file.name}: índice mezclado con la portada")
-        elif boxes[0].y0 > 55:
-            raise AssertionError(f"{file.name}, página {i+1}: falta el autor en la cabecera superior")
+        else:
+            if boxes[0].y0 > 70:
+                raise AssertionError(f"{file.name}, página {i+1}: falta el autor en la cabecera superior")
+            header=p.get_text("text",clip=fitz.Rect(0,0,p.rect.width,84))
+            normalized_header=normalize(header)
+            if normalize(course) not in normalized_header:
+                raise AssertionError(f"{file.name}: página {i+1}: falta título canónico del curso en cabecera")
+            if normalize(kind_label) not in normalized_header:
+                raise AssertionError(f"{file.name}: página {i+1}: falta tipo documental en cabecera")
+            if "Índice del módulo" not in p.get_text("text"):
+                # El capítulo actual se determina por el título H1, que siempre
+                # comienza en página nueva. El de la cabecera debe corresponder
+                # con uno de los cinco títulos del Markdown (o con el índice).
+                expected_any=[normalize("Índice del módulo")]
+                expected_any += [normalize(m.group(0)) for m in re.finditer(
+                    r"(?m)^# (?:P)?1\.[1-5]\.\s+[^\r\n]+", md)]
+                header_txt=normalize(header)
+                if not any(v in header_txt for v in expected_any):
+                    raise AssertionError(f"{file.name}: página {i+1}: sin título de capítulo canónico")
         if not p.get_text().strip(): raise AssertionError(f"{file.name}: página {i+1} completamente vacía")
         w=p.rect.width
         for x0,y0,x1,y1,*rest in p.get_text("words"):

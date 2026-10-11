@@ -1,6 +1,10 @@
 # M01 — Fundamentos de ASP.NET Core MVC
 ## Material teórico
 
+**CURSO: Curso de Desarrollo Web con ASP.NET Core MVC, Razor y Blazor en .NET 8**
+
+**TIPO: TEORÍA**
+
 **AUTOR: JAIME GALLO**
 
 ### Índice del módulo
