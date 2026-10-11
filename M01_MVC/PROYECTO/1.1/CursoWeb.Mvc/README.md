@@ -19,7 +19,7 @@ Abrir http://localhost:5091. Detener con Ctrl+C.
 - Paso 1.1.5 en Views/Home/Index.cshtml: quitar los dos delimitadores que envuelven el comentario Razor 1.1.5; mantener el HTML interior.
 - Guardar y actualizar el navegador. Ambos pasos se pueden activar a la vez.
 
-Las explicaciones y el recorrido completo se encuentran en la sección 1.1 de M01_MVC/PRACTICAS/M01_PRACTICAS.md (subir cuatro niveles desde este directorio).
+Las explicaciones y el recorrido completo se encuentran en la sección 1.1 de ../../../PRACTICAS/M01_PRACTICAS.md (subir tres niveles desde este directorio).
 
 ## Verificación automatizada
 
