@@ -20,6 +20,8 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
+      - name: Auditar trazabilidad MD-prácticas → bloques reales de código
+        run: python M01_MVC/DOCS/auditar_trazabilidad_practicas.py
       - name: P1.1 - MVC y HTTP
         run: bash M01_MVC/TESTS/1.1_e2e.sh
       - name: P1.2 - Modelo, Controlador y Vista
@@ -30,3 +32,10 @@ jobs:
         run: bash M01_MVC/TESTS/1.4_e2e.sh
       - name: P1.5 - Razor, layout y parciales
         run: bash M01_MVC/TESTS/1.5_e2e.sh
+      - name: Guardar matriz de trazabilidad verificada
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: m01-matriz-trazabilidad
+          path: VERIFICACION_INTERNA/M01_TRAZABILIDAD_CODIGO.md
+          if-no-files-found: warn
