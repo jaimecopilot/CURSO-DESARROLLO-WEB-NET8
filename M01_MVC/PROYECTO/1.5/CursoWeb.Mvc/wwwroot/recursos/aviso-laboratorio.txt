@@ -1,0 +1,3 @@
+RETO 1.3 - Aviso de laboratorio.
+El documento esta dentro de wwwroot y puede solicitarse como recurso estatico.
+El enlace de navegacion del reto se activa por separado en _Layout.cshtml.
