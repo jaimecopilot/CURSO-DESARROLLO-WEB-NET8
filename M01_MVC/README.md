@@ -7,7 +7,7 @@
 ## Material del alumno
 
 - [Teoría completa en Markdown](TEORIA/M01_TEORIA.md) — [PDF de teoría (83 páginas)](TEORIA/M01_TEORIA.pdf).
-- [Prácticas completas, ejercicios y retos en Markdown](PRACTICAS/M01_PRACTICAS.md) — [PDF de prácticas (82 páginas)](PRACTICAS/M01_PRACTICAS.pdf).
+- [Prácticas completas, ejercicios y retos en Markdown](PRACTICAS/M01_PRACTICAS.md) — [PDF de prácticas (83 páginas)](PRACTICAS/M01_PRACTICAS.pdf).
 
 Los dos PDF provienen de los Markdown canónicos y cubren los **cinco capítulos**, sin PDFs individuales por punto. La comprobación automatizada de integridad, huellas SHA-256 y paginación está documentada en [verificación PDF](../VERIFICACION_INTERNA/M01_PDFS_VALIDACION.md), y el recuento por cada punto en [equivalencia MD/PDF](../VERIFICACION_INTERNA/M01_FIDELIDAD.md). El PDF no constituye una fuente editorial: únicamente se genera a partir del MD canónico. Se ha efectuado la inspección visual de las 165 páginas, con corrección del tamaño de los diagramas y registro de observaciones no bloqueantes en la [revisión visual de M01](../VERIFICACION_INTERNA/M01_REVISION_VISUAL.md). Antes de integrar en `main` sigue pendiente la aceptación editorial del responsable del curso.
 
@@ -38,3 +38,7 @@ El ejercicio final de 1.5 es un catálogo con listados, detalles y tarjetas Razo
 Los laboratorios ampliados están incluidos en los apartados adicionales de P1.1 a P1.5 del Markdown de prácticas. Son recorridos de lectura de código, activación de los mismos bloques, análisis de respuestas y diagnóstico; **no requieren proyectos diferentes ni duplicar controladores**. Cada apartado utiliza la carpeta `PROYECTO/1.x` correspondiente y el script `TESTS/1.x_e2e.sh`.
 
 Si en nuevas ediciones se incorpora un ejercicio que requiera código no incluido, debe añadirse el bloque al proyecto con su comentario, actualizarse su prueba y modificar el MD antes de generar el PDF. La regla de publicación es **MD canónico → código reproducible y probado → PDF derivado del MD**.
+
+## Revisión editorial y trazabilidad pendiente
+
+La [revisión editorial de M01](../VERIFICACION_INTERNA/M01_DIAGNOSTICO_EDITORIAL.md) ha detectado duplicaciones y una jerarquía excesiva de epígrafes en los capítulos ampliados. Los tests E2E anteriores confirman el funcionamiento de escenarios concretos, pero **no acreditan por sí solos trazabilidad integral de cada ejemplo de las prácticas**. M01 no se considera cerrado editorialmente ni está integrado en `main`.
