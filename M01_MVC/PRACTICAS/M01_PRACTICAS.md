@@ -587,17 +587,7 @@ El camino correcto de diagnóstico es detener el proceso, comprobar el directori
 **Conservar el proyecto CursoWeb.Mvc y los archivos modificados.** En los siguientes capítulos añadiremos modelos de productos, nuevas acciones y vistas sin repetir toda la creación inicial. No introducimos EF Core todavía: aparecerá en el día 2. La aplicación temporal `.work/PlantillaMvc` se puede eliminar una vez comprendida la plantilla.
 
 
----
-
-**Síntesis de 1.1 para estudiar sin el profesor.**
-
-Antes de continuar con 1.2, verifica que puedes ejecutar el proyecto desde una terminal limpia y repetir el recorrido sin mirar una captura de pantalla de la clase. Debes saber qué comando inicia el servidor, qué URL corresponde a la portada y dónde está el controlador que devuelve la vista.
-
-Después, localiza un archivo HTML de vista y una hoja CSS, y describe por qué el navegador los obtiene mediante mecanismos distintos. No es suficiente señalar carpetas: identifica la acción MVC y el middleware estático que intervienen.
-
-Finalmente, activa de nuevo los bloques del ejercicio y del reto, y comprueba que puedes atribuir cada diferencia al archivo correcto. Si eres capaz de explicar qué cambia al modificar el controlador, qué cambia al modificar Razor y qué sigue funcionando sin cambios, has alcanzado el objetivo de esta primera práctica.
-
-**Relación con la siguiente práctica:** en 1.2 ya no nos limitaremos a representar un HTML fijo. Introduciremos una clase `Producto` y una colección que la acción entrega a la vista. El método de observación seguirá siendo el mismo: un cambio controlado, un resultado visible y una comprobación que relaciona ese resultado con el código.
+**Comprobación de cierre.** Verifica que puedes ejecutar la portada, identificar la respuesta HTML y diferenciar una cabecera añadida en el controlador de un fragmento generado por Razor. La página CSS debe seguir sirviéndose de forma independiente.
 
 # P1.2. El flujo Modelo–Vista–Controlador
 
@@ -1237,19 +1227,7 @@ Conservar el resultado de este capítulo. En `1.3` estudiaremos detalladamente l
 **No añadir ahora formularios, EF Core, autenticación ni servicios externos.** En este capítulo se ha demostrado una arquitectura MVC mínima, suficiente para visualizar y comprender el paso de objetos del controlador a la vista.
 
 
----
-
-**Consolidación guiada para cerrar el flujo MVC.**
-
-Toma como referencia la página final de productos y el árbol de archivos. Sin ejecutar nada durante unos minutos, describe el recorrido completo de una solicitud `GET /Productos` utilizando los nombres reales de los tipos y archivos.
-
-Después vuelve a abrirlos para comprobar tu explicación. Debes poder identificar la ruta convencional, la acción `Index()`, el tipo `Producto`, la instrucción `View(productos)`, la directiva `@model` y el bucle `@foreach`.
-
-Realiza una última comprobación del reto Bloc y explica por qué se modifica el dato en el controlador y no el texto HTML de la vista. El resultado correcto conserva tres productos, la portada anterior y la navegación.
-
-La finalidad de esta ampliación no es memorizar más nombres, sino reforzar una relación causal: **un cambio en los datos entregados provoca un cambio de contenido; un cambio de plantilla provoca un cambio de representación; un cambio en el layout modifica la estructura compartida de navegación**.
-
-Al finalizar, la siguiente etapa podrá dedicarse a la estructura del proyecto, los archivos de configuración y la publicación de recursos estáticos, sin necesidad de volver a explicar la separación entre modelo, vista y controlador.
+**Comprobación de cierre.** Reconstruye el recorrido `GET /Productos` —ruta, controlador, lista, vista y layout— y confirma que el reto Bloc modifica los datos sin introducir nombres fijos en el HTML.
 
 # P1.3. Estructura y convenciones de un proyecto ASP.NET Core MVC
 
@@ -2887,22 +2865,6 @@ La secuencia automatizada comprueba seis estados, incluido el reto. No sustituye
 
 Una vez comprendidas las acciones y rutas, el siguiente capítulo se centrará en la presentación Razor. Conservaremos los mismos endpoints de catálogo y detalle y aprenderemos a representar productos mediante layouts, secciones y vistas parciales reutilizables.
 
-**Cierre ampliado del capítulo 1.4.**
-
-Describe por escrito el recorrido de `GET /catalogo/ficha/2` desde la URL hasta el HTML final. Debes señalar la plantilla del atributo, el parámetro `id`, el método privado que obtiene productos, la búsqueda de Lápiz y la instrucción `View("Detalle", producto)`.
-
-Después describe `GET /catalogo/resumen/2` y explica qué cambia: la acción se selecciona mediante otra plantilla, pero utiliza el mismo origen de datos y elige una respuesta JSON en vez de una vista.
-
-Finalmente, compara `/Productos/Detalle/0`, `/Productos/Detalle/99` y `/catalogo/ficha/no-numero`. Cada uno exige una explicación diferente aunque todos sean casos que no muestran una ficha válida.
-
-Para una comprobación técnica adicional, ejecuta el E2E del capítulo desde la raíz del repositorio:
-
-~~~bash
-bash M01_MVC/TESTS/1.4_e2e.sh
-~~~
-
-Al cerrar el taller, el alumno debería saber predecir qué acción recibe cada URL, qué dato utiliza y por qué produce un estado y formato de respuesta determinados. Con esa base será posible profundizar en Razor y las vistas parciales del siguiente capítulo sin confundir enrutamiento con representación.
-
 # P1.5. Vistas Razor tipadas, layouts y vistas parciales
 
 ## Objetivo y preparación
@@ -3698,12 +3660,4 @@ Cada funcionalidad debe poder asociarse a una pieza concreta: datos en el contro
 
 **Para continuar:** conserva el proyecto 1.5 como referencia del catálogo MVC desarrollado. En M02 lo ampliaremos con operaciones de creación, edición y eliminación, manteniendo los conceptos de separación de responsabilidades, rutas y vistas que has practicado.
 
-**Síntesis integrada para finalizar la práctica.**
-
-Explica el recorrido completo desde que el navegador solicita `/Productos` hasta que se muestran las tres tarjetas. Debes mencionar la selección de la acción, la colección de modelos, la vista tipada, el `foreach`, el Partial Tag Helper, el archivo de parcial y el layout que proporciona la estructura compartida.
-
-Después describe qué cambia cuando se solicita `/Productos/Detalle/2`. La acción recibe un identificador, entrega un único `Producto` y la vista de detalle utiliza la misma parcial con `model="Model"`. El layout puede añadir su sección opcional de notas.
-
-Por último, justifica el resultado del reto: la condición de precio se ha escrito una vez en `_TarjetaProducto.cshtml` y produce una etiqueta en los contextos donde el modelo corresponde a Lápiz. No se ha duplicado el código en otras vistas ni se han cambiado los datos del controlador.
-
-**Conclusión práctica de M01:** el alumno dispone de un catálogo MVC navegable, construido con rutas, modelos, controladores, vistas Razor, layout y una parcial reutilizable. La aplicación continúa utilizando datos en memoria. La creación y edición de productos, la validación de formularios y el almacenamiento con EF Core forman parte de M02, conforme a la progresión prevista del curso.
+**Pregunta final de integración.** ¿Por qué la misma parcial muestra tres tarjetas en `/Productos` y solamente una en `/Productos/Detalle/2`? Identifica el contrato de datos y compruébalo con los dos endpoints, sin copiar el código de la parcial.
