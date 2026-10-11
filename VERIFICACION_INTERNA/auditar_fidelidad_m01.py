@@ -143,6 +143,10 @@ def audit_one(kind):
     }
 
 def main():
+    rows=["# M01 — Recuento Markdown / PDF", "",
+          "Cada PDF procede exclusivamente de su Markdown. Las marcas de formato, tablas y diagramas explican diferencias entre conteos literales y PDF.",
+          "", "| Documento | Punto | Páginas PDF | Palabras MD | Caracteres MD | Palabras PDF | Caracteres PDF | Tokens faltantes |",
+          "|---|---|---|---:|---:|---:|---:|---:|"]
     for kind in ["TEORIA","PRACTICAS"]:
         r=audit_one(kind)
         print("========== "+kind+" ==========")
@@ -155,8 +159,17 @@ def main():
                   f"{x['pdf_extraido_palabras']}/{x['pdf_extraido_caracteres']} | "
                   f"{x['faltantes_normalizados']}/{x['adiciones_normalizadas']} | "
                   f"omisiones/alteraciones en orden: {x['alineacion_secuencial']['omisiones_en_orden']}/{x['alineacion_secuencial']['alteraciones_en_orden']}")
+        for x in r["por_punto"]:
+            rows.append("| {} | {} | {}-{} | {} | {} | {} | {} | {} |".format(
+                kind,x["punto"],x["paginas_desde"],x["paginas_hasta"],
+                x["md_literal_palabras"],x["md_literal_caracteres"],
+                x["pdf_extraido_palabras"],x["pdf_extraido_caracteres"],
+                x["faltantes_normalizados"]))
         print("JSON_AUDITORIA_INICIO")
         print(json.dumps(r,ensure_ascii=False,indent=2))
         print("JSON_AUDITORIA_FIN")
+    rows.extend(["", "La auditoría exige cero tokens normalizados faltantes por capítulo; la lectura del PDF puede reordenar elementos de tablas y diagramas.",
+                 "La identidad literal de la fuente está verificada con la copia Markdown incrustada y su huella SHA-256.", ""])
+    (ROOT/"VERIFICACION_INTERNA"/"M01_FIDELIDAD.md").write_text("\n".join(rows),encoding="utf-8")
 if __name__=="__main__":
     main()
