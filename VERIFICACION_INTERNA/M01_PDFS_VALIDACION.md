@@ -10,6 +10,13 @@ Se comprueba la existencia de los cinco capítulos, retos, contenido fundamental
 | TEORIA | 15828 | 110413 | 44 | 7 |
 | PRACTICAS | 14857 | 104848 | 45 | 0 |
 
+## Huellas de fuente canónica
+
+| Documento | SHA-256 del MD que está incrustado en el PDF | Coincidencia byte por byte |
+|---|---|---|
+| TEORIA | `dfc96e54d109721fc919a5af3b0004bf8eb30305e844be6d53adc1ea74d39726` | True |
+| PRACTICAS | `f55a70706fb106502616aa50b0873929403a0a8b76edd71c812046765a48bd33` | True |
+
 ## Alcance y límites
 
 La validación calcula conteos, inspecciona texto extraído y cajas de texto mediante PyMuPDF, y comprueba que cada diagrama Mermaid tiene salida SVG. Este resultado **no implica** inspección visual manual de todas las páginas, navegación con lectores de pantalla o una clase piloto.
