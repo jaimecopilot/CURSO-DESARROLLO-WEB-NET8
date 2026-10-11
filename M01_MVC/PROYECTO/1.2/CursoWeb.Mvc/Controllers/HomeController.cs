@@ -12,6 +12,10 @@ public class HomeController : Controller
         // una cabecera de respuesta HTTP generada desde el controlador.
         // Response.Headers["X-Curso-Paso"] = "1.1.4";
 
+        // RETO 1.1 — Cambiar una cabecera de respuesta sin tocar la vista.
+        // Al activar el reto, eliminar // solo de la siguiente asignación.
+        // Response.Headers["X-Curso-Reto"] = "HTTP-y-HTML";
+
         return View();
     }
 }
