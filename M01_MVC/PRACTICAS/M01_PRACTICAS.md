@@ -2897,13 +2897,7 @@ Ahora abrir `Views/Productos/Detalle.cshtml`. Su directiva es diferente:
 
 La ficha recibe **un solo producto**. Por eso consulta `@Model.Id`, `@Model.Nombre` y `@Model.Precio` sin recorrer una lista.
 
-Finalmente abrir `Views/Shared/_Layout.cshtml` y localizar:
-
-~~~cshtml
-<title>@ViewData["Title"] - Curso Web .NET 8</title>
-...
-@RenderBody()
-~~~
+Finalmente abre `Views/Shared/_Layout.cshtml` y localiza **por separado** estas dos instrucciones ya existentes: `<title>@ViewData["Title"] - Curso Web .NET 8</title>` y `@RenderBody()`. No son líneas consecutivas ni forman un bloque nuevo que debas copiar.
 
 La etiqueta `<title>` de cada respuesta combina el valor de `ViewData` de la vista con el texto común. `@RenderBody()` establece dónde se inserta el cuerpo de la vista dentro del documento principal.
 
