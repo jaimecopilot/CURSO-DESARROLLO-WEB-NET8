@@ -185,7 +185,7 @@ curl -i http://localhost:5091/
 
 En Windows PowerShell también puede utilizarse `curl.exe -i http://localhost:5091/`. La salida debe mostrar una línea de estado `200 OK`, cabeceras y HTML. Las cabeceras concretas pueden variar según sistema y servidor; no se exige un orden determinado.
 
-**Profundización integrada: Reconstruir las pruebas desde el navegador.**
+**Profundización aplicada: Reconstruir las pruebas desde el navegador.**
 
 Este laboratorio amplía la observación de la primera página sin cambiar el proyecto ni añadir tecnologías nuevas. Utilizaremos los mismos fragmentos de código comentados del ejercicio y compararemos lo que revela el navegador con lo que muestra una herramienta de línea de comandos.
 
@@ -277,7 +277,7 @@ También se puede comprobar con `curl -i http://localhost:5091/`.
 
 **Comprobación negativa:** la cabecera no tiene por qué aparecer en la petición CSS, porque ese archivo estático no lo sirve la acción `Index()`. La respuesta de la página y la respuesta de la hoja de estilos proceden de solicitudes diferentes.
 
-**Profundización integrada: Comparar cambios de controlador y cambios de Razor.**
+**Profundización aplicada: Comparar cambios de controlador y cambios de Razor.**
 
 En esta actividad usarás dos bloques ya existentes y comentados en el proyecto. No añadas archivos nuevos. El código aparece aquí para poder comparar exactamente qué se activa en cada estado.
 
@@ -310,7 +310,10 @@ Retira las dos barras de comentario de la asignación `Response.Headers`, guarda
 
 En otra terminal:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+curl -i http://localhost:5091/
+~~~
+
 Busca la cabecera `X-Curso-Paso: 1.1.4`. A continuación abre el navegador y observa el contenido visible. El encabezado y los párrafos pueden parecer exactamente iguales que en el estado anterior; eso no invalida el resultado porque la modificación está en las cabeceras de la respuesta.
 
 Anota el dato más importante: **la instrucción del controlador se ha ejecutado aunque no se haya añadido ningún elemento HTML**. El alumnado debe poder señalar la línea concreta que explica la cabecera.
@@ -354,7 +357,15 @@ La batería `1.1_e2e.sh` reproduce estas combinaciones mediante copias temporale
 
 Detener de nuevo la aplicación. Abrir `Views/Home/Index.cshtml`. Al final aparece este fragmento:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~cshtml
+@* PASO 1.1.5 (inicio)
+<section id="marca-paso-1-1-5">
+    <h2>Contenido añadido durante la práctica</h2>
+    <p>El navegador ha recibido una nueva versión de la vista Razor.</p>
+</section>
+PASO 1.1.5 (fin) *@
+~~~
+
 En Razor, `@*` abre un comentario de servidor y `*@` lo cierra. **Mientras los delimitadores sigan presentes, el bloque HTML no llegará al navegador**.
 
 Eliminar completamente la línea `@* PASO 1.1.5 (inicio)` y la línea `PASO 1.1.5 (fin) *@`, pero **conservar el bloque `<section>` interior**. Debe quedar:
@@ -710,7 +721,7 @@ Anota estas tres correspondencias:
 
 **Comprobación:** el navegador debe mostrar una página de `Productos` aunque la lista esté vacía por ausencia de modelo. Un 200 con mensaje no es un 404.
 
-**Profundización integrada: Comprender las rutas convencionales.**
+**Profundización aplicada: Comprender las rutas convencionales.**
 
 La aplicación utiliza la misma ruta convencional estudiada en 1.1. Ahora existe un controlador adicional llamado `ProductosController` con una acción `Index()`.
 
@@ -750,7 +761,7 @@ No es necesario descomentar nada en este archivo: es un tipo C# válido y **ya e
 
 **Pregunta de comprobación:** ¿qué propiedad tendrías que consultar para mostrar el nombre de un producto? ¿Sería necesario acceder al navegador desde la clase? Debes poder responder `Nombre` y «no», respectivamente.
 
-**Profundización integrada: Reconstruir el flujo de datos.**
+**Profundización aplicada: Reconstruir el flujo de datos.**
 
 El recorrido básico del punto 1.2 ya funciona cuando se activan los pasos 1.2.3 y 1.2.4. Este laboratorio complementario permite comprenderlo con mayor precisión, sin añadir tipos ni proyectos que no estén incluidos en el curso.
 
@@ -889,7 +900,10 @@ Detener el servidor antes de continuar.
 
 Abrir `Views/Productos/Index.cshtml`. En la primera línea observarás:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+~~~
+
 La directiva `@model` especifica que la vista espera una lista de productos de solo lectura o, en el estado inicial, un modelo `null`. Esto no impide que el controlador construya una `List<Producto>` normal: dicha lista implementa `IReadOnlyList<Producto>`.
 
 Localizar el bloque HTML y Razor del ejercicio:
@@ -923,7 +937,7 @@ Acceder de nuevo a `/Productos`. Ahora deben aparecer el contador y **los tres n
 
 Detener el proceso antes del siguiente paso.
 
-**Profundización integrada: Distinguir el valor del modelo y la plantilla de presentación.**
+**Profundización aplicada: Distinguir el valor del modelo y la plantilla de presentación.**
 
 **Activar solo el envío de datos.**
 
@@ -931,7 +945,11 @@ Partimos de la versión inicial, con el bloque del controlador aún comentado. R
 
 Compila y ejecuta:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
 Abre `http://localhost:5091/Productos`. Debe aparecer un mensaje indicando tres productos, pero no las filas de Cuaderno, Lápiz y Carpeta.
 
 **Diagnóstico:** el dato de la colección ha llegado correctamente al archivo de vista; lo sabemos porque `@Model.Count` puede obtener su cantidad. La ausencia de filas no demuestra que falte el modelo. Demuestra que todavía no se ha activado su representación detallada.
@@ -940,7 +958,17 @@ Abre `http://localhost:5091/Productos`. Debe aparecer un mensaje indicando tres 
 
 Detén el proceso y abre `Views/Productos/Index.cshtml`. Localiza el bloque `PASO 1.2.4`:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~cshtml
+@* PASO 1.2.4 (inicio)
+<ul id="listado-productos">
+@foreach (var producto in Model)
+{
+    <li data-id="@producto.Id">@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+}
+</ul>
+PASO 1.2.4 (fin) *@
+~~~
+
 Elimina únicamente las dos líneas de comentario Razor. Guarda, compila y ejecuta. En `/Productos` deben aparecer los tres productos. El código del controlador no ha cambiado desde el estado anterior.
 
 Comprueba que cada elemento tiene un atributo `data-id` que coincide con su identificador. No basta con ver los nombres: identifica el valor `1` junto a Cuaderno, `2` junto a Lápiz y `3` junto a Carpeta en el HTML.
@@ -987,7 +1015,7 @@ Reiniciar la aplicación, abrir `/` y comprobar que la cabecera incluye los enla
 
 **Comprobación extra:** escribir `http://localhost:5091/Productos/Index` y confirmar que conduce a la misma página que `/Productos`. El funcionamiento se debe al enrutamiento convencional de `Program.cs`.
 
-**Profundización integrada: El layout como responsabilidad distinta.**
+**Profundización aplicada: El layout como responsabilidad distinta.**
 
 El paso 1.2.5 permite activar un enlace adicional en el diseño compartido. En `Views/Shared/_Layout.cshtml` se encuentra:
 
@@ -1069,7 +1097,11 @@ new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
 
 Desde el directorio `M01_MVC/PROYECTO/1.2/CursoWeb.Mvc`:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
 Abre `http://localhost:5091/Productos`. Debes obtener **Bloc, Lápiz y Carpeta**, conservando los precios y el contador de tres productos. Comprueba que ya no aparece «Cuaderno» en la lista. La ruta alternativa `/Productos/Index` debe mostrar exactamente lo mismo.
 
 **Prueba automatizada del reto:** desde la raíz del repositorio, `bash M01_MVC/TESTS/1.2_e2e.sh`. El escenario `reto` reconstruye una copia temporal del proyecto con el listado y la navegación activados, cambia la línea de Cuaderno por la de Bloc, compila y verifica realmente la respuesta HTTP y sus tres productos. El estado inicial del alumno no se modifica.
@@ -1310,7 +1342,7 @@ Completar verbalmente las siguientes relaciones:
 
 Comprueba además que `bin/` y `obj/`, cuando aparecen tras compilar, son resultados generados; no forman parte del código del alumno que debe versionarse.
 
-**Profundización integrada: Examinar el proyecto antes de modificarlo.**
+**Profundización aplicada: Examinar el proyecto antes de modificarlo.**
 
 **Elaborar un mapa funcional de archivos.**
 
@@ -1446,25 +1478,38 @@ La estructura y los prefijos de fecha o categoría del registro pueden variar; e
 
 Detener el proceso antes del siguiente paso.
 
-**Profundización integrada: Relacionar configuración y ejecución.**
+**Profundización aplicada: Relacionar configuración y ejecución.**
 
 **Identificar la sección de configuración.**
 
 Abre `appsettings.json`. Localiza la sección `Curso`:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~json
+"Curso": {
+  "Nombre": "Curso MVC de productos",
+  "Edicion": "Laboratorio NET8"
+}
+~~~
+
 No es necesario añadir comentarios JSON ni cambiar el nombre de las propiedades. El proyecto suministrado ya contiene los valores adecuados para observar el acceso a configuración.
 
 En `Program.cs`, encuentra la instrucción de registro del paso 1.3.3:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~csharp
+// app.Logger.LogInformation("P1.3 configuracion: {Nombre}", app.Configuration["Curso:Nombre"]);
+~~~
+
 Elimina las dos barras iniciales y deja la instrucción activa. El código accede a una clave jerárquica y utiliza su valor para escribir un mensaje en el log de aplicación.
 
 **Contrastar la consola y el navegador.**
 
 Compila, inicia la aplicación y observa la terminal:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
 Debes localizar el mensaje `P1.3 configuracion: Curso MVC de productos`. A continuación abre `/Productos` en el navegador y verifica que el catálogo continúa mostrando sus tres registros.
 
 **Pregunta:** ¿por qué el texto de `Curso:Nombre` aparece en la consola pero no como un nuevo producto en la lista? Porque el código del ejercicio solo registra ese valor en el host. No hemos modificado la colección del controlador ni la vista para representar la configuración como contenido de página.
@@ -1515,7 +1560,7 @@ Reiniciar la aplicación y abrir `http://localhost:5091/Productos`. Debe aprecia
 
 Detener el servidor antes de seguir.
 
-**Profundización integrada: Comprender el CSS como recurso HTTP.**
+**Profundización aplicada: Comprender el CSS como recurso HTTP.**
 
 **Probar un archivo directamente antes de enlazarlo.**
 
@@ -1548,7 +1593,12 @@ Esta regla modifica la presentación del área principal cuando el navegador car
 
 Abre `Views/Shared/_Layout.cshtml` y localiza el bloque `PASO 1.3.4`:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~cshtml
+@* PASO 1.3.4 (inicio)
+<link rel="stylesheet" href="/css/catalogo.css" />
+PASO 1.3.4 (fin) *@
+~~~
+
 Elimina las líneas delimitadoras del comentario Razor. Compila y ejecuta de nuevo, abre `/Productos` y consulta F12 → Red.
 
 Además del documento principal, el navegador deberá solicitar `/css/catalogo.css`. Comprueba el tipo de contenido y el estado. Observa también el borde izquierdo del área principal, que depende de la regla CSS.
@@ -1589,7 +1639,7 @@ Reiniciar la aplicación, abrir `/Productos` y comprobar que ahora hay un enlace
 
 Aquí no hemos creado ninguna clase nueva ni un método de controlador. El trabajo ya lo hace el middleware de archivos estáticos.
 
-**Profundización integrada: Archivos de texto públicos y no públicos.**
+**Profundización aplicada: Archivos de texto públicos y no públicos.**
 
 **Comparar las rutas físicas.**
 
@@ -1615,7 +1665,12 @@ La primera URL debe devolver 200 y el contenido de la guía. La segunda debe dev
 
 En el layout encuentra el bloque `PASO 1.3.5` y retira los delimitadores de comentario:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~cshtml
+@* PASO 1.3.5 (inicio)
+<a href="/recursos/guia-publica.txt">Guía pública</a>
+PASO 1.3.5 (fin) *@
+~~~
+
 Tras activarlo, el enlace aparecerá en la navegación del sitio. Pulsa el enlace y confirma que llega al mismo archivo que ya habías probado mediante su URL directa.
 
 **Pregunta clave:** ¿ha cambiado la posibilidad de acceder al archivo o únicamente la navegación? En este ejemplo ha cambiado la navegación. El archivo de `wwwroot` ya era público antes de añadir el enlace.
@@ -1676,7 +1731,11 @@ Esta etiqueta HTML se añadirá al layout de ambas páginas. No se precisa modif
 
 **Acción 2:** compila y ejecuta de nuevo la aplicación:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
 Abre `http://localhost:5091/Productos` y pulsa el enlace Aviso de laboratorio. Debe mostrarse el contenido de `aviso-laboratorio.txt`. En la pestaña Red, comprobar el código **200**.
 
 **Acción 3:** escribe directamente estas direcciones en el navegador o ejecútalas en una segunda terminal con `curl -i`:
@@ -1712,7 +1771,12 @@ El reto del capítulo consiste en habilitar un enlace al archivo `aviso-laborato
 
 En `Views/Shared/_Layout.cshtml` se proporciona:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~cshtml
+@* RETO 1.3 (inicio)
+<a href="/recursos/aviso-laboratorio.txt">Aviso de laboratorio</a>
+RETO 1.3 (fin) *@
+~~~
+
 Retira las dos líneas de comentario Razor. No es necesario crear un controlador ni modificar `Program.cs`, porque el archivo ya está publicado como recurso estático.
 
 **Comprobar el acceso positivo.**
@@ -1852,7 +1916,10 @@ El alumnado debe saber explicar por qué ninguno de estos cambios obliga a reesc
 
 Desde la raíz del repositorio, con el proceso manual detenido, ejecuta el script de pruebas del capítulo:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+bash M01_MVC/TESTS/1.3_e2e.sh
+~~~
+
 La prueba reconstruye cinco estados, incluido el reto, mediante copias temporales. Su finalidad es verificar que los bloques preparados se pueden activar sin romper el catálogo y que los recursos estáticos presentan los códigos de estado esperados.
 
 No sustituye la observación con F12 ni la comprensión de qué archivo responde a cada pregunta. La batería automatizada confirma el funcionamiento técnico; el objetivo pedagógico exige relacionarlo con las responsabilidades del proyecto.
@@ -1987,7 +2054,7 @@ public IActionResult Index()
 
 **Comprobación:** el contenido visible del listado no ha cambiado. Este es un ejemplo de refactorización limitada que reduce la duplicación sin alterar el resultado observado.
 
-**Profundización integrada: Predecir el resultado antes de abrir el navegador.**
+**Profundización aplicada: Predecir el resultado antes de abrir el navegador.**
 
 El punto 1.4 introduce acciones que devuelven varios tipos de resultado. Para comprenderlas no basta con activar el código y comprobar que la página se abre. Vamos a predecir primero qué método ejecutará cada URL y qué ocurrirá con los datos recibidos.
 
@@ -1995,7 +2062,12 @@ El punto 1.4 introduce acciones que devuelven varios tipos de resultado. Para co
 
 Abre `Program.cs` y localiza:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~csharp
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+~~~
+
 Escribe en tus apuntes qué valores toma el patrón para `/`, `/Productos` y `/Productos/Detalle/2`. En el tercer caso, el controlador es Productos, la acción es Detalle y el parámetro `id` toma el valor 2.
 
 La ruta no ejecuta automáticamente cualquier método con un nombre parecido. Debe existir una acción adecuada en el controlador. Por eso las URL del nuevo capítulo devuelven 404 cuando sus bloques todavía están comentados.
@@ -2004,7 +2076,14 @@ La ruta no ejecuta automáticamente cualquier método con un nombre parecido. De
 
 Abre `Controllers/ProductosController.cs` y localiza el método privado `ObtenerProductosEjemplo()`. Reconoce los tres datos existentes y confirma que `Index()` lo utiliza para devolver una vista de colección:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~csharp
+[HttpGet]
+public IActionResult Index()
+{
+    return View(ObtenerProductosEjemplo());
+}
+~~~
+
 La refactorización conserva los valores que ya aparecían en 1.3. Su finalidad es evitar copiar la colección entera en cada acción. El método privado no constituye una URL pública; ayuda a preparar los datos que las acciones necesitan.
 
 **Tabla de predicción en el estado inicial.**
@@ -2067,16 +2146,26 @@ curl -i http://localhost:5091/Productos/Estado
 
 Detener el proceso antes de continuar.
 
-**Profundización integrada: Diferenciar tres tipos de resultado HTTP.**
+**Profundización aplicada: Diferenciar tres tipos de resultado HTTP.**
 
 **Texto plano de Estado.**
 
 El bloque `PASO 1.4.2` contiene:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~csharp
+[HttpGet]
+public IActionResult Estado()
+{
+    return Content("Catalogo MVC disponible", "text/plain");
+}
+~~~
+
 Activa el método retirando las dos líneas de comentario que lo delimitan. Compila y ejecuta la aplicación, y solicita:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+curl -i http://localhost:5091/Productos/Estado
+~~~
+
 Debes encontrar una respuesta satisfactoria y el texto `Catalogo MVC disponible`. Observa que no aparece la estructura completa del layout; no hemos utilizado `View()`.
 
 **Vista HTML de Detalle.**
@@ -2170,7 +2259,7 @@ En el navegador, los códigos 400/404 pueden aparecer como páginas de error sen
 
 Detener el proceso antes del siguiente paso.
 
-**Profundización integrada: Analizar el parámetro id en varios escenarios.**
+**Profundización aplicada: Analizar el parámetro id en varios escenarios.**
 
 **Producto existente.**
 
@@ -2264,7 +2353,7 @@ La primera debe mostrar la ficha de Lápiz con HTTP 200; las otras tres deben re
 
 **Comparación razonada:** las dos acciones `Detalle(2)` y `Ficha(2)` terminan generando el **mismo HTML**, aunque fueron seleccionadas mediante URLs diferentes.
 
-**Profundización integrada: Entender una ruta por atributos.**
+**Profundización aplicada: Entender una ruta por atributos.**
 
 El bloque `PASO 1.4.4` añade una acción con esta plantilla:
 
@@ -2313,7 +2402,7 @@ Solicita `/Productos/Ficha/2`. En esta aplicación la acción `Ficha` está asoc
 
 No intentes resolverlo añadiendo una copia de `Ficha.cshtml`. La cuestión no es encontrar una vista, sino seleccionar correctamente la acción. El archivo que reutiliza la acción es `Detalle.cshtml`.
 
-**Profundización integrada: La ruta y el nombre de la vista.**
+**Profundización aplicada: La ruta y el nombre de la vista.**
 
 **Comprobar el nombre predeterminado de la vista.**
 
@@ -2369,7 +2458,7 @@ Reiniciar la aplicación y abrir `http://localhost:5091/Productos`. Debe aparece
 
 **Por qué activamos el enlace al final:** antes de crear `Detalle(int id)`, el enlace conduciría a una dirección sin acción válida. Ahora se ha comprobado antes el endpoint y después la navegación.
 
-**Profundización integrada: Comprobar los enlaces generados por Razor.**
+**Profundización aplicada: Comprobar los enlaces generados por Razor.**
 
 Una vez activados Detalle y Ficha, abre `Views/Productos/Index.cshtml` y localiza el bloque `PASO 1.4.5`:
 
@@ -2474,7 +2563,11 @@ public IActionResult Resumen(int id)
 
 Guardar, compilar y ejecutar:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
 Desde el navegador o con `curl -i`, probar:
 
 ~~~text
@@ -2512,7 +2605,22 @@ El ejemplo muestra los elementos relevantes de la respuesta, no necesariamente t
 
 El código del reto está preparado en `ProductosController.cs`:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~csharp
+/* RETO 1.4 INICIO
+[HttpGet("/catalogo/resumen/{id:int}")]
+public IActionResult Resumen(int id)
+{
+    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return Ok(new { producto.Id, producto.Nombre });
+}
+RETO 1.4 FIN */
+~~~
+
 Retira las dos líneas delimitadoras. Compila, inicia y solicita:
 
 ~~~bash
@@ -2771,7 +2879,10 @@ Para cada una, identifica el método que se ejecuta, la instrucción que devuelv
 
 Ejecuta por último, desde la raíz del repositorio y con el servidor manual detenido:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+bash M01_MVC/TESTS/1.4_e2e.sh
+~~~
+
 La secuencia automatizada comprueba seis estados, incluido el reto. No sustituye la explicación personal: un resultado correcto debe acompañarse de la capacidad de predecir qué hará cada endpoint antes de solicitarlo.
 
 Una vez comprendidas las acciones y rutas, el siguiente capítulo se centrará en la presentación Razor. Conservaremos los mismos endpoints de catálogo y detalle y aprenderemos a representar productos mediante layouts, secciones y vistas parciales reutilizables.
@@ -2786,7 +2897,10 @@ Finalmente, compara `/Productos/Detalle/0`, `/Productos/Detalle/99` y `/catalogo
 
 Para una comprobación técnica adicional, ejecuta el E2E del capítulo desde la raíz del repositorio:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+bash M01_MVC/TESTS/1.4_e2e.sh
+~~~
+
 Al cerrar el taller, el alumno debería saber predecir qué acción recibe cada URL, qué dato utiliza y por qué produce un estado y formato de respuesta determinados. Con esa base será posible profundizar en Razor y las vistas parciales del siguiente capítulo sin confundir enrutamiento con representación.
 
 # P1.5. Vistas Razor tipadas, layouts y vistas parciales
@@ -2905,7 +3019,7 @@ La etiqueta `<title>` de cada respuesta combina el valor de `ViewData` de la vis
 
 **Resultado del paso:** identificas dos contratos de modelo diferentes y una responsabilidad del layout. No se requiere descomentar bloques todavía.
 
-**Profundización integrada: Seguir el HTML desde la vista hasta el navegador.**
+**Profundización aplicada: Seguir el HTML desde la vista hasta el navegador.**
 
 El último punto de M01 utiliza todas las piezas estudiadas: rutas, controladores, modelos, vistas y layout. Este laboratorio profundiza en la composición de una respuesta HTML sin introducir formularios ni JavaScript de aplicación.
 
@@ -2982,20 +3096,32 @@ PASO 1.5.2 (fin) *@
 
 Compilar y ejecutar:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
 Abrir `/Productos`. Debe aparecer el mensaje **El catálogo contiene al menos tres productos**, junto al contador de tres productos y la lista existente. La ficha `/Productos/Detalle/2` continúa igual, porque su vista es distinta.
 
 **Comprobación:** en F12 → Red/Network → respuesta de `/Productos`, buscar `id="catalogo-completo"`. Este elemento no estaba presente en el estado inicial; aparece exclusivamente después de activar la condición.
 
 Detener la ejecución para pasar al siguiente ejercicio.
 
-**Profundización integrada: Condiciones Razor sin cambiar el modelo.**
+**Profundización aplicada: Condiciones Razor sin cambiar el modelo.**
 
 **Activar un mensaje según la cantidad.**
 
 En `Views/Productos/Index.cshtml` localiza el bloque `PASO 1.5.2`:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~cshtml
+@* PASO 1.5.2 (inicio)
+@if (Model.Count >= 3)
+{
+    <p id="catalogo-completo">El catálogo contiene al menos tres productos.</p>
+}
+PASO 1.5.2 (fin) *@
+~~~
+
 Retira los delimitadores del comentario Razor y conserva la condición. Compila y ejecuta. En `/Productos` debe aparecer el mensaje porque el catálogo tiene tres elementos.
 
 No cambies la lista en `ProductosController`: el objetivo es demostrar que la vista puede decidir si representa una pieza de marcado según los datos recibidos.
@@ -3068,20 +3194,35 @@ A continuación visita `/Productos` y `/`. Ambas deben funcionar sin definir la 
 
 Detener el servidor antes de continuar.
 
-**Profundización integrada: Comprender una sección de layout.**
+**Profundización aplicada: Comprender una sección de layout.**
 
 **Localizar el espacio de representación.**
 
 Abre `Views/Shared/_Layout.cshtml` y busca el comentario `PASO 1.5.3`:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~cshtml
+@* PASO 1.5.3 (inicio)
+<aside id="notas-del-layout" aria-label="Notas de la página">
+    @await RenderSectionAsync("NotasPagina", required: false)
+</aside>
+PASO 1.5.3 (fin) *@
+~~~
+
 La instrucción `RenderSectionAsync` declara un lugar para mostrar contenido que algunas vistas pueden definir. El nombre `NotasPagina` debe coincidir con el utilizado por la vista.
 
 **Localizar el contenido proporcionado por la ficha.**
 
 En `Views/Productos/Detalle.cshtml` busca:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~cshtml
+@* PASO 1.5.3 (inicio)
+@section NotasPagina
+{
+    <p id="nota-pagina-detalle">Detalle construido con una vista Razor tipada.</p>
+}
+PASO 1.5.3 (fin) *@
+~~~
+
 Este bloque proporciona el texto que el layout representará. El archivo de detalle sigue conteniendo también sus elementos principales con `Id`, `Nombre` y `Precio`.
 
 **Activar los dos bloques coordinadamente.**
@@ -3144,18 +3285,31 @@ Sin esa directiva, la sintaxis del elemento `<partial>` no se procesaría como e
 
 Compilar y ejecutar:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
 Abrir `/Productos`. Debajo de la lista clásica debe aparecer la sección **Vista de tarjetas**, con **tres tarjetas**: Cuaderno, Lápiz y Carpeta. Cada tarjeta muestra nombre, precio y un enlace de detalle. El listado anterior continúa visible para comparar las dos formas de representación.
 
 **Comprobación técnica:** en F12 → Red → Response, localizar `id="tarjetas-catalogo"` y exactamente **tres** elementos con `class="tarjeta-producto"`. No se han generado tres peticiones HTTP nuevas para las tarjetas: son fragmentos de una única respuesta HTML.
 
-**Profundización integrada: Utilizar una vista parcial en una colección.**
+**Profundización aplicada: Utilizar una vista parcial en una colección.**
 
 **Leer la parcial antes de invocarla.**
 
 Abre `Views/Shared/_TarjetaProducto.cshtml`. Identifica:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+
+<article class="tarjeta-producto" data-producto-id="@Model.Id">
+    <h3>@Model.Nombre</h3>
+    <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
+    <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
+</article>
+~~~
+
 El archivo real contiene también un bloque comentado del reto. No lo actives todavía. Comprueba que la parcial recibe un **objeto Producto**, no la colección completa que recibe el listado.
 
 Pregunta: ¿qué representa `data-producto-id`? Un atributo HTML que contiene el identificador del objeto actual. No es una ruta ni una variable global; sirve para identificar el producto en el documento generado.
@@ -3164,7 +3318,18 @@ Pregunta: ¿qué representa `data-producto-id`? Un atributo HTML que contiene el
 
 En `Views/Productos/Index.cshtml` busca el comentario `PASO 1.5.4`:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~cshtml
+@* PASO 1.5.4 (inicio)
+<section id="tarjetas-catalogo" aria-label="Tarjetas reutilizables de productos">
+    <h2>Vista de tarjetas</h2>
+    @foreach (var producto in Model)
+    {
+        <partial name="_TarjetaProducto" model="producto" />
+    }
+</section>
+PASO 1.5.4 (fin) *@
+~~~
+
 Retira las dos líneas delimitadoras del comentario Razor. Conservar el `foreach` es fundamental: cada elemento de la colección se pasa por separado a la parcial.
 
 La directiva de importación `@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers` ya está presente en el proyecto. No necesitas instalar ningún paquete ni copiar manualmente el contenido de la parcial en el listado.
@@ -3208,13 +3373,21 @@ Regresar a `/Productos`: sus tres tarjetas continúan presentes y no han cambiad
 
 **Conclusión del paso:** el mismo archivo de parcial puede renderizarse muchas veces con modelos distintos, en páginas diferentes, sin duplicar marcado. Esta es la principal ventaja de la reutilización que se quiere enseñar en P1.5.
 
-**Profundización integrada: Reutilizar la misma parcial en un contexto distinto.**
+**Profundización aplicada: Reutilizar la misma parcial en un contexto distinto.**
 
 **Activar la parcial dentro del detalle.**
 
 Abre `Views/Productos/Detalle.cshtml` y localiza `PASO 1.5.5`:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~cshtml
+@* PASO 1.5.5 (inicio)
+<section id="tarjeta-detalle" aria-label="Ficha presentada como tarjeta">
+    <h2>Tarjeta reutilizada en el detalle</h2>
+    <partial name="_TarjetaProducto" model="Model" />
+</section>
+PASO 1.5.5 (fin) *@
+~~~
+
 Retira los delimitadores de comentario. Observa que el atributo `model` contiene ahora `Model`, no una variable `producto` creada por un bucle. La vista de detalle recibe un único `Producto`.
 
 **Comparar la cantidad de parciales representadas.**
@@ -3229,7 +3402,7 @@ Si en el futuro hubiera que cambiar el texto «Precio» por otro, ¿cuántos arc
 
 Si copiáramos el marcado en la lista y en el detalle, habría que mantener ambas versiones. La práctica pretende demostrar el beneficio de evitar esa duplicación.
 
-**Profundización integrada: Taller final de P1.5 — Rastrear una misma tarjeta por dos páginas.**
+**Profundización aplicada: Taller final de P1.5 — Rastrear una misma tarjeta por dos páginas.**
 
 La finalidad de este taller es construir una explicación completa y verificable de la reutilización de vistas parciales, no añadir más archivos ni duplicar código. Partimos del proyecto del capítulo 1.5 con los pasos 1.5.2 a 1.5.5 activos y con el reto de etiqueta económica habilitado.
 
@@ -3332,7 +3505,11 @@ RETO 1.5 (fin) *@
 
 **Acción 3:** compilar e iniciar:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
 Comprobar primero `http://localhost:5091/Productos`: debe aparecer **una sola etiqueta Precio económico** en la tarjeta de Lápiz. Las tarjetas de Cuaderno y Carpeta no deben recibir esa etiqueta.
 
 Después visitar `http://localhost:5091/Productos/Detalle/2`: la tarjeta reutilizada de Lápiz debe mostrar también la etiqueta. Visitar `http://localhost:5091/Productos/Detalle/1`: la ficha de Cuaderno no debe mostrarla.
@@ -3363,7 +3540,15 @@ El escenario `reto` activa automáticamente la condición en una copia temporal 
 
 El reto consiste en representar una etiqueta visual únicamente para los productos cuyo precio es inferior a 3 €. El código preparado se encuentra **dentro de la parcial**, no en el controlador:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~cshtml
+@* RETO 1.5 (inicio)
+@if (Model.Precio < 3m)
+{
+    <strong class="etiqueta-economico">Precio económico</strong>
+}
+RETO 1.5 (fin) *@
+~~~
+
 Retira las dos líneas delimitadoras del comentario. No cambies los precios del catálogo ni agregues condiciones duplicadas en `Index.cshtml` o `Detalle.cshtml`.
 
 **Comprobar el resultado en el listado.**
@@ -3428,7 +3613,10 @@ Después solicita `Detalle/1` y confirma que la etiqueta no aparece en la tarjet
 
 Detén el servidor y ejecuta desde la raíz del repositorio:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+bash M01_MVC/TESTS/1.5_e2e.sh
+~~~
+
 El script construye copias temporales de las variantes y comprueba las respuestas HTTP. Si supera sus escenarios, sabemos que el código preparado permite activar los pasos sin introducir errores detectados por esas pruebas.
 
 Sin embargo, el alumno todavía debe explicar qué se ejecuta dentro del servidor, qué HTML recibe el navegador y por qué una vista parcial puede utilizarse en varios lugares. Los tests automáticos son una ayuda para la reproducibilidad, no sustituyen la comprensión del flujo.
@@ -3448,7 +3636,10 @@ No debes modificar archivos para conseguir cada resultado: los cuatro casos util
 
 Detén el servidor y ejecuta la batería de P1.5 desde la raíz del repositorio:
 
-*Este bloque de código ya figura completo en el paso correspondiente; aplícalo sin volver a copiarlo.*
+~~~bash
+bash M01_MVC/TESTS/1.5_e2e.sh
+~~~
+
 Al finalizar, explica qué estados reconstruye el script mediante copias temporales y por qué no modifica el proyecto inicial del alumno. Su objetivo es que los pasos activables y el reto permanezcan reproducibles incluso cuando se regresa a una fase anterior de la práctica.
 
 ### Conclusión del taller
