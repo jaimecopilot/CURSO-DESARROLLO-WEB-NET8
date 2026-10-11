@@ -962,6 +962,247 @@ Conservar el resultado de este capítulo. En `1.3` estudiaremos detalladamente l
 
 ---
 
+
+## I. Laboratorio ampliado 1.2 — Reconstruir el flujo de datos
+
+El recorrido básico del punto 1.2 ya funciona cuando se activan los pasos 1.2.3 y 1.2.4. Este laboratorio complementario permite comprenderlo con mayor precisión, sin añadir tipos ni proyectos que no estén incluidos en el curso.
+
+### I.1. Localizar el contrato antes de ejecutar la aplicación
+
+Abre `Models/Producto.cs` y copia en tus apuntes la definición de sus tres propiedades:
+
+~~~csharp
+public int Id { get; set; }
+public string Nombre { get; set; } = string.Empty;
+public decimal Precio { get; set; }
+~~~
+
+Para cada propiedad anota su tipo y qué información representa. Después abre `Controllers/ProductosController.cs` y localiza la creación de la colección:
+
+~~~csharp
+var productos = new List<Producto>
+{
+    new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+    new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+    new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+};
+~~~
+
+El controlador crea tres instancias. No se conecta a SQLite ni utiliza EF Core. Ese hecho debe quedar claro desde el principio, porque el ejercicio está dedicado a seguir el flujo entre componentes MVC y no a enseñar persistencia.
+
+En `Views/Productos/Index.cshtml` identifica la declaración:
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+~~~
+
+Pregunta de comprobación: ¿por qué la vista puede recibir una colección `List<Producto>` si ha declarado `IReadOnlyList<Producto>`? Porque una lista de C# implementa esa interfaz. La vista declara las operaciones que necesita para consultar los datos, sin exigir que el controlador utilice exactamente el mismo tipo concreto.
+
+### I.2. Analizar el retorno de la acción
+
+Con el paso 1.2.3 activado, la instrucción principal del controlador es:
+
+~~~csharp
+return View(productos);
+~~~
+
+A partir de esta línea, responde las siguientes preguntas sin ejecutar todavía:
+
+- ¿Se devuelve una cadena de HTML directamente? No: se crea un resultado de vista al que se entrega el modelo.
+- ¿Se ha seleccionado una vista llamada `Productos` mediante un nombre explícito? No: al usar `View(productos)`, MVC aplica sus convenciones de búsqueda relacionadas con la acción `Index` del controlador `ProductosController`.
+- ¿Se envía una única instancia `Producto`? No: la variable contiene una lista de tres objetos.
+- ¿La vista necesita volver a crear esos tres objetos? No: los recibe como `Model`.
+
+A continuación ejecuta la aplicación y abre `/Productos`. Comprueba que el contador coincide con el número de inicializadores `new()` activos en la lista.
+
+### I.3. Diferenciar una colección nula de una colección con elementos
+
+La vista contiene una condición:
+
+~~~cshtml
+@if (Model is null)
+{
+    <p id="sin-modelo">El controlador todavía no ha entregado una lista a la vista.</p>
+}
+else
+{
+    <p id="numero-productos">El controlador ha enviado <strong>@Model.Count</strong> productos.</p>
+}
+~~~
+
+El ejemplo es una representación abreviada: en el archivo real, el `else` contiene también el fragmento de listado que se activa después. En el estado inicial, cuando la acción utiliza `View()`, aparece el mensaje `sin-modelo`. Cuando activa `View(productos)`, el modelo deja de ser nulo y la vista muestra el contador.
+
+Compara las dos situaciones anotando **qué línea del controlador provoca el cambio**. No debes atribuirlo a una modificación en la ruta; ambas peticiones usan `/Productos`.
+
+La condición permite además razonar sobre un caso que no activaremos: una lista vacía. Si el controlador entregara una lista sin elementos, `Model` existiría y su `Count` sería cero. El `else` seguiría ejecutándose y el bucle de representación no produciría filas. Este análisis prepara al alumno para las situaciones de catálogo vacío en aplicaciones reales.
+
+## J. Laboratorio ampliado 1.2 — Distinguir el valor del modelo y la plantilla de presentación
+
+### J.1. Activar solo el envío de datos
+
+Partimos de la versión inicial, con el bloque del controlador aún comentado. Retira las dos líneas delimitadoras del comentario `PASO 1.2.3` y comenta la instrucción `return View();` que se utilizaba antes. No cambies todavía la vista.
+
+Compila y ejecuta:
+
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Abre `http://localhost:5091/Productos`. Debe aparecer un mensaje indicando tres productos, pero no las filas de Cuaderno, Lápiz y Carpeta.
+
+**Diagnóstico:** el dato de la colección ha llegado correctamente al archivo de vista; lo sabemos porque `@Model.Count` puede obtener su cantidad. La ausencia de filas no demuestra que falte el modelo. Demuestra que todavía no se ha activado su representación detallada.
+
+### J.2. Activar el bucle de representación
+
+Detén el proceso y abre `Views/Productos/Index.cshtml`. Localiza el bloque `PASO 1.2.4`:
+
+~~~cshtml
+@* PASO 1.2.4 (inicio)
+<ul id="listado-productos">
+@foreach (var producto in Model)
+{
+    <li data-id="@producto.Id">@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+}
+</ul>
+PASO 1.2.4 (fin) *@
+~~~
+
+Elimina únicamente las dos líneas de comentario Razor. Guarda, compila y ejecuta. En `/Productos` deben aparecer los tres productos. El código del controlador no ha cambiado desde el estado anterior.
+
+Comprueba que cada elemento tiene un atributo `data-id` que coincide con su identificador. No basta con ver los nombres: identifica el valor `1` junto a Cuaderno, `2` junto a Lápiz y `3` junto a Carpeta en el HTML.
+
+### J.3. Seguir una sola propiedad desde su origen hasta la respuesta
+
+Elige el producto Lápiz. Localiza `Nombre = "Lápiz"` dentro del inicializador del controlador. Comprueba que `Producto` tiene la propiedad `Nombre` y que la vista lee `producto.Nombre`.
+
+El recorrido argumentado es:
+
+1. La clase `Producto` define que existe una propiedad `Nombre`.
+2. El controlador crea un objeto y establece su valor en `"Lápiz"`.
+3. La colección de productos se entrega a la vista mediante `View(productos)`.
+4. El `foreach` extrae cada objeto de la colección.
+5. La expresión `@producto.Nombre` representa el valor recibido.
+6. El navegador muestra el texto dentro de un elemento `<li>`.
+
+Repite la explicación para `Id` y `Precio`. La primera se representa como atributo HTML; la segunda se formatea con dos decimales. Los mismos objetos dan lugar a diferentes partes del marcado según las expresiones de la vista.
+
+### J.4. Comprobar que el navegador no recibe el modelo C# original
+
+En F12 → Red, recarga `/Productos` y consulta el cuerpo de la respuesta. Busca la cadena `listado-productos` y observa los tres elementos `<li>`.
+
+No debes encontrar el código ejecutable `new List<Producto>` dentro de la respuesta, porque la colección se construye en el servidor. Tampoco se envía al navegador el bucle `@foreach` para que lo ejecute: Razor ya ha representado su resultado.
+
+Esto demuestra la diferencia entre el archivo fuente `.cshtml` y el HTML resultante. Es una comprobación sencilla que se volverá importante al comparar las vistas MVC con los componentes Blazor del tercer día.
+
+## K. Laboratorio ampliado 1.2 — Comprender las rutas convencionales
+
+La aplicación utiliza la misma ruta convencional estudiada en 1.1. Ahora existe un controlador adicional llamado `ProductosController` con una acción `Index()`.
+
+Arranca la aplicación con los pasos 1.2.3 y 1.2.4 activos y realiza estas solicitudes:
+
+~~~bash
+curl -i http://localhost:5091/Productos
+curl -i http://localhost:5091/Productos/Index
+curl -i http://localhost:5091/
+curl -i http://localhost:5091/ruta-inexistente
+~~~
+
+Las dos primeras deben mostrar la misma página de productos. La tercera sigue mostrando la portada; la cuarta responde 404. Explica por qué añadir un nuevo controlador no ha eliminado ni sustituido automáticamente al anterior.
+
+En `Program.cs` identifica los valores predeterminados Home e Index. Cuando la URL comienza por `/Productos`, la primera posición selecciona Productos en lugar de Home. Cuando omitimos la acción, se utiliza Index.
+
+**Comprobación de regresión:** pulsa Inicio si el enlace se encuentra disponible o escribe directamente `/`. La página anterior debe continuar funcionando después de activar el nuevo modelo y la vista. Si no sucede, es importante revisar qué archivos se han modificado además de los previstos.
+
+## L. Laboratorio ampliado 1.2 — El layout como responsabilidad distinta
+
+El paso 1.2.5 permite activar un enlace adicional en el diseño compartido. En `Views/Shared/_Layout.cshtml` se encuentra:
+
+~~~cshtml
+@* PASO 1.2.5 (inicio)
+<a href="/Productos">Productos</a>
+PASO 1.2.5 (fin) *@
+~~~
+
+Al retirar las dos líneas delimitadoras del comentario Razor, el enlace aparece en las páginas que utilizan el layout. No hace falta editar `Models/Producto.cs` ni cambiar el código de `ProductosController.Index()`.
+
+Esta es una buena oportunidad para comparar tres modificaciones consecutivas:
+
+| Cambio | Archivo responsable | Evidencia |
+|---|---|---|
+| Entregar los productos | `ProductosController.cs` | Aparece el contador |
+| Mostrar los productos | `Views/Productos/Index.cshtml` | Aparecen filas de lista |
+| Mostrar acceso desde el menú | `Views/Shared/_Layout.cshtml` | Aparece el enlace Productos |
+
+Explica por qué los tres cambios no deberían combinarse en una sola modificación de código. El objetivo es mantener visible qué responsabilidad corresponde a cada archivo y poder corregir un fallo sin modificar piezas ajenas.
+
+### Relacionar el layout con la navegación del navegador
+
+Cuando haces clic en Productos, el navegador solicita `/Productos`. El enlace HTML no envía directamente una lista C# al cliente. Simplemente contiene una dirección que el servidor debe atender.
+
+Si el enlace existiera pero no hubiera un controlador compatible, el navegador podría llegar a una respuesta 404. Por eso una comprobación completa debe verificar tanto la presencia del enlace como la respuesta de la dirección a la que apunta.
+
+## M. Laboratorio ampliado 1.2 — Resolver el reto con una evidencia más estricta
+
+El reto 1.2 pide sustituir **Cuaderno** por **Bloc** sin cambiar el archivo Razor de la vista. El fragmento preparado en el controlador conserva las dos variantes para que puedas alternarlas:
+
+~~~csharp
+new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+// RETO 1.2 — Comentar la línea de Cuaderno y descomentar la siguiente:
+// new() { Id = 1, Nombre = "Bloc", Precio = 4.50m },
+~~~
+
+Comenta la primera declaración y descomenta la segunda. No actives ambas a la vez, porque el objetivo no es añadir un producto sino reemplazar el nombre de uno existente. Deben seguir existiendo tres registros.
+
+Después de compilar y reiniciar, examina `/Productos`. Busca Bloc y confirma que el contador sigue mostrando tres. Comprueba también que Lápiz y Carpeta conservan su nombre y precio. Este último paso evita una falsa solución que cambie el nombre pero también altere accidentalmente el resto del catálogo.
+
+### Comprobación detallada de la solución
+
+En las herramientas de desarrollo revisa el HTML de la lista. El elemento con `data-id="1"` debe contener Bloc. Los elementos `data-id="2"` y `data-id="3"` deben conservar Lápiz y Carpeta.
+
+No modifiques el bloque `@foreach` para escribir literalmente Bloc. Una solución así produciría un resultado visual parecido, pero incumpliría el objetivo de la práctica: comprobar que la vista representa el valor recibido desde el modelo.
+
+**Pregunta de razonamiento:** ¿qué ocurriría si cambiáramos el valor en la vista pero dejáramos los datos originales en el controlador? Habríamos introducido una discrepancia entre el modelo y su representación. Cuando otra pantalla consumiera el mismo modelo, podría seguir mostrando Cuaderno. Por eso conviene que la vista consulte el dato en lugar de inventarlo.
+
+El script `1.2_e2e.sh` reconstruye el estado de reto sobre una copia temporal y comprueba la sustitución. También verifica que el catálogo sigue teniendo tres elementos y que las rutas anteriores continúan funcionando.
+
+## N. Laboratorio ampliado 1.2 — Diagnóstico de errores de modelo y vista
+
+### N.1. El contador está presente pero no hay elementos
+
+Es el estado normal después de activar 1.2.3 y antes de activar 1.2.4. No cambies el controlador por segunda vez; revisa el bloque comentado en la vista.
+
+### N.2. Aparece el mensaje de ausencia de modelo
+
+La vista sigue recibiendo un modelo nulo. Comprueba que el bloque `return View(productos);` se ha activado correctamente y que la instrucción anterior `return View();` no ha quedado como retorno utilizado para la acción.
+
+### N.3. El proyecto deja de compilar
+
+Si aparecen errores después de descomentar el controlador, verifica las dos líneas que delimitaban el comentario y la posición de `return View();`. No conviene eliminar llaves ni reescribir el método entero sin localizar primero qué instrucción ha quedado activa.
+
+Si el error surge al descomentar Razor, comprueba que has quitado las dos líneas `@* ... *@` y que el `foreach` permanece dentro del bloque `else` de la comprobación de modelo no nulo.
+
+### N.4. Las dos direcciones de catálogo no muestran lo mismo
+
+Comprueba que sigues utilizando la ruta convencional y que ambas direcciones seleccionan `ProductosController.Index()`. No hay que duplicar la vista para cada URL. El código de la acción y la convención de búsqueda son suficientes en el proyecto actual.
+
+### N.5. La página de inicio ha cambiado inesperadamente
+
+El objetivo de 1.2 no es modificar la portada del punto 1.1. Si desaparece, revisa si has editado `HomeController` o el archivo `Views/Home/Index.cshtml` por error, o si has abierto otra versión del proyecto.
+
+## O. Consolidación guiada para cerrar el flujo MVC
+
+Toma como referencia la página final de productos y el árbol de archivos. Sin ejecutar nada durante unos minutos, describe el recorrido completo de una solicitud `GET /Productos` utilizando los nombres reales de los tipos y archivos.
+
+Después vuelve a abrirlos para comprobar tu explicación. Debes poder identificar la ruta convencional, la acción `Index()`, el tipo `Producto`, la instrucción `View(productos)`, la directiva `@model` y el bucle `@foreach`.
+
+Realiza una última comprobación del reto Bloc y explica por qué se modifica el dato en el controlador y no el texto HTML de la vista. El resultado correcto conserva tres productos, la portada anterior y la navegación.
+
+La finalidad de esta ampliación no es memorizar más nombres, sino reforzar una relación causal: **un cambio en los datos entregados provoca un cambio de contenido; un cambio de plantilla provoca un cambio de representación; un cambio en el layout modifica la estructura compartida de navegación**.
+
+Al finalizar, la siguiente etapa podrá dedicarse a la estructura del proyecto, los archivos de configuración y la publicación de recursos estáticos, sin necesidad de volver a explicar la separación entre modelo, vista y controlador.
+
+
 # P1.3. Estructura y convenciones de un proyecto ASP.NET Core MVC
 
 ## A. Identificación
