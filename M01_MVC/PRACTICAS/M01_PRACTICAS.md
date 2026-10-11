@@ -5,7 +5,7 @@
 
 - **P1.1. Primera aplicación MVC y recorrido de una petición HTTP**
 - **P1.2. El flujo Modelo–Vista–Controlador**
-- P1.3. Estructura y convenciones del proyecto
+- **P1.3. Estructura y convenciones del proyecto**
 - P1.4. Controladores, acciones, parámetros y rutas
 - P1.5. Vistas tipadas, layout, parciales y navegación
 
@@ -735,3 +735,374 @@ Abre `http://localhost:5091/Productos`. Debes obtener **Bloc, Lápiz y Carpeta**
 Conservar el resultado de este capítulo. En `1.3` estudiaremos detalladamente las carpetas y convenciones que acabamos de recorrer y prepararemos la organización del proyecto para ampliar más adelante las acciones y las vistas.
 
 **No añadir ahora formularios, EF Core, autenticación ni servicios externos.** En este capítulo se ha demostrado una arquitectura MVC mínima, suficiente para visualizar y comprender el paso de objetos del controlador a la vista.
+
+
+---
+
+# P1.3. Estructura y convenciones de un proyecto ASP.NET Core MVC
+
+## A. Identificación
+
+**Objetivo práctico:** identificar dónde se encuentra cada parte de una aplicación MVC, comprender la diferencia entre arranque y atención de peticiones, leer un valor de configuración, añadir recursos estáticos y comprobar qué rutas son públicas mediante `UseStaticFiles()`. El reto final introduce una segunda URL de texto accesible, cuyo enlace se activará utilizando el **código que ya se encuentra en el proyecto**.
+
+**Teoría asociada:** apartado 1.3 completo de `M01_TEORIA.md`. Se utilizarán los conceptos ya estudiados de HTTP y MVC de 1.1 y 1.2.
+
+**Estado de partida:** proyecto del capítulo **1.3**, que conserva y deja activos los pasos funcionales 1.2.3, 1.2.4 y 1.2.5. La página de productos puede abrirse desde el principio con tres registros. No es necesario repetir el desbloqueo del controlador y la vista del capítulo anterior.
+
+**Duración de aula prevista:** 20 minutos de explicación y 35 minutos de práctica; la extensión de ejemplos y comprobaciones del documento permite repasar o completar observaciones fuera de ese tiempo. Las comprobaciones orientadas a docentes se automatizan para no consumir tiempo lectivo de los alumnos.
+
+## B. Preparación del laboratorio
+
+Necesitamos **SDK .NET 8**, Visual Studio con soporte ASP.NET Core o un editor compatible con C#, navegador web con herramientas de desarrollo y terminal. En este punto no se usa base de datos, API externa ni Docker.
+
+Desde una copia del repositorio y posicionándose **en su raíz**:
+
+~~~bash
+cd M01_MVC/PROYECTO/1.3/CursoWeb.Mvc
+dotnet restore
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Abrir `http://localhost:5091/`. Debe aparecer la portada ya conocida. Pulsar `Productos` en la navegación. La dirección `http://localhost:5091/Productos` debe mostrar **Cuaderno, Lápiz y Carpeta**, con el contador de tres productos.
+
+**Observación inicial:** el enlace a productos y la vista de productos están activos porque son la base funcional de 1.3. No es una aplicación nueva; es la continuación del mismo ejemplo didáctico, guardada en una carpeta autónoma para que todas las etapas permanezcan disponibles.
+
+Detener el servidor con **Ctrl+C** y mantener abierta la carpeta del proyecto. Los cambios de código se probarán reiniciándolo para identificar sin ambigüedad el estado ejecutado.
+
+## C. Desarrollo paso a paso
+
+### Paso 1.3.1 — Inspeccionar la estructura real del proyecto
+
+Desde el explorador de soluciones de Visual Studio o desde el explorador de archivos, identificar:
+
+~~~text
+M01_MVC/PROYECTO/1.3/CursoWeb.Mvc/
+├── CursoWeb.Mvc.csproj
+├── Program.cs
+├── appsettings.json
+├── Properties/launchSettings.json
+├── Controllers/HomeController.cs
+├── Controllers/ProductosController.cs
+├── Models/Producto.cs
+├── Views/Home/Index.cshtml
+├── Views/Productos/Index.cshtml
+├── Views/Shared/_Layout.cshtml
+├── Views/_ViewStart.cshtml
+├── Views/_ViewImports.cshtml
+├── wwwroot/css/site.css
+├── wwwroot/css/catalogo.css
+├── wwwroot/recursos/guia-publica.txt
+├── wwwroot/recursos/aviso-laboratorio.txt
+└── DOCUMENTACION/nota-interna.txt
+~~~
+
+**No modificar todavía ningún archivo.** El objetivo es asociar cada necesidad a una ubicación razonable.
+
+Completar verbalmente las siguientes relaciones:
+
+| Necesidad | Archivo o carpeta donde buscar |
+|---|---|
+| Cambiar el tipo de proyecto o framework | `CursoWeb.Mvc.csproj` |
+| Comprender qué se registra al arrancar | `Program.cs` |
+| Mostrar otro producto en la lista fija | `Controllers/ProductosController.cs` |
+| Modificar el marcado HTML del listado | `Views/Productos/Index.cshtml` |
+| Encontrar las propiedades de un producto | `Models/Producto.cs` |
+| Añadir un enlace común a todas las páginas | `Views/Shared/_Layout.cshtml` |
+| Añadir una hoja CSS pública | `wwwroot/css/` |
+| Definir ajustes no sensibles del curso | `appsettings.json` |
+
+**Por qué esta identificación es útil:** al ampliar una aplicación, la mayor parte de los errores de mantenimiento comienzan por cambiar un archivo que no es responsable del comportamiento. Saber dónde mirar reduce modificaciones innecesarias y favorece la separación MVC.
+
+Comprueba además que `bin/` y `obj/`, cuando aparecen tras compilar, son resultados generados; no forman parte del código del alumno que debe versionarse.
+
+### Paso 1.3.2 — Entender Program.cs antes de tocar una página
+
+Abrir `Program.cs` e identificar el siguiente recorrido:
+
+~~~csharp
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddControllersWithViews();
+
+var app = builder.Build();
+
+// Se omite aquí únicamente el bloque opcional del paso 1.3.3.
+app.UseStaticFiles();
+app.UseRouting();
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+app.Run();
+~~~
+
+El fragmento representa las instrucciones activas y esenciales. El archivo completo contiene también comentarios docentes.
+
+**Explicación de cada instrucción:**
+
+1. `CreateBuilder(args)` prepara la aplicación y las fuentes de configuración.
+2. `AddControllersWithViews()` registra los servicios de MVC.
+3. `Build()` construye el host.
+4. `UseStaticFiles()` permite enviar CSS y texto desde `wwwroot` cuando sus tipos son reconocidos.
+5. `UseRouting()` participa en el enrutamiento.
+6. `MapControllerRoute` registra una convención que permite llegar a `HomeController.Index` y `ProductosController.Index`.
+7. `Run()` arranca el servidor. La acción de productos se ejecutará cuando llegue una petición, no por el mero hecho de registrar la ruta.
+
+**Comprobación:** sin añadir ningún código, abre `/Productos` y `/css/site.css` y observa que ambos devuelven HTTP 200, pero el primero produce HTML MVC y el segundo CSS. Se atienden solicitudes de naturaleza distinta dentro de una misma aplicación ASP.NET Core.
+
+### Paso 1.3.3 — Leer un valor desde appsettings.json
+
+Primero abrir `appsettings.json` y localizar:
+
+~~~json
+"Curso": {
+  "Nombre": "Curso MVC de productos",
+  "Edicion": "Laboratorio NET8"
+}
+~~~
+
+Este fragmento forma parte de un JSON completo que ya se encuentra correctamente configurado. No se deben crear comentarios de estilo C# dentro de `appsettings.json`, porque el ejercicio no los necesita y podrían volver inválido el archivo.
+
+**Acción:** abrir `Program.cs` y localizar la instrucción comentada con la marca `PASO 1.3.3`:
+
+~~~csharp
+// app.Logger.LogInformation("P1.3 configuracion: {Nombre}", app.Configuration["Curso:Nombre"]);
+~~~
+
+Quitar **solo** las dos barras `//` delante de la instrucción. No eliminar el resto de la configuración. La línea activa queda:
+
+~~~csharp
+app.Logger.LogInformation("P1.3 configuracion: {Nombre}", app.Configuration["Curso:Nombre"]);
+~~~
+
+**Cómo funciona:** `app.Configuration["Curso:Nombre"]` obtiene el valor situado en la sección `Curso`, clave `Nombre`, cargada desde la configuración. `app.Logger.LogInformation` emite un mensaje de nivel *Information* en el registro del proceso; `{Nombre}` es un marcador de valor del sistema de logging.
+
+Construir y ejecutar:
+
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+En la consola de ejecución debe aparecer una entrada equivalente a:
+
+~~~text
+P1.3 configuracion: Curso MVC de productos
+~~~
+
+La estructura y los prefijos de fecha o categoría del registro pueden variar; el contenido es lo relevante.
+
+**Resultado esperado:** la aplicación sigue mostrando sus dos páginas anteriores; la instrucción nueva escribe **en el registro de la aplicación**, no en el HTML. Se demuestra así que un ajuste de `appsettings.json` puede leerse durante el arranque sin tocar una vista.
+
+Detener el proceso antes del siguiente paso.
+
+### Paso 1.3.4 — Incorporar una hoja CSS sin crear una acción MVC
+
+La carpeta `wwwroot/css` incluye `catalogo.css`, cuyo contenido ya está activo:
+
+~~~css
+/* PASO 1.3.4: recurso estático independiente de los controladores. */
+/* La regla está activa en este archivo; el alumno activa su enlace en _Layout.cshtml. */
+main.container {
+    border-left: 5px solid #2d635d;
+    padding-left: 1.5rem;
+}
+~~~
+
+**Qué hace:** cambia la presentación del elemento HTML `<main class="container">`, añadiendo un borde izquierdo y espacio interior. No contiene Razor ni código C#, y por ello el controlador no necesita modificarse.
+
+**Acción:** abrir `Views/Shared/_Layout.cshtml`. Bajo la referencia a `site.css`, localizar:
+
+~~~cshtml
+@* PASO 1.3.4 (inicio)
+<link rel="stylesheet" href="/css/catalogo.css" />
+PASO 1.3.4 (fin) *@
+~~~
+
+Eliminar las **dos líneas** que delimitan ese comentario Razor. Dejar activa exactamente la siguiente etiqueta, manteniendo la hoja anterior:
+
+~~~html
+<link rel="stylesheet" href="~/css/site.css" />
+<link rel="stylesheet" href="/css/catalogo.css" />
+~~~
+
+**Por qué es necesario:** el archivo `catalogo.css` ya existe físicamente en `wwwroot` y puede descargarse si se conoce su URL, pero el navegador solo aplicará sus reglas a la página cuando el HTML recibido incluya una etiqueta `<link rel="stylesheet">` adecuada.
+
+Reiniciar la aplicación y abrir `http://localhost:5091/Productos`. Debe apreciarse un **borde vertical** en el área principal. En F12 → Red, comprobar que además de la hoja `site.css` el navegador solicita `/css/catalogo.css` y recibe HTTP 200 y tipo `text/css`.
+
+**Prueba independiente:** abre `http://localhost:5091/css/catalogo.css` directamente. Se verá el contenido CSS como respuesta HTTP. Esa URL no pasa por un controlador MVC.
+
+Detener el servidor antes de seguir.
+
+### Paso 1.3.5 — Enlazar un recurso de texto publicado desde wwwroot
+
+Dentro de `wwwroot/recursos/` existe el archivo `guia-publica.txt`, cuyo contenido es:
+
+~~~text
+PASO 1.3.5 - Guia publica del curso ASP.NET Core MVC.
+Este archivo se sirve desde wwwroot mediante UseStaticFiles.
+No es necesario crear un controlador para atender esta URL.
+~~~
+
+**Acción:** abrir `Views/Shared/_Layout.cshtml` y localizar la marca `PASO 1.3.5`, junto a la navegación:
+
+~~~cshtml
+@* PASO 1.3.5 (inicio)
+<a href="/recursos/guia-publica.txt">Guía pública</a>
+PASO 1.3.5 (fin) *@
+~~~
+
+Retirar únicamente los dos delimitadores del comentario Razor. El enlace queda activo:
+
+~~~html
+<a href="/recursos/guia-publica.txt">Guía pública</a>
+~~~
+
+Reiniciar la aplicación, abrir `/Productos` y comprobar que ahora hay un enlace **Guía pública** en la navegación. Pulsarlo: el navegador debe pedir `/recursos/guia-publica.txt` y mostrar el texto del archivo, no una vista Razor. Revisar en Red que la solicitud obtiene HTTP 200.
+
+**Observación decisiva:** prueba también la URL directa `/recursos/guia-publica.txt` antes de descomentar el enlace, si deseas comparar estados. El recurso ya era accesible. Habilitar el enlace facilita encontrarlo en la interfaz, pero **no cambia la configuración de publicación estática**.
+
+Aquí no hemos creado ninguna clase nueva ni un método de controlador. El trabajo ya lo hace el middleware de archivos estáticos.
+
+## D. Tabla de ejecución y resultados
+
+| Estado | Qué has activado | Verificación |
+|---|---|---|
+| Base funcional de 1.3 | Ninguno | `/` y `/Productos` responden 200; se muestran tres productos |
+| Configuración | 1.3.3 | El registro de inicio muestra `Curso MVC de productos` |
+| Estilo adicional | 1.3.3 + 1.3.4 | `/Productos` incluye el enlace CSS adicional; el navegador carga el nuevo estilo |
+| Guía pública | 1.3.3 + 1.3.4 + 1.3.5 | La navegación incluye Guía pública; el texto se descarga con 200 |
+| Reto | Todo lo anterior + RETO 1.3 | Aparece Aviso de laboratorio; recurso de `wwwroot` 200 y archivo interno 404 |
+
+**Comprobación de continuidad:** la portada y el catálogo del capítulo 1.2 deben seguir funcionando en todos los estados; no se ha desactivado ninguno de esos recorridos.
+
+## E. Reto 1.3 — Recurso público frente a archivo interno
+
+### Enunciado
+
+Se pide añadir un enlace visible llamado **Aviso de laboratorio**, que permita al alumno abrir un archivo de texto público. También debes localizar un segundo archivo de texto que **no se publique** por la configuración actual de `UseStaticFiles()` y explicar por qué produce otra respuesta.
+
+El reto comprueba si sabes razonar a partir de la **estructura física del proyecto**, la raíz web y el layout, y no únicamente repetir los comandos del paso 1.3.5.
+
+### Código incluido en el proyecto
+
+No necesitas crear archivos que falten; ya están incorporados en `PROYECTO/1.3/CursoWeb.Mvc`.
+
+**Archivo 1 — `wwwroot/recursos/aviso-laboratorio.txt`:**
+
+~~~text
+RETO 1.3 - Aviso de laboratorio.
+El documento esta dentro de wwwroot y puede solicitarse como recurso estatico.
+El enlace de navegacion del reto se activa por separado en _Layout.cshtml.
+~~~
+
+**Archivo 2 — `DOCUMENTACION/nota-interna.txt`:**
+
+~~~text
+Nota didactica interna del proyecto (datos ficticios).
+Al estar fuera de wwwroot, UseStaticFiles no la publica de forma predeterminada.
+No colocar secretos reales en el repositorio: esta nota solo ilustra una convencion.
+~~~
+
+**Archivo 3 — `Views/Shared/_Layout.cshtml`**, con el siguiente bloque dentro del menú:
+
+~~~cshtml
+@* RETO 1.3 (inicio)
+<a href="/recursos/aviso-laboratorio.txt">Aviso de laboratorio</a>
+RETO 1.3 (fin) *@
+~~~
+
+### Resolver y activar el reto
+
+**Acción 1:** abre `Views/Shared/_Layout.cshtml`, localiza `RETO 1.3 (inicio)` y elimina **las dos líneas que delimitan el comentario**, sin cambiar el contenido del enlace. La solución activa queda:
+
+~~~html
+<a href="/recursos/aviso-laboratorio.txt">Aviso de laboratorio</a>
+~~~
+
+Esta etiqueta HTML se añadirá al layout de ambas páginas. No se precisa modificar `ProductosController` ni `Program.cs`: el recurso ya está dentro de `wwwroot` y `UseStaticFiles()` ya forma parte del arranque.
+
+**Acción 2:** compila y ejecuta de nuevo la aplicación:
+
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Abre `http://localhost:5091/Productos` y pulsa el enlace Aviso de laboratorio. Debe mostrarse el contenido de `aviso-laboratorio.txt`. En la pestaña Red, comprobar el código **200**.
+
+**Acción 3:** escribe directamente estas direcciones en el navegador o ejecútalas en una segunda terminal con `curl -i`:
+
+~~~text
+http://localhost:5091/recursos/aviso-laboratorio.txt
+http://localhost:5091/DOCUMENTACION/nota-interna.txt
+~~~
+
+La primera respuesta debe ser HTTP **200** y devolver el contenido del archivo público. La segunda debe devolver HTTP **404**, pues nuestro middleware no sirve por defecto archivos del directorio `DOCUMENTACION`.
+
+**Acción 4:** explica por escrito por qué el enlace del reto no es un mecanismo de seguridad. La respuesta correcta es que un recurso bajo `wwwroot` **ya es accesible directamente** aunque no aparezca en la navegación. La ausencia del enlace no protege el contenido. Además, aunque `nota-interna.txt` no se sirva por el servidor web, forma parte de un repositorio público: este ejemplo no sirve para guardar secretos.
+
+### Solución explicada
+
+El enlace del archivo de layout es la **única línea de HTML** que debe activarse para resolver el reto. Al hacerlo se modifica la navegación, pero la aplicación no necesita un endpoint controlador adicional porque ya conoce cómo servir archivos estáticos.
+
+No cambiamos `wwwroot/recursos/aviso-laboratorio.txt`: el texto estaba disponible desde el inicio. Tampoco movemos `DOCUMENTACION/nota-interna.txt`, porque la comparación de ubicaciones es el objetivo didáctico.
+
+La combinación de resultados confirma qué servicio está atendiendo cada petición:
+
+~~~text
+GET /Productos                              -> 200, HTML MVC
+GET /recursos/aviso-laboratorio.txt         -> 200, texto público
+GET /DOCUMENTACION/nota-interna.txt        -> 404, no publicado como estático
+~~~
+
+**Reto entregado con código:** el Markdown describe la solución completa; el proyecto contiene los dos textos y el bloque del layout comentado; las pruebas automatizadas habilitan el fragmento y comprueban los tres resultados.
+
+## F. Verificación automatizada del ejercicio y el reto
+
+Desde la raíz del repositorio y con la aplicación manual **detenida** para dejar libre el puerto:
+
+~~~bash
+bash M01_MVC/TESTS/1.3_e2e.sh
+~~~
+
+La comprobación crea copias temporales, activa de manera controlada los bloques de cada etapa y comprueba con peticiones HTTP reales:
+
+- Que las páginas de 1.1 y 1.2 continúan devolviendo HTML y muestran los productos.
+- Que el registro de configuración aparece al activar el paso 1.3.3.
+- Que el CSS es accesible y solo aparece enlazado en el documento cuando activamos 1.3.4.
+- Que la Guía pública es accesible y se añade al menú en 1.3.5.
+- Que el reto añade el enlace de aviso, cuyo archivo responde 200, mientras que el archivo exterior a `wwwroot` responde 404.
+
+Es una prueba de integración funcional HTTP usando Kestrel; el navegador real y la comprobación visual del borde se realizan de forma guiada en clase. Una prueba HTTP del enlace y del CSS **no es equivalente a verificar su representación visual automatizada**.
+
+## G. Problemas frecuentes y soluciones
+
+**No aparecen los tres productos al iniciar el punto 1.3.** Comprueba que has abierto `PROYECTO/1.3/CursoWeb.Mvc` y no el proyecto `1.1` o el estado inicial de `1.2`. La versión 1.3 ya incorpora el catálogo funcionando.
+
+**Se obtiene una excepción al leer la configuración.** Comprueba que no se alteró la sintaxis JSON de `appsettings.json`. La sección `Curso` debe encontrarse dentro de las llaves del objeto raíz y separada mediante comas correctas.
+
+**El registro no aparece en la terminal.** Verifica que descomentaste la línea de `Program.cs`, que guardaste y reiniciaste el programa y que la configuración incluye `Curso:Nombre`. Comprueba también que no cambiaste el nivel de log para silenciar `Information`.
+
+**El CSS devuelve 200, pero no aparece el borde.** Comprueba que activaste el `<link>` del paso 1.3.4, que realmente apunta a `/css/catalogo.css`, que recargaste la página y que no hay una regla CSS posterior que invalide el estilo. Consulta la pestaña Red y el inspector de elementos.
+
+**El enlace aparece, pero el archivo devuelve 404.** Verifica la ruta relativa desde `wwwroot`: la URL no contiene `wwwroot`, sino `/recursos/guia-publica.txt` o `/recursos/aviso-laboratorio.txt`.
+
+**Al escribir la URL de `nota-interna.txt` se obtiene 404 y parece un fallo.** Es el resultado esperado de la práctica. No hay un archivo dentro de `wwwroot` con esa ruta ni se ha configurado un proveedor alternativo.
+
+**Piensas que el archivo es privado porque no hay enlace.** Es un error importante. Los enlaces mejoran la navegación; no definen permisos de acceso al recurso. Los archivos de `wwwroot` quedan públicamente disponibles en las condiciones demostradas.
+
+**El código de un paso afecta al siguiente.** Activa los bloques en orden: configuración → CSS → Guía pública → reto. Si has dejado un comentario Razor sin cerrar, restáuralo o compara exactamente los dos delimitadores con el Markdown.
+
+## H. Consolidación y continuidad
+
+Sin modificar el código, responde y justifica sobre los archivos reales:
+
+1. ¿Qué diferencias existen entre `CursoWeb.Mvc.csproj`, `Program.cs` y `appsettings.json`?
+2. ¿Por qué `/Productos` devuelve HTML generado por MVC mientras `/css/catalogo.css` devuelve un archivo?
+3. ¿Qué hace `_ViewStart.cshtml` y qué hace `_ViewImports.cshtml`?
+4. ¿Por qué un archivo en `DOCUMENTACION` no queda servido como estático y por qué no deberíamos guardar secretos en un repositorio público?
+5. ¿Qué pasaría si quitáramos el enlace de la Guía pública del layout: el archivo desaparecería de `wwwroot` o seguiría accesible directamente por URL?
+
+**Resultado consolidado:** localizas las piezas de la aplicación y puedes explicar sus responsabilidades, su ciclo de arranque y la diferencia entre recursos físicos internos y recursos de la raíz web.
+
+Conserva los cambios y continúa en **1.4 — Controladores, acciones, parámetros y routing**, donde ampliaremos el catálogo con una acción de detalle de producto, rutas y resultados HTTP apropiados.
