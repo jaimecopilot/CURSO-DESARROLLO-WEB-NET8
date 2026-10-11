@@ -3522,3 +3522,88 @@ Después describe qué cambia cuando se solicita `/Productos/Detalle/2`. La acci
 Por último, justifica el resultado del reto: la condición de precio se ha escrito una vez en `_TarjetaProducto.cshtml` y produce una etiqueta en los contextos donde el modelo corresponde a Lápiz. No se ha duplicado el código en otras vistas ni se han cambiado los datos del controlador.
 
 **Conclusión práctica de M01:** el alumno dispone de un catálogo MVC navegable, construido con rutas, modelos, controladores, vistas Razor, layout y una parcial reutilizable. La aplicación continúa utilizando datos en memoria. La creación y edición de productos, la validación de formularios y el almacenamiento con EF Core forman parte de M02, conforme a la progresión prevista del curso.
+
+
+## R. Taller final de P1.5 — Rastrear una misma tarjeta por dos páginas
+
+La finalidad de este taller es construir una explicación completa y verificable de la reutilización de vistas parciales, no añadir más archivos ni duplicar código. Partimos del proyecto del capítulo 1.5 con los pasos 1.5.2 a 1.5.5 activos y con el reto de etiqueta económica habilitado.
+
+### R.1. Elige un producto y localiza su origen
+
+Abre `Controllers/ProductosController.cs` y localiza la construcción del catálogo. Selecciona el producto con identificador 2. Debe corresponder a Lápiz y tener un precio inferior a tres unidades.
+
+El tipo `Producto` se encuentra en `Models/Producto.cs` y define las propiedades del objeto. La acción `Index()` devuelve la colección que contiene ese producto; la acción `Detalle(int id)` puede seleccionar el mismo registro para representar una ficha individual.
+
+Anota qué diferencia existe entre ambas acciones: la primera entrega varios productos a una vista de listado y la segunda entrega uno solo a la vista de detalle. La parcial no necesita conocer esa diferencia, porque recibe directamente un objeto `Producto`.
+
+### R.2. Sigue la tarjeta desde Index.cshtml
+
+En `Views/Productos/Index.cshtml` localiza el bucle activo:
+
+~~~cshtml
+@foreach (var producto in Model)
+{
+    <partial name="_TarjetaProducto" model="producto" />
+}
+~~~
+
+Cuando `producto.Id` es 2, el objeto que se pasa a la parcial representa a Lápiz. Abre `Views/Shared/_TarjetaProducto.cshtml` y comprueba que utiliza `@Model.Id`, `@Model.Nombre` y `@Model.Precio` para producir el fragmento HTML.
+
+En el navegador abre `/Productos`. Mediante F12 → Inspector localiza el elemento con `data-producto-id="2"`. Comprueba que muestra el nombre Lápiz, su precio y la etiqueta `Precio económico`, activada por la condición del reto.
+
+### R.3. Sigue la misma tarjeta desde Detalle.cshtml
+
+Abre `Views/Productos/Detalle.cshtml` y localiza:
+
+~~~cshtml
+<partial name="_TarjetaProducto" model="Model" />
+~~~
+
+Ahora `Model` no es una colección: la vista de detalle recibe un solo producto. Por eso se entrega directamente a la parcial.
+
+Visita `/Productos/Detalle/2` e inspecciona el elemento con `data-producto-id="2"`. Debe mostrar los mismos datos y la misma etiqueta. El archivo que define el marcado de tarjeta sigue siendo uno solo.
+
+Explica por qué esta coincidencia no se debe a haber copiado el HTML del catálogo en el detalle. Se debe a que las dos vistas representan la misma parcial con el mismo tipo de objeto.
+
+### R.4. Comprueba un producto que no cumple la condición
+
+Visita `/Productos/Detalle/1` y examina la tarjeta de Cuaderno. Tiene `data-producto-id="1"` y no debe contener la clase `etiqueta-economico`, porque su precio supera el umbral de la condición.
+
+Una explicación adecuada del reto tiene que cubrir ambos resultados: presencia de la etiqueta en Lápiz y ausencia en Cuaderno. Si solo se comprueba el caso positivo, no se puede distinguir una condición correcta de un error que muestre la etiqueta en todas las tarjetas.
+
+### R.5. Evalúa qué archivo modificarías ante tres cambios
+
+**Cambio A: «Todas las tarjetas deben mostrar otro texto para el precio».** El lugar principal de presentación es `_TarjetaProducto.cshtml`, porque lo reutilizan ambas vistas.
+
+**Cambio B: «Solo la página de detalle debe presentar una nota adicional bajo el contenido».** El proyecto ya ilustra esta posibilidad mediante `@section NotasPagina` en `Detalle.cshtml` y `RenderSectionAsync` en el layout.
+
+**Cambio C: «El precio de Lápiz cambia en los datos».** El valor se encuentra en la fuente de datos preparada por el controlador. No debes escribir otro precio fijo en la parcial para simular que has cambiado el modelo.
+
+Este análisis permite separar cambios de datos, cambios de contenido compartido y cambios de estructura de página.
+
+## S. Comprobación final por escenarios sin modificar la fuente
+
+Con la aplicación todavía ejecutándose, completa la tabla de resultados observados:
+
+| Dirección | Productos mostrados en tarjetas | Nota opcional del layout | Etiqueta económica |
+|---|---:|---|---|
+| `/Productos` | Tres | No definida por esa vista | Solo en Lápiz |
+| `/Productos/Detalle/2` | Una, Lápiz | Sí | Sí |
+| `/Productos/Detalle/1` | Una, Cuaderno | Sí | No |
+| `/Productos/Detalle/3` | Una, Carpeta | Sí | No |
+
+No debes modificar archivos para conseguir cada resultado: los cuatro casos utilizan el mismo estado final del proyecto. Esta es una prueba de que el comportamiento depende del modelo entregado a las vistas, no de crear una copia distinta de la plantilla para cada producto.
+
+Detén el servidor y ejecuta la batería de P1.5 desde la raíz del repositorio:
+
+~~~bash
+bash M01_MVC/TESTS/1.5_e2e.sh
+~~~
+
+Al finalizar, explica qué estados reconstruye el script mediante copias temporales y por qué no modifica el proyecto inicial del alumno. Su objetivo es que los pasos activables y el reto permanezcan reproducibles incluso cuando se regresa a una fase anterior de la práctica.
+
+### Conclusión del taller
+
+La competencia que debes demostrar no consiste solamente en saber escribir `<partial>`. Debes poder describir **cómo se selecciona la vista, qué objeto se entrega, en qué lugar se representa el fragmento y qué resultados positivos y negativos deben observarse**.
+
+Si consigues seguir Lápiz desde su definición en el controlador hasta la tarjeta del catálogo y la ficha individual sin inventar archivos adicionales, has comprobado la principal ventaja de una vista parcial tipada: reutilizar representación coherente con un contrato de datos claro.
