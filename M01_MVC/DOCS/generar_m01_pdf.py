@@ -214,7 +214,7 @@ p code, li code, td code { font-family: "DejaVu Sans Mono", monospace; font-size
 .code-block .highlight pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .diagram { display: block; text-align: center; margin: 10pt 0 13pt; break-inside: avoid; }
 .diagram svg { display: block; width: auto; height: auto; margin: 0 auto; }
-.diagram-flow svg { max-width: 122mm; max-height: 70mm; }
+.diagram-flow svg { max-width: 155mm; max-height: 130mm; }
 .diagram-sequence svg { max-width: 168mm; max-height: 94mm; }
 .diagram svg { max-width: 100%; }
 .toc { margin: 14pt 0 20pt; border: 0.8pt solid #cbdbe2; padding: 13pt 17pt; background: #f6f9fb; }
