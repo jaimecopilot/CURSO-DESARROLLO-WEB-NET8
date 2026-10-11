@@ -973,9 +973,7 @@ El caso contrario también puede ocurrir: una vista preparada para iterar una co
 
 Resulta útil razonar sobre una vista como una transformación conceptual:
 
-\[
-\text{datos del modelo} + \text{plantilla Razor} \longrightarrow \text{HTML}
-\]
+**Datos del modelo + plantilla Razor → HTML resultante**
 
 No estamos afirmando que Razor sea una función matemática pura o que no intervenga más contexto de la petición; el esquema solo muestra la responsabilidad principal que queremos aprender. Si los datos permanecen iguales pero cambia el archivo Razor, puede cambiar la estructura HTML. Si permanece igual el archivo Razor pero cambian los valores recibidos, puede cambiar el texto representado.
 
@@ -1050,6 +1048,34 @@ La prueba automatizada del punto 1.2 reconstruye estos estados sobre copias temp
 Una vez entendido qué parte del código representa datos, qué parte decide el resultado y qué parte lo presenta, el resto del módulo gana sentido. En 1.3 exploraremos la ubicación de los archivos y la configuración. En 1.4 veremos cómo una acción recibe un identificador y entrega un único `Producto` a una vista de detalle; será una aplicación directa del mismo contrato que ya hemos utilizado. En 1.5 extraeremos la representación repetida de un producto a una parcial Razor, lo que permitirá reutilizar el mismo marcado desde diferentes vistas.
 
 Es importante no confundir el alcance de este primer día con el de una aplicación empresarial terminada. Nuestro catálogo no tiene operaciones de escritura, persistencia, gestión de usuarios ni validación de formularios. El hecho de que funcione y esté organizado con MVC no implica que disponga ya de esas capacidades. En M02 añadiremos las funcionalidades necesarias de manera incremental, reutilizando la separación de responsabilidades que acabamos de establecer.
+
+
+
+## 1.2.15. Distinguir Model, ViewData y contenido fijo
+
+Una vista MVC puede obtener información de maneras diferentes. Para entender la estructura del proyecto es importante reconocer qué se utiliza en cada caso, sin concluir que todas las formas son intercambiables.
+
+La directiva `@model` declara el tipo de modelo que la vista espera. Cuando el controlador ejecuta `return View(productos)`, la colección se entrega como el modelo de esa vista. Es el mecanismo principal de nuestro ejemplo porque el listado necesita objetos con propiedades conocidas: `Id`, `Nombre` y `Precio`.
+
+El proyecto también utiliza `ViewData["Title"]` para establecer el título del documento. Se trata de un valor de presentación que el layout puede consultar. No define los productos del catálogo ni sustituye a la colección que recorre `@foreach`. En este caso es suficiente para comunicar una cadena sencilla a la estructura compartida.
+
+Por otra parte, el propio archivo Razor contiene texto fijo, como encabezados y explicaciones docentes. Ese texto aparece aunque no cambien los productos. No todo carácter de HTML procede de una propiedad del modelo; una plantilla combina estructura fija con contenido que depende de los datos recibidos.
+
+### Una comprobación aplicada al catálogo
+
+En `Views/Productos/Index.cshtml` encontrarás un encabezado que describe el punto del curso, un párrafo que muestra `Model.Count` y una lista que recorre `Model`. El encabezado es texto fijo de la plantilla; el contador depende de la colección; los nombres dependen de cada instancia.
+
+Si cambiamos Cuaderno por Bloc en el controlador, el encabezado y la estructura de la lista deberían permanecer iguales. Solo se modifica el nombre representado para ese objeto. Si cambiamos el texto del encabezado en la vista, la colección de datos seguirá teniendo los mismos productos.
+
+Esta distinción permite diagnosticar incidencias con mayor precisión. Un error en un título estático puede resolverse en Razor; un dato equivocado del producto requiere investigar qué valor se preparó para el modelo; un problema de navegación común puede estar en el layout.
+
+### Por qué no abusar de valores sueltos
+
+Sería posible transportar gran cantidad de valores individuales mediante mecanismos no tipados, pero en una vista que presenta una colección estructurada resulta más claro utilizar un modelo fuerte. El compilador y el editor pueden ayudar a comprobar el acceso a propiedades, y el código expresa qué tipo de datos recibe.
+
+No estamos enseñando una prohibición absoluta de `ViewData`. Lo usamos para el título porque esa es una responsabilidad de presentación sencilla. La regla pedagógica es elegir un mecanismo coherente con la información que se necesita representar.
+
+Al completar el punto 1.2, el alumno debe poder diferenciar el contrato `@model`, el valor `Model` recibido por la vista, los valores de título aportados al layout y los textos estáticos escritos en el archivo Razor. Esa distinción será especialmente útil cuando en 1.5 introduzcamos una parcial con su propio contrato de modelo.
 
 
 # 1.3. Estructura, convenciones y puesta en marcha de un proyecto ASP.NET Core MVC
