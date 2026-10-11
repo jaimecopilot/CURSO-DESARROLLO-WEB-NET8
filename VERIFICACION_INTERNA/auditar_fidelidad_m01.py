@@ -7,7 +7,7 @@ import fitz
 from markdown_it import MarkdownIt
 from bs4 import BeautifulSoup
 
-ROOT=Path(__file__).resolve().parents[2]
+ROOT=Path(__file__).resolve().parents[1]
 M01=ROOT/"M01_MVC"
 docs=[("TEORIA","TEORIA"),("PRACTICAS","PRACTICAS")]
 rx_md=r"(?m)^#\s+(?:P)?1\.([1-5])\.\s+.*$"
