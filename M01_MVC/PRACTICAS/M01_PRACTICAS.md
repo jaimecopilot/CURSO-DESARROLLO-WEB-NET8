@@ -2325,6 +2325,315 @@ El reto demuestra, mediante código real comentado y comprobable, que un control
 
 ---
 
+
+## I. Laboratorio ampliado 1.4 — Predecir el resultado antes de abrir el navegador
+
+El punto 1.4 introduce acciones que devuelven varios tipos de resultado. Para comprenderlas no basta con activar el código y comprobar que la página se abre. Vamos a predecir primero qué método ejecutará cada URL y qué ocurrirá con los datos recibidos.
+
+### I.1. Reconstruir la ruta convencional
+
+Abre `Program.cs` y localiza:
+
+~~~csharp
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+~~~
+
+Escribe en tus apuntes qué valores toma el patrón para `/`, `/Productos` y `/Productos/Detalle/2`. En el tercer caso, el controlador es Productos, la acción es Detalle y el parámetro `id` toma el valor 2.
+
+La ruta no ejecuta automáticamente cualquier método con un nombre parecido. Debe existir una acción adecuada en el controlador. Por eso las URL del nuevo capítulo devuelven 404 cuando sus bloques todavía están comentados.
+
+### I.2. Leer el controlador completo antes de activar acciones
+
+Abre `Controllers/ProductosController.cs` y localiza el método privado `ObtenerProductosEjemplo()`. Reconoce los tres datos existentes y confirma que `Index()` lo utiliza para devolver una vista de colección:
+
+~~~csharp
+[HttpGet]
+public IActionResult Index()
+{
+    return View(ObtenerProductosEjemplo());
+}
+~~~
+
+La refactorización conserva los valores que ya aparecían en 1.3. Su finalidad es evitar copiar la colección entera en cada acción. El método privado no constituye una URL pública; ayuda a preparar los datos que las acciones necesitan.
+
+### I.3. Tabla de predicción en el estado inicial
+
+Antes de descomentar nada, comprueba qué ocurre con las direcciones siguientes:
+
+~~~text
+http://localhost:5091/Productos
+http://localhost:5091/Productos/Estado
+http://localhost:5091/Productos/Detalle/2
+http://localhost:5091/catalogo/ficha/2
+~~~
+
+Solo el listado está activo en este estado. Las otras tres rutas forman parte de bloques que iremos incorporando. La predicción debe anotarse **antes de realizar las solicitudes**, para que el resultado del navegador pueda confirmar o corregir tu comprensión del código.
+
+Si observas una respuesta inesperada, verifica que has abierto `PROYECTO/1.4/CursoWeb.Mvc` y no una versión posterior del proyecto que ya tenga las acciones habilitadas.
+
+## J. Laboratorio ampliado 1.4 — Diferenciar tres tipos de resultado HTTP
+
+### J.1. Texto plano de Estado
+
+El bloque `PASO 1.4.2` contiene:
+
+~~~csharp
+[HttpGet]
+public IActionResult Estado()
+{
+    return Content("Catalogo MVC disponible", "text/plain");
+}
+~~~
+
+Activa el método retirando las dos líneas de comentario que lo delimitan. Compila y ejecuta la aplicación, y solicita:
+
+~~~bash
+curl -i http://localhost:5091/Productos/Estado
+~~~
+
+Debes encontrar una respuesta satisfactoria y el texto `Catalogo MVC disponible`. Observa que no aparece la estructura completa del layout; no hemos utilizado `View()`.
+
+### J.2. Vista HTML de Detalle
+
+El bloque `PASO 1.4.3` permite activar `Detalle(int id)`. Cuando visitas `/Productos/Detalle/2` y el producto existe, la acción devuelve `View(producto)`.
+
+La respuesta se genera utilizando `Views/Productos/Detalle.cshtml`. En ella debes localizar los elementos con identificadores `detalle-id`, `detalle-nombre` y `detalle-precio`. La página también incorpora el layout del sitio.
+
+La diferencia respecto al método Estado es visible en el cuerpo y en el tipo de contenido de la respuesta. Ambas acciones están en el mismo controlador, pero producen formatos diferentes.
+
+### J.3. Resultado JSON del reto
+
+Al final del capítulo, el bloque `RETO 1.4` permite activar `Resumen(int id)`, que devuelve `Ok(new { producto.Id, producto.Nombre })`. La respuesta contiene datos JSON y no necesita una vista.
+
+**Comparación que debes poder explicar:**
+
+| Acción | URL | Instrucción central | Representación |
+|---|---|---|---|
+| Estado | `/Productos/Estado` | `Content(..., "text/plain")` | Texto |
+| Detalle | `/Productos/Detalle/2` | `View(producto)` | HTML |
+| Resumen | `/catalogo/resumen/2` | `Ok(new {...})` | JSON |
+
+El objetivo no es convertir MVC en un curso completo de Web API. Solo demostramos que una acción del controlador puede elegir entre distintos resultados HTTP.
+
+## K. Laboratorio ampliado 1.4 — Analizar el parámetro id en varios escenarios
+
+### K.1. Producto existente
+
+Con el paso 1.4.3 activado, solicita `/Productos/Detalle/2`. El valor 2 llega al parámetro `id` del método. La acción busca la instancia de producto cuyo identificador coincide y entrega ese objeto a la vista.
+
+El archivo de vista declara:
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+~~~
+
+Esta vez no se trata de una colección. La ficha muestra los datos de un objeto individual. Comprueba que el nombre de la ficha es Lápiz y que su identificador corresponde al solicitado.
+
+### K.2. Producto inexistente
+
+Solicita `/Productos/Detalle/99`. El valor 99 es un entero positivo, pero no corresponde a ninguno de los tres objetos de ejemplo. La búsqueda mediante `FirstOrDefault` no encuentra un producto y la acción devuelve `NotFound()`.
+
+Comprueba el código 404 con F12 o `curl -i`. No supongas que todo 404 significa que no existe una ruta: en este caso, la acción sí se ejecuta y decide que no hay un producto con ese identificador.
+
+### K.3. Identificador rechazado explícitamente
+
+Solicita `/Productos/Detalle/0`. El valor cumple el formato entero, pero la acción contiene una condición que lo rechaza:
+
+~~~csharp
+if (id <= 0)
+{
+    return BadRequest("El identificador debe ser mayor que cero.");
+}
+~~~
+
+El código esperado es 400. La diferencia respecto al caso anterior procede de una decisión escrita en el método, no de una propiedad automática de cualquier variable `int`.
+
+### K.4. Ausencia del segmento opcional
+
+Prueba `/Productos/Detalle`. En este ejemplo, con la ruta convencional y el parámetro entero no anulable, la acción puede recibir el valor predeterminado cero al faltar el segmento, y la misma regla produce 400.
+
+Esta situación ayuda a distinguir una plantilla que permite omitir un segmento de un método que considera válido cualquier valor obtenido. La URL puede corresponder a una acción y, sin embargo, esta puede rechazar la entrada.
+
+### K.5. Construir una matriz de evidencias
+
+| URL | Estado esperado | ¿Qué línea explica el resultado? |
+|---|---:|---|
+| `/Productos/Detalle/1` | 200 | `return View(producto)` |
+| `/Productos/Detalle/2` | 200 | `return View(producto)` |
+| `/Productos/Detalle/99` | 404 | `return NotFound()` |
+| `/Productos/Detalle/0` | 400 | `return BadRequest(...)` |
+
+El alumnado debe localizar las líneas en el proyecto real. No basta con leer la tabla: comprueba cada resultado mediante una solicitud HTTP y relaciona el código de estado con la condición del método.
+
+## L. Laboratorio ampliado 1.4 — Entender una ruta por atributos
+
+El bloque `PASO 1.4.4` añade una acción con esta plantilla:
+
+~~~csharp
+[HttpGet("/catalogo/ficha/{id:int}")]
+public IActionResult Ficha(int id)
+{
+    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return View("Detalle", producto);
+}
+~~~
+
+Retira los delimitadores del comentario y compila. Antes de abrir el navegador, explica por qué `/catalogo/ficha/2` debería alcanzar esta acción aunque el controlador se llame `ProductosController`.
+
+La respuesta es que la plantilla del atributo define una URL explícita. No depende de construir el nombre convencional `/Productos/Ficha/2`.
+
+### L.1. Comparar dos direcciones que producen la misma vista
+
+Abre:
+
+~~~text
+http://localhost:5091/Productos/Detalle/2
+http://localhost:5091/catalogo/ficha/2
+~~~
+
+Ambas deben representar los datos del producto Lápiz utilizando `Views/Productos/Detalle.cshtml`. El método `Ficha` lo indica explícitamente mediante `View("Detalle", producto)`.
+
+No se han creado dos archivos distintos de detalle. Esta reutilización es una buena manera de aprender que el nombre de la acción y el nombre de la vista no tienen que coincidir siempre, aunque MVC utilice esa correspondencia como convención predeterminada.
+
+### L.2. Comprobar la restricción de entero
+
+Solicita `/catalogo/ficha/no-numero`. La ruta especifica `{id:int}`, de modo que ese segmento no cumple la restricción. El resultado esperado es 404 por ausencia de coincidencia con el endpoint.
+
+Compara con `/catalogo/ficha/99`. El segundo segmento es un entero válido para la ruta, pero no corresponde a un producto. La acción puede ejecutarse y devolver igualmente 404.
+
+**Pregunta:** ¿por qué ambos casos generan el mismo estado aunque no tengan la misma causa? Porque 404 puede indicar que no existe una ruta compatible o que una acción seleccionada no encuentra el recurso solicitado. Para conocer el motivo debemos inspeccionar la URL, la plantilla y el método.
+
+### L.3. Distinguir una URL inexistente de una vista inexistente
+
+Solicita `/Productos/Ficha/2`. En esta aplicación la acción `Ficha` está asociada a una ruta por atributos absoluta, no a la dirección convencional que corresponde a su nombre. No se espera que la dirección convencional funcione.
+
+No intentes resolverlo añadiendo una copia de `Ficha.cshtml`. La cuestión no es encontrar una vista, sino seleccionar correctamente la acción. El archivo que reutiliza la acción es `Detalle.cshtml`.
+
+## M. Laboratorio ampliado 1.4 — Comprobar los enlaces generados por Razor
+
+Una vez activados Detalle y Ficha, abre `Views/Productos/Index.cshtml` y localiza el bloque `PASO 1.4.5`:
+
+~~~cshtml
+@* PASO 1.4.5 (inicio)
+<a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
+PASO 1.4.5 (fin) *@
+~~~
+
+Retira las líneas delimitadoras del comentario Razor. El enlace se encuentra dentro de un bucle `foreach`, por lo que se generará uno para cada objeto.
+
+### M.1. Comprobar que los enlaces son distintos
+
+Abre `/Productos` e inspecciona el HTML generado. Debes encontrar los destinos:
+
+~~~text
+/Productos/Detalle/1
+/Productos/Detalle/2
+/Productos/Detalle/3
+~~~
+
+El texto visual «Ver detalle» puede repetirse, pero el atributo `href` incorpora el valor `Id` de cada objeto. Esta diferencia permite navegar a fichas individuales sin escribir a mano tres enlaces distintos en el archivo Razor.
+
+### M.2. Navegar por dos recorridos completos
+
+Haz clic en el enlace del segundo producto y verifica la ficha de Lápiz. Regresa mediante `Volver al catálogo`. Después abre el enlace del primer producto y comprueba la ficha de Cuaderno.
+
+El objetivo es observar que el controlador recibe valores distintos aunque la acción es la misma. La vista de detalle también es la misma; cambia el objeto que recibe como modelo.
+
+### M.3. Comprobar que la lista anterior no ha desaparecido
+
+El paso 1.4.5 añade enlaces dentro del listado existente. No debe eliminar los nombres ni el contador de tres productos. Una regresión que conserve los enlaces pero haga desaparecer los datos del listado sería un resultado incorrecto.
+
+## N. Laboratorio ampliado 1.4 — Ejecutar el reto JSON como consumidor
+
+El código del reto está preparado en `ProductosController.cs`:
+
+~~~csharp
+/* RETO 1.4 INICIO
+[HttpGet("/catalogo/resumen/{id:int}")]
+public IActionResult Resumen(int id)
+{
+    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return Ok(new { producto.Id, producto.Nombre });
+}
+RETO 1.4 FIN */
+~~~
+
+Retira las dos líneas delimitadoras. Compila, inicia y solicita:
+
+~~~bash
+curl -i http://localhost:5091/catalogo/resumen/2
+~~~
+
+Debe aparecer una respuesta 200 y un cuerpo JSON con las propiedades `id` y `nombre`. El valor de nombre será Lápiz. Comprueba que el tipo de contenido indica JSON.
+
+Después prueba:
+
+~~~bash
+curl -i http://localhost:5091/catalogo/resumen/99
+curl -i http://localhost:5091/catalogo/resumen/no-numero
+~~~
+
+Ambos casos devuelven 404, pero el primero ejecuta el método y no encuentra un producto; el segundo no cumple la plantilla de ruta con la restricción de entero.
+
+### N.1. Justificar por qué no existe Resumen.cshtml
+
+La acción devuelve `Ok(new {...})`, no `View(...)`. Por tanto, no necesitamos una plantilla Razor adicional para generar JSON. La respuesta es un resultado HTTP que serializa datos.
+
+### N.2. Comprobar una regresión mientras el reto está activo
+
+Vuelve a abrir `/Productos` y `/Productos/Detalle/2`. El listado y la ficha deben seguir funcionando, pues el reto ha añadido un endpoint sin sustituir las acciones anteriores.
+
+La prueba automatizada del capítulo realiza esta misma idea de manera repetible: activa cada bloque, arranca Kestrel y comprueba las respuestas nuevas y las anteriores.
+
+## O. Laboratorio ampliado 1.4 — Resolver incidencias con un criterio claro
+
+**Si `/Productos/Estado` devuelve 404**, confirma que activaste la acción Estado y que la URL utiliza el controlador correcto. No es necesario crear una vista.
+
+**Si `/Productos/Detalle/2` falla después de activar el método**, comprueba la firma `Detalle(int id)`, el valor de la ruta y la existencia de `Views/Productos/Detalle.cshtml`. Distingue si el fallo es de selección de acción, de búsqueda de producto o de vista.
+
+**Si `/catalogo/ficha/2` devuelve 404**, comprueba el atributo de ruta absoluta. No añadas de forma apresurada otra regla convencional para hacer funcionar una URL equivocada.
+
+**Si el reto devuelve HTML en lugar de JSON**, revisa `Ok(new { ... })` y confirma que no has copiado `View(producto)` desde la acción Detalle.
+
+**Si el listado no muestra los enlaces**, revisa el comentario Razor `PASO 1.4.5` y confirma que la etiqueta está dentro del `foreach`.
+
+**Si una acción devuelve 200 pero el contenido es incorrecto**, no consideres la prueba superada solamente por el código de estado. Comprueba qué producto se representó y qué formato devolvió el servidor.
+
+Cada incidencia permite asociar un síntoma con una responsabilidad. Esta habilidad resulta más valiosa que memorizar de forma aislada los nombres de todos los métodos de `Controller`.
+
+## P. Cierre ampliado — Explicar el recorrido de un producto
+
+Elige Lápiz y describe las tres rutas mediante las que podemos obtener información de ese producto después de completar el capítulo:
+
+- `/Productos/Detalle/2`: HTML de una ficha seleccionada por ruta convencional.
+- `/catalogo/ficha/2`: el mismo HTML obtenido mediante una ruta por atributos.
+- `/catalogo/resumen/2`: JSON con un resumen del producto, tras activar el reto.
+
+Para cada una, identifica el método que se ejecuta, la instrucción que devuelve el resultado y el formato esperado. Después justifica por qué dos direcciones pueden usar una misma vista y por qué la tercera no necesita ninguna.
+
+Ejecuta por último, desde la raíz del repositorio y con el servidor manual detenido:
+
+~~~bash
+bash M01_MVC/TESTS/1.4_e2e.sh
+~~~
+
+La secuencia automatizada comprueba seis estados, incluido el reto. No sustituye la explicación personal: un resultado correcto debe acompañarse de la capacidad de predecir qué hará cada endpoint antes de solicitarlo.
+
+Una vez comprendidas las acciones y rutas, el siguiente capítulo se centrará en la presentación Razor. Conservaremos los mismos endpoints de catálogo y detalle y aprenderemos a representar productos mediante layouts, secciones y vistas parciales reutilizables.
+
+
 # P1.5. Vistas Razor tipadas, layouts y vistas parciales
 
 ## A. Objetivos y estado inicial
