@@ -23,6 +23,19 @@ Los recuentos se obtienen sobre los cinco capítulos de cada Markdown canónico.
 4. La matriz actual de **36 correspondencias** se basa en comprobación estática de marcadores y fragmentos seleccionados. **No prueba** que todos los ejemplos, pasos y retos del Markdown coincidan línea por línea con el repositorio.
 5. Los PDF son derivados de los MD, conservan la fuente literal incrustada y superan las pruebas de integridad, pero esas pruebas no sustituyen una lectura pedagógica de cada actividad.
 
+
+## Auditoría ampliada de todos los ejemplos (11 de octubre de 2026)
+
+La ejecución [M01 — Auditoría completa de ejemplos 38176948021](https://github.com/jaimecopilot/CURSO-DESARROLLO-WEB-NET8/actions/runs/38176948021) ha comparado **93 bloques** de C#, Razor, JSON, CSS y XML de los cinco capítulos de prácticas con sus proyectos correspondientes.
+
+- **78/93** fragmentos aparecen de forma literal en el proyecto del punto correspondiente, sin tener en cuenta los espacios de formato.
+- **15/93** son variantes o representaciones de estados editados; sus líneas sustantivas se han localizado en los archivos correspondientes, pero el bloque no coincide de forma literal y exige revisar su activación paso a paso.
+- **0/93** se han clasificado como parcial o sin cobertura en esta comparación estática. Esto **no equivale** a demostrar que las quince variantes sean compilables sin instrucciones adicionales o que todas las actividades estén perfectamente alineadas.
+
+En particular, las variantes se concentran en P1.1 (2), P1.2 (7), P1.3 (1), P1.4 (2) y P1.5 (3). Entre ellas aparecen el estado activo de un bloque inicialmente comentado, ejemplos abreviados de clases y controladores, y la parcial Razor representada sin los comentarios docentes que incorpora el archivo real.
+
+El resultado completo se conserva como artefacto de la ejecución. **La decisión editorial pendiente es revisar esas quince variantes y el solapamiento de los laboratorios con los pasos ya existentes.** Hasta ese momento no se declarará trazabilidad pedagógica perfecta.
+
 ## Estructura editorial que debe sustituir la actual
 
 Para **teoría 1.1–1.5**, cada capítulo debe seguir un recorrido de pocos bloques de nivel superior: objetivos y contexto, conceptos conectados, ejemplo completo con explicación, variantes y errores, y conexión con la práctica. La profundización debe estar situada junto al concepto correspondiente, no como una segunda teoría añadida al final. Se eliminarán repeticiones sin suprimir explicaciones ni ejemplos únicos.
