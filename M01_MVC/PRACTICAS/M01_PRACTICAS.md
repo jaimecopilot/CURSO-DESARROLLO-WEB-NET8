@@ -3034,3 +3034,308 @@ Cada funcionalidad debe poder asociarse a una pieza concreta: datos en el contro
 **El resultado de M01 es un catálogo consultable y navegable, todavía con datos en memoria**. No hemos desarrollado todavía creación o edición de productos. En M02 añadiremos formularios, binding de GET/POST, validación, Tag Helpers de formularios y persistencia EF Core. Se mantiene así el alcance de las 30 horas acordadas.
 
 **Para continuar:** conserva el proyecto 1.5 como referencia del catálogo MVC desarrollado. En M02 lo ampliaremos con operaciones de creación, edición y eliminación, manteniendo los conceptos de separación de responsabilidades, rutas y vistas que has practicado.
+
+
+## I. Laboratorio ampliado 1.5 — Seguir el HTML desde la vista hasta el navegador
+
+El último punto de M01 utiliza todas las piezas estudiadas: rutas, controladores, modelos, vistas y layout. Este laboratorio profundiza en la composición de una respuesta HTML sin introducir formularios ni JavaScript de aplicación.
+
+### I.1. Identificar dónde se produce cada parte del documento
+
+Abre el proyecto `PROYECTO/1.5/CursoWeb.Mvc` y localiza estas tres vistas:
+
+~~~text
+Views/Productos/Index.cshtml
+Views/Productos/Detalle.cshtml
+Views/Shared/_Layout.cshtml
+~~~
+
+Abre `Index.cshtml` y señala la directiva `@model`, el valor de `ViewData["Title"]`, la condición de modelo nulo y el `foreach` que genera los productos. Después abre `_Layout.cshtml` y busca `@RenderBody()`.
+
+Explica el recorrido: la acción `Index` entrega una lista de productos, la vista representa su contenido y el layout coloca ese contenido dentro de una página con navegación, estilos y pie compartidos.
+
+No es necesario modificar ningún archivo para responder. La finalidad es reconocer qué parte de la respuesta se define en la vista y cuál es responsabilidad del layout.
+
+### I.2. Comprobar el resultado con F12
+
+Ejecuta la aplicación:
+
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Abre `http://localhost:5091/Productos` y accede a F12 → Red. Selecciona la solicitud del documento y examina el HTML recibido. Debe contener el listado y las etiquetas del layout.
+
+Busca `@Model.Count` como texto literal. No debería aparecer, porque Razor ya ha evaluado la expresión en el servidor. En su lugar encontrarás el número concreto de productos representado dentro del párrafo correspondiente.
+
+### I.3. Comparar dos contratos de vista
+
+La vista del catálogo declara:
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+~~~
+
+La de detalle declara:
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+~~~
+
+Abre `/Productos/Detalle/2` y comprueba que se representa un único producto. En el código de la vista, localiza `@Model.Id` y `@Model.Nombre`. No existe allí un bucle que recorra una lista de productos, porque el contrato es diferente.
+
+Pregunta de cierre: ¿qué ocurriría si intentáramos ejecutar en la vista de detalle el mismo `foreach` diseñado para la colección? El tipo de modelo no sería el esperado por ese fragmento. La sintaxis y el contrato deben corresponderse con los datos que el controlador entrega.
+
+## J. Laboratorio ampliado 1.5 — Condiciones Razor sin cambiar el modelo
+
+### J.1. Activar un mensaje según la cantidad
+
+En `Views/Productos/Index.cshtml` localiza el bloque `PASO 1.5.2`:
+
+~~~cshtml
+@* PASO 1.5.2 (inicio)
+@if (Model.Count >= 3)
+{
+    <p id="catalogo-completo">El catálogo contiene al menos tres productos.</p>
+}
+PASO 1.5.2 (fin) *@
+~~~
+
+Retira los delimitadores del comentario Razor y conserva la condición. Compila y ejecuta. En `/Productos` debe aparecer el mensaje porque el catálogo tiene tres elementos.
+
+No cambies la lista en `ProductosController`: el objetivo es demostrar que la vista puede decidir si representa una pieza de marcado según los datos recibidos.
+
+### J.2. Inspeccionar el fragmento generado
+
+En la respuesta HTML busca `id="catalogo-completo"`. Verifica que el párrafo aparece después de activar el bloque. La expresión `@if` no se envía como código ejecutable al navegador.
+
+Compara esta comprobación con la realizada en el punto 1.2, donde primero aparecía un contador y después activábamos el bucle de productos. En ambos casos, Razor utiliza datos del modelo para determinar contenido de la respuesta.
+
+### J.3. Interpretar correctamente la comprobación de nulos
+
+El `@if (Model.Count >= 3)` se ha incluido dentro de un `else` que corresponde a `if (Model is null)`. Eso es importante: evita acceder a `Count` cuando el modelo es nulo.
+
+No cambies la organización de las llaves para ahorrar líneas. La estructura existente es intencionada y ayuda a razonar sobre los dos estados de modelo que vimos anteriormente.
+
+## K. Laboratorio ampliado 1.5 — Comprender una sección de layout
+
+### K.1. Localizar el espacio de representación
+
+Abre `Views/Shared/_Layout.cshtml` y busca el comentario `PASO 1.5.3`:
+
+~~~cshtml
+@* PASO 1.5.3 (inicio)
+<aside id="notas-del-layout" aria-label="Notas de la página">
+    @await RenderSectionAsync("NotasPagina", required: false)
+</aside>
+PASO 1.5.3 (fin) *@
+~~~
+
+La instrucción `RenderSectionAsync` declara un lugar para mostrar contenido que algunas vistas pueden definir. El nombre `NotasPagina` debe coincidir con el utilizado por la vista.
+
+### K.2. Localizar el contenido proporcionado por la ficha
+
+En `Views/Productos/Detalle.cshtml` busca:
+
+~~~cshtml
+@* PASO 1.5.3 (inicio)
+@section NotasPagina
+{
+    <p id="nota-pagina-detalle">Detalle construido con una vista Razor tipada.</p>
+}
+PASO 1.5.3 (fin) *@
+~~~
+
+Este bloque proporciona el texto que el layout representará. El archivo de detalle sigue conteniendo también sus elementos principales con `Id`, `Nombre` y `Precio`.
+
+### K.3. Activar los dos bloques coordinadamente
+
+Retira los delimitadores del comentario en ambos archivos antes de compilar. No actives únicamente la definición de la sección y dejes el layout sin el marcador que la consume.
+
+Compila e inicia. Abre `/Productos/Detalle/2`. Debes encontrar el mensaje de la sección dentro de la estructura compartida, separado del cuerpo principal de la ficha.
+
+Después abre `/Productos` y `/`. Las páginas deben seguir funcionando aunque no definan `NotasPagina`, porque el layout usa `required: false`.
+
+### K.4. Demostrar que no se ha creado una vista nueva
+
+La sección no requiere una URL independiente ni un nuevo controlador. El contenido se define en `Detalle.cshtml` y se inserta donde el layout lo solicita.
+
+Esta observación diferencia las secciones de la navegación. No hemos creado una página `/NotasPagina` ni un archivo `NotasPagina.cshtml`. Hemos ampliado la composición de una respuesta HTML existente.
+
+## L. Laboratorio ampliado 1.5 — Utilizar una vista parcial en una colección
+
+### L.1. Leer la parcial antes de invocarla
+
+Abre `Views/Shared/_TarjetaProducto.cshtml`. Identifica:
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+
+<article class="tarjeta-producto" data-producto-id="@Model.Id">
+    <h3>@Model.Nombre</h3>
+    <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
+    <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
+</article>
+~~~
+
+El archivo real contiene también un bloque comentado del reto. No lo actives todavía. Comprueba que la parcial recibe un **objeto Producto**, no la colección completa que recibe el listado.
+
+Pregunta: ¿qué representa `data-producto-id`? Un atributo HTML que contiene el identificador del objeto actual. No es una ruta ni una variable global; sirve para identificar el producto en el documento generado.
+
+### L.2. Activar el Partial Tag Helper en el listado
+
+En `Views/Productos/Index.cshtml` busca el comentario `PASO 1.5.4`:
+
+~~~cshtml
+@* PASO 1.5.4 (inicio)
+<section id="tarjetas-catalogo" aria-label="Tarjetas reutilizables de productos">
+    <h2>Vista de tarjetas</h2>
+    @foreach (var producto in Model)
+    {
+        <partial name="_TarjetaProducto" model="producto" />
+    }
+</section>
+PASO 1.5.4 (fin) *@
+~~~
+
+Retira las dos líneas delimitadoras del comentario Razor. Conservar el `foreach` es fundamental: cada elemento de la colección se pasa por separado a la parcial.
+
+La directiva de importación `@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers` ya está presente en el proyecto. No necesitas instalar ningún paquete ni copiar manualmente el contenido de la parcial en el listado.
+
+### L.3. Comprobar las tres tarjetas por su identificador
+
+Compila e inicia. Abre `/Productos`. Deben aparecer el listado clásico y una nueva sección titulada **Vista de tarjetas**.
+
+Comprueba que existen tres tarjetas y que sus atributos `data-producto-id` tienen los valores 1, 2 y 3. Revisa también que cada tarjeta muestra el nombre y el precio correctos.
+
+No basta con comprobar que aparecen tres elementos visualmente parecidos. Cada tarjeta debe recibir un objeto diferente. Si las tres mostraran Cuaderno, por ejemplo, habría una incidencia en el dato que se pasa a la parcial o en la expresión que se representa.
+
+### L.4. Observar el HTML resultante
+
+En F12 → Red, inspecciona el documento principal y busca `class="tarjeta-producto"`. Debe aparecer tres veces.
+
+No deberías encontrar tres nuevas solicitudes HTTP a `_TarjetaProducto.cshtml`. La parcial no es un recurso servido al navegador por separado: Razor la representa dentro de la respuesta de `/Productos`.
+
+## M. Laboratorio ampliado 1.5 — Reutilizar la misma parcial en un contexto distinto
+
+### M.1. Activar la parcial dentro del detalle
+
+Abre `Views/Productos/Detalle.cshtml` y localiza `PASO 1.5.5`:
+
+~~~cshtml
+@* PASO 1.5.5 (inicio)
+<section id="tarjeta-detalle" aria-label="Ficha presentada como tarjeta">
+    <h2>Tarjeta reutilizada en el detalle</h2>
+    <partial name="_TarjetaProducto" model="Model" />
+</section>
+PASO 1.5.5 (fin) *@
+~~~
+
+Retira los delimitadores de comentario. Observa que el atributo `model` contiene ahora `Model`, no una variable `producto` creada por un bucle. La vista de detalle recibe un único `Producto`.
+
+### M.2. Comparar la cantidad de parciales representadas
+
+Visita `/Productos`: deben seguir apareciendo tres tarjetas. Visita `/Productos/Detalle/2`: debe aparecer una única tarjeta correspondiente a Lápiz. Visita `/Productos/Detalle/1` y comprueba la tarjeta de Cuaderno.
+
+En ambos contextos el marcado procede del mismo archivo `_TarjetaProducto.cshtml`. No hemos creado una copia en `Views/Productos` ni hemos añadido otra acción para representar tarjetas.
+
+### M.3. Explicar la reutilización en términos de mantenimiento
+
+Si en el futuro hubiera que cambiar el texto «Precio» por otro, ¿cuántos archivos de tarjeta habría que modificar? Solo `_TarjetaProducto.cshtml`, siempre que las dos páginas continúen utilizándola.
+
+Si copiáramos el marcado en la lista y en el detalle, habría que mantener ambas versiones. La práctica pretende demostrar el beneficio de evitar esa duplicación.
+
+## N. Laboratorio ampliado 1.5 — Reto de etiqueta económica con comprobaciones positivas y negativas
+
+El reto consiste en representar una etiqueta visual únicamente para los productos cuyo precio es inferior a 3 €. El código preparado se encuentra **dentro de la parcial**, no en el controlador:
+
+~~~cshtml
+@* RETO 1.5 (inicio)
+@if (Model.Precio < 3m)
+{
+    <strong class="etiqueta-economico">Precio económico</strong>
+}
+RETO 1.5 (fin) *@
+~~~
+
+Retira las dos líneas delimitadoras del comentario. No cambies los precios del catálogo ni agregues condiciones duplicadas en `Index.cshtml` o `Detalle.cshtml`.
+
+### N.1. Comprobar el resultado en el listado
+
+Compila y ejecuta. Abre `/Productos` y revisa las tres tarjetas. Solo Lápiz debe mostrar **Precio económico**, ya que su precio es 1,20 €, mientras Cuaderno y Carpeta superan el umbral.
+
+Comprueba que la etiqueta aparece **una sola vez** en el conjunto de tarjetas. Si aparece en todas, revisa la comparación `Model.Precio < 3m` y confirma que no has trasladado el bloque fuera de la parcial.
+
+### N.2. Comprobar el resultado en el detalle de Lápiz
+
+Abre `/Productos/Detalle/2`. La tarjeta de Lápiz debe mostrar la misma etiqueta, aunque no hayas modificado la vista de detalle. La condición se evalúa dentro de la parcial al recibir el objeto Producto.
+
+Este resultado demuestra la reutilización real: el mismo archivo aporta una regla de presentación coherente a dos vistas diferentes.
+
+### N.3. Comprobar los casos que no cumplen el criterio
+
+Abre `/Productos/Detalle/1` y observa la tarjeta de Cuaderno. No debe aparecer el texto «Precio económico». Después visita `/Productos/Detalle/3` y comprueba lo mismo para Carpeta.
+
+Un test que solo comprobara la ficha de Lápiz sería insuficiente: una condición incorrecta podría generar el texto para todos los productos. Verificar también los casos negativos confirma que se está aplicando el criterio esperado.
+
+### N.4. Explicar por qué no es una regla comercial
+
+La condición de precio es una decisión visual de este laboratorio. No modifica el importe del producto, no aplica un descuento ni afecta a la persistencia. El propósito es demostrar que una regla simple de representación puede mantenerse en un solo archivo reutilizable.
+
+En una aplicación real, las reglas que afectan a operaciones económicas o permisos de compra deben tratarse en las capas adecuadas. No deben depender exclusivamente de un texto mostrado por Razor.
+
+## O. Laboratorio ampliado 1.5 — Distinguir cinco tipos de fallo
+
+**Fallo 1: aparece el mensaje de catálogo completo, pero no las tarjetas.** Has activado 1.5.2, pero quizá no 1.5.4. Comprueba el bloque de parcial del listado antes de modificar datos del controlador.
+
+**Fallo 2: la ficha muestra la tarjeta pero no la nota del layout.** Revisa ambos bloques de 1.5.3 y comprueba que el nombre `NotasPagina` coincide en la definición y la representación.
+
+**Fallo 3: el listado no muestra los nombres correctos en las tarjetas.** Comprueba que `model="producto"` está dentro del `foreach` y que la parcial utiliza `@Model.Nombre`. No escribas nombres fijos dentro de las tarjetas.
+
+**Fallo 4: el Tag Helper se muestra literalmente como etiqueta HTML.** Revisa `_ViewImports.cshtml` y la directiva de Tag Helpers de MVC. La etiqueta `<partial>` debe ser procesada por Razor en el servidor.
+
+**Fallo 5: la etiqueta económica aparece en Cuaderno.** Revisa la condición y el umbral. El precio de Cuaderno es superior a 3 €, así que no debería mostrarla.
+
+La técnica común consiste en observar qué parte del resultado es incorrecta y regresar al archivo responsable de esa parte, evitando reescribir simultáneamente el controlador, la vista y el layout.
+
+## P. Laboratorio ampliado 1.5 — Recorrido de regresión de todo M01
+
+Una vez activados todos los pasos y el reto, comprueba estas direcciones:
+
+~~~text
+http://localhost:5091/
+http://localhost:5091/Productos
+http://localhost:5091/Productos/Detalle/1
+http://localhost:5091/Productos/Detalle/2
+http://localhost:5091/catalogo/ficha/2
+http://localhost:5091/css/catalogo.css
+~~~
+
+Cada una representa una parte del módulo. La portada confirma la continuidad de 1.1; el listado utiliza los datos del modelo y la vista de 1.2; el CSS procede de la estructura de 1.3; las fichas usan las rutas y acciones de 1.4; y las tarjetas y el layout muestran la composición Razor de 1.5.
+
+Al revisar `/Productos`, comprueba el contador de tres productos, el mensaje de catálogo completo, los enlaces de detalle y las tres tarjetas. Al revisar `Detalle/2`, comprueba el identificador, nombre y precio de Lápiz, la nota del layout y la tarjeta con la etiqueta económica.
+
+Después solicita `Detalle/1` y confirma que la etiqueta no aparece en la tarjeta de Cuaderno. Esta última comprobación evita dar por finalizado el módulo tras observar solamente un caso positivo.
+
+### P.1. Comparar la ejecución manual con el script de pruebas
+
+Detén el servidor y ejecuta desde la raíz del repositorio:
+
+~~~bash
+bash M01_MVC/TESTS/1.5_e2e.sh
+~~~
+
+El script construye copias temporales de las variantes y comprueba las respuestas HTTP. Si supera sus escenarios, sabemos que el código preparado permite activar los pasos sin introducir errores detectados por esas pruebas.
+
+Sin embargo, el alumno todavía debe explicar qué se ejecuta dentro del servidor, qué HTML recibe el navegador y por qué una vista parcial puede utilizarse en varios lugares. Los tests automáticos son una ayuda para la reproducibilidad, no sustituyen la comprensión del flujo.
+
+## Q. Síntesis integrada para finalizar la práctica
+
+Explica el recorrido completo desde que el navegador solicita `/Productos` hasta que se muestran las tres tarjetas. Debes mencionar la selección de la acción, la colección de modelos, la vista tipada, el `foreach`, el Partial Tag Helper, el archivo de parcial y el layout que proporciona la estructura compartida.
+
+Después describe qué cambia cuando se solicita `/Productos/Detalle/2`. La acción recibe un identificador, entrega un único `Producto` y la vista de detalle utiliza la misma parcial con `model="Model"`. El layout puede añadir su sección opcional de notas.
+
+Por último, justifica el resultado del reto: la condición de precio se ha escrito una vez en `_TarjetaProducto.cshtml` y produce una etiqueta en los contextos donde el modelo corresponde a Lápiz. No se ha duplicado el código en otras vistas ni se han cambiado los datos del controlador.
+
+**Conclusión práctica de M01:** el alumno dispone de un catálogo MVC navegable, construido con rutas, modelos, controladores, vistas Razor, layout y una parcial reutilizable. La aplicación continúa utilizando datos en memoria. La creación y edición de productos, la validación de formularios y el almacenamiento con EF Core forman parte de M02, conforme a la progresión prevista del curso.
