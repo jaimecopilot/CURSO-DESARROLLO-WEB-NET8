@@ -5,7 +5,7 @@
 
 - **1.1. Introducción al desarrollo web con ASP.NET Core**
 - **1.2. Arquitectura Model-View-Controller**
-- 1.3. Estructura de un proyecto ASP.NET Core MVC
+- **1.3. Estructura de un proyecto ASP.NET Core MVC**
 - 1.4. Controladores, acciones y routing
 - 1.5. Introducción a las vistas Razor
 
@@ -505,3 +505,288 @@ Al finalizar, debe poder responderse a la pregunta: *«Cuando cambio el nombre d
 - Microsoft Learn, patrón MVC y separación de responsabilidades: https://learn.microsoft.com/aspnet/core/mvc/overview?view=aspnetcore-8.0
 - Microsoft Learn, tutorial de controladores MVC: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/adding-controller?view=aspnetcore-8.0
 - Microsoft Learn, sintaxis Razor y vistas tipadas: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/razor?view=aspnetcore-8.0
+
+
+---
+
+# 1.3. Estructura, convenciones y puesta en marcha de un proyecto ASP.NET Core MVC
+
+## Objetivos del capítulo
+
+Este capítulo permitirá al alumno **orientarse dentro de un proyecto MVC real sin depender de memorizar carpetas**. Al terminar podrá identificar el archivo de proyecto, el punto de entrada, los controladores, los modelos, las vistas y los recursos estáticos; relacionar rutas de archivos con rutas URL; entender qué papel desempeña el archivo de configuración; y modificar un recurso web sin confundirlo con una vista Razor.
+
+Partimos de `CursoWeb.Mvc` en su estado completo del punto 1.2: la ruta `/Productos` ya muestra tres productos y dispone de navegación. El ejercicio de 1.3 no vuelve a construir el catálogo, sino que analiza cómo se organiza y se inicia y añade ejemplos mínimos de configuración y archivos estáticos. Reservamos el diseño de rutas más avanzado y las acciones con parámetros para el punto 1.4.
+
+## 1.3.1. De un proyecto C# a una aplicación web
+
+Un proyecto MVC sigue siendo un **proyecto .NET**: tiene un archivo `.csproj`, compila código C# y genera ensamblados. Su particularidad es que incorpora el SDK web de ASP.NET Core, archivos Razor y una aplicación anfitriona capaz de atender HTTP.
+
+En nuestro proyecto encontramos:
+
+~~~xml
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>
+~~~
+
+La primera línea selecciona `Microsoft.NET.Sdk.Web`, que aporta la configuración y las referencias del framework web necesarias para compilar una aplicación ASP.NET Core. `TargetFramework` fija el destino `net8.0`. `Nullable` habilita las anotaciones de nulabilidad, relevantes cuando una vista pueda recibir un modelo nulo; `ImplicitUsings` permite utilizar espacios de nombres comunes sin repetir siempre `using`.
+
+El proyecto de este capítulo no necesita ningún paquete externo adicional para enseñar la estructura. En M02 añadiremos las dependencias de EF Core y SQLite cuando sean pertinentes. Adelantar esas dependencias aquí entorpecería el objetivo didáctico.
+
+El archivo `.csproj` **no es la aplicación ejecutándose**: describe cómo construirla. El arranque real está en `Program.cs` y se ejecuta cuando iniciamos el proyecto. La compilación puede producir `bin/` y `obj/`, carpetas generadas que no deben confundirse con los archivos fuente y que se excluyen de Git.
+
+## 1.3.2. Mapa real de carpetas: identificar responsabilidades por su ubicación
+
+En la versión correspondiente al punto 1.3, el árbol de mayor interés es el siguiente:
+
+~~~text
+CursoWeb.Mvc/
+├── CursoWeb.Mvc.csproj
+├── Program.cs
+├── appsettings.json
+├── Properties/
+│   └── launchSettings.json
+├── Controllers/
+│   ├── HomeController.cs
+│   └── ProductosController.cs
+├── Models/
+│   └── Producto.cs
+├── Views/
+│   ├── _ViewImports.cshtml
+│   ├── _ViewStart.cshtml
+│   ├── Home/
+│   │   └── Index.cshtml
+│   ├── Productos/
+│   │   └── Index.cshtml
+│   └── Shared/
+│       └── _Layout.cshtml
+├── wwwroot/
+│   ├── css/
+│   │   ├── site.css
+│   │   └── catalogo.css
+│   └── recursos/
+│       ├── guia-publica.txt
+│       └── aviso-laboratorio.txt
+└── DOCUMENTACION/
+    └── nota-interna.txt
+~~~
+
+**Controllers.** Agrupa las clases que atienden acciones MVC. Por convención, `ProductosController` es un controlador y su acción `Index` se relaciona con la URL `/Productos` bajo nuestra ruta convencional. El código recibe la solicitud y elige un resultado. Los detalles de acciones y routing se desarrollarán en 1.4.
+
+**Models.** Alberga, en este ejemplo, el tipo `Producto`. Se mantiene independiente del navegador y de las vistas. La carpeta facilita encontrar los tipos del dominio, pero no significa que cualquier archivo allí almacenado vaya a ser persistido automáticamente.
+
+**Views.** Contiene los archivos Razor que MVC utiliza para representar respuestas HTML. La convención `Views/Productos/Index.cshtml` vincula la vista a `ProductosController.Index`, mientras que `Views/Home/Index.cshtml` corresponde a la portada del `HomeController`. La ubicación es significativa para la búsqueda por convención que realiza MVC; no se publica directamente un archivo `.cshtml` para que el navegador lo ejecute.
+
+**Views/Shared.** Reúne elementos comunes de presentación. `_Layout.cshtml` define el documento HTML envolvente y la navegación, y `@RenderBody()` deja espacio para el cuerpo de la vista seleccionada.
+
+**Views/_ViewStart.cshtml.** Ejecuta las instrucciones Razor de inicialización compartidas por las vistas de ese árbol. En este caso, establece `Layout = "_Layout";` para utilizar el diseño común.
+
+**Views/_ViewImports.cshtml.** Permite aplicar directivas e importaciones comunes. En nuestro ejemplo contiene `@using CursoWeb.Mvc` y `@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers`; esto prepara el uso de Tag Helpers que veremos con mayor detalle en el día 2. Las importaciones no sustituyen a los controladores ni sirven por sí mismas un recurso HTTP.
+
+**wwwroot.** Es la **raíz web** predeterminada. Contiene recursos que, si la aplicación dispone del middleware correspondiente y el tipo de archivo está admitido, pueden devolverse directamente mediante solicitudes HTTP. Los archivos CSS y de texto de este capítulo ilustran esa diferencia frente a los archivos C# o Razor del proyecto.
+
+**DOCUMENTACION.** Es una carpeta propia del ejemplo fuera de `wwwroot`. Su archivo de texto se ha incluido deliberadamente para demostrar que no toda ruta física bajo el proyecto se convierte por defecto en una URL pública. No debe interpretarse como un mecanismo de seguridad para proteger secretos: un repositorio público puede permitir descargar sus archivos directamente desde GitHub.
+
+**Properties/launchSettings.json.** Define perfiles locales para ejecutar y depurar desde herramientas de desarrollo. No sustituye a `appsettings.json` ni determina por sí solo el puerto de todos los entornos en los que se publique la aplicación. Cuando se usa `dotnet run --no-launch-profile --urls http://localhost:5091`, el argumento de ejecución establece la URL y el perfil local no se aplica.
+
+En proyectos profesionales pueden existir carpetas adicionales, por ejemplo `Services`, `Data`, `DTOs` o `ViewModels`. No son requisitos de MVC para funcionar; responden a necesidades concretas y las introduciremos solo cuando el temario lo necesite.
+
+## 1.3.3. Program.cs: qué ocurre al arrancar y qué ocurre ante una petición
+
+El código de arranque actual contiene las operaciones esenciales:
+
+~~~csharp
+var builder = WebApplication.CreateBuilder(args);
+
+builder.Services.AddControllersWithViews();
+
+var app = builder.Build();
+
+app.UseStaticFiles();
+app.UseRouting();
+
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.Run();
+~~~
+
+La lectura correcta del archivo es **temporal**:
+
+1. `CreateBuilder(args)` prepara configuración, registro de servicios y opciones del host.
+2. `AddControllersWithViews()` incorpora los servicios que necesita la infraestructura MVC. No se está mostrando todavía ninguna página.
+3. `Build()` construye la aplicación a partir de los servicios configurados.
+4. `UseStaticFiles()` incorpora el middleware para atender recursos estáticos reconocidos de `wwwroot`.
+5. `UseRouting()` incorpora el middleware de enrutamiento. La ruta convencional registrada mediante `MapControllerRoute` describe los endpoints MVC que la aplicación puede seleccionar.
+6. `Run()` inicia el host; a partir de ese momento comienza a atender peticiones en las direcciones configuradas.
+
+**Arranque y petición no son lo mismo.** Normalmente `Program.cs` se ejecuta una vez al iniciar el proceso, mientras que `ProductosController.Index()` puede ejecutarse tantas veces como un usuario visite `/Productos`. Si se necesitan diez peticiones, no se registran diez veces los servicios. Esta separación ayudará a entender más adelante los ciclos de vida de otros componentes y servicios.
+
+No debemos deducir que `UseRouting()` «dibuja la página» ni que `UseStaticFiles()` sustituye a los controladores. Atienden tipos distintos de trabajo dentro de la plataforma compartida.
+
+~~~mermaid
+flowchart TD
+    A["Inicio del proceso: Program.cs"] --> B["Configurar servicios MVC"]
+    B --> C["Construir aplicación y middleware"]
+    C --> D["Registrar rutas"]
+    D --> E["Run: Kestrel escucha"]
+    E --> F{"Solicitud HTTP"}
+    F -->|"GET /Productos"| G["Acción ProductosController.Index"]
+    G --> H["Vista Razor genera HTML"]
+    F -->|"GET /css/catalogo.css"| I["UseStaticFiles devuelve CSS"]
+    H --> J["Respuesta HTTP"]
+    I --> J
+~~~
+
+El ejemplo utiliza la ruta convencional con controlador y acción predeterminados. Durante 1.3 la identificamos y seguimos; en 1.4 explicaremos sus opciones y su relación con rutas por atributos, parámetros y resultados HTTP.
+
+## 1.3.4. appsettings.json: configuración distinta del código fuente
+
+Un proyecto web necesita configuraciones que pueden cambiar según dónde y cómo se ejecute. ASP.NET Core carga valores desde fuentes de configuración, entre ellas archivos JSON, variables de entorno y argumentos de ejecución.
+
+Nuestro `appsettings.json` incluye una sección sencilla de propósito didáctico:
+
+~~~json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "Curso": {
+    "Nombre": "Curso MVC de productos",
+    "Edicion": "Laboratorio NET8"
+  }
+}
+~~~
+
+La sección `Logging` controla los niveles de registro; `AllowedHosts` forma parte de la configuración de hosts y no debe entenderse como un sistema completo de protección de solicitudes. La nueva sección `Curso` es propia de nuestra aplicación y no necesita un proveedor externo.
+
+Después de `Build()`, ASP.NET Core permite leer un valor jerárquico con la notación `Curso:Nombre`:
+
+~~~csharp
+app.Logger.LogInformation(
+    "P1.3 configuracion: {Nombre}",
+    app.Configuration["Curso:Nombre"]);
+~~~
+
+En el proyecto, esta línea aparece inicialmente **comentada** con la marca `PASO 1.3.3`. Cuando se descomenta y se reinicia, la consola muestra el mensaje `P1.3 configuracion: Curso MVC de productos` como registro informativo. La aplicación ya tiene los servicios de logging del host, por lo que no necesitamos instalar otra biblioteca.
+
+El texto `{Nombre}` de la plantilla de logging es un marcador de valor; permite registrar propiedades de forma estructurada. No debe confundirse con las expresiones Razor de una vista ni con los segmentos del patrón de rutas MVC: son sintaxis parecidas en tecnologías diferentes.
+
+**Una observación importante:** el argumento `--urls` utilizado al arrancar determina las direcciones del servidor en este laboratorio; no estamos cambiando la sección `Curso` para controlar la URL. Aprenderemos en M05 las diferencias elementales entre ejecutar y publicar.
+
+**Seguridad básica.** Los archivos de configuración del proyecto pueden contener ajustes, pero **no se deben subir secretos reales** a un repositorio público. Este curso solo usa valores didácticos. El hecho de que un archivo esté fuera de `wwwroot` no impide que un usuario con acceso al repositorio GitHub pueda leerlo.
+
+## 1.3.5. wwwroot: rutas físicas y URLs no son lo mismo
+
+El archivo `wwwroot/css/catalogo.css` está ubicado físicamente bajo la raíz web del proyecto. Su URL por defecto es `/css/catalogo.css`, sin incluir el nombre de carpeta `wwwroot`. Esto ocurre porque `UseStaticFiles()` expone los recursos desde esa raíz.
+
+En la aplicación preparamos este CSS:
+
+~~~css
+/* PASO 1.3.4: recurso estático independiente de los controladores. */
+main.container {
+    border-left: 5px solid #2d635d;
+    padding-left: 1.5rem;
+}
+~~~
+
+Mientras el archivo exista bajo `wwwroot`, una solicitud directa a `http://localhost:5091/css/catalogo.css` puede obtenerlo, aunque ninguna vista incluya todavía una referencia a él. La aplicación lo sirve como recurso estático reconocido.
+
+Para que el navegador lo aplique a las páginas MVC, añadimos en `Views/Shared/_Layout.cshtml` una etiqueta HTML:
+
+~~~html
+<link rel="stylesheet" href="/css/catalogo.css" />
+~~~
+
+Al activarla, la siguiente navegación solicita el HTML y, a continuación, el CSS adicional. El estilo añade un borde al área principal y permite comprobar visualmente el efecto. El archivo CSS no se transforma en una vista Razor ni hace falta crear un `CatalogoController` que lo devuelva.
+
+La distinción queda reflejada en esta tabla:
+
+| Ubicación física | URL de ejemplo | Resultado esperado |
+|---|---|---|
+| `wwwroot/css/site.css` | `/css/site.css` | HTTP 200, CSS |
+| `wwwroot/css/catalogo.css` | `/css/catalogo.css` | HTTP 200, CSS, incluso antes de enlazarlo |
+| `wwwroot/recursos/guia-publica.txt` | `/recursos/guia-publica.txt` | HTTP 200, texto |
+| `wwwroot/recursos/aviso-laboratorio.txt` | `/recursos/aviso-laboratorio.txt` | HTTP 200, texto |
+| `DOCUMENTACION/nota-interna.txt` | `/DOCUMENTACION/nota-interna.txt` | HTTP 404 con esta configuración |
+| `Views/Productos/Index.cshtml` | `/Views/Productos/Index.cshtml` | No es un documento estático servido por `UseStaticFiles` |
+| `Views/Productos/Index.cshtml` | `/Productos` | El HTML se genera al ejecutar la acción MVC |
+
+Este comportamiento corresponde a **la configuración concreta de nuestro proyecto**. ASP.NET Core permite modificar las opciones de los proveedores de archivos y habilitar otras rutas estáticas, pero esa ampliación no entra en el alcance de 1.3.
+
+Un archivo fuera de `wwwroot` puede seguir siendo accesible de otra manera si desarrollamos una acción que lo envíe, configuramos otro proveedor de archivos o lo publicamos mediante una infraestructura externa. Por eso la conclusión correcta no es «fuera de wwwroot significa secreto», sino «`UseStaticFiles()` no lo expone por defecto».
+
+Además, retirar un enlace HTML **no despublica** el archivo que ya está en `wwwroot`. Un usuario que conozca o adivine su URL puede solicitarlo directamente. Esta distinción será esencial en el reto práctico.
+
+## 1.3.6. Layout, vistas y Tag Helpers: convenciones de presentación
+
+La página `/Productos` se compone de la vista `Views/Productos/Index.cshtml` y del layout compartido `Views/Shared/_Layout.cshtml`. El archivo `_ViewStart.cshtml` establece ese layout; `_ViewImports.cshtml` define importaciones y habilita Tag Helpers para las vistas.
+
+El layout contiene una zona para las hojas de estilo, navegación y `@RenderBody()`. En nuestro ejercicio activaremos dos enlaces comentados:
+
+~~~cshtml
+<link rel="stylesheet" href="/css/catalogo.css" />
+<a href="/recursos/guia-publica.txt">Guía pública</a>
+~~~
+
+Se trata de HTML con rutas de recursos estáticos. La vista `Index.cshtml` no necesita saber dónde está la hoja CSS ni incorporar cada enlace de navegación; es una decisión de diseño compartida.
+
+En el día 2 estudiaremos Tag Helpers como `asp-for` y `asp-action`. De momento conviene conocer su lugar de registro, pero no anticipar su sintaxis en formularios. Del mismo modo, las vistas tipadas que ya utilizamos en `1.2` se profundizarán en `1.5`.
+
+Un error frecuente consiste en pensar que una carpeta llamada `Views` se distribuye al navegador como si fuera un directorio de archivos web. No es así en nuestro proyecto: son archivos fuente para generar una respuesta **del lado del servidor**. Las hojas CSS, en cambio, sí se entregan como recursos separados al navegador.
+
+## 1.3.7. Convenciones, ventajas y límites
+
+Las convenciones de MVC reducen configuración repetitiva. Los nombres `ProductosController`, `Index` y `Views/Productos/Index.cshtml` bastan en nuestro ejercicio para conectar acción y vista. La carpeta `Shared` permite compartir el layout. `wwwroot` evita escribir una acción para cada CSS.
+
+No hay que convertir esas convenciones en leyes universales. Una aplicación puede personalizar rutas, nombres de vistas y proveedores de contenido estático. Para avanzar con seguridad, primero aprenderemos el funcionamiento convencional; después abordaremos las personalizaciones que el temario sí necesita.
+
+La organización del proyecto también favorece el aprendizaje incremental: añadir un modelo de producto no modifica necesariamente el layout, y cambiar el CSS no requiere modificar la clase del dominio. Esa es una continuación directa del principio de responsabilidades MVC aprendido en el capítulo 1.2.
+
+**Qué no haremos todavía:** estructurar una solución de múltiples proyectos, configurar contenedores de dependencias personalizados, introducir infraestructura de autenticación, publicar en IIS/Docker, aplicar bundling complejo ni estudiar todos los orígenes de configuración del host. Esas decisiones no ayudan al objetivo limitado de este capítulo.
+
+## 1.3.8. El reto de distinguir archivos públicos y archivos del proyecto
+
+La práctica termina con una comprobación sencilla pero reveladora: habilitar en el layout el enlace comentado **Aviso de laboratorio**, que apunta a un archivo ubicado en `wwwroot/recursos`. Después se solicitará por URL otro archivo de texto, `DOCUMENTACION/nota-interna.txt`, situado fuera de `wwwroot`.
+
+El primero debe responder HTTP 200 y el segundo 404 en nuestro proyecto. Más interesante aún, el primero ya era accesible **antes** de habilitar su enlace de navegación. Esta observación muestra que la accesibilidad de un recurso depende de la configuración de publicación, no de que exista un enlace visible en pantalla.
+
+El código completo, las instrucciones para activar el enlace, los resultados esperados y las pruebas automáticas de ambas respuestas están en `P1.3`. El reto no requiere conocimientos de seguridad avanzados ni recursos externos.
+
+## 1.3.9. Problemas frecuentes
+
+**«Una vista Razor se abre por su ruta de archivo».** En el flujo MVC habitual se solicita una URL asociada a una acción; la infraestructura localiza la vista y genera HTML. La ruta física del archivo no se equipara a una URL pública.
+
+**«Para servir un CSS tengo que crear un controlador».** No en esta aplicación: `UseStaticFiles()` y `wwwroot` ya cubren esa necesidad.
+
+**«Si no hay enlace, el recurso está oculto».** No. Los archivos estáticos pueden solicitarse directamente si se conoce la URL y están publicados.
+
+**«Todo el contenido del proyecto está disponible en el navegador».** No por defecto. El código C#, los archivos de construcción y otros recursos del proyecto no se sirven automáticamente como estáticos por esta configuración.
+
+**«Program.cs se ejecuta por cada petición».** No. Configura y arranca el proceso una vez; los controladores atienden las peticiones que llegan después.
+
+**«El perfil de Visual Studio y appsettings.json son idénticos».** No. `launchSettings.json` describe perfiles de lanzamiento local; `appsettings.json` aporta configuración de aplicación y es solo uno de los orígenes posibles.
+
+**«El archivo de configuración incluye valores seguros porque no está en wwwroot».** Esto no justifica guardar contraseñas en un repositorio. Los recursos y las políticas de despliegue deben distinguirse del control de acceso al código fuente.
+
+## 1.3.10. Preparación para la práctica y el punto 1.4
+
+La práctica `P1.3` parte de una página `/Productos` ya funcional, sigue el árbol de archivos, activa un registro de configuración, incorpora una hoja CSS, habilita un enlace a un documento estático y resuelve un reto sobre publicación de recursos.
+
+El alumno debe terminar explicando **en qué carpeta se modifica una cosa y por qué**, además de haber comprobado cada resultado. Esta capacidad permite avanzar al punto `1.4`, donde los controladores atenderán nuevas acciones, parámetros y rutas.
+
+### Referencias de Microsoft Learn
+
+- Estructura básica de un proyecto MVC: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/start-mvc?view=aspnetcore-8.0
+- Archivos estáticos en ASP.NET Core: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/static-files?view=aspnetcore-8.0
+- Configuración en ASP.NET Core: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/?view=aspnetcore-8.0
+- Vistas Razor y convenciones: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/overview?view=aspnetcore-8.0
