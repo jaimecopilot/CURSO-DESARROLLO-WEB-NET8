@@ -7,15 +7,20 @@ Se comprueba la existencia de los cinco capítulos, retos, contenido fundamental
 
 | Archivo | Palabras MD | Caracteres MD | Páginas PDF | Diagramas SVG |
 |---|---:|---:|---:|---:|
-| TEORIA | 33093 | 225267 | 81 | 7 |
-| PRACTICAS | 28706 | 198803 | 81 | 0 |
+| TEORIA | 33096 | 225291 | 82 | 7 |
+| PRACTICAS | 28709 | 198827 | 82 | 0 |
+
+## Autor procedente del Markdown
+
+Los dos PDF presentan **AUTOR: JAIME GALLO** en portada y en la cabecera de cada página siguiente.
+El texto repetido en la cabecera se toma de la línea canónica del Markdown correspondiente; no se introduce un autor independiente en el generador.
 
 ## Huellas de fuente canónica
 
 | Documento | SHA-256 del MD que está incrustado en el PDF | Coincidencia byte por byte |
 |---|---|---|
-| TEORIA | `bab71fcfddcc3bcb2387650bc25ae19d4a2552ca4af0ed834fad40efea618e05` | True |
-| PRACTICAS | `14fb830d94a26ee198f401a81c992f36f528d15a8aeb2e365040b9aa327e49da` | True |
+| TEORIA | `204bea2b4bddf6b0b0e07ff0eb3dc2e948151a24622d46396becf4f48a09e558` | True |
+| PRACTICAS | `e3d9b4da358ce3a31f882edc1da59e6b0887d2f0f13d5259ea106411ad2f9c30` | True |
 
 ## Alcance y límites
 
