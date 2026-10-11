@@ -1,4 +1,4 @@
-name: M01 - E2E puntos 1.1 a 1.4
+name: M01 - E2E puntos 1.1 a 1.5
 
 on:
   push:
@@ -12,7 +12,7 @@ on:
       - ".github/workflows/m01-ci.yml"
 
 jobs:
-  m01-puntos-1-1-a-1-4:
+  m01-puntos-1-1-a-1-5:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -28,3 +28,5 @@ jobs:
         run: bash M01_MVC/TESTS/1.3_e2e.sh
       - name: P1.4 - Acciones, parámetros y rutas
         run: bash M01_MVC/TESTS/1.4_e2e.sh
+      - name: P1.5 - Razor, layout y parciales
+        run: bash M01_MVC/TESTS/1.5_e2e.sh
