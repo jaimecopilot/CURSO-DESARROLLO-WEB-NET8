@@ -61,7 +61,7 @@ run_scenario() {
   code=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE/no-existe")
   [[ "$code" == "404" ]]
 
-  if [[ "$state" == "datos-vista" || "$state" == "completo" ]]; then
+  if [[ "$state" == "datos-vista" || "$state" == "completo" || "$state" == "reto" ]]; then
     echo "Verificación de HTML renderizado en $state:"
     grep -nE 'numero-productos|listado-productos|data-id|Cuaderno|Lápiz|Carpeta' "$TMP/body-$state" || true
   fi
@@ -73,22 +73,25 @@ run_scenario() {
     grep -Eq 'ha enviado <strong>3</strong> productos' "$TMP/body-$state"
     grep -Fq 'id="numero-productos"' "$TMP/body-$state"
   fi
-  if [[ "$state" == "datos-vista" || "$state" == "completo" ]]; then
+  if [[ "$state" == "datos-vista" || "$state" == "completo" || "$state" == "reto" ]]; then
     grep -Fq 'id="listado-productos"' "$TMP/body-$state"
     # Razor codifica caracteres acentuados en HTML: comprobar texto decodificado.
-    python3 - "$TMP/body-$state" <<'PY'
+    python3 - "$TMP/body-$state" "$state" <<'PY'
 from html import unescape
 from pathlib import Path
 import sys
 html = unescape(Path(sys.argv[1]).read_text(encoding="utf-8"))
-for product in ("Cuaderno", "Lápiz", "Carpeta"):
+expected_first = "Bloc" if sys.argv[2] == "reto" else "Cuaderno"
+for product in (expected_first, "Lápiz", "Carpeta"):
     assert product in html, f"No se muestra el producto {product}"
 assert html.count('data-id="') == 3, "El listado no tiene exactamente tres elementos"
+if expected_first == "Bloc":
+    assert "Cuaderno" not in html, "El reto debe reemplazar y no duplicar Cuaderno"
 PY
   else
     ! grep -Fq 'id="listado-productos"' "$TMP/body-$state"
   fi
-  if [[ "$state" == "completo" ]]; then
+  if [[ "$state" == "completo" || "$state" == "reto" ]]; then
     grep -Fq 'href="/Productos">Productos</a>' "$TMP/body-$state"
   else
     ! grep -Fq 'href="/Productos">Productos</a>' "$TMP/body-$state"
@@ -111,6 +114,7 @@ for name, data, view, nav in [
     ("datos", True, False, False),
     ("datos-vista", True, True, False),
     ("completo", True, True, True),
+    ("reto", True, True, True),
 ]:
     dest = tmp / name
     copytree(source, dest, ignore=ignore_patterns("bin", "obj"))
@@ -121,6 +125,12 @@ for name, data, view, nav in [
     assert code.count(start) == 1 and code.count(end) == 1 and code.count(ret) == 1
     if data:
         code = code.replace(start, "").replace(end, "").replace(ret, "        // " + ret.strip())
+    if name == "reto":
+        original = '            new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },'
+        variant = '            // new() { Id = 1, Nombre = "Bloc", Precio = 4.50m },'
+        assert code.count(original) == 1 and code.count(variant) == 1, "Falta código comentado del RETO 1.2"
+        code = code.replace(original, "            // " + original.strip())
+        code = code.replace(variant, '            new() { Id = 1, Nombre = "Bloc", Precio = 4.50m },')
     ctl.write_text(code, encoding="utf-8")
 
     v = dest / "Views" / "Productos" / "Index.cshtml"
@@ -143,5 +153,6 @@ PY
 run_scenario "$TMP/datos" datos
 run_scenario "$TMP/datos-vista" datos-vista
 run_scenario "$TMP/completo" completo
+run_scenario "$TMP/reto" reto
 
-echo "P1.2: cuatro escenarios E2E reales superados."
+echo "P1.2: cinco escenarios E2E reales superados, incluido el reto."
