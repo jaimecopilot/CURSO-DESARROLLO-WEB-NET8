@@ -1596,17 +1596,6 @@ La primera comprobación no debe ser reescribir el código. Debemos identificar 
 
 Si se producen dos intentos de arranque sobre el mismo puerto, el segundo puede fallar porque ya existe un proceso escuchando. No debe diagnosticarse automáticamente como un error de MVC ni del controlador: es una condición del entorno de ejecución.
 
-**Cómo comprobar que hemos entendido la estructura.**
-
-Un resultado útil de aprendizaje no consiste en memorizar que «los CSS están en wwwroot». El alumno debe poder explicar **qué ocurre si se cambia una pieza y qué otras deberían permanecer iguales**.
-
-Si habilita `catalogo.css` en el layout, el servidor de MVC seguirá devolviendo el mismo catálogo de productos: el cambio afecta a la apariencia. Si habilita el enlace a `guia-publica.txt`, la cantidad de productos no debería variar. Si activa el registro del valor `Curso:Nombre`, el navegador no debería mostrar nuevas filas por ese hecho.
-
-Estas afirmaciones permiten construir pruebas de regresión significativas. La versión 1.3 se valida con cinco estados en los que, además del cambio puntual, permanecen operativos `/` y `/Productos`. Así comprobamos que la nueva configuración, el CSS y la navegación no han roto la aplicación ya estudiada.
-
-La última pregunta de razonamiento reúne todos los conceptos: *si un archivo de texto existe en el repositorio pero su URL devuelve 404, ¿qué información necesitamos para decidir si se trata de un comportamiento esperado?* Necesitamos conocer su ubicación, qué raíz web utiliza el middleware, si la aplicación dispone de otra ruta que pueda atender la petición y si el servidor está realmente respondiendo. La mera existencia del archivo no resuelve la cuestión.
-
-Ese razonamiento es la base del capítulo siguiente. Al añadir acciones y rutas más específicas en 1.4, distinguir entre una ruta HTTP publicada y una ubicación física del proyecto dejará de ser opcional: será necesario para explicar por qué dos direcciones diferentes pueden terminar utilizando la misma vista Razor.
 
 # 1.4. Controladores, acciones, parámetros y routing en ASP.NET Core MVC
 
