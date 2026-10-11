@@ -24,8 +24,11 @@ run_scenario() {
   echo "Compilando escenario: $state"
   dotnet build "$project/CursoWeb.Mvc.csproj" -c Release --nologo
   echo "Arrancando Kestrel: $state"
-  dotnet "$project/bin/Release/net8.0/CursoWeb.Mvc.dll" --urls "$BASE" >"$TMP/server-$state.log" 2>&1 &
+  # El directorio de trabajo debe coincidir con el proyecto para localizar wwwroot.
+  pushd "$project" >/dev/null
+  dotnet "bin/Release/net8.0/CursoWeb.Mvc.dll" --urls "$BASE" >"$TMP/server-$state.log" 2>&1 &
   PID=$!
+  popd >/dev/null
 
   local ready=0
   for i in {1..40}; do
@@ -120,8 +123,10 @@ run_scenario "$TMP/activado" "activado"
 echo "Verificando la plantilla oficial MVC de .NET 8"
 dotnet new mvc -f net8.0 --no-https -n PlantillaMvc -o "$TMP/PlantillaMvc" --no-restore
 dotnet build "$TMP/PlantillaMvc/PlantillaMvc.csproj" -c Release --nologo
-dotnet "$TMP/PlantillaMvc/bin/Release/net8.0/PlantillaMvc.dll" --urls http://127.0.0.1:5095 >"$TMP/template.log" 2>&1 &
+pushd "$TMP/PlantillaMvc" >/dev/null
+dotnet "bin/Release/net8.0/PlantillaMvc.dll" --urls http://127.0.0.1:5095 >"$TMP/template.log" 2>&1 &
 PID=$!
+popd >/dev/null
 ready=0
 for i in {1..40}; do
   if curl --silent --output /dev/null http://127.0.0.1:5095/; then ready=1; break; fi
