@@ -105,6 +105,8 @@ def audit_one(kind):
         md_counter=Counter(mdtokens);pdf_counter=Counter(pdftokens)
         missing=md_counter-pdf_counter
         added=pdf_counter-md_counter
+        if missing:
+            raise AssertionError(f'{kind} punto 1.{n}: palabras ausentes en PDF: {missing.most_common(20)}')
         # Comparación adicional que respeta el orden del contenido fuente.
         alignment=ordered_differences(mdtokens,pdftokens)
         shared=sum((md_counter&pdf_counter).values())
