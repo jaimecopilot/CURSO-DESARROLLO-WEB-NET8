@@ -7,7 +7,7 @@ Se comprueba la existencia de los cinco capítulos, retos, contenido fundamental
 
 | Archivo | Palabras MD | Caracteres MD | Páginas PDF | Diagramas SVG |
 |---|---:|---:|---:|---:|
-| TEORIA | 13223 | 93040 | 38 | 7 |
+| TEORIA | 15828 | 110413 | 44 | 7 |
 | PRACTICAS | 14857 | 104848 | 45 | 0 |
 
 ## Alcance y límites
