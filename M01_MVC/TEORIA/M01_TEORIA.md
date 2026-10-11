@@ -687,6 +687,163 @@ Al finalizar, debe poder responderse a la pregunta: *«Cuando cambio el nombre d
 
 ---
 
+
+## 1.2.8. El contrato de datos como vínculo entre componentes
+
+La palabra «modelo» se utiliza en desarrollo de software para referirse a cosas diferentes: modelo de dominio, representación de una fila de base de datos, objeto de transferencia, objeto de un formulario o modelo que necesita una vista concreta. En este primer encuentro con MVC utilizamos deliberadamente un único tipo `Producto` para todas las demostraciones, pero es útil entender por qué esta simplificación es válida en el laboratorio y cuándo dejaría de serlo.
+
+Un contrato de datos responde a preguntas precisas: ¿qué propiedades puede consultar el componente consumidor?, ¿cuáles son sus tipos?, ¿cuáles pueden ser nulas?, ¿hay alguna garantía sobre la colección recibida? Nuestra vista del listado declara un tipo que responde a estas preguntas:
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+~~~
+
+La interfaz `IReadOnlyList<Producto>` indica que la vista puede consultar la cantidad de elementos y leerlos por índice, sin necesitar una operación de modificación de la colección. No significa que la lista concreta de C# creada en el controlador sea inmutable. El controlador utiliza `List<Producto>`, que sí permite añadir y eliminar elementos; la interfaz elegida para la vista expresa simplemente las operaciones que esperamos que use. Esta distinción —**la capacidad expuesta por un contrato no tiene por qué incluir todas las capacidades de su implementación**— es un concepto general de diseño de software.
+
+El símbolo `?` detrás del tipo señala que, según las anotaciones de nulabilidad de C#, puede recibirse una referencia nula. La vista contempla ese caso con `if (Model is null)`. Cuando se activa la entrega de la lista, ese caso deja de producirse en el recorrido normal, pero conservar la comprobación nos permite comparar estados sin provocar una excepción.
+
+También importa el tipo de cada propiedad del elemento. `Precio` es `decimal`, no una cadena preformateada con el símbolo «€». El modelo almacena el valor numérico y la vista decide cómo representarlo. Si guardáramos todos los importes como textos, las comparaciones numéricas y la futura persistencia serían más difíciles de tratar correctamente. Esta separación permite que el valor tenga sentido como dato, independientemente de cómo aparezca en la pantalla.
+
+### El valor del contrato no es el valor concreto de los datos
+
+El tipo `Producto` dice que existe una propiedad `Nombre`, pero no determina qué nombre tiene el primer objeto. Los valores concretos se establecen cuando creamos instancias:
+
+~~~csharp
+var productos = new List<Producto>
+{
+    new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+    new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+    new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+};
+~~~
+
+La vista solo puede presentar el resultado que recibe. Si el controlador enviara otra lista con productos distintos, el archivo Razor no debería necesitar modificaciones para mostrar los nuevos nombres. Ese es el principio que verificamos con el reto de cambiar Cuaderno por Bloc: el **contrato se mantiene**, pero cambia un **valor de una instancia**.
+
+En un sistema más amplio, podríamos construir un `ProductoListadoViewModel` con únicamente las propiedades que necesita la pantalla. No introducirlo aquí no significa que todo modelo de vista tenga que ser una entidad de dominio; significa que aún no existe una necesidad didáctica que compense añadir tipos adicionales.
+
+## 1.2.9. Seguir el ciclo de ejecución a nivel de archivo y de método
+
+Para comprender MVC a fondo no basta con repetir el diagrama «Modelo → Vista → Controlador». De hecho, ese orden puede inducir a error: **una petición HTTP no empieza por ejecutar el modelo**. En nuestro ejemplo, el recorrido observable empieza en el navegador, pasa por la infraestructura ASP.NET Core y llega a una acción concreta.
+
+La ruta convencional registrada por `MapControllerRoute` está preparada para reconocer el controlador y la acción. Al solicitar `/Productos`, el enrutamiento obtiene los valores esperados para `ProductosController.Index`. El controlador recibe el control de ejecución; ahí creamos o seleccionamos los datos y devolvemos un objeto resultado. El motor de vistas representa el archivo Razor correspondiente y utiliza el modelo que ha recibido.
+
+Es importante distinguir **crear un resultado de vista** de **componer inmediatamente todos sus caracteres HTML**. `return View(productos)` expresa qué resultado debe ejecutarse, y la infraestructura MVC se ocupa de representar la vista dentro del proceso de construcción de la respuesta. Para el alumno, esta precisión explica por qué no encontrará el HTML de todas las tarjetas en el método C#.
+
+### Una forma de examinar el recorrido sin depuración avanzada
+
+Podemos detenernos en tres archivos y formular una pregunta diferente en cada uno:
+
+| Archivo | Pregunta | Evidencia en el código |
+|---|---|---|
+| `Program.cs` | ¿Qué rutas MVC están disponibles? | `MapControllerRoute(...)` |
+| `Controllers/ProductosController.cs` | ¿Qué datos se entregan y qué resultado se elige? | `View(productos)` |
+| `Views/Productos/Index.cshtml` | ¿Qué HTML se genera a partir de esos datos? | `@model`, `@if` y `@foreach` |
+
+Esta lectura tiene una ventaja práctica sobre comenzar abriendo todos los archivos de un proyecto: acota el razonamiento a una petición. Si el HTML muestra una cantidad incorrecta, primero comprobamos qué objetos genera la acción; si la cantidad es correcta pero falta una lista visual, comprobamos la condición o el bucle de la vista. No necesitamos modificar el enrutamiento para resolver un problema de marcado.
+
+No significa que los tres archivos sean independientes en todos los sentidos. El controlador y la vista comparten un contrato tipado, y los nombres de controlador y acción participan en convenciones de búsqueda de vistas. La separación es **de responsabilidad**, no aislamiento absoluto.
+
+## 1.2.10. Comparar tres situaciones que parecen la misma avería
+
+Los tres estados siguientes pueden producir una pantalla sin filas visibles, pero representan problemas conceptualmente distintos:
+
+**Situación A: no se entregó un modelo.** La acción utiliza `return View()`, la vista recibe `null` y muestra el mensaje preparado para ese caso. La página puede responder 200. Es un comportamiento correcto para el estado inicial didáctico.
+
+**Situación B: se entregó un modelo, pero el bucle está comentado.** La acción envía tres objetos, `Model.Count` informa de la cantidad correcta y el navegador no muestra las filas porque todavía no se ha activado su bloque de representación. El problema, si lo tratáramos como una aplicación final, sería de contenido visual de la vista, no de recuperación de datos.
+
+**Situación C: se entregó una lista vacía.** No es el estado que ejecutamos con nuestros datos fijos, pero podemos razonarlo a partir del contrato: `Model` no sería `null`, `Model.Count` sería cero y un `foreach` sobre esa lista no produciría filas. En una aplicación real convendría presentar un mensaje específico de catálogo vacío. Una colección vacía y la ausencia de colección no son necesariamente lo mismo.
+
+Estos escenarios revelan por qué las comprobaciones deben observar más de un elemento. Un test que verifica únicamente HTTP 200 no detecta si la lista está correctamente representada. Un test que busca un nombre escrito literalmente en la vista podría pasar incluso si el controlador nunca entregó un modelo. Una comprobación útil debe vincular datos y presentación.
+
+### Los errores de tipado también son distintos
+
+Si una vista espera un `Producto` individual y recibe una `List<Producto>`, habrá una incompatibilidad de contrato de modelo. No se resuelve añadiendo más HTML. Lo correcto es revisar la declaración `@model` y el argumento pasado a `View(...)` para garantizar que ambos expresen el mismo tipo de información.
+
+El caso contrario también puede ocurrir: una vista preparada para iterar una colección no puede tratar automáticamente un objeto individual como una lista. En 1.4 tendremos ambas vistas y podremos comprobar por qué conviene que cada una declare explícitamente su tipo.
+
+## 1.2.11. La vista como función de presentación
+
+Resulta útil razonar sobre una vista como una transformación conceptual:
+
+\[
+\text{datos del modelo} + \text{plantilla Razor} \longrightarrow \text{HTML}
+\]
+
+No estamos afirmando que Razor sea una función matemática pura o que no intervenga más contexto de la petición; el esquema solo muestra la responsabilidad principal que queremos aprender. Si los datos permanecen iguales pero cambia el archivo Razor, puede cambiar la estructura HTML. Si permanece igual el archivo Razor pero cambian los valores recibidos, puede cambiar el texto representado.
+
+Nuestro ejemplo permite comprobar ambos sentidos de la relación. El paso 1.2.3 modifica la **entrada de datos** de la vista, al pasar de `View()` a `View(productos)`. El paso 1.2.4 modifica la **plantilla de presentación**, al activar el `@foreach`. El reto cambia un **valor del dato**, sustituyendo Cuaderno por Bloc sin tocar la vista.
+
+Esto ofrece un método para pensar en las modificaciones que aparecerán después. Si queremos mostrar un icono junto a cada producto, probablemente cambiaremos la vista. Si queremos seleccionar únicamente productos de cierto tipo, necesitaremos decidir dónde se produce la selección de datos, normalmente antes de entregar el modelo a la vista. Si queremos guardar productos para que sobrevivan al reinicio, necesitamos persistencia, que todavía no existe.
+
+### Presentación y negocio no son idénticos
+
+En un ejemplo pequeño puede parecer razonable poner todas las condiciones dentro de `@if` en Razor. Algunas condiciones realmente son de presentación, como decidir si se muestra un encabezado para una lista vacía. Otras pueden representar políticas de negocio: por ejemplo, decidir qué productos están autorizados para venderse en cierta jurisdicción. La segunda no debería quedar oculta exclusivamente en una plantilla HTML, porque podría necesitarse también desde una API o desde otros procesos.
+
+El límite no es «está prohibido usar C# en la vista», sino **qué responsabilidad pertenece a cada decisión**. En M01 usaremos condiciones simples de presentación y mantendremos los datos fijos fuera del archivo Razor.
+
+## 1.2.12. Ventajas y costes al modificar un requisito
+
+Imaginemos cuatro solicitudes de cambio realizadas por el responsable de una aplicación:
+
+**Cambio 1: «El producto de id 1 debe llamarse Bloc».** Afecta al valor de los datos que genera nuestro controlador. No requiere modificar las etiquetas HTML. La práctica del reto demuestra precisamente este caso, con la variante de código ya comentada junto al objeto original.
+
+**Cambio 2: «Los nombres deben aparecer resaltados».** Se trata de una modificación visual. En este punto miraríamos primero `Index.cshtml` y, más adelante, podríamos extraer el marcado reutilizable a una vista parcial. El contrato `Producto` puede seguir igual.
+
+**Cambio 3: «Añade un enlace Productos al menú de todas las páginas».** Corresponde a una estructura de presentación compartida. El `_Layout.cshtml` permite aplicar ese cambio una vez en el lugar adecuado, sin obligar a cada controlador a incorporar manualmente el enlace.
+
+**Cambio 4: «Los cambios de nombre deben conservarse después de reiniciar».** No se resuelve solamente cambiando `@Model.Nombre`, porque lo que falta es persistencia. El proyecto actual crea la misma colección fija cada vez; será necesario introducir un mecanismo que almacene datos. Se abordará en M02 para no confundir objetivos.
+
+La separación de responsabilidades **no significa que cada cambio afecte siempre a un solo archivo**. Si ampliamos la clase `Producto` con una nueva propiedad obligatoria, puede ser preciso modificar el código que construye sus instancias y las vistas que utilicen esa propiedad. La ventaja es que sabemos por qué cada archivo necesita cambiar y cuál es el contrato compartido.
+
+### Un pequeño ejemplo de evolución sin añadir capas innecesarias
+
+Si necesitáramos mostrar una propiedad descriptiva adicional, el razonamiento sería:
+
+~~~csharp
+public sealed class Producto
+{
+    public int Id { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public decimal Precio { get; set; }
+    public string Descripcion { get; set; } = string.Empty;
+}
+~~~
+
+Este fragmento es **un ejemplo de lectura conceptual**, no un paso que deba activarse ahora en el proyecto. Primero habría que valorar si la propiedad pertenece realmente al concepto Producto. Después se proporcionarían valores y, finalmente, una vista decidiría si y dónde mostrarla. No hace falta introducir un sistema de servicios para comprender esta secuencia.
+
+En el código ejecutable del curso no añadimos `Descripcion` durante 1.2; la clase suministrada mantiene únicamente las tres propiedades necesarias, y el reto se concentra en variar el nombre de una instancia. Con ello mantenemos un ejercicio acotado y reproducible.
+
+## 1.2.13. Cómo comprobar la separación mediante evidencias
+
+Un alumno debería poder defender que MVC se ha utilizado correctamente mostrando **qué cambia y qué no cambia** entre dos ejecuciones. No basta con afirmar que «el código está en tres carpetas».
+
+Después de activar los datos del controlador, el HTML incluye el contador de tres productos, aunque aún no exista una lista de elementos. Eso demuestra la entrega del modelo sin activar todavía el bucle de presentación.
+
+Después de habilitar `@foreach`, aparecen los nombres y precios. El controlador y la lista no han cambiado entre esos dos estados. Por tanto, hemos aislado el efecto de la plantilla.
+
+Después de habilitar el enlace del layout, el navegador dispone de una vía de navegación adicional. No hemos tenido que cambiar los tres objetos ni la acción. De nuevo aislamos la responsabilidad modificada.
+
+Finalmente, al sustituir Cuaderno por Bloc, el contador permanece en tres y el formato HTML de los elementos sigue siendo el mismo. Lo que cambia es el valor de un modelo. La vista continúa consumiendo `producto.Nombre`, que es exactamente lo que debería suceder.
+
+Podemos relacionar estas observaciones con comprobaciones automáticas:
+
+| Modificación | Evidencia positiva | Regresión que no debe producirse |
+|---|---|---|
+| Entregar una lista | Mensaje de tres productos | La portada `/` sigue siendo accesible |
+| Activar bucle Razor | Nombres y precios representados | El contador continúa siendo tres |
+| Activar enlace de layout | Aparece una navegación adicional | El listado no desaparece |
+| Sustituir un nombre | Aparece Bloc en lugar de Cuaderno | Los otros dos productos y el contador permanecen |
+| No tocar la ruta | `/Productos` sigue respondiendo 200 | No se necesita una ruta adicional para cambiar la vista |
+
+La prueba automatizada del punto 1.2 reconstruye estos estados sobre copias temporales. El objetivo del alumno es entender la causa de cada comprobación; el hecho de que una prueba dé verde no es por sí solo evidencia de comprensión conceptual.
+
+## 1.2.14. Conexión con los próximos capítulos sin adelantar sus contenidos
+
+Una vez entendido qué parte del código representa datos, qué parte decide el resultado y qué parte lo presenta, el resto del módulo gana sentido. En 1.3 exploraremos la ubicación de los archivos y la configuración. En 1.4 veremos cómo una acción recibe un identificador y entrega un único `Producto` a una vista de detalle; será una aplicación directa del mismo contrato que ya hemos utilizado. En 1.5 extraeremos la representación repetida de un producto a una parcial Razor, lo que permitirá reutilizar el mismo marcado desde diferentes vistas.
+
+Es importante no confundir el alcance de este primer día con el de una aplicación empresarial terminada. Nuestro catálogo no tiene operaciones de escritura, persistencia, gestión de usuarios ni validación de formularios. El hecho de que funcione y esté organizado con MVC no implica que disponga ya de esas capacidades. En M02 añadiremos las funcionalidades necesarias de manera incremental, reutilizando la separación de responsabilidades que acabamos de establecer.
+
+
 # 1.3. Estructura, convenciones y puesta en marcha de un proyecto ASP.NET Core MVC
 
 ## Objetivos del capítulo
