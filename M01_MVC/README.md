@@ -4,10 +4,10 @@
 
 ## Material del alumno
 
-- [Teoría completa en Markdown](TEORIA/M01_TEORIA.md) — [PDF de teoría (40 páginas)](TEORIA/M01_TEORIA.pdf).
-- [Prácticas completas, ejercicios y retos en Markdown](PRACTICAS/M01_PRACTICAS.md) — [PDF de prácticas (45 páginas)](PRACTICAS/M01_PRACTICAS.pdf).
+- [Teoría completa en Markdown](TEORIA/M01_TEORIA.md) — [PDF de teoría (81 páginas)](TEORIA/M01_TEORIA.pdf).
+- [Prácticas completas, ejercicios y retos en Markdown](PRACTICAS/M01_PRACTICAS.md) — [PDF de prácticas (81 páginas)](PRACTICAS/M01_PRACTICAS.pdf).
 
-Los dos PDF provienen de los Markdown canónicos y cubren los **cinco capítulos**, sin PDFs individuales por punto. La comprobación automatizada de integridad y paginación está documentada en [verificación PDF](../VERIFICACION_INTERNA/M01_PDFS_VALIDACION.md). Sigue pendiente una inspección visual manual completa antes de publicar el material en `main`.
+Los dos PDF provienen de los Markdown canónicos y cubren los **cinco capítulos**, sin PDFs individuales por punto. La comprobación automatizada de integridad, huellas SHA-256 y paginación está documentada en [verificación PDF](../VERIFICACION_INTERNA/M01_PDFS_VALIDACION.md), y el recuento por cada punto en [equivalencia MD/PDF](../VERIFICACION_INTERNA/M01_FIDELIDAD.md). El PDF no constituye una fuente editorial: únicamente se genera a partir del MD canónico. Sigue pendiente una inspección visual manual completa antes de publicar el material en `main`.
 
 ## Proyecto y evolución
 
