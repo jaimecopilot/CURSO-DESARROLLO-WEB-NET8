@@ -6,7 +6,7 @@
 - **P1.1. Primera aplicación MVC y recorrido de una petición HTTP**
 - **P1.2. El flujo Modelo–Vista–Controlador**
 - **P1.3. Estructura y convenciones del proyecto**
-- P1.4. Controladores, acciones, parámetros y rutas
+- **P1.4. Controladores, acciones, parámetros y rutas**
 - P1.5. Vistas tipadas, layout, parciales y navegación
 
 # P1.1. Primera aplicación MVC y recorrido de una petición HTTP
@@ -1106,3 +1106,464 @@ Sin modificar el código, responde y justifica sobre los archivos reales:
 **Resultado consolidado:** localizas las piezas de la aplicación y puedes explicar sus responsabilidades, su ciclo de arranque y la diferencia entre recursos físicos internos y recursos de la raíz web.
 
 Conserva los cambios y continúa en **1.4 — Controladores, acciones, parámetros y routing**, donde ampliaremos el catálogo con una acción de detalle de producto, rutas y resultados HTTP apropiados.
+
+
+---
+
+# P1.4. Controladores, acciones, parámetros y routing
+
+## A. Objetivos, punto de partida y tiempo
+
+**Objetivo principal:** ampliar el catálogo MVC existente sin rehacerlo. El alumno añadirá acciones a `ProductosController`, observará varios tipos de `IActionResult`, recibirá un identificador desde la URL, construirá una ficha Razor, publicará una ruta por atributos y habilitará enlaces de detalle. El reto propone otra acción por atributos que devuelve JSON, con su código completo tanto en este documento como en el proyecto.
+
+**Teoría asociada:** capítulo 1.4 del Markdown de teoría, especialmente el patrón de ruta convencional, el paso del parámetro `id`, los resultados `View`, `Content`, `BadRequest` y `NotFound`, y la comparación con `[HttpGet("/...")]`.
+
+**Tiempo orientativo de aula:** 30 minutos de teoría y 65 minutos de práctica, incluido el reto breve. Los ejemplos completos y las comprobaciones adicionales permiten repasar fuera del horario lectivo sin ampliar el temario obligatorio.
+
+El estado inicial del proyecto de **1.4** contiene una aplicación que ya muestra la lista de productos, con configuración y estilos del punto 1.3 activos. Hemos conservado los datos en memoria. Las acciones de este capítulo y el reto están **comentados**, por lo que el alumno puede habilitarlos por etapas sin añadir código desde cero.
+
+## B. Preparación del proyecto y estructura
+
+Ubicación desde la raíz del repositorio:
+
+~~~text
+M01_MVC/
+├── PROYECTO/
+│   ├── 1.1/CursoWeb.Mvc/     (estado anterior conservado)
+│   ├── 1.2/CursoWeb.Mvc/     (estado anterior conservado)
+│   ├── 1.3/CursoWeb.Mvc/     (estado anterior conservado)
+│   └── 1.4/CursoWeb.Mvc/
+│       ├── CursoWeb.Mvc.csproj
+│       ├── Program.cs
+│       ├── Controllers/
+│       │   ├── HomeController.cs
+│       │   └── ProductosController.cs
+│       ├── Models/Producto.cs
+│       ├── Views/
+│       │   ├── Productos/Index.cshtml
+│       │   ├── Productos/Detalle.cshtml
+│       │   ├── Home/Index.cshtml
+│       │   └── Shared/_Layout.cshtml
+│       ├── appsettings.json
+│       └── wwwroot/
+└── TESTS/1.4_e2e.sh
+~~~
+
+**No modificar el proyecto 1.3.** El proyecto 1.4 es una continuación autocontenida del estado final funcional anterior. Las carpetas independientes permiten volver a un estado previo si se necesita reproducir la actividad de un capítulo.
+
+Desde una terminal en la raíz del repositorio:
+
+~~~bash
+cd M01_MVC/PROYECTO/1.4/CursoWeb.Mvc
+dotnet restore
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Abrir `http://localhost:5091/Productos`. Debe mostrarse la lista con **Cuaderno, Lápiz y Carpeta**. Abre también `http://localhost:5091/`: debe mantenerse la página de inicio. Este recorrido confirma que el punto de partida no ha perdido la funcionalidad desarrollada.
+
+En este estado aún **no** está activa `/Productos/Detalle/2`: esa URL devuelve 404. Es una situación deliberada que cambiará tras activar el bloque del paso 1.4.3.
+
+Detener el proceso con **Ctrl+C** antes de editar. Volver a iniciar la aplicación después de cada paso. No ejecutar simultáneamente dos versiones `CursoWeb.Mvc` sobre el mismo puerto.
+
+## C. Desarrollo guiado
+
+### Paso 1.4.1 — Examinar la ruta y preparar datos compartidos
+
+Abrir `Program.cs` y localizar esta ruta, ya activa:
+
+~~~csharp
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+~~~
+
+**Interpretación:** el primer segmento identifica el controlador y, si no se proporciona, se utiliza `Home`. El segundo representa la acción y, si falta, se emplea `Index`. El tercer segmento es un valor de ruta opcional denominado `id`.
+
+Comprueba tres URL:
+
+~~~text
+http://localhost:5091/
+http://localhost:5091/Productos
+http://localhost:5091/Productos/Index
+~~~
+
+La primera muestra la portada; la segunda y tercera muestran el mismo listado, porque las dos llegan a la acción `Index()` de `ProductosController`.
+
+Ahora abrir `Controllers/ProductosController.cs`. Observarás que el catálogo ya no se construye directamente en `Index`, como ocurría en 1.3. Se ha extraído a:
+
+~~~csharp
+private static IReadOnlyList<Producto> ObtenerProductosEjemplo() =>
+    new List<Producto>
+    {
+        new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+        new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+        new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+    };
+~~~
+
+Dentro del archivo existe además una variante histórica comentada del reto 1.2. **No la actives para este capítulo**, porque necesitamos los tres datos de partida tal como se han definido aquí.
+
+La acción `Index` reutiliza el método:
+
+~~~csharp
+[HttpGet]
+public IActionResult Index()
+{
+    return View(ObtenerProductosEjemplo());
+}
+~~~
+
+**Explicación:** el método privado reúne la definición de los datos que queremos consultar desde distintas acciones. No es una URL pública. `Index()` obtiene la colección y devuelve `View(...)`, como ya vimos en 1.2. No se ha añadido una base de datos: cada llamada a ese método construye una colección de ejemplo en memoria.
+
+**Comprobación:** el contenido visible del listado no ha cambiado. Este es un ejemplo de refactorización limitada que reduce la duplicación sin alterar el resultado observado.
+
+### Paso 1.4.2 — Crear una acción que devuelve texto en vez de HTML
+
+Localizar dentro de `ProductosController.cs` el bloque:
+
+~~~csharp
+/* PASO 1.4.2 INICIO
+[HttpGet]
+public IActionResult Estado()
+{
+    return Content("Catalogo MVC disponible", "text/plain");
+}
+PASO 1.4.2 FIN */
+~~~
+
+**Acción:** eliminar únicamente las líneas de comentario `/* PASO 1.4.2 INICIO` y `PASO 1.4.2 FIN */`. Conservar todos los caracteres del método. Se activará:
+
+~~~csharp
+[HttpGet]
+public IActionResult Estado()
+{
+    return Content("Catalogo MVC disponible", "text/plain");
+}
+~~~
+
+**Qué hace cada parte:** `[HttpGet]` limita el método a solicitudes GET; `Estado()` es el nombre de la acción; `Content(...)` devuelve un cuerpo de texto con tipo `text/plain`. No creamos `Views/Productos/Estado.cshtml` porque no hemos pedido renderizar una vista.
+
+Compilar y ejecutar:
+
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Abrir `http://localhost:5091/Productos/Estado`. Se debe mostrar **Catalogo MVC disponible**, sin menú ni layout. En las herramientas de desarrollo del navegador comprobar `GET`, código **200** y tipo de contenido `text/plain`.
+
+Alternativa desde una segunda terminal:
+
+~~~bash
+curl -i http://localhost:5091/Productos/Estado
+~~~
+
+**Razonamiento:** `/Productos` y `/Productos/Estado` comparten controlador, pero sus acciones devuelven tipos de resultado diferentes. No hay que asumir que todos los métodos del controlador generan páginas Razor.
+
+Detener el proceso antes de continuar.
+
+### Paso 1.4.3 — Activar la ficha de detalle con parámetro id
+
+Primero abrir `Views/Productos/Detalle.cshtml`. La vista ya existe en el proyecto, con su código completo:
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Detalle del producto";
+}
+<h1 id="titulo-detalle">1.4 | Detalle de producto</h1>
+<dl id="detalle-producto">
+    <dt>Identificador</dt><dd id="detalle-id">@Model.Id</dd>
+    <dt>Nombre</dt><dd id="detalle-nombre">@Model.Nombre</dd>
+    <dt>Precio</dt><dd id="detalle-precio">@Model.Precio.ToString("0.00") €</dd>
+</dl>
+<p><a href="/Productos">Volver al catálogo</a></p>
+~~~
+
+**Explicación de la vista:** a diferencia de `Index.cshtml`, que recibía una lista, aquí `@model` declara un único `Producto`. Las expresiones `@Model.Id`, `@Model.Nombre` y `@Model.Precio` generan el contenido de las etiquetas HTML. El enlace final permite regresar al listado sin modificar datos.
+
+Ahora localizar en `ProductosController.cs`:
+
+~~~csharp
+/* PASO 1.4.3 INICIO
+[HttpGet]
+public IActionResult Detalle(int id)
+{
+    if (id <= 0)
+    {
+        return BadRequest("El identificador debe ser mayor que cero.");
+    }
+
+    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return View(producto);
+}
+PASO 1.4.3 FIN */
+~~~
+
+**Acción:** retirar las dos líneas que delimitan el comentario `PASO 1.4.3`, conservando el bloque interior. Se activará exactamente el método `Detalle(int id)` que se acaba de mostrar.
+
+**Explicación de funcionamiento:**
+
+1. `Detalle(int id)` recibe el identificador desde el tercer segmento de la ruta convencional.
+2. `if (id <= 0)` detecta el caso que el ejercicio considera inválido y devuelve **400 Bad Request**.
+3. `ObtenerProductosEjemplo().FirstOrDefault(...)` busca el producto cuyo `Id` coincida.
+4. `if (producto is null) return NotFound();` genera **404** cuando no existe el elemento solicitado.
+5. `return View(producto);` entrega un único modelo `Producto` a la vista correspondiente y produce HTML si todo es correcto.
+
+Reiniciar el servidor y comprobar estas direcciones:
+
+| URL | Resultado correcto |
+|---|---|
+| `/Productos/Detalle/2` | 200, ficha de **Lápiz** con id 2 |
+| `/Productos/Detalle/1` | 200, ficha de **Cuaderno** |
+| `/Productos/Detalle/99` | 404, identificador inexistente |
+| `/Productos/Detalle/0` | 400, identificador rechazado por el controlador |
+| `/Productos/Detalle` | 400 en este ejemplo, por recibir el valor predeterminado 0 |
+
+En el navegador, los códigos 400/404 pueden aparecer como páginas de error sencillas. Usar `curl -i` o F12 → Red para comprobar el **código HTTP**, que es la parte evaluada.
+
+**Qué distingue 400 de 404:** en este ejemplo, 400 corresponde a un identificador que nuestro método rechaza explícitamente; 404 corresponde a un identificador que no está en la colección. Un 404 también puede producirse si ninguna ruta coincide, pero aquí, para `id=99`, el código de la acción sí se ha ejecutado.
+
+Detener el proceso antes del siguiente paso.
+
+### Paso 1.4.4 — Añadir una URL por atributos para reutilizar la misma vista
+
+El listado utiliza una ruta convencional como `/Productos/Detalle/2`. Ahora incorporaremos una dirección distinta, `/catalogo/ficha/2`, usando un atributo en el método.
+
+Localizar y activar el bloque `PASO 1.4.4`:
+
+~~~csharp
+/* PASO 1.4.4 INICIO
+[HttpGet("/catalogo/ficha/{id:int}")]
+public IActionResult Ficha(int id)
+{
+    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return View("Detalle", producto);
+}
+PASO 1.4.4 FIN */
+~~~
+
+De nuevo, eliminar únicamente las **dos líneas delimitadoras** del comentario. El resto constituye código C# ejecutable.
+
+**Aspectos clave:**
+
+- `[HttpGet("/catalogo/ficha/{id:int}")]` define la URL completa de la acción y la limita a GET. El segmento `id` tiene una restricción de entero.
+- `Ficha(int id)` recibe el mismo tipo de parámetro que `Detalle(int id)`, pero desde una plantilla explícita.
+- `return View("Detalle", producto);` **reutiliza** `Views/Productos/Detalle.cshtml`. Es necesario nombrarla porque, sin el nombre, MVC buscaría una vista llamada `Ficha` siguiendo la convención habitual.
+- `NotFound()` mantiene el tratamiento del caso en que el identificador es entero pero no corresponde a un producto.
+
+Reiniciar y comprobar:
+
+~~~text
+http://localhost:5091/catalogo/ficha/2
+http://localhost:5091/catalogo/ficha/99
+http://localhost:5091/catalogo/ficha/no-numero
+http://localhost:5091/Productos/Ficha/2
+~~~
+
+La primera debe mostrar la ficha de Lápiz con HTTP 200; las otras tres deben responder 404. En el segundo caso, **la acción se ejecuta pero no encuentra el producto**. En el tercero la restricción `{id:int}` impide seleccionar la acción. En el último caso no coincide la URL por atributos definida para `Ficha`: la ruta correcta no es `/Productos/Ficha/2`.
+
+**Comparación razonada:** las dos acciones `Detalle(2)` y `Ficha(2)` terminan generando el **mismo HTML**, aunque fueron seleccionadas mediante URLs diferentes.
+
+### Paso 1.4.5 — Activar enlaces de detalle desde cada producto del listado
+
+Una URL puede funcionar sin que exista aún un enlace visible hacia ella. Ahora añadiremos navegación al listado de forma que cada producto conduzca a su ficha.
+
+Abrir `Views/Productos/Index.cshtml`. Dentro del `@foreach` localizar:
+
+~~~cshtml
+<li data-id="@producto.Id">
+    @producto.Nombre — @producto.Precio.ToString("0.00") €
+    @* PASO 1.4.5 (inicio)
+    <a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
+    PASO 1.4.5 (fin) *@
+</li>
+~~~
+
+**Acción:** eliminar las dos líneas delimitadoras del comentario Razor `PASO 1.4.5`, conservando el enlace HTML:
+
+~~~cshtml
+<li data-id="@producto.Id">
+    @producto.Nombre — @producto.Precio.ToString("0.00") €
+    <a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
+</li>
+~~~
+
+**Explicación:** `@producto.Id` escribe el identificador del elemento actual en la URL. El mismo bucle produce **tres enlaces**, que apuntan a `/Productos/Detalle/1`, `/Productos/Detalle/2` y `/Productos/Detalle/3`.
+
+Reiniciar la aplicación y abrir `http://localhost:5091/Productos`. Debe aparecer el texto **Ver detalle** junto a cada producto. Pulsa el enlace de Lápiz; comprueba que la ficha muestra id 2, nombre Lápiz y precio. Utiliza el enlace **Volver al catálogo** de la vista de detalle para regresar.
+
+**Por qué activamos el enlace al final:** antes de crear `Detalle(int id)`, el enlace conduciría a una dirección sin acción válida. Ahora se ha comprobado antes el endpoint y después la navegación.
+
+## D. Reto 1.4 — Una acción MVC que devuelve un resultado JSON
+
+### Enunciado y objetivo
+
+El controlador MVC produce HTML en `Detalle` y texto plano en `Estado`. El reto consiste en publicar una tercera representación muy sencilla: un **resumen JSON** de un producto, seleccionado por su identificador, mediante una ruta por atributos.
+
+**Condiciones:**
+
+- URL `GET /catalogo/resumen/{id:int}`.
+- Para un producto existente, HTTP 200 y JSON con `id` y `nombre`.
+- Para un identificador entero inexistente, HTTP 404.
+- Para un segmento no entero, la ruta no debe coincidir y se obtiene HTTP 404.
+- No crear una vista `Resumen.cshtml` ni añadir una segunda fuente de datos.
+
+El alumnado debe intentar explicar la solución antes de activarla. El código completo está disponible **comentado en el proyecto** y se reproduce aquí para evitar que el reto dependa de material externo.
+
+### Código del reto y explicación
+
+Abrir `Controllers/ProductosController.cs` y localizar:
+
+~~~csharp
+/* RETO 1.4 INICIO
+[HttpGet("/catalogo/resumen/{id:int}")]
+public IActionResult Resumen(int id)
+{
+    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return Ok(new { producto.Id, producto.Nombre });
+}
+RETO 1.4 FIN */
+~~~
+
+**Acción 1:** eliminar las líneas `/* RETO 1.4 INICIO` y `RETO 1.4 FIN */`. Se activa así **exactamente el mismo código**, sin necesidad de crear archivos adicionales.
+
+**Cómo funciona cada parte:**
+
+1. La plantilla `"/catalogo/resumen/{id:int}"` selecciona solicitudes GET cuyo último segmento puede convertirse a entero.
+2. El parámetro `int id` recibe el valor extraído de la URL.
+3. `ObtenerProductosEjemplo()` reutiliza el catálogo ya utilizado por `Index`, `Detalle` y `Ficha`.
+4. `FirstOrDefault(p => p.Id == id)` busca el registro correspondiente.
+5. Si no existe, `NotFound()` genera HTTP 404.
+6. `Ok(new { producto.Id, producto.Nombre })` construye una respuesta HTTP 200 con un objeto anónimo que, con los formatos predeterminados de ASP.NET Core, se serializa en JSON.
+
+La solución activa queda:
+
+~~~csharp
+[HttpGet("/catalogo/resumen/{id:int}")]
+public IActionResult Resumen(int id)
+{
+    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return Ok(new { producto.Id, producto.Nombre });
+}
+~~~
+
+**Por qué no hay vista:** `Ok(...)` devuelve los datos serializados; no se ha utilizado `View(...)`. La presencia de un método MVC no obliga a generar HTML. Es una comparación de resultados HTTP, no la introducción de un módulo completo de Web API.
+
+### Ejecutar, probar y razonar
+
+Guardar, compilar y ejecutar:
+
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Desde el navegador o con `curl -i`, probar:
+
+~~~text
+http://localhost:5091/catalogo/resumen/2
+http://localhost:5091/catalogo/resumen/99
+http://localhost:5091/catalogo/resumen/no-numero
+~~~
+
+**Resultado esperado de la primera solicitud:**
+
+~~~http
+HTTP/1.1 200 OK
+Content-Type: application/json; charset=utf-8
+
+{"id":2,"nombre":"Lápiz"}
+~~~
+
+El ejemplo muestra los elementos relevantes de la respuesta, no necesariamente todas las cabeceras del servidor. Las otras dos URLs deben devolver **404**, aunque por motivos distintos: ausencia de producto y ausencia de coincidencia con la restricción de ruta `id:int`.
+
+**Comprobación adicional:** la URL `/Productos/Detalle/2` sigue produciendo HTML y `/Productos/Estado` sigue devolviendo texto. No hemos modificado su comportamiento.
+
+### Preguntas de consolidación y solución
+
+**¿Qué cambió respecto a `Detalle`?** La selección de un resultado `Ok(objeto)` en lugar de `View(producto)`. El producto se consulta de la misma fuente de datos, pero se presenta como JSON.
+
+**¿Cuándo se ejecuta `Resumen`?** Cuando llega una solicitud GET a la plantilla de ruta por atributos con un segmento `id` entero.
+
+**¿Se ejecuta la acción si escribimos `no-numero`?** No, porque la ruta del reto incluye la restricción `{id:int}`. El resultado esperado es un 404 de no coincidencia de ruta.
+
+**¿Dónde está el código del reto?** En este documento y en `PROYECTO/1.4/CursoWeb.Mvc/Controllers/ProductosController.cs`, delimitado por `RETO 1.4`. No se crea una solución ajena al proyecto; el alumno activa la variante incluida.
+
+**¿Cómo se prueba automáticamente?** Mediante el estado `reto` de `M01_MVC/TESTS/1.4_e2e.sh`, que quita los delimitadores en una copia temporal, compila, arranca Kestrel y comprueba códigos y contenido JSON.
+
+## E. Matriz de resultados de toda P1.4
+
+| Estado | Bloques activados | Resultado observable |
+|---|---|---|
+| Base del punto 1.4 | Ninguno nuevo | `/Productos` 200 y listado; `/Productos/Detalle/2` 404 |
+| Acción de estado | 1.4.2 | `/Productos/Estado` 200 con `text/plain` |
+| Detalle | 1.4.2 + 1.4.3 | `/Productos/Detalle/2` 200, `/99` 404 y `/0` 400 |
+| Ruta por atributos | 1.4.2–1.4.4 | `/catalogo/ficha/2` 200 y segmento no entero 404 |
+| Enlaces de listado | 1.4.2–1.4.5 | Tres enlaces «Ver detalle» hacia las fichas |
+| **Reto** | Pasos anteriores + RETO 1.4 | `/catalogo/resumen/2` 200 JSON y casos inexistentes 404 |
+
+Una URL que retorna 404 en el estado base puede retornar 200 después de activar su acción. La diferencia es **el código habilitado**, no el navegador.
+
+## F. Pruebas automáticas con servidor HTTP real
+
+Detener la aplicación manual, volver a la **raíz del repositorio** y ejecutar:
+
+~~~bash
+bash M01_MVC/TESTS/1.4_e2e.sh
+~~~
+
+El script construye y arranca una aplicación en cada estado. Para evitar modificar el proyecto del alumno, crea copias temporales donde elimina únicamente los comentarios de las fases ya habilitadas. Comprueba también el listado de tres productos, la navegación, la hoja CSS y la guía pública de capítulos anteriores.
+
+En los nuevos recorridos comprueba `GET /Productos/Estado`, `/Productos/Detalle/id`, `/catalogo/ficha/id` y `/catalogo/resumen/id`, con sus resultados 200/400/404. El reto recibe JSON real y se comprueba que contenga `id=2` y `nombre=Lápiz`.
+
+**Alcance correcto de la prueba:** verifica el recorrido HTTP y el HTML resultante en un servidor Kestrel real; no reemplaza la experiencia de pulsar los enlaces en un navegador con interfaz gráfica ni constituye una prueba de seguridad de producción.
+
+## G. Problemas frecuentes y soluciones
+
+**La aplicación no compila al activar una acción.** Revisa que has quitado los dos delimitadores `/* ... */` del bloque y que no has añadido o borrado llaves accidentalmente. Compila después de cada paso para acotar el error.
+
+**`/Productos/Estado` sigue devolviendo 404.** Verifica que la acción `Estado` está activa y que estás ejecutando `PROYECTO/1.4`, no la copia anterior de 1.3. Un proceso previo podría estar usando el puerto 5091.
+
+**`/Productos/Detalle/2` devuelve 404 aunque el id existe.** Comprueba que activaste la acción `Detalle`, que la URL usa la ruta convencional correcta y que la lista contiene el id 2.
+
+**Un detalle con id 0 devuelve 400.** Es el comportamiento correcto del ejercicio: `Detalle(int id)` tiene una comprobación que rechaza valores menores o iguales que cero. No debemos cambiarla para forzar una respuesta 200.
+
+**`/catalogo/ficha/2` devuelve 404.** La acción `Ficha` debe estar activa y llevar el atributo `[HttpGet("/catalogo/ficha/{id:int}")]`. No basta con agregar una vista llamada Ficha; aquí reutilizamos explícitamente la vista Detalle.
+
+**`/Productos/Ficha/2` no funciona.** La acción `Ficha` ha definido una URL absoluta por atributos, no la URL convencional que corresponde a su nombre. La petición correcta es `/catalogo/ficha/2`.
+
+**Los enlaces de detalle no aparecen.** Revisar que se han quitado ambos delimitadores del comentario Razor `PASO 1.4.5` dentro del `@foreach` de `Views/Productos/Index.cshtml`. Una acción que funciona no genera por sí misma enlaces en el listado.
+
+**El reto devuelve HTML en vez de JSON.** Comprueba que utilizas `Ok(new { ... })` y no `View(producto)`. Inspecciona la cabecera `Content-Type`; en el ejercicio esperamos un formato JSON.
+
+**En la respuesta JSON los nombres aparecen en minúscula inicial.** Es la convención de serialización habitual, no un cambio del modelo C#. La propiedad `Id` de C# puede aparecer como `id` en JSON.
+
+## H. Cierre y continuidad
+
+Al terminar, el alumno debe poder explicar **qué acción MVC se ejecuta para cada URL, cómo obtiene el id y por qué devuelve un resultado HTTP concreto**. El listado sigue funcionando y permite navegar a fichas individuales. Se han utilizado el mismo modelo y la misma vista para distintos recorridos sin una base de datos.
+
+El reto demuestra, mediante código real comentado y comprobable, que un controlador MVC también puede producir JSON. Todos los fragmentos que se han pedido ejecutar existen en el proyecto del capítulo.
+
+**Conserva este estado funcional.** En el punto **1.5** profundizaremos en las vistas Razor, modelos fuertemente tipados, layouts y vistas parciales, utilizando las fichas que acabamos de construir. Aún no añadiremos formularios ni persistencia: son actividades de M02.
