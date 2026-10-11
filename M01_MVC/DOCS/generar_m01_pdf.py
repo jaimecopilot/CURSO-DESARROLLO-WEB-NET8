@@ -390,7 +390,7 @@ def check_pdf(file: Path, md: str, diagram_count: int, source_bytes: bytes, file
                     r"(?m)^# (?:P)?1\.[1-5]\.\s+[^\r\n]+", md)]
                 header_txt=normalize(header)
                 if not any(v in header_txt for v in expected_any):
-                    raise AssertionError(f"{file.name}: página {i+1}: sin título de capítulo canónico")
+                    raise AssertionError(f"{file.name}: página {i+1}: sin título de capítulo canónico. Cabecera extraída: {header!r}")
         if not p.get_text().strip(): raise AssertionError(f"{file.name}: página {i+1} completamente vacía")
         w=p.rect.width
         for x0,y0,x1,y1,*rest in p.get_text("words"):
