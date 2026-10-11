@@ -263,6 +263,184 @@ Al finalizar se habrá demostrado un flujo real, no solo memorizado un diagrama.
 
 ---
 
+
+## 1.1.10. Analizar HTTP como un contrato observable, no como una caja negra
+
+Hasta ahora hemos seguido una petición desde la barra de direcciones hasta una acción MVC. Para comprender cómo depurar aplicaciones web necesitamos observar el intercambio de datos con mayor precisión. HTTP tiene una estructura definida: una solicitud contiene un método, un objetivo o ruta, una versión de protocolo, cabeceras y, cuando corresponde, un cuerpo. La respuesta aporta un código de estado, cabeceras y posiblemente un cuerpo. En el laboratorio inicial nos interesa especialmente una petición GET, que no necesita enviar datos de formulario.
+
+Una representación didáctica de la solicitud es:
+
+~~~http
+GET /Home/Index HTTP/1.1
+Host: localhost:5091
+Accept: text/html
+
+~~~
+
+La línea inicial indica **qué operación** se solicita y sobre **qué ruta**. La cabecera `Host` identifica el host al que se dirige la petición. `Accept` comunica una preferencia sobre formatos de respuesta, aunque no obliga por sí sola a una aplicación a producir cualquiera de ellos. El ejemplo muestra un mensaje representativo; los navegadores reales incluyen más cabeceras y pueden utilizar HTTP/2 u HTTP/3.
+
+La respuesta de una vista MVC puede conceptualizarse así:
+
+~~~http
+HTTP/1.1 200 OK
+Content-Type: text/html; charset=utf-8
+
+<!DOCTYPE html>
+<html lang="es">
+  ...
+  <h1>1.1 | Primer recorrido MVC</h1>
+</html>
+~~~
+
+Si el servidor devuelve `200`, la solicitud fue atendida satisfactoriamente según ese resultado. `Content-Type` explica cómo debe interpretar el cliente el contenido. En nuestra aplicación, el servidor entrega HTML generado por Razor: el navegador no ejecuta el archivo `Index.cshtml` directamente.
+
+Conviene distinguir tres conceptos que pueden parecer equivalentes pero no lo son: el **código de estado** de la respuesta, el **tipo de contenido** indicado por sus cabeceras y el **contenido concreto** que vemos en la pantalla. El servidor puede devolver 200 con un texto que dice «error» si la acción así lo programa; el texto visible no determina automáticamente el código. Igualmente, un documento con extensión `.css` servido por el middleware estático debe identificarse mediante el tipo de contenido adecuado, no porque el navegador adivine su estructura a partir del nombre.
+
+### El papel de los códigos 200, 404 y errores de conexión
+
+En el punto 1.1 hemos preparado una comprobación de `/ruta-inexistente`. Esta URL no coincide con un endpoint configurado y, por eso, recibimos 404. Sin embargo, un 404 demuestra que **sí hubo comunicación con el servidor**: se ha recibido una respuesta HTTP que declara que no se encontró el recurso solicitado.
+
+Muy diferente es una conexión rechazada cuando el proceso no está ejecutándose o no escucha en el puerto utilizado. En ese caso no se puede afirmar que hubo un «HTTP 404», pues quizá nunca se recibió una respuesta HTTP. Esta distinción será especialmente útil en M05, cuando comparemos los tres modos de ejecución y despliegue.
+
+También hay que distinguir la ruta de un endpoint de la dirección de un archivo fuente. `/Home/Index` no es una orden al sistema operativo para abrir `Views/Home/Index.cshtml`. Es una dirección que el middleware MVC interpreta y relaciona con un controlador y una acción.
+
+### Por qué curl ayuda a entender lo que hace el navegador
+
+La herramienta `curl` puede enviar peticiones HTTP sin renderizar la interfaz. Por ejemplo:
+
+~~~bash
+curl -i http://localhost:5091/
+curl -i http://localhost:5091/Home/Index
+curl -i http://localhost:5091/ruta-inexistente
+curl -i http://localhost:5091/css/site.css
+~~~
+
+La opción `-i` permite incluir las cabeceras en la salida. Esta herramienta no sustituye al navegador para evaluar CSS, accesibilidad o experiencia de usuario, pero sí permite identificar el resultado del servidor independientemente de cómo se representa en pantalla. De hecho, puede ser decisiva para averiguar si una hoja de estilos falla porque recibe 404 o porque el navegador la recibió correctamente y otra regla CSS prevaleció.
+
+En el cuaderno práctico compararemos la observación de F12 con estas llamadas. Es importante poder responder exactamente qué información suministra cada herramienta: el panel de red ayuda a relacionar peticiones del documento y sus recursos; `curl` permite reproducir una única petición y leer sus cabeceras y cuerpo; el código C# del controlador explica quién ha generado ciertos valores.
+
+## 1.1.11. Entender el servidor, la aplicación y el proceso .NET
+
+En una explicación informal es frecuente decir que «MVC es el servidor». La idea ayuda a empezar, pero oculta responsabilidades distintas. **Kestrel** es el servidor HTTP integrado con ASP.NET Core que escucha conexiones y participa en su procesamiento. **ASP.NET Core** proporciona el pipeline de middleware, el enrutamiento y los servicios web. **MVC** añade la infraestructura de controladores y vistas. **Nuestro proyecto C#** define qué controlador, vista y recursos incluye la aplicación concreta.
+
+Esos elementos colaboran en el mismo proceso del ejercicio. No hay un proceso distinto para cada controlador ni un servidor nuevo por cada vista. Cuando ejecutamos el proyecto, el host inicializa la aplicación y Kestrel empieza a escuchar en la URL indicada. Las solicitudes entrantes atraviesan el pipeline hasta que un componente las atiende o el procesamiento finaliza.
+
+También conviene separar la configuración del código fuente del modo de arranque. El comando:
+
+~~~bash
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+inicia una aplicación de desarrollo mediante el SDK y solicita que escuche en la dirección propuesta, sin utilizar un perfil de `launchSettings.json`. La parte `http://localhost:5091` incorpora un esquema (`http`), un host (`localhost`) y un puerto (5091). Dos procesos diferentes no pueden, por regla general, escuchar simultáneamente de la misma forma en el mismo extremo de red. Por eso la práctica pide detener el proceso antes de cambiar entre versiones del proyecto.
+
+El alumno debe comprender además que `localhost` se refiere al propio equipo desde el que se ejecuta el cliente. Abrir una dirección `localhost` en otro dispositivo no implica acceder mágicamente al mismo servidor. Esto resulta relevante al ejecutar prácticas en una máquina virtual o en un contenedor, aunque su configuración se pospone a M05.
+
+### El ciclo al reconstruir y volver a ejecutar
+
+Cuando modificamos un archivo C# del controlador, el proyecto debe recompilarse o utilizar un mecanismo de desarrollo que reconstruya los cambios para que el proceso en ejecución los incorpore. Cuando cambiamos una vista Razor, ciertas herramientas de desarrollo pueden mostrar actualizaciones de otra manera, pero no necesitamos basar la práctica en comportamientos variables del entorno. Para una comprobación reproducible seguiremos una secuencia explícita: **detener → guardar → compilar → iniciar → solicitar**.
+
+Esta secuencia evita falsos diagnósticos. Si el alumno ha modificado el archivo del proyecto 1.1 pero continúa ejecutando la DLL del proyecto 1.2, el navegador no mostrará el cambio esperado. La comprobación correcta comienza por identificar el directorio de trabajo y el proyecto que se ha iniciado.
+
+## 1.1.12. El pipeline y la idea de middleware
+
+Un middleware es un componente que participa en el procesamiento de solicitudes y respuestas. Algunos hacen trabajo antes de pasar la solicitud al siguiente; otros pueden intervenir al regresar la respuesta; otros pueden atender la solicitud sin seguir avanzando por el pipeline. En esta aplicación hemos incluido dos piezas fáciles de observar:
+
+~~~csharp
+app.UseStaticFiles();
+app.UseRouting();
+~~~
+
+`UseStaticFiles` permite servir archivos estáticos reconocidos desde la raíz web, como `wwwroot/css/site.css`. Cuando se solicita ese CSS, no necesitamos ejecutar `HomeController.Index()` para construir su contenido. Por otro lado, la ruta convencional de MVC conecta direcciones como `/Home/Index` con acciones de controlador.
+
+No debemos representar el pipeline como una lista de carpetas ni creer que cada llamada `Use...` es un controlador. Es el **orden de procesamiento de componentes** que la plataforma configura. La ruta de archivos y la ruta HTTP son conceptos diferentes: un middleware estático resuelve recursos de archivo publicados, mientras que MVC invoca código del controlador que puede renderizar una vista.
+
+Esto explica por qué la cabecera personalizada añadida dentro de `HomeController.Index()` no aparece automáticamente en `/css/site.css`. Esa instrucción pertenece a una acción concreta, no a todas las respuestas producidas por la aplicación. En M01 todavía no introduciremos middleware propio, porque el objetivo es observar la secuencia; comprender sus responsabilidades será suficiente para evitar confusiones.
+
+## 1.1.13. Controlador y vista: dos puntos distintos donde observar resultados
+
+Para aislar responsabilidades hemos preparado dos fragmentos comentados en el proyecto. El primero modifica la respuesta desde C#:
+
+~~~csharp
+Response.Headers["X-Curso-Paso"] = "1.1.4";
+~~~
+
+El segundo cambia el HTML Razor:
+
+~~~cshtml
+<section id="marca-paso-1-1-5">
+    <h2>Contenido añadido durante la práctica</h2>
+    <p>El navegador ha recibido una nueva versión de la vista Razor.</p>
+</section>
+~~~
+
+El primero no altera necesariamente los elementos visibles de la página: modifica los metadatos de la respuesta. El segundo modifica el contenido que Razor representa. Es posible comprobar ambos por separado. Esta forma de trabajar es pedagógicamente valiosa porque evita atribuir todo cambio a «la página» sin identificar qué parte lo ha generado.
+
+Un navegador puede mostrar exactamente el mismo encabezado visual con o sin la cabecera `X-Curso-Paso`. Una inspección solo visual podría dar la impresión de que el controlador no ha cambiado. Por el contrario, el elemento `marca-paso-1-1-5` aparecerá en el HTML representado después de activar el fragmento Razor, aunque el código de controlador permanezca intacto.
+
+También hay que interpretar correctamente `Response.Headers`. Se trata de un objeto asociado a la respuesta de la petición actual; escribir una cabecera desde una acción no equivale a cambiar las cabeceras de todos los recursos del sitio. No utilizamos aquí cookies, autenticación ni cabeceras de seguridad: los nombres `X-Curso-Paso` y `X-Curso-Reto` son estrictamente marcadores docentes.
+
+### El reto como prueba de comprensión
+
+El reto 1.1 vuelve a separar dos intervenciones: añadir la cabecera `X-Curso-Reto: HTTP-y-HTML` desde el controlador y representar un párrafo `reto-1-1` desde la vista. Si ambos resultados están presentes en la misma respuesta, no debemos deducir que se generaron de la misma manera. El controlador decidió añadir una cabecera y la vista decidió producir marcado adicional.
+
+La comprobación más útil no es únicamente «aparece el párrafo». Debemos solicitar también el archivo CSS y mostrar que **la cabecera del controlador no aparece allí**. La diferencia confirma qué componente atendió cada tipo de solicitud.
+
+## 1.1.14. Reconstruir una petición para diagnosticar un fallo
+
+Una técnica sencilla de diagnóstico consiste en seguir un orden fijo antes de modificar el código:
+
+**Primero, confirmar el proceso.** ¿Hay realmente una aplicación escuchando en el puerto indicado? Si falla la conexión, no tiene sentido inspeccionar el HTML todavía. Revisar la terminal de `dotnet run` proporciona el punto de partida.
+
+**Segundo, identificar la URL exacta.** `/`, `/Home/Index` y `/css/site.css` no tienen necesariamente el mismo recorrido. La ruta no es solo el nombre mostrado en la barra de direcciones; es parte de la información que MVC y otros middlewares utilizan para decidir el resultado.
+
+**Tercero, leer el código de estado.** Un 200 de `/` permite continuar al análisis del cuerpo. Un 404 de `/ruta-inexistente` es correcto en esta práctica, pues demuestra que el endpoint no existe. Un 404 de `/css/site.css`, en cambio, señala un fallo para un recurso que el proyecto sí incluye.
+
+**Cuarto, observar el tipo de contenido.** Si el navegador recibe una página HTML donde esperaba CSS, no debemos concluir que la hoja funciona solo porque la URL devolvió 200. El tipo `text/css` en la respuesta del archivo es una comprobación más precisa.
+
+**Quinto, observar el contenido.** Una respuesta HTML puede tener código 200, pero no contener el texto que esperamos. La comprobación entonces debe revisar qué vista se ha ejecutado, si se guardaron los cambios y si el proceso utiliza la versión correcta de los archivos.
+
+**Sexto, conservar una evidencia mínima.** La URL solicitada, el código de estado, una cabecera relevante y una frase del cuerpo suelen bastar para reproducir el hallazgo. No es necesario copiar largas trazas en el material del alumno. Esto también enseña a comunicar incidencias con precisión en una futura práctica profesional.
+
+## 1.1.15. Primeras pruebas de regresión: cambiar una pieza sin romper otra
+
+Una modificación puede funcionar localmente y provocar una regresión en otro recurso. Por ejemplo, añadir una cabecera al controlador puede coincidir con un fallo accidental si el alumno modificó `Program.cs` y quitó `UseStaticFiles()`. Una prueba solo sobre `/` no detectaría la ausencia del CSS.
+
+Por eso comprobamos varios resultados aunque el ejercicio parezca pequeño:
+
+| Comprobación | Qué confirma | Qué no demuestra |
+|---|---|---|
+| `GET /` devuelve 200 | La entrada principal responde | Que se aplicó el CSS correctamente |
+| `GET /Home/Index` devuelve 200 | La ruta convencional alternativa funciona | Que todas las rutas MVC funcionan |
+| `GET /ruta-inexistente` devuelve 404 | No se ha publicado ese endpoint | Que toda la configuración de errores de producción es correcta |
+| `GET /css/site.css` devuelve 200 y CSS | El recurso estático básico se sirve | Que el navegador utiliza cada regla CSS |
+| Aparece `X-Curso-Paso` | La acción activada añadió esa cabecera | Que todas las respuestas llevan esa cabecera |
+| Aparece `marca-paso-1-1-5` | Se generó la sección HTML del paso | Que el diseño visual es adecuado |
+
+Estas pruebas son pequeñas, pero ilustran un principio general: **verificar el resultado específico de un cambio y el comportamiento previo que no debería alterarse**. El alumno ya conoce el concepto de prueba desde C#, de modo que puede reconocer su aplicación a un sistema web sin estudiar todavía un marco de automatización de navegador.
+
+Al trabajar con un servidor HTTP real, la comprobación cubre más que una llamada aislada al método C#: intervienen el host, el enrutamiento, el resultado de vista y la respuesta. La inspección visual con F12 complementa estas comprobaciones, no las sustituye.
+
+## 1.1.16. Preguntas de razonamiento con respuestas argumentadas
+
+**¿Por qué `/` y `/Home/Index` muestran la misma página?** Porque la ruta convencional utiliza Home e Index como valores predeterminados cuando se omiten los segmentos. No son necesariamente dos copias de HTML: ambas direcciones seleccionan la misma acción dentro de esta configuración.
+
+**¿Qué ocurriría si `Index()` devolviera `Content("Hola", "text/plain")` en vez de `View()`?** La acción seguiría siendo accesible, pero la respuesta ya no contendría la vista Razor ni su layout. Esta alternativa muestra que el tipo de resultado es una decisión de la acción; no necesitamos activarla ahora, pues haremos la comparación de manera real en 1.4.
+
+**¿Por qué la respuesta CSS no incorpora la cabecera escrita en HomeController?** Porque el recurso se sirve por el mecanismo de archivos estáticos y no mediante la acción de Home. La instrucción de cabecera está dentro de un método concreto, no en un middleware global.
+
+**¿Qué demuestra un 404?** Demuestra que se recibió una respuesta HTTP indicando que el recurso o endpoint no fue encontrado. Para diagnosticar la causa hay que identificar la URL y qué componente podría atenderla.
+
+**¿Qué ventajas tiene conservar el estado inicial del proyecto con bloques comentados?** Podemos ejecutar un estado conocido, activar una única variable y comprobar el cambio atribuible a ella. Si modificamos muchas piezas al mismo tiempo, resulta más difícil razonar sobre qué produjo un resultado.
+
+**¿Tiene sentido medir solamente cuánto tarda en arrancar el servidor para afirmar que la práctica está bien?** No. La rapidez de arranque no demuestra que se comprendan las responsabilidades, que el alumno pueda seguir una petición o que sepa reproducir un diagnóstico HTTP.
+
+## 1.1.17. Conexión con lo que aprenderemos después
+
+La primera práctica se concentra deliberadamente en una única página. Sin embargo, el recorrido que ya conocemos —URL → middleware → acción → resultado → contenido y cabeceras HTTP— seguirá vigente en los demás capítulos. En 1.2 añadiremos un modelo real de producto y aprenderemos a entregarlo a una vista; en 1.3 localizaremos archivos y configuración; en 1.4 añadiremos acciones y códigos de estado; y en 1.5 reutilizaremos marcado Razor.
+
+Cuando trabajemos con Blazor, seguiremos necesitando comprender qué es una petición, qué aporta el servidor y qué renderiza el navegador, aunque la composición de la interfaz y la interactividad tengan otro modelo. El objetivo de esta profundización no es memorizar cabeceras: es construir una **cadena de explicaciones comprobables** y aprender a separar lo observado de nuestras suposiciones.
+
+
 # 1.2. Arquitectura Model-View-Controller
 
 ## Objetivos
