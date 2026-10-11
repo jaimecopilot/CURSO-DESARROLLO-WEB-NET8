@@ -1970,4 +1970,4 @@ Cada funcionalidad debe poder asociarse a una pieza concreta: datos en el contro
 
 **El resultado de M01 es un catálogo consultable y navegable, todavía con datos en memoria**. No hemos desarrollado todavía creación o edición de productos. En M02 añadiremos formularios, binding de GET/POST, validación, Tag Helpers de formularios y persistencia EF Core. Se mantiene así el alcance de las 30 horas acordadas.
 
-El contenido de P1.5, junto con P1.1–P1.4, se conservará en un único `M01_PRACTICAS.md`; no se generan cinco prácticas Markdown independientes. Del mismo modo, la teoría se recoge íntegramente en `M01_TEORIA.md`. Los PDF se generarán tras cerrar y revisar ambos documentos.
+**Para continuar:** conserva el proyecto 1.5 como referencia del catálogo MVC desarrollado. En M02 lo ampliaremos con operaciones de creación, edición y eliminación, manteniendo los conceptos de separación de responsabilidades, rutas y vistas que has practicado.

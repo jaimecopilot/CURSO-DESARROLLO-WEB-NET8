@@ -1373,7 +1373,7 @@ La práctica 1.5 reproduce los conceptos en estados pequeños y observables: vis
 
 Con esta práctica se completa el **contenido funcional previsto de M01**: desde la primera petición hasta un catálogo con listados y fichas Razor reutilizables. Los **formularios, model binding de POST, validación con DataAnnotations y EF Core** se incorporarán en el M02, no en este módulo.
 
-La revisión final de M01 deberá comprobar que los cinco capítulos, sus retos y todas las versiones del proyecto son trazables desde los dos Markdown, y que los PDF reproduzcan la totalidad del contenido tras cerrar las fuentes.
+Para afianzar lo aprendido, recorre las cinco etapas del módulo con los proyectos incluidos y comprueba que cada cambio de código corresponde a un comportamiento observable. La práctica ofrece los procedimientos necesarios para continuar el desarrollo del catálogo.
 
 ### Referencias técnicas
 
