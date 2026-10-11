@@ -6,7 +6,7 @@
 - **1.1. Introducción al desarrollo web con ASP.NET Core**
 - **1.2. Arquitectura Model-View-Controller**
 - **1.3. Estructura de un proyecto ASP.NET Core MVC**
-- 1.4. Controladores, acciones y routing
+- **1.4. Controladores, acciones y routing**
 - 1.5. Introducción a las vistas Razor
 
 # 1.1. Introducción al desarrollo web con ASP.NET Core
@@ -790,3 +790,279 @@ El alumno debe terminar explicando **en qué carpeta se modifica una cosa y por 
 - Archivos estáticos en ASP.NET Core: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/static-files?view=aspnetcore-8.0
 - Configuración en ASP.NET Core: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/?view=aspnetcore-8.0
 - Vistas Razor y convenciones: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/overview?view=aspnetcore-8.0
+
+
+---
+
+# 1.4. Controladores, acciones, parámetros y routing en ASP.NET Core MVC
+
+## Objetivos de aprendizaje
+
+Al finalizar este punto, el alumno sabrá **seguir una URL hasta su acción MVC**, añadir acciones nuevas a un controlador, distinguir una respuesta HTML de una respuesta de texto o JSON, utilizar parámetros provenientes de la URL y controlar los resultados HTTP de éxito y error. También comprenderá **el enrutamiento convencional frente al enrutamiento por atributos**, aplicando ambos al catálogo de productos.
+
+Se trabaja sobre el proyecto 1.4, continuación funcional del 1.3. El listado de productos y su navegación ya funcionan. Construiremos una acción de estado, un detalle tipado y otra dirección para la misma clase de información. El reto final devolverá una respuesta JSON breve desde un controlador MVC para conectar con los conocimientos previos de Web API.
+
+## 1.4.1. Qué es una acción MVC y cómo se selecciona
+
+En los ejemplos anteriores, `ProductosController` tenía una acción `Index()` que recibía una petición GET y devolvía `View(productos)`. Cuando abrimos `/Productos`, ASP.NET Core no busca un archivo `Productos.html` en el disco. El sistema de enrutamiento identifica un **endpoint** MVC y ejecuta la acción correspondiente.
+
+Una acción es un método público del controlador que puede preparar datos, decidir qué resultado devolver y recibir valores de la petición. Derivar de `Controller` nos proporciona métodos auxiliares como `View()`, `Content()`, `NotFound()`, `BadRequest()` y `Ok()`. No todas las acciones deben devolver una vista, aunque muchas de las páginas MVC del curso lo harán.
+
+El arranque contiene nuestra ruta convencional:
+
+~~~csharp
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+~~~
+
+Su plantilla se descompone en tres segmentos:
+
+- `{controller=Home}`: el controlador es Home cuando no se proporciona otro.
+- `{action=Index}`: la acción es Index cuando la URL no indica otra.
+- `{id?}`: se admite un tercer segmento opcional, que más adelante enlazaremos al parámetro `id` del método.
+
+Una URL como `/Productos/Detalle/2` permite obtener los valores de ruta: controlador = Productos, acción = Detalle, id = 2. La tabla muestra la lectura que haremos:
+
+| URL | Controlador | Acción | Valor de id |
+|---|---|---|---|
+| `/` | Home | Index | Sin valor |
+| `/Productos` | Productos | Index | Sin valor |
+| `/Productos/Index` | Productos | Index | Sin valor |
+| `/Productos/Estado` | Productos | Estado | Sin valor |
+| `/Productos/Detalle/2` | Productos | Detalle | 2 |
+| `/Productos/Detalle/99` | Productos | Detalle | 99 |
+
+Una **coincidencia de ruta** no garantiza que la acción devuelva 200. Puede seleccionar la acción correctamente, pero esta determinar que el producto no existe y devolver 404. Por eso distinguiremos entre «no hay endpoint que coincida» y «el endpoint se ejecuta y responde con un resultado de error».
+
+### Reutilizar la lista de productos sin base de datos
+
+El proyecto 1.3 construía la lista directamente dentro de `Index()`. Para añadir una acción `Detalle(id)` sin escribir una segunda lista distinta, la versión 1.4 extrae los mismos datos a un método privado:
+
+~~~csharp
+private static IReadOnlyList<Producto> ObtenerProductosEjemplo() =>
+    new List<Producto>
+    {
+        new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+        new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+        new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+    };
+
+[HttpGet]
+public IActionResult Index()
+{
+    return View(ObtenerProductosEjemplo());
+}
+~~~
+
+La lista **no es persistente**, y el método la crea en memoria cada vez que se solicita. Usamos esta refactorización mínima exclusivamente para compartir los mismos datos entre el listado, la ficha y el reto. El método privado **no es una acción pública**; no se publica automáticamente como una URL. En M02 sustituiremos los datos fijos por la persistencia con EF Core.
+
+## 1.4.2. Restricciones de verbo HTTP y respuestas distintas de View
+
+El atributo `[HttpGet]` indica que una acción está destinada a manejar solicitudes GET. En este ejercicio lo utilizamos sin una plantilla de URL propia para permitir que la acción `Estado()` se alcance por la ruta convencional:
+
+~~~csharp
+[HttpGet]
+public IActionResult Estado()
+{
+    return Content("Catalogo MVC disponible", "text/plain");
+}
+~~~
+
+Una solicitud a `GET /Productos/Estado` devolverá **HTTP 200**, contenido de tipo texto y la cadena `Catalogo MVC disponible`. No hay vista `Estado.cshtml`: `Content()` crea un tipo de resultado HTTP distinto de `View()`.
+
+Esto demuestra algo esencial para quien ya conoce Web API: **un controlador MVC no está obligado a devolver HTML**. La acción elige un resultado apropiado para la necesidad de la interfaz. Al mismo tiempo, una aplicación que principalmente muestra vistas no tiene por qué convertirse por ello en una API REST completa.
+
+En el punto 2.1 utilizaremos formularios GET/POST. Aquí no introducimos métodos para alterar datos; solo recibimos consultas GET y comparamos sus respuestas.
+
+## 1.4.3. Parámetros de una acción: el detalle de producto
+
+Vamos a introducir una acción `Detalle(int id)`. La ruta convencional puede capturar el tercer segmento de una URL y la infraestructura de **model binding** convertirlo a un parámetro `int` del método. El binding toma valores de distintas partes de la petición según el caso; durante este capítulo nos centraremos en el valor de ruta `id`.
+
+El código que activaremos en la práctica es:
+
+~~~csharp
+[HttpGet]
+public IActionResult Detalle(int id)
+{
+    if (id <= 0)
+    {
+        return BadRequest("El identificador debe ser mayor que cero.");
+    }
+
+    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return View(producto);
+}
+~~~
+
+**`int id`** declara un parámetro numérico. Cuando la solicitud es `GET /Productos/Detalle/2`, recibimos `id = 2`. La acción busca ese identificador dentro de la lista creada por `ObtenerProductosEjemplo()`.
+
+**`BadRequest(...)`** crea una respuesta de error **HTTP 400** cuando nuestro propio método detecta un valor menor o igual que cero. En este ejemplo, si visitamos `/Productos/Detalle` sin proporcionar id, el parámetro numérico no anulable tiene el valor predeterminado 0 en ausencia del segmento y entra en esa comprobación. No es una regla universal para todos los controladores: depende de la firma y del binding utilizados.
+
+**`FirstOrDefault(...)`** selecciona un elemento de la lista o devuelve `null` si no existe. Si visitamos `/Productos/Detalle/99`, no existe un producto con id 99 y el código devuelve **HTTP 404** mediante `NotFound()`. Este 404 ocurre **dentro de una acción válida**, porque la ruta y el método sí se encontraron.
+
+**`View(producto)`** crea un resultado de vista que recibe un objeto `Producto` y produce una respuesta **HTTP 200 con HTML**. Por convención, `ProductosController.Detalle` selecciona `Views/Productos/Detalle.cshtml`.
+
+La vista será fuertemente tipada:
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+
+<h1 id="titulo-detalle">1.4 | Detalle de producto</h1>
+<dl id="detalle-producto">
+    <dt>Identificador</dt><dd id="detalle-id">@Model.Id</dd>
+    <dt>Nombre</dt><dd id="detalle-nombre">@Model.Nombre</dd>
+    <dt>Precio</dt><dd id="detalle-precio">@Model.Precio.ToString("0.00") €</dd>
+</dl>
+<p><a href="/Productos">Volver al catálogo</a></p>
+~~~
+
+Este ejemplo utiliza `@Model` porque cada solicitud de detalle recibe **un objeto**, no la colección que recibía la vista de `Index`. El listado tiene `@model IReadOnlyList<Producto>?`; la ficha tiene `@model Producto`. Confundir los dos tipos provocaría errores al ejecutar la vista.
+
+La función de `<dl>`, `<dt>` y `<dd>` es representar relaciones nombre/valor en HTML, como identificador, nombre y precio. No cambian el tipo de resultado HTTP. Los atributos `id` del HTML permiten identificar los valores en el navegador y en las pruebas.
+
+## 1.4.4. IActionResult, resultados concretos y códigos de estado
+
+En una acción hemos utilizado varios métodos de retorno. Es importante no tratar `return View(...)`, `return Content(...)` y `return NotFound()` como si todos significaran «mostrar una página».
+
+| Instrucción del controlador | Resultado habitual en este capítulo | Qué recibe el cliente |
+|---|---|---|
+| `return View(producto);` | 200, `text/html` | HTML generado desde Razor |
+| `return Content("...", "text/plain");` | 200, `text/plain` | Texto sin layout |
+| `return BadRequest("...");` | 400 | Resultado de error con información explicativa |
+| `return NotFound();` | 404 | Respuesta de recurso no encontrado |
+| `return Ok(new { ... });` | 200, formato JSON negociado habitualmente | Datos JSON del objeto anónimo |
+
+El tipo declarado `IActionResult` permite devolver diferentes tipos concretos de resultado desde una misma acción. Una firma `ActionResult<T>` es frecuente en Web API cuando se desea describir un tipo de dato de éxito y posibles errores; aquí utilizamos `IActionResult` para no desviar la práctica hacia el diseño de API.
+
+### 404: dos situaciones que conviene distinguir
+
+Si `GET /no-existe` no coincide con ninguna ruta de nuestra aplicación, el sistema de enrutamiento termina sin ejecutar una acción de catálogo. Si `GET /Productos/Detalle/99` coincide con `Detalle(int id)`, **la acción sí se ejecuta**, intenta buscar el producto y decide `NotFound()`. Ambas situaciones pueden producir 404, pero sus causas y soluciones no son iguales.
+
+### 400 frente a 404
+
+Un identificador que nuestra acción considera inválido, como 0, obtiene 400 por una regla explícita del código. Un identificador válido en formato pero inexistente, como 99, obtiene 404. El código de estado **no aparece automáticamente por el hecho de usar un int**: lo decidimos deliberadamente en estos métodos. Verificaremos la diferencia mediante HTTP.
+
+## 1.4.5. Enrutamiento convencional frente a rutas por atributos
+
+Hasta ahora el registro de `MapControllerRoute` determina el patrón general. Cuando necesitamos una dirección que no respeta `/Productos/NombreAccion/id`, podemos definir **una plantilla de ruta sobre una acción**.
+
+Añadiremos:
+
+~~~csharp
+[HttpGet("/catalogo/ficha/{id:int}")]
+public IActionResult Ficha(int id)
+{
+    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return View("Detalle", producto);
+}
+~~~
+
+La plantilla absoluta `"/catalogo/ficha/{id:int}"` indica una dirección nueva, por ejemplo `GET /catalogo/ficha/2`, aunque el controlador se llame `ProductosController`. El prefijo `/` señala una plantilla absoluta. `{id:int}` exige que el segmento de la ruta pueda interpretarse como entero; una petición `/catalogo/ficha/no-numero` **no cumple la restricción** y no alcanza esta acción, por lo que obtendrá 404.
+
+La acción `Ficha` utiliza la misma colección y retorna `View("Detalle", producto)` para **reutilizar explícitamente** la vista de detalle. Si utilizáramos `return View(producto);` sin especificar nombre, MVC intentaría localizar la vista de nombre `Ficha` por convención. Esta diferencia entre nombre de acción y nombre de vista es uno de los objetivos principales del ejemplo.
+
+Con rutas por atributos, una acción seleccionada exclusivamente por su plantilla no adquiere necesariamente una URL convencional equivalente. En nuestro caso, `/Productos/Ficha/2` no corresponde al endpoint definido; la dirección prevista es `/catalogo/ficha/2`.
+
+Los dos enfoques pueden coexistir en una aplicación. **No significa que una ruta por atributos sea siempre mejor** ni que debamos reemplazar el patrón convencional para todas las páginas. Lo importante es saber qué URL se publica en cada caso y qué restricción acepta.
+
+~~~mermaid
+flowchart TD
+    A["GET /Productos/Detalle/2"] --> B["Patrón convencional"]
+    B --> C["ProductosController.Detalle(id=2)"]
+    D["GET /catalogo/ficha/2"] --> E["Plantilla por atributos"]
+    E --> F["ProductosController.Ficha(id=2)"]
+    C --> G["Vista Detalle.cshtml"]
+    F --> G
+    G --> H["HTML HTTP 200"]
+    X["GET /catalogo/ficha/no-numero"] --> Y["Restricción {id:int} no coincide"]
+    Y --> Z["HTTP 404"]
+~~~
+
+## 1.4.6. Enlaces de navegación desde la vista del listado
+
+Una ficha de detalle resulta mucho más útil cuando se puede abrir desde el listado. La vista de `Index` ya recorre la colección `Model`. Dentro de cada elemento de la lista añadiremos:
+
+~~~cshtml
+<a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
+~~~
+
+Razor inserta el valor de `producto.Id` en el atributo `href`. Para los tres objetos, las URLs serán `/Productos/Detalle/1`, `/Productos/Detalle/2` y `/Productos/Detalle/3`. Cada enlace usa la misma acción pero envía un **valor de parámetro diferente**.
+
+El código está comentado en el proyecto como `PASO 1.4.5` para que el alumno lo active después de crear y verificar la acción `Detalle`. Activar el enlace antes no impide que el listado cargue, pero conduciría a una URL todavía sin acción y provocaría una navegación fallida. La secuencia docente evita ese problema.
+
+En este punto escribimos el atributo `href` directamente para visualizar qué URL se forma. En M02 aprenderemos los Tag Helpers que permiten generar enlaces y formularios usando metadata MVC en lugar de escribir siempre las rutas a mano.
+
+## 1.4.7. Reto: devolver JSON desde un controlador MVC
+
+El reto conecta las distintas ideas del capítulo: crear una acción con parámetro, publicarla mediante una plantilla de atributo, seleccionar un producto y decidir entre un resultado **200 JSON** y un **404**.
+
+El método, incluido comentado en el proyecto, es:
+
+~~~csharp
+[HttpGet("/catalogo/resumen/{id:int}")]
+public IActionResult Resumen(int id)
+{
+    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return Ok(new { producto.Id, producto.Nombre });
+}
+~~~
+
+La URL `/catalogo/resumen/2` selecciona el producto Lápiz y produce un objeto JSON semejante a:
+
+~~~json
+{"id":2,"nombre":"Lápiz"}
+~~~
+
+La serialización JSON habitual de ASP.NET Core utiliza nombres de propiedades en `camelCase` para este resultado. No ejecuta una vista Razor ni modifica la plantilla de datos. Una consulta `/catalogo/resumen/99` devuelve 404 porque el método no encuentra un producto. Si se solicita un segmento no entero, la ruta con `{id:int}` no coincide y también se obtiene 404, en ese caso sin ejecutar la acción.
+
+Para un desarrollador que conoce Web API, esto confirma que **MVC comparte los tipos fundamentales de resultado HTTP**, aunque nuestro curso utilice principalmente vistas Razor para representar la interfaz del usuario. En M04 construiremos una API auxiliar mínima que será consumida desde Blazor; el propósito de este reto es observar formatos de respuesta, no enseñar toda la disciplina de diseño de API.
+
+## 1.4.8. Errores habituales y diagnóstico
+
+**«La ruta existe, luego siempre responde 200».** Falso. `Detalle(99)` y `Detalle(0)` coinciden con una acción pero responden 404 y 400, respectivamente, por decisiones expresas del controlador.
+
+**«Tengo que crear una vista Estado.cshtml».** No, porque la acción usa `Content()`. Solo necesitamos una vista si elegimos un resultado de vista.
+
+**«La ruta Ficha se construye como /Productos/Ficha/2».** No en este ejemplo. El atributo `[HttpGet("/catalogo/ficha/{id:int}")]` define otra URL, que no coincide con el patrón convencional habitual de esa acción.
+
+**«No entiendo por qué la ficha Ficha utiliza Detalle.cshtml».** Porque la instrucción `View("Detalle", producto)` señala explícitamente el nombre de la vista compartida por ambas acciones.
+
+**«La acción no recibe el id».** Revisar que la ruta tiene el tercer segmento y que la firma recibe `int id`. En el caso del atributo hay que escribir `{id:int}` y llamar igual al parámetro que la plantilla vincula.
+
+**«Al activar el comentario, aparece un error de compilación».** Comprobar que se han quitado **los dos** delimitadores del bloque y no se han alterado las llaves, la indentación semántica ni las llamadas a métodos.
+
+**«Una respuesta 404 siempre significa que el servidor está apagado».** No. Un servidor apagado provoca normalmente un error de conexión. Un 404 es una respuesta HTTP que el servidor ha generado.
+
+**«El navegador recibe un objeto Producto cuando abre el detalle».** No directamente: `View(producto)` usa el objeto en el servidor para producir HTML. En el reto `Ok(new { ... })` sí se serializa un objeto a JSON.
+
+## 1.4.9. Relación con P1.4 y continuidad
+
+La práctica comienza inspeccionando el controlador existente y la lista compartida; activa `Estado()` y observa texto plano; activa `Detalle(int id)` y comprueba 200/400/404; incorpora una ruta por atributos; añade enlaces por producto en la vista; y realiza el reto JSON, igualmente comentado en el proyecto.
+
+La batería de pruebas compila y ejecuta **cada estado solicitado** y verifica sus respuestas reales a través de HTTP, sin reemplazar la comprensión manual de la navegación. Se preservan también las pruebas de regresión de los capítulos 1.1 a 1.3.
+
+El capítulo siguiente, **1.5**, profundizará en la sintaxis Razor, la composición de vistas, los layouts y las vistas parciales usando las páginas y el detalle funcional de este capítulo.
+
+### Fuentes y referencias
+
+- Microsoft Learn, enrutamiento a acciones de controlador: https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/routing?view=aspnetcore-8.0
+- Microsoft Learn, solicitudes mediante controladores: https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/actions?view=aspnetcore-8.0
+- Microsoft Learn, resultados de acciones de controlador: https://learn.microsoft.com/en-us/aspnet/core/web-api/action-return-types?view=aspnetcore-8.0
+- Microsoft Learn, vistas Razor y tipado de modelos: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/overview?view=aspnetcore-8.0
