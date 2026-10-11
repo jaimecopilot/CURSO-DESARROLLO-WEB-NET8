@@ -7,14 +7,14 @@ Se comprueba la existencia de los cinco capítulos, retos, contenido fundamental
 
 | Archivo | Palabras MD | Caracteres MD | Páginas PDF | Diagramas SVG |
 |---|---:|---:|---:|---:|
-| TEORIA | 24272 | 166823 | 61 | 7 |
+| TEORIA | 27346 | 187464 | 68 | 7 |
 | PRACTICAS | 14857 | 104848 | 45 | 0 |
 
 ## Huellas de fuente canónica
 
 | Documento | SHA-256 del MD que está incrustado en el PDF | Coincidencia byte por byte |
 |---|---|---|
-| TEORIA | `898c90b8b6128cac83f185f977123358b12f854e66bf0a030162c6961bf9dbd4` | True |
+| TEORIA | `457a54b0d2d92b6803595ee9976ef10ae334b49cc1fd3fd524a9f17b95c54373` | True |
 | PRACTICAS | `f55a70706fb106502616aa50b0873929403a0a8b76edd71c812046765a48bd33` | True |
 
 ## Alcance y límites
