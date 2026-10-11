@@ -7,6 +7,8 @@ from html import escape
 from pathlib import Path
 from textwrap import wrap
 import json
+import hashlib
+from io import BytesIO
 import re
 import subprocess
 import sys
@@ -17,7 +19,7 @@ from pygments import highlight
 from pygments.formatters import HtmlFormatter
 from pygments.lexers import get_lexer_by_name, TextLexer
 from weasyprint import HTML, CSS
-from pypdf import PdfReader
+from pypdf import PdfReader, PdfWriter
 import fitz
 
 ROOT=Path(__file__).resolve().parents[2]
@@ -164,9 +166,6 @@ CSS_TEMPLATE=r"""
 @page {
   size: A4;
   margin: 18mm 16mm 19mm 16mm;
-  @top-left { content: "CURSO ASP.NET CORE MVC · M01"; font: 8pt "DejaVu Sans"; color: #557188; }
-  @top-right { content: "TEORIA / PRACTICAS"; font: 8pt "DejaVu Sans"; color: #557188; }
-  @bottom-left { content: "Desarrollo Web .NET 8 · Material docente"; font: 7.5pt "DejaVu Sans"; color: #64748B; }
   @bottom-right { content: "Página " counter(page); font: 8pt "DejaVu Sans"; color: #64748B; }
 }
 html { font-family: "DejaVu Sans", sans-serif; }
@@ -225,10 +224,8 @@ def document_html(markdown: str, title: str, kind: str) -> str:
         return f"<h1>{val}</h1>"
     body=re.sub(r"<h1>(.*?)</h1>",heading,body,flags=re.S)
     if len(toc)!=5: raise ValueError(f"Índice de {title}: se esperaban 5 capítulos, hallados {toc}")
-    nav='<nav class="toc"><h2>Índice del módulo</h2>'+''.join(f'<p><a href="#{a}">{escape(t)}</a></p>' for a,t in toc)+'</nav>'
-    pos=body.find("</h1>")
-    body=body[:pos+5]+nav+body[pos+5:]
-    css=CSS_TEMPLATE.replace("TEORIA / PRACTICAS",kind.upper())
+    # El índice procede exclusivamente del Markdown. No crear otro índice editorial.
+    css=CSS_TEMPLATE
     css+=HTML_FORMATTER.get_style_defs(".highlight")
     return f"""<!doctype html><html lang="es"><head><meta charset="utf-8"><title>{escape(title)}</title>
     <style>{css}</style></head><body>{body}</body></html>"""
@@ -245,15 +242,35 @@ def generate(kind: str):
     title="M01 — Teoría de ASP.NET Core MVC" if kind=="TEORIA" else "M01 — Prácticas de ASP.NET Core MVC"
     html=document_html(markdown,title,kind)
     HTML(string=html,base_url=str(BASE)).write_pdf(str(output))
-    check_pdf(output,markdown,DIAGRAM_COUNT)
+    # El PDF contiene también la fuente canónica MD, byte por byte.
+    # Esta copia incrustada NO sustituye la comprobación del texto visual.
+    raw_bytes=file.read_bytes()
+    digest=hashlib.sha256(raw_bytes).hexdigest()
+    writer=PdfWriter()
+    writer.append(BytesIO(output.read_bytes()))
+    writer.add_attachment(filename=file.name,data=raw_bytes)
+    buffer=BytesIO()
+    writer.write(buffer)
+    output.write_bytes(buffer.getvalue())
+    check_pdf(output,markdown,DIAGRAM_COUNT,source_bytes=raw_bytes,filename=file.name)
     pdf=PdfReader(str(output))
     return {"tipo":kind,"markdown":file.relative_to(ROOT).as_posix(),"pdf":output.relative_to(ROOT).as_posix(),
             "palabras_markdown":len(markdown.split()),"caracteres_markdown":len(markdown),
             "paginas_pdf":len(pdf.pages),"diagramas_renderizados":DIAGRAM_COUNT,
-            "bytes_pdf":output.stat().st_size}
+            "bytes_pdf":output.stat().st_size,"md_sha256":digest,"fuente_incrustada_igual":True}
 
-def check_pdf(file: Path, md: str, diagram_count: int):
+def check_pdf(file: Path, md: str, diagram_count: int, source_bytes: bytes, filename: str):
     reader=PdfReader(str(file))
+    embedded=reader.attachments.get(filename)
+    if embedded is None:
+        raise AssertionError(f"{file.name}: no está incrustada la fuente MD")
+    if isinstance(embedded,list):
+        if len(embedded)!=1: raise AssertionError(f"{file.name}: varias versiones MD incrustadas")
+        embedded=embedded[0]
+    if embedded != source_bytes:
+        raise AssertionError(f"{file.name}: el MD incrustado difiere byte por byte de la fuente")
+    if hashlib.sha256(embedded).digest()!=hashlib.sha256(source_bytes).digest():
+        raise AssertionError(f"{file.name}: huella MD no válida")
     if not 15<=len(reader.pages)<=250: raise AssertionError(f"{file.name}: número inusual de páginas {len(reader.pages)}")
     pdftext="\n".join(p.extract_text() or "" for p in reader.pages)
     low=normalize(pdftext)
@@ -279,7 +296,7 @@ def check_pdf(file: Path, md: str, diagram_count: int):
         for x0,y0,x1,y1,*rest in p.get_text("words"):
             if x0<1 or x1>w-1:
                 raise AssertionError(f"{file.name}: texto fuera de margen horizontal en página {i+1}")
-    print(f"PDF VALIDADO: {file.name}, {len(reader.pages)} páginas, {diagram_count} diagramas, ratio palabras {fraction:.1%}")
+    print(f"PDF VALIDADO: {file.name}, {len(reader.pages)} páginas, {diagram_count} diagramas, fuente Markdown incrustada IDENTICA byte por byte; ratio palabras {fraction:.1%}")
 
 def main():
     from validar_m01 import run
@@ -293,6 +310,9 @@ def main():
           "|---|---:|---:|---:|---:|"]
     for item in results:
         text.append(f"| {item['tipo']} | {item['palabras_markdown']} | {item['caracteres_markdown']} | {item['paginas_pdf']} | {item['diagramas_renderizados']} |")
+    text += ["","## Huellas de fuente canónica","","| Documento | SHA-256 del MD que está incrustado en el PDF | Coincidencia byte por byte |","|---|---|---|"]
+    for item in results:
+        text.append(f"| {item['tipo']} | `{item['md_sha256']}` | {item['fuente_incrustada_igual']} |")
     text += ["","## Alcance y límites","",
              "La validación calcula conteos, inspecciona texto extraído y cajas de texto mediante PyMuPDF, y comprueba que cada diagrama Mermaid tiene salida SVG. "
              "Este resultado **no implica** inspección visual manual de todas las páginas, navegación con lectores de pantalla o una clase piloto.",
