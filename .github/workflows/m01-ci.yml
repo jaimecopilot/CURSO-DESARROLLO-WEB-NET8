@@ -1,0 +1,24 @@
+name: M01 - Compilación y E2E punto 1.1
+
+on:
+  push:
+    branches: [desarrollo/m01-mvc]
+    paths:
+      - "M01_MVC/**"
+      - ".github/workflows/m01-ci.yml"
+  pull_request:
+    paths:
+      - "M01_MVC/**"
+      - ".github/workflows/m01-ci.yml"
+
+jobs:
+  m01-punto-1-1:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Compilar y ejecutar recorridos HTTP E2E reales
+        run: bash M01_MVC/TESTS/1.1_e2e.sh
