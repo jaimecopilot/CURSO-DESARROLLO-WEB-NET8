@@ -31,8 +31,10 @@ Cada punto dispone de código de proyecto trazable paso a paso, con bloques acti
 
 ## Estado y publicación
 
-La **fase 1** establece estructura, duración y secuencia; todavía no implica que existan proyectos ni que se hayan ejecutado compilaciones/E2E. Los ejercicios se desarrollan progresivamente a partir de M01, punto 1.1.
+**M01 — Fundamentos de MVC:** ya contiene los cinco apartados (1.1–1.5), teoría, prácticas, retos con código comentado, proyectos escalonados y sus dos PDF derivados de los Markdown. La batería de CI ha superado 28/28 escenarios HTTP E2E. Consulta [M01 y sus materiales](M01_MVC/README.md).
 
-Los PDF definitivos se generan **después** de cerrar los MD completos del módulo. No fusionar trabajo incompleto a la rama principal. La rama de preparación es `desarrollo/m01-mvc`.
+**M02–M05:** materiales pendientes de elaboración. Los PDF de los demás módulos se generarán después de cerrar cada par de Markdown, no como ficheros individuales por ejercicio.
+
+**Publicación:** el trabajo de M01 permanece en la rama `desarrollo/m01-mvc`. La rama principal no incorpora todavía estos materiales; la revisión humana de los PDF y de las prácticas en laboratorio sigue pendiente antes de solicitar su integración.
 
 > Esta edición está fijada por el programa docente en .NET 8; consultar la fecha de soporte del SDK en REQUISITOS_LABORATORIO.md antes de programar nuevas ediciones.

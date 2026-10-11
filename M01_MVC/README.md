@@ -4,10 +4,10 @@
 
 ## Material del alumno
 
-- [Teoría completa de M01](TEORIA/M01_TEORIA.md).
-- [Prácticas completas, ejercicios y retos](PRACTICAS/M01_PRACTICAS.md).
+- [Teoría completa en Markdown](TEORIA/M01_TEORIA.md) — [PDF de teoría (40 páginas)](TEORIA/M01_TEORIA.pdf).
+- [Prácticas completas, ejercicios y retos en Markdown](PRACTICAS/M01_PRACTICAS.md) — [PDF de prácticas (45 páginas)](PRACTICAS/M01_PRACTICAS.pdf).
 
-Los documentos contienen **los cinco capítulos**; no se distribuye un PDF por ejercicio. Las dos ediciones PDF se incorporan a las mismas carpetas cuando se haya comprobado la integridad de los Markdown.
+Los dos PDF provienen de los Markdown canónicos y cubren los **cinco capítulos**, sin PDFs individuales por punto. La comprobación automatizada de integridad y paginación está documentada en [verificación PDF](../VERIFICACION_INTERNA/M01_PDFS_VALIDACION.md). Sigue pendiente una inspección visual manual completa antes de publicar el material en `main`.
 
 ## Proyecto y evolución
 
