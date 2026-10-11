@@ -1574,6 +1574,296 @@ Conserva los cambios y continúa en **1.4 — Controladores, acciones, parámetr
 
 ---
 
+
+## I. Laboratorio ampliado 1.3 — Examinar el proyecto antes de modificarlo
+
+### I.1. Elaborar un mapa funcional de archivos
+
+Abre la carpeta `M01_MVC/PROYECTO/1.3/CursoWeb.Mvc` y localiza estos archivos del proyecto:
+
+~~~text
+CursoWeb.Mvc.csproj
+Program.cs
+appsettings.json
+Controllers/HomeController.cs
+Controllers/ProductosController.cs
+Models/Producto.cs
+Views/Productos/Index.cshtml
+Views/Shared/_Layout.cshtml
+Views/_ViewStart.cshtml
+Views/_ViewImports.cshtml
+wwwroot/css/catalogo.css
+wwwroot/recursos/guia-publica.txt
+DOCUMENTACION/nota-interna.txt
+~~~
+
+Sin modificar nada, responde para cada archivo si pertenece principalmente a configuración, arranque, acción de controlador, modelo de datos, presentación Razor, recurso estático o documentación interna. Algunas carpetas pueden intervenir en más de un proceso, pero cada archivo debe tener una responsabilidad principal identificable.
+
+En tus apuntes prepara una tabla de tres columnas: archivo, función y evidencia concreta. Por ejemplo, para `Program.cs` la evidencia puede ser la llamada `builder.Services.AddControllersWithViews()` o `app.MapControllerRoute(...)`. Para la vista de productos, la evidencia puede ser `@model IReadOnlyList<...>`. Evita responder solo «es un archivo importante»: debes asociarlo a una instrucción.
+
+### I.2. Leer el archivo de proyecto sin confundirlo con Program.cs
+
+Abre `CursoWeb.Mvc.csproj` e identifica:
+
+~~~xml
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>
+~~~
+
+**Pregunta 1:** ¿qué framework utiliza el proyecto? `net8.0`. **Pregunta 2:** ¿se ejecuta Kestrel simplemente por abrir este archivo? No; el archivo describe el proyecto que debe construirse. **Pregunta 3:** ¿dónde se organiza el arranque de la aplicación? En `Program.cs`.
+
+Ejecuta:
+
+~~~bash
+dotnet restore
+dotnet build
+~~~
+
+Revisa el resultado de compilación. El proyecto contiene dependencias de la plataforma web, pero no necesita añadir EF Core para completar este apartado. Si falla una operación, distingue primero si se trata de restauración, compilación o ejecución.
+
+### I.3. Identificar bin y obj después de compilar
+
+Tras construir el proyecto, revisa las carpetas generadas `bin` y `obj`. No es necesario modificar su contenido; de hecho, el objetivo del ejercicio es comprender por qué no deben tratarse como archivos fuente que el alumno tenga que editar.
+
+Compara el estado del árbol antes y después de compilar. Las clases C# y las vistas Razor siguen estando en sus carpetas originales, mientras que el SDK puede haber creado archivos auxiliares y ensamblados. Esta observación ayudará en prácticas posteriores, donde se compilarán varias versiones del mismo proyecto.
+
+## J. Laboratorio ampliado 1.3 — Relacionar configuración y ejecución
+
+### J.1. Identificar la sección de configuración
+
+Abre `appsettings.json`. Localiza la sección `Curso`:
+
+~~~json
+"Curso": {
+  "Nombre": "Curso MVC de productos",
+  "Edicion": "Laboratorio NET8"
+}
+~~~
+
+No es necesario añadir comentarios JSON ni cambiar el nombre de las propiedades. El proyecto suministrado ya contiene los valores adecuados para observar el acceso a configuración.
+
+En `Program.cs`, encuentra la instrucción de registro del paso 1.3.3:
+
+~~~csharp
+// app.Logger.LogInformation("P1.3 configuracion: {Nombre}", app.Configuration["Curso:Nombre"]);
+~~~
+
+Elimina las dos barras iniciales y deja la instrucción activa. El código accede a una clave jerárquica y utiliza su valor para escribir un mensaje en el log de aplicación.
+
+### J.2. Contrastar la consola y el navegador
+
+Compila, inicia la aplicación y observa la terminal:
+
+~~~bash
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Debes localizar el mensaje `P1.3 configuracion: Curso MVC de productos`. A continuación abre `/Productos` en el navegador y verifica que el catálogo continúa mostrando sus tres registros.
+
+**Pregunta:** ¿por qué el texto de `Curso:Nombre` aparece en la consola pero no como un nuevo producto en la lista? Porque el código del ejercicio solo registra ese valor en el host. No hemos modificado la colección del controlador ni la vista para representar la configuración como contenido de página.
+
+Este contraste ayuda a separar los datos de configuración y los datos del modelo `Producto`.
+
+### J.3. Comparar la URL de ejecución con los valores del JSON
+
+El comando utilizado especifica `http://localhost:5091`. La sección `Curso` no contiene el puerto ni configura el servidor. Si un alumno interpreta que el valor `"Laboratorio NET8"` controla la dirección de escucha, deberá revisar el argumento `--urls` y la función de `appsettings.json` en el ejemplo.
+
+No es necesario investigar todos los proveedores de configuración en esta jornada. El objetivo es demostrar que un valor puede leerse desde una sección JSON sin mezclarlo con el código que obtiene productos.
+
+## K. Laboratorio ampliado 1.3 — Comprender el CSS como recurso HTTP
+
+### K.1. Probar un archivo directamente antes de enlazarlo
+
+Sin activar todavía el paso 1.3.4, inicia el proyecto y abre en el navegador:
+
+~~~text
+http://localhost:5091/css/catalogo.css
+~~~
+
+El recurso debe responder y mostrar el contenido CSS. En otra terminal puedes comprobarlo con:
+
+~~~bash
+curl -i http://localhost:5091/css/catalogo.css
+~~~
+
+Observa el estado 200 y el tipo de contenido CSS. Es importante realizar esta comprobación **antes de activar el enlace en el layout**: así demostramos que la publicación del archivo no depende de que exista una etiqueta `<link>` en la página de catálogo.
+
+El CSS suministrado contiene:
+
+~~~css
+main.container {
+    border-left: 5px solid #2d635d;
+    padding-left: 1.5rem;
+}
+~~~
+
+Esta regla modifica la presentación del área principal cuando el navegador carga la hoja. No selecciona el controlador, no construye productos y no altera la URL `/Productos`.
+
+### K.2. Habilitar el enlace y observar una segunda solicitud
+
+Abre `Views/Shared/_Layout.cshtml` y localiza el bloque `PASO 1.3.4`:
+
+~~~cshtml
+@* PASO 1.3.4 (inicio)
+<link rel="stylesheet" href="/css/catalogo.css" />
+PASO 1.3.4 (fin) *@
+~~~
+
+Elimina las líneas delimitadoras del comentario Razor. Compila y ejecuta de nuevo, abre `/Productos` y consulta F12 → Red.
+
+Además del documento principal, el navegador deberá solicitar `/css/catalogo.css`. Comprueba el tipo de contenido y el estado. Observa también el borde izquierdo del área principal, que depende de la regla CSS.
+
+### K.3. Distinguir un fallo HTTP de uno visual
+
+Si el borde no aparece, no concluyas inmediatamente que el CSS falta. Primero comprueba si el archivo se descargó correctamente. Si el recurso devuelve 200, revisa el enlace y las reglas aplicadas al elemento `main.container` mediante el inspector. Si devuelve 404, revisa la ruta y la ubicación física del archivo.
+
+La decisión de diagnóstico depende de una evidencia previa. Un problema de carga HTTP y un problema de prioridad entre reglas CSS requieren comprobar elementos distintos.
+
+## L. Laboratorio ampliado 1.3 — Archivos de texto públicos y no públicos
+
+### L.1. Comparar las rutas físicas
+
+Abre estos dos archivos dentro del proyecto:
+
+~~~text
+wwwroot/recursos/guia-publica.txt
+DOCUMENTACION/nota-interna.txt
+~~~
+
+Ambos son textos y ambos forman parte del árbol del proyecto, pero solo el primero está dentro de la raíz web utilizada por el middleware de archivos estáticos.
+
+Con la aplicación ejecutándose, prueba:
+
+~~~bash
+curl -i http://localhost:5091/recursos/guia-publica.txt
+curl -i http://localhost:5091/DOCUMENTACION/nota-interna.txt
+~~~
+
+La primera URL debe devolver 200 y el contenido de la guía. La segunda debe devolver 404, porque nuestro proyecto no ha configurado una ruta que publique automáticamente la carpeta `DOCUMENTACION`.
+
+### L.2. Habilitar el enlace de la guía
+
+En el layout encuentra el bloque `PASO 1.3.5` y retira los delimitadores de comentario:
+
+~~~cshtml
+@* PASO 1.3.5 (inicio)
+<a href="/recursos/guia-publica.txt">Guía pública</a>
+PASO 1.3.5 (fin) *@
+~~~
+
+Tras activarlo, el enlace aparecerá en la navegación del sitio. Pulsa el enlace y confirma que llega al mismo archivo que ya habías probado mediante su URL directa.
+
+**Pregunta clave:** ¿ha cambiado la posibilidad de acceder al archivo o únicamente la navegación? En este ejemplo ha cambiado la navegación. El archivo de `wwwroot` ya era público antes de añadir el enlace.
+
+### L.3. Evitar conclusiones incorrectas sobre seguridad
+
+No debemos interpretar la respuesta 404 de `nota-interna.txt` como una garantía universal de secreto. El archivo existe en el repositorio, y si el repositorio es público puede leerse desde el servicio donde está publicado el código fuente.
+
+El resultado 404 solo muestra que el middleware estático de esta aplicación no publica directamente esa ruta con la configuración actual. Otra configuración de servidor o una acción específica podría exponerla. Este detalle es importante para no convertir una convención de carpetas en una supuesta política de protección de datos.
+
+## M. Laboratorio ampliado 1.3 — Resolver el reto y comprobar resultados negativos
+
+El reto del capítulo consiste en habilitar un enlace al archivo `aviso-laboratorio.txt`, que ya se encuentra en `wwwroot/recursos`.
+
+En `Views/Shared/_Layout.cshtml` se proporciona:
+
+~~~cshtml
+@* RETO 1.3 (inicio)
+<a href="/recursos/aviso-laboratorio.txt">Aviso de laboratorio</a>
+RETO 1.3 (fin) *@
+~~~
+
+Retira las dos líneas de comentario Razor. No es necesario crear un controlador ni modificar `Program.cs`, porque el archivo ya está publicado como recurso estático.
+
+### M.1. Comprobar el acceso positivo
+
+Reinicia el proyecto, abre `/Productos` y pulsa Aviso de laboratorio. La URL `/recursos/aviso-laboratorio.txt` debe devolver 200 y el texto del recurso.
+
+El hecho de que el enlace esté en el layout significa que puede aparecer tanto en la página inicial como en la página de productos. La ubicación del enlace no altera el contenido del archivo que se sirve.
+
+### M.2. Comprobar la ausencia de publicación de otro archivo
+
+Solicita `/DOCUMENTACION/nota-interna.txt`. Debe devolver 404. Es una comprobación negativa necesaria: el reto se entiende solamente si distinguimos lo que el middleware publica de lo que no publica.
+
+También prueba una URL inexistente como `/no-existe`. Esta respuesta 404 es otra forma de ausencia, pero no demuestra nada sobre la ubicación de `nota-interna.txt`. Para esa conclusión necesitas conocer la estructura física y la configuración del middleware.
+
+### M.3. Resultado del reto documentado
+
+Registra tres evidencias:
+
+| Solicitud | Estado | Interpretación |
+|---|---:|---|
+| `GET /Productos` | 200 | MVC representa el catálogo |
+| `GET /recursos/aviso-laboratorio.txt` | 200 | Un archivo de `wwwroot` está disponible |
+| `GET /DOCUMENTACION/nota-interna.txt` | 404 | No está publicado por el middleware actual |
+
+El reto no se resuelve simplemente porque aparece el enlace. Debes poder justificar por qué una ruta devuelve texto público y otra no, y explicar que un enlace HTML visible no establece permisos de acceso.
+
+## N. Laboratorio ampliado 1.3 — Clasificar incidencias por responsabilidad
+
+### N.1. Fallo de compilación
+
+Si `dotnet build` falla, revisa primero los cambios en archivos que compilan o se procesan como parte del proyecto, como `Program.cs` y las vistas Razor. Un error de sintaxis introducido al descomentar un bloque puede impedir construir o ejecutar la aplicación.
+
+No conviene cambiar CSS para solucionar un error de C# ni añadir nuevas rutas mientras exista un error anterior sin resolver.
+
+### N.2. Fallo de registro de configuración
+
+Si la aplicación compila y funciona pero no aparece el mensaje de configuración, revisa la línea `LogInformation` y la sección `Curso:Nombre`. Comprueba que el nivel de registro permita mostrar mensajes informativos.
+
+No hay motivo para modificar `Views/Productos/Index.cshtml` en este caso: el texto esperado se escribe en el log de la aplicación y no en el HTML.
+
+### N.3. Fallo del CSS
+
+Si `/css/catalogo.css` no responde, revisa el archivo bajo `wwwroot/css` y `UseStaticFiles`. Si responde pero no se aplica visualmente, inspecciona la referencia `<link>` y las reglas de CSS.
+
+El mismo síntoma visual puede exigir soluciones diferentes, por lo que el código de estado de la solicitud es una información decisiva.
+
+### N.4. Fallo del enlace público
+
+Si la navegación muestra Guía pública pero al pulsarla aparece 404, examina el atributo `href` y la ubicación exacta del archivo. La ruta URL debe comenzar por `/recursos/`, no por `/wwwroot/recursos/`.
+
+### N.5. Archivo de DOCUMENTACION visible inesperadamente
+
+En el proyecto de la práctica no se ha preparado un proveedor de archivos alternativo que publique esa carpeta. Si la URL correspondiente deja de devolver 404, comprueba que estás ejecutando la configuración original y que no se han añadido otras reglas de publicación fuera del ejercicio.
+
+Este último caso pone de manifiesto que una prueba negativa puede descubrir una regresión de configuración, incluso cuando las páginas principales siguen respondiendo correctamente.
+
+## O. Laboratorio ampliado 1.3 — Comprobar la evolución del proyecto
+
+Revisa nuevamente los proyectos de 1.2 y 1.3 sin mezclar sus carpetas. En el 1.2 aprendimos a pasar una lista de productos desde el controlador a una vista. En el 1.3 ese flujo continúa funcionando, pero hemos añadido recursos de configuración, un estilo y enlaces a archivos públicos.
+
+La comparación permite distinguir una nueva funcionalidad de una nueva arquitectura. El proyecto sigue siendo MVC, no hemos añadido una base de datos ni un framework de interfaz diferente. La mayoría de los cambios se han realizado en `Program.cs`, `appsettings.json`, `Views/Shared/_Layout.cshtml` y `wwwroot`.
+
+El alumnado debe saber explicar por qué ninguno de estos cambios obliga a reescribir `Models/Producto.cs`. La clase de dominio permanece igual porque no hemos cambiado qué representa un producto. Hemos ampliado el entorno y la presentación de la aplicación.
+
+### Una última ejecución reproducible
+
+Desde la raíz del repositorio, con el proceso manual detenido, ejecuta el script de pruebas del capítulo:
+
+~~~bash
+bash M01_MVC/TESTS/1.3_e2e.sh
+~~~
+
+La prueba reconstruye cinco estados, incluido el reto, mediante copias temporales. Su finalidad es verificar que los bloques preparados se pueden activar sin romper el catálogo y que los recursos estáticos presentan los códigos de estado esperados.
+
+No sustituye la observación con F12 ni la comprensión de qué archivo responde a cada pregunta. La batería automatizada confirma el funcionamiento técnico; el objetivo pedagógico exige relacionarlo con las responsabilidades del proyecto.
+
+## P. Síntesis práctica y preparación de 1.4
+
+Sin consultar el código durante unos minutos, explica qué archivo modificarías ante las siguientes necesidades: cambiar el texto de configuración `Curso:Nombre`, añadir un enlace común a todas las páginas, modificar la apariencia del catálogo, cambiar el nombre de un producto y publicar un nuevo archivo de texto sin crear una acción.
+
+Después comprueba tus respuestas en el árbol del proyecto. Las ubicaciones correctas corresponden respectivamente a `appsettings.json`, `_Layout.cshtml`, CSS en `wwwroot`, código que crea los datos del producto y un recurso público bajo la raíz web, siempre que el middleware lo sirva.
+
+Por último, explica por qué `/Productos` y `/recursos/guia-publica.txt` pueden devolver ambos 200 sin que ambos sean acciones MVC. Esta comparación será la base para comprender nuevas rutas en 1.4, donde crearemos acciones que producirán resultados HTML, texto y JSON, y aprenderemos a distinguir la selección de endpoints de la búsqueda de archivos físicos.
+
+
 # P1.4. Controladores, acciones, parámetros y routing
 
 ## A. Objetivos, punto de partida y tiempo
