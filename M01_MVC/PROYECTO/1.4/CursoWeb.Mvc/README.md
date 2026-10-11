@@ -1,5 +1,7 @@
 # P1.4 — Controladores, acciones, parámetros y routing
 
+**AUTOR: JAIME GALLO**
+
 Este proyecto es la evolución del MVC de 1.3. El catálogo y las páginas anteriores siguen activos. La lista fija se ha extraído a `ObtenerProductosEjemplo()` para reutilizar los mismos productos sin base de datos.
 
 ## Ejecutar
@@ -33,3 +35,9 @@ bash M01_MVC/TESTS/1.4_e2e.sh
 ~~~
 
 El script prepara copias temporales para comprobar cada estado del alumno y ejecuta peticiones HTTP contra Kestrel. Requiere SDK .NET 8, Bash, Python 3 y curl.
+
+## Laboratorios ampliados y correspondencia documental
+
+La versión ampliada de [P1.4](../../../PRACTICAS/M01_PRACTICAS.md) incluye recorridos adicionales de diagnóstico y consolidación basados en **este mismo proyecto**. Son actividades de lectura, comprobación HTTP y activación de los bloques ya documentados más arriba; no constituyen un segundo conjunto de soluciones ni requieren crear otro proyecto.
+
+**Correspondencia verificable:** P1.4 del Markdown → código de esta carpeta → `M01_MVC/TESTS/1.4_e2e.sh`. Las explicaciones detalladas y los enunciados viven solo en el MD de prácticas; el PDF se genera de esa fuente, sin editarlo manualmente.

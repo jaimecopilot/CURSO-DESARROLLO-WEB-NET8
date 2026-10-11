@@ -1,5 +1,7 @@
 # Curso de Desarrollo Web con ASP.NET Core MVC, Razor y Blazor en .NET 8
 
+**AUTOR: JAIME GALLO**
+
 **Duración:** 30 horas lectivas, cinco jornadas de seis horas (lunes a viernes, mañanas).  
 **Público:** desarrolladores que ya conocen C#, ASP.NET Core Web API y Entity Framework Core.  
 **Enfoque:** MVC y Blazor eminentemente prácticos; Razor Pages, seguridad e IIS/Docker tratados de forma introductoria y limitada.

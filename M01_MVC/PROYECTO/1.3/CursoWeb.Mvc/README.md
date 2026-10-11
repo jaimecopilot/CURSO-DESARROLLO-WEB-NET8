@@ -1,5 +1,7 @@
 # Punto 1.3 — Estructura y convenciones MVC
 
+**AUTOR: JAIME GALLO**
+
 Esta carpeta es un **estado de continuidad ya funcional del 1.2**: se han activado las acciones, el bucle de listado y la navegación a Productos. El código de los puntos 1.1 y 1.2 queda conservado en sus carpetas anteriores; aquí se prepara la fase 1.3.
 
 ## Inicio
@@ -31,3 +33,9 @@ bash M01_MVC/TESTS/1.3_e2e.sh
 ~~~
 
 El script crea copias temporales y verifica los estados de forma independiente en Kestrel, sin alterar el proyecto inicial del alumno.
+
+## Laboratorios ampliados y correspondencia documental
+
+La versión ampliada de [P1.3](../../../PRACTICAS/M01_PRACTICAS.md) incluye recorridos adicionales de diagnóstico y consolidación basados en **este mismo proyecto**. Son actividades de lectura, comprobación HTTP y activación de los bloques ya documentados más arriba; no constituyen un segundo conjunto de soluciones ni requieren crear otro proyecto.
+
+**Correspondencia verificable:** P1.3 del Markdown → código de esta carpeta → `M01_MVC/TESTS/1.3_e2e.sh`. Las explicaciones detalladas y los enunciados viven solo en el MD de prácticas; el PDF se genera de esa fuente, sin editarlo manualmente.

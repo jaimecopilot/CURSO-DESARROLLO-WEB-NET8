@@ -1,5 +1,7 @@
 # P1.5 — Vistas Razor, layouts y vistas parciales
 
+**AUTOR: JAIME GALLO**
+
 Este proyecto continúa P1.4 en su estado **completo con los cinco pasos guiados activados** (Estado, Detalle, Ficha y enlaces), manteniendo el reto opcional histórico sin activar. Los archivos nuevos y los bloques de P1.5 están preparados para que el alumno los active por separado.
 
 ## Iniciar
@@ -29,3 +31,9 @@ bash M01_MVC/TESTS/1.5_e2e.sh
 ~~~
 
 Compila, inicia Kestrel, verifica rutas y contenidos y prueba cada activación mediante copias temporales. SDK 8, Bash, Python 3 y curl son requisitos.
+
+## Laboratorios ampliados y correspondencia documental
+
+La versión ampliada de [P1.5](../../../PRACTICAS/M01_PRACTICAS.md) incluye recorridos adicionales de diagnóstico y consolidación basados en **este mismo proyecto**. Son actividades de lectura, comprobación HTTP y activación de los bloques ya documentados más arriba; no constituyen un segundo conjunto de soluciones ni requieren crear otro proyecto.
+
+**Correspondencia verificable:** P1.5 del Markdown → código de esta carpeta → `M01_MVC/TESTS/1.5_e2e.sh`. Las explicaciones detalladas y los enunciados viven solo en el MD de prácticas; el PDF se genera de esa fuente, sin editarlo manualmente.
