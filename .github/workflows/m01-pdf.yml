@@ -1,0 +1,57 @@
+name: M01 - Generar y verificar los dos PDF
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [desarrollo/m01-mvc]
+    paths:
+      - "M01_MVC/TEORIA/M01_TEORIA.md"
+      - "M01_MVC/PRACTICAS/M01_PRACTICAS.md"
+      - "M01_MVC/DOCS/**"
+      - ".github/workflows/m01-pdf.yml"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: m01-pdf-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  documentos-m01:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar conversión y comprobación PDF
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install "markdown-it-py>=3,<5" "pygments>=2.17,<3" "weasyprint>=63,<69" "pypdf>=5,<8" "pymupdf>=1.24,<2"
+          dot -V
+      - name: Auditar capítulos, retos, código y pruebas
+        run: python M01_MVC/DOCS/validar_m01.py
+      - name: Convertir diagramas y generar los PDF desde Markdown canónico
+        run: python M01_MVC/DOCS/generar_m01_pdf.py
+      - name: Guardar artefactos incluso si la publicación falla
+        uses: actions/upload-artifact@v4
+        with:
+          name: m01-teoria-practicas-pdf
+          path: |
+            M01_MVC/TEORIA/M01_TEORIA.pdf
+            M01_MVC/PRACTICAS/M01_PRACTICAS.pdf
+            VERIFICACION_INTERNA/M01_PDFS_VALIDACION.md
+          if-no-files-found: error
+      - name: Publicar únicamente los dos PDF validados en la rama de trabajo
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add M01_MVC/TEORIA/M01_TEORIA.pdf M01_MVC/PRACTICAS/M01_PRACTICAS.pdf VERIFICACION_INTERNA/M01_PDFS_VALIDACION.md
+          if git diff --cached --quiet; then
+            echo "Sin cambios binarios o métricos"
+          else
+            git commit -m "docs(m01): publicar dos PDF derivados de Markdown y verificados"
+            git push origin HEAD:desarrollo/m01-mvc
+          fi
