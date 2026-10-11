@@ -37,6 +37,10 @@ jobs:
         run: python M01_MVC/DOCS/validar_m01.py
       - name: Convertir diagramas y generar los PDF desde Markdown canónico
         run: python M01_MVC/DOCS/generar_m01_pdf.py
+      - name: Contar y cotejar contenido de MD/PDF por capítulo
+        run: |
+          python -m pip install "beautifulsoup4>=4.12,<5" "rapidfuzz>=3.12,<4"
+          python VERIFICACION_INTERNA/auditar_fidelidad_m01.py
       - name: Guardar artefactos incluso si la publicación falla
         uses: actions/upload-artifact@v4
         with:
@@ -45,12 +49,13 @@ jobs:
             M01_MVC/TEORIA/M01_TEORIA.pdf
             M01_MVC/PRACTICAS/M01_PRACTICAS.pdf
             VERIFICACION_INTERNA/M01_PDFS_VALIDACION.md
+            VERIFICACION_INTERNA/M01_FIDELIDAD.md
           if-no-files-found: error
       - name: Publicar únicamente los dos PDF validados en la rama de trabajo
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add M01_MVC/TEORIA/M01_TEORIA.pdf M01_MVC/PRACTICAS/M01_PRACTICAS.pdf VERIFICACION_INTERNA/M01_PDFS_VALIDACION.md
+          git add M01_MVC/TEORIA/M01_TEORIA.pdf M01_MVC/PRACTICAS/M01_PRACTICAS.pdf VERIFICACION_INTERNA/M01_PDFS_VALIDACION.md VERIFICACION_INTERNA/M01_FIDELIDAD.md
           if git diff --cached --quiet; then
             echo "Sin cambios binarios o métricos"
           else
