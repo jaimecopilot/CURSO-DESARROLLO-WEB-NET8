@@ -150,9 +150,11 @@ try {
   Assert ($catalog.Code -eq 200 -and $catalog.Html.Contains('href="/Comparacion"')) "No existe navegación MVC a Razor Pages."
   $page = Get-Response "/Comparacion"
   Assert ($page.Html.Contains('href="/Productos"') -or $page.Html.Contains('href="/Productos/Index"')) "No existe enlace de regreso a MVC."
-  Assert (-not $page.Html.Contains('id="respuesta-larga"')) "La condición Razor se activa con un mensaje corto."
+  Assert ($page.Html.Contains('id="respuesta-larga"')) "El texto inicial de OnGet tiene más de 40 caracteres."
   $token=Get-Token
-  $longName = "Nombre que provoca un mensaje de más de cuarenta caracteres"
+  $shortResult = Post-Form "/Comparacion" "Ana" $token
+  Assert (-not $shortResult.Html.Contains('id="respuesta-larga"')) "El POST de Ana debe producir un mensaje corto."
+  $longName = "Ana Martinez de la Ribera"
   $longResult = Post-Form "/Comparacion" $longName $token
   Assert ($longResult.Html.Contains('id="respuesta-larga"')) "No se ejecuta condición Razor del paso 2.5.6."
   Stop-Web
