@@ -80,19 +80,18 @@ Este árbol identifica **todos los archivos necesarios** para el primer recorrid
 
 ### Mapa verificable de cada paso
 
-Cada fila permite localizar exactamente qué debe consultar o modificar el alumno. **Observar** significa que el código ya está activo y no debe descomentarse; **activar** significa que el proyecto incluye el bloque preparado. Las pruebas E2E ejecutan los estados indicados, pero no reemplazan la observación manual del navegador.
+Cada fila permite localizar exactamente qué debe consultar o modificar el alumno. **Observar** significa que el código ya está activo y no debe descomentarse; **activar** significa que el proyecto incluye el bloque preparado.
 
 | Paso | Archivo y acción del alumno | Resultado y comprobación |
 |---|---|---|
-| 1.1.1 | Plantilla temporal `.work/PlantillaMvc`. **Acción:** Crear una aplicación desde el SDK; no se entrega como ejercicio activable | **Resultado:** Ejecutar la plantilla en puerto 5095. **Prueba:** Comprobación guiada, fuera del E2E del proyecto |
-| 1.1.2 | `Program.cs`; `Views/Home/Index.cshtml`. **Acción:** Arrancar el proyecto docente sin editarlo | **Resultado:** GET `/` → 200 HTML. **Prueba:** Estado inicial de `1.1_e2e.sh` |
-| 1.1.3 | `Program.cs`; `Controllers/HomeController.cs`. **Acción:** Inspeccionar ruta, acción y respuesta sin modificar código | **Resultado:** GET `/` → 200; GET `/css/site.css` → 200 CSS. **Prueba:** Baseline de `1.1_e2e.sh` |
-| 1.1.4 | `Controllers/HomeController.cs`. **Acción:** Descomentar `Response.Headers["X-Curso-Paso"]` | **Resultado:** Cabecera `X-Curso-Paso: 1.1.4`. **Prueba:** Estado de cabecera en `1.1_e2e.sh` |
-| 1.1.5 | `Views/Home/Index.cshtml`. **Acción:** Activar el bloque Razor `marca-paso-1-1-5` | **Resultado:** Aparece la sección HTML nueva. **Prueba:** Estado de vista en `1.1_e2e.sh` |
-| 1.1.6 | `Program.cs`; `wwwroot/css/site.css`. **Acción:** Comparar rutas correctas, archivo estático y 404 | **Resultado:** `/Home/Index` → 200, ruta inexistente → 404. **Prueba:** Regresión de rutas en `1.1_e2e.sh` |
-| Reto 1.1 | `Controllers/HomeController.cs`; `Views/Home/Index.cshtml`. **Acción:** Activar cabecera y mensaje `reto-1-1` | **Resultado:** Cabecera y HTML presentes de forma independiente. **Prueba:** Escenario del reto de `1.1_e2e.sh` |
+| 1.1.1 | Plantilla temporal `.work/PlantillaMvc`. **Acción:** Crear una aplicación desde el SDK; no se entrega como ejercicio activable | **Resultado:** Ejecutar la plantilla en puerto 5095.|
+| 1.1.2 | `Program.cs`; `Views/Home/Index.cshtml`. **Acción:** Arrancar el proyecto docente sin editarlo | **Resultado:** GET `/` → 200 HTML.|
+| 1.1.3 | `Program.cs`; `Controllers/HomeController.cs`. **Acción:** Inspeccionar ruta, acción y respuesta sin modificar código | **Resultado:** GET `/` → 200; GET `/css/site.css` → 200 CSS.|
+| 1.1.4 | `Controllers/HomeController.cs`. **Acción:** Descomentar `Response.Headers["X-Curso-Paso"]` | **Resultado:** Cabecera `X-Curso-Paso: 1.1.4`.|
+| 1.1.5 | `Views/Home/Index.cshtml`. **Acción:** Activar el bloque Razor `marca-paso-1-1-5` | **Resultado:** Aparece la sección HTML nueva.|
+| 1.1.6 | `Program.cs`; `wwwroot/css/site.css`. **Acción:** Comparar rutas correctas, archivo estático y 404 | **Resultado:** `/Home/Index` → 200, ruta inexistente → 404.|
+| Reto 1.1 | `Controllers/HomeController.cs`; `Views/Home/Index.cshtml`. **Acción:** Activar cabecera y mensaje `reto-1-1` | **Resultado:** Cabecera y HTML presentes de forma independiente.|
 
-**Regla de trazabilidad.** No se considera resuelto un reto solo porque se vea su nombre en el código: se comprueba el resultado esperado con el proyecto activado. Los bloques comentados permanecen como material de ejecución del alumno; no deben sustituirse por capturas ni pseudocódigo.
 ## Desarrollo práctico paso a paso
 
 
@@ -351,7 +350,7 @@ Esta práctica controlada puede representarse como una matriz:
 | Vista | Ausente | Presente |
 | Ambos | Presente | Presente |
 
-La batería `1.1_e2e.sh` reproduce estas combinaciones mediante copias temporales, lo que permite comprobarlas sin modificar el proyecto fuente del alumno.
+Para comparar los dos cambios, activa cada bloque por separado y observa las diferencias entre cabeceras y HTML en el navegador.
 
 ### Paso 1.1.5 — Activar un bloque HTML de la vista Razor
 
@@ -437,7 +436,7 @@ Esta instrucción añade la cabecera `X-Curso-Reto` a la respuesta HTTP del docu
 <p id="reto-1-1">El servidor genera el HTML y envía las cabeceras HTTP por separado.</p>
 ~~~
 
-El atributo `id` facilita localizar el nuevo elemento en las herramientas de desarrollo y en las pruebas automatizadas. El texto se enviará dentro del cuerpo HTML y aparecerá bajo el contenido existente. La vista no está añadiendo por sí misma ninguna cabecera HTTP.
+El atributo `id` facilita localizar el nuevo elemento en las herramientas de desarrollo. El texto se enviará dentro del cuerpo HTML y aparecerá bajo el contenido existente. La vista no está añadiendo por sí misma ninguna cabecera HTTP.
 
 **Acción 3 — ejecutar.** Desde la carpeta del proyecto:
 
@@ -452,7 +451,7 @@ Accede a `http://localhost:5091/`. Debes ver el texto «El servidor genera el HT
 
 **Código de solución y activación:** las instrucciones anteriores contienen la solución completa para comparar con tu intento. No hay que crear nuevos archivos ni copiar código externo. El reto se activa **sobre el proyecto que ya contiene todos los bloques identificados**.
 
-**Prueba automatizada del reto:** desde la raíz del repositorio, `bash M01_MVC/TESTS/1.1_e2e.sh` incluye el estado `reto`. Ejecuta en una copia temporal la aplicación con los ejercicios anteriores y el reto activados; verifica que compila, que devuelve HTTP 200, que existe `X-Curso-Reto` y que el párrafo aparece únicamente al activar la variante.
+**Comprobación del reto:** ejecuta la aplicación y observa en el navegador los cambios solicitados; contrasta también la respuesta HTTP con F12 o `curl -i` cuando corresponda.
 
 **Resultado esperado:** distinguir, señalando el archivo y la línea concreta, un cambio de cabeceras (controlador) de un cambio de representación (vista). El reto tiene una solución guiada y comprobable; no implica nuevos conceptos fuera de 1.1.
 
@@ -480,7 +479,7 @@ En `Views/Home/Index.cshtml` encontramos:
 RETO 1.1 (fin) *@
 ~~~
 
-Retira las dos líneas de comentario Razor y conserva el párrafo. El atributo `id` ayuda a encontrar el elemento en el HTML y a comprobar su presencia mediante el script E2E.
+Retira las dos líneas de comentario Razor y conserva el párrafo. El atributo `id` ayuda a encontrar el elemento en el HTML.
 
 **Tres solicitudes para comprobar el comportamiento.**
 
@@ -522,7 +521,7 @@ Este es el comportamiento observable que prueba que los dos fragmentos están ac
 | Ruta inexistente | GET `/ruta-inexistente` | 404 |
 | Recurso estático | GET `/css/site.css` | 200 y contenido CSS |
 
-La prueba automatizada del proyecto comprueba los recorridos HTTP de la aplicación del curso, incluidos los estados base y activado. Se puede ejecutar desde la raíz del repositorio con `bash M01_MVC/TESTS/1.1_e2e.sh` si se dispone de Bash, curl, Python 3 y SDK 8. La creación de la plantilla temporal es una operación didáctica guiada y no modifica la aplicación distribuida.
+**Comprobación final:** ejecuta la aplicación, observa la respuesta HTTP y verifica los resultados indicados en la tabla siguiente.
 
 **Criterio de finalización:** el alumno debe poder señalar, sobre una petición real, dónde están el método GET, el código 200/404, el encabezado de respuesta, la acción MVC y el HTML de la vista.
 
@@ -657,19 +656,18 @@ Antes de seguir, detener la aplicación con **Ctrl+C**; reiniciaremos el proceso
 
 ### Mapa verificable de cada paso
 
-Cada fila permite localizar exactamente qué debe consultar o modificar el alumno. **Observar** significa que el código ya está activo y no debe descomentarse; **activar** significa que el proyecto incluye el bloque preparado. Las pruebas E2E ejecutan los estados indicados, pero no reemplazan la observación manual del navegador.
+Cada fila permite localizar exactamente qué debe consultar o modificar el alumno. **Observar** significa que el código ya está activo y no debe descomentarse; **activar** significa que el proyecto incluye el bloque preparado.
 
 | Paso | Archivo y acción del alumno | Resultado y comprobación |
 |---|---|---|
-| 1.2.1 | `Program.cs`; `Controllers/ProductosController.cs`. **Acción:** Examinar la ruta del catálogo ya definida | **Resultado:** `/Productos` → 200; modelo todavía nulo. **Prueba:** Estado inicial de `1.2_e2e.sh` |
-| 1.2.2 | `Models/Producto.cs`. **Acción:** Leer las propiedades del modelo existente, sin descomentar nada | **Resultado:** Identificar `Id`, `Nombre` y `Precio`. **Prueba:** Compilación de `1.2_e2e.sh` |
-| 1.2.3 | `Controllers/ProductosController.cs`. **Acción:** Activar el bloque de lista y `View(productos)`; comentar el retorno inicial | **Resultado:** `/Productos` muestra un contador de 3. **Prueba:** Estado de datos de `1.2_e2e.sh` |
-| 1.2.4 | `Views/Productos/Index.cshtml`. **Acción:** Activar el bucle Razor de `listado-productos` | **Resultado:** Tres elementos con nombre, precio e identificador. **Prueba:** Estado del listado de `1.2_e2e.sh` |
-| 1.2.5 | `Views/Shared/_Layout.cshtml`. **Acción:** Activar enlace a `/Productos` | **Resultado:** Menú Inicio/Productos navegable. **Prueba:** Estado de navegación de `1.2_e2e.sh` |
-| 1.2.6 | `Program.cs`; vistas y controlador anteriores. **Acción:** Repasar el flujo completo sin crear una segunda implementación | **Resultado:** Se mantienen portada y catálogo 200. **Prueba:** Regresión final de `1.2_e2e.sh` |
-| Reto 1.2 | `Controllers/ProductosController.cs`. **Acción:** Sustituir Cuaderno por Bloc en el bloque indicado, no duplicarlo | **Resultado:** Tres productos; Bloc sustituye a Cuaderno. **Prueba:** Escenario de reto de `1.2_e2e.sh` |
+| 1.2.1 | `Program.cs`; `Controllers/ProductosController.cs`. **Acción:** Examinar la ruta del catálogo ya definida | **Resultado:** `/Productos` → 200; modelo todavía nulo.|
+| 1.2.2 | `Models/Producto.cs`. **Acción:** Leer las propiedades del modelo existente, sin descomentar nada | **Resultado:** Identificar `Id`, `Nombre` y `Precio`.|
+| 1.2.3 | `Controllers/ProductosController.cs`. **Acción:** Activar el bloque de lista y `View(productos)`; comentar el retorno inicial | **Resultado:** `/Productos` muestra un contador de 3.|
+| 1.2.4 | `Views/Productos/Index.cshtml`. **Acción:** Activar el bucle Razor de `listado-productos` | **Resultado:** Tres elementos con nombre, precio e identificador.|
+| 1.2.5 | `Views/Shared/_Layout.cshtml`. **Acción:** Activar enlace a `/Productos` | **Resultado:** Menú Inicio/Productos navegable.|
+| 1.2.6 | `Program.cs`; vistas y controlador anteriores. **Acción:** Repasar el flujo completo sin crear una segunda implementación | **Resultado:** Se mantienen portada y catálogo 200.|
+| Reto 1.2 | `Controllers/ProductosController.cs`. **Acción:** Sustituir Cuaderno por Bloc en el bloque indicado, no duplicarlo | **Resultado:** Tres productos; Bloc sustituye a Cuaderno.|
 
-**Regla de trazabilidad.** No se considera resuelto un reto solo porque se vea su nombre en el código: se comprueba el resultado esperado con el proyecto activado. Los bloques comentados permanecen como material de ejecución del alumno; no deben sustituirse por capturas ni pseudocódigo.
 ## Desarrollo práctico paso a paso
 
 
@@ -1092,7 +1090,7 @@ dotnet run --no-launch-profile --urls http://localhost:5091
 
 Abre `http://localhost:5091/Productos`. Debes obtener **Bloc, Lápiz y Carpeta**, conservando los precios y el contador de tres productos. Comprueba que ya no aparece «Cuaderno» en la lista. La ruta alternativa `/Productos/Index` debe mostrar exactamente lo mismo.
 
-**Prueba automatizada del reto:** desde la raíz del repositorio, `bash M01_MVC/TESTS/1.2_e2e.sh`. El escenario `reto` reconstruye una copia temporal del proyecto con el listado y la navegación activados, cambia la línea de Cuaderno por la de Bloc, compila y verifica realmente la respuesta HTTP y sus tres productos. El estado inicial del alumno no se modifica.
+**Comprobación del reto:** ejecuta la aplicación y observa en el navegador los cambios solicitados; contrasta también la respuesta HTTP con F12 o `curl -i` cuando corresponda.
 
 **Preguntas y solución razonada.**
 
@@ -1126,7 +1124,7 @@ No modifiques el bloque `@foreach` para escribir literalmente Bloc. Una solució
 
 **Pregunta de razonamiento:** ¿qué ocurriría si cambiáramos el valor en la vista pero dejáramos los datos originales en el controlador? Habríamos introducido una discrepancia entre el modelo y su representación. Cuando otra pantalla consumiera el mismo modelo, podría seguir mostrando Cuaderno. Por eso conviene que la vista consulte el dato en lugar de inventarlo.
 
-El script `1.2_e2e.sh` reconstruye el estado de reto sobre una copia temporal y comprueba la sustitución. También verifica que el catálogo sigue teniendo tres elementos y que las rutas anteriores continúan funcionando.
+Tras activar el reto, vuelve a cargar el catálogo, comprueba que se muestran tres productos y explica por qué la vista no ha necesitado cambios.
 
 ## Comprobaciones funcionales y casos de diagnóstico
 
@@ -1258,18 +1256,17 @@ Detener el servidor con **Ctrl+C** y mantener abierta la carpeta del proyecto. L
 
 ### Mapa verificable de cada paso
 
-Cada fila permite localizar exactamente qué debe consultar o modificar el alumno. **Observar** significa que el código ya está activo y no debe descomentarse; **activar** significa que el proyecto incluye el bloque preparado. Las pruebas E2E ejecutan los estados indicados, pero no reemplazan la observación manual del navegador.
+Cada fila permite localizar exactamente qué debe consultar o modificar el alumno. **Observar** significa que el código ya está activo y no debe descomentarse; **activar** significa que el proyecto incluye el bloque preparado.
 
 | Paso | Archivo y acción del alumno | Resultado y comprobación |
 |---|---|---|
-| 1.3.1 | `CursoWeb.Mvc.csproj`; `Program.cs`. **Acción:** Reconocer framework y árbol de proyecto | **Resultado:** Compilación `.NET 8`. **Prueba:** Compilación de `1.3_e2e.sh` |
-| 1.3.2 | `Program.cs`; `appsettings.json`. **Acción:** Identificar pipeline y recursos sin alterarlos | **Resultado:** Catálogo y portada continúan funcionando. **Prueba:** Estado inicial de `1.3_e2e.sh` |
-| 1.3.3 | `Program.cs`; `appsettings.json`. **Acción:** Activar registro `app.Configuration["Curso:Nombre"]` | **Resultado:** Mensaje de configuración en el log. **Prueba:** Estado de configuración de `1.3_e2e.sh` |
-| 1.3.4 | `Views/Shared/_Layout.cshtml`; `wwwroot/css/catalogo.css`. **Acción:** Activar el enlace CSS preparado | **Resultado:** CSS disponible con HTTP 200 y enlace en HTML. **Prueba:** Estado CSS de `1.3_e2e.sh` |
-| 1.3.5 | `Views/Shared/_Layout.cshtml`; `wwwroot/recursos/guia-publica.txt`. **Acción:** Activar enlace al recurso público | **Resultado:** GET `/recursos/guia-publica.txt` → 200. **Prueba:** Estado de recurso de `1.3_e2e.sh` |
-| Reto 1.3 | `Views/Shared/_Layout.cshtml`; `DOCUMENTACION/nota-interna.txt`. **Acción:** Activar enlace de aviso; verificar que el interno no se publica | **Resultado:** Aviso 200; documento fuera de `wwwroot` → 404. **Prueba:** Escenario de reto de `1.3_e2e.sh` |
+| 1.3.1 | `CursoWeb.Mvc.csproj`; `Program.cs`. **Acción:** Reconocer framework y árbol de proyecto | **Resultado:** Compilación `.NET 8`.|
+| 1.3.2 | `Program.cs`; `appsettings.json`. **Acción:** Identificar pipeline y recursos sin alterarlos | **Resultado:** Catálogo y portada continúan funcionando.|
+| 1.3.3 | `Program.cs`; `appsettings.json`. **Acción:** Activar registro `app.Configuration["Curso:Nombre"]` | **Resultado:** Mensaje de configuración en el log.|
+| 1.3.4 | `Views/Shared/_Layout.cshtml`; `wwwroot/css/catalogo.css`. **Acción:** Activar el enlace CSS preparado | **Resultado:** CSS disponible con HTTP 200 y enlace en HTML.|
+| 1.3.5 | `Views/Shared/_Layout.cshtml`; `wwwroot/recursos/guia-publica.txt`. **Acción:** Activar enlace al recurso público | **Resultado:** GET `/recursos/guia-publica.txt` → 200.|
+| Reto 1.3 | `Views/Shared/_Layout.cshtml`; `DOCUMENTACION/nota-interna.txt`. **Acción:** Activar enlace de aviso; verificar que el interno no se publica | **Resultado:** Aviso 200; documento fuera de `wwwroot` → 404.|
 
-**Regla de trazabilidad.** No se considera resuelto un reto solo porque se vea su nombre en el código: se comprueba el resultado esperado con el proyecto activado. Los bloques comentados permanecen como material de ejecución del alumno; no deben sustituirse por capturas ni pseudocódigo.
 ## Desarrollo práctico paso a paso
 
 
@@ -1739,7 +1736,7 @@ GET /recursos/aviso-laboratorio.txt         -> 200, texto público
 GET /DOCUMENTACION/nota-interna.txt        -> 404, no publicado como estático
 ~~~
 
-**Reto entregado con código:** el Markdown describe la solución completa; el proyecto contiene los dos textos y el bloque del layout comentado; las pruebas automatizadas habilitan el fragmento y comprueban los tres resultados.
+**Código del reto:** el proyecto incluye la variante comentada y el Markdown explica su activación; verifica el resultado al ejecutar la aplicación.
 
 **Resolver el reto y comprobar resultados negativos.**
 
@@ -1942,7 +1939,7 @@ M01_MVC/
 │       │   └── Shared/_Layout.cshtml
 │       ├── appsettings.json
 │       └── wwwroot/
-└── TESTS/1.4_e2e.sh
+
 ~~~
 
 **No modificar el proyecto 1.3.** El proyecto 1.4 es una continuación autocontenida del estado final funcional anterior. Las carpetas independientes permiten volver a un estado previo si se necesita reproducir la actividad de un capítulo.
@@ -1964,18 +1961,17 @@ Detener el proceso con **Ctrl+C** antes de editar. Volver a iniciar la aplicaci�
 
 ### Mapa verificable de cada paso
 
-Cada fila permite localizar exactamente qué debe consultar o modificar el alumno. **Observar** significa que el código ya está activo y no debe descomentarse; **activar** significa que el proyecto incluye el bloque preparado. Las pruebas E2E ejecutan los estados indicados, pero no reemplazan la observación manual del navegador.
+Cada fila permite localizar exactamente qué debe consultar o modificar el alumno. **Observar** significa que el código ya está activo y no debe descomentarse; **activar** significa que el proyecto incluye el bloque preparado.
 
 | Paso | Archivo y acción del alumno | Resultado y comprobación |
 |---|---|---|
-| 1.4.1 | `Program.cs`; `Controllers/ProductosController.cs`. **Acción:** Examinar la ruta y la función de productos compartidos | **Resultado:** `/Productos` → 200; sin detalle activado. **Prueba:** Estado inicial de `1.4_e2e.sh` |
-| 1.4.2 | `Controllers/ProductosController.cs`. **Acción:** Activar método `Estado()` | **Resultado:** `/Productos/Estado` → 200 texto plano. **Prueba:** Estado de texto en `1.4_e2e.sh` |
-| 1.4.3 | `Controllers/ProductosController.cs`; `Views/Productos/Detalle.cshtml`. **Acción:** Activar `Detalle(int id)`; reutilizar la vista suministrada | **Resultado:** Detalle(2) → 200; 99 → 404; 0 → 400. **Prueba:** Estado de detalle en `1.4_e2e.sh` |
-| 1.4.4 | `Controllers/ProductosController.cs`. **Acción:** Activar `Ficha(int id)` con `[HttpGet("/catalogo/ficha/{id:int}")]` | **Resultado:** Ficha(2) → 200; texto no numérico → 404. **Prueba:** Estado de ruta por atributos en `1.4_e2e.sh` |
-| 1.4.5 | `Views/Productos/Index.cshtml`. **Acción:** Activar enlaces Razor de detalle dentro del bucle | **Resultado:** Enlaces a detalles 1, 2 y 3. **Prueba:** Estado de enlaces en `1.4_e2e.sh` |
-| Reto 1.4 | `Controllers/ProductosController.cs`. **Acción:** Activar `Resumen(int id)` JSON | **Resultado:** Resumen(2) → 200 JSON; 99 → 404. **Prueba:** Escenario del reto de `1.4_e2e.sh` |
+| 1.4.1 | `Program.cs`; `Controllers/ProductosController.cs`. **Acción:** Examinar la ruta y la función de productos compartidos | **Resultado:** `/Productos` → 200; sin detalle activado.|
+| 1.4.2 | `Controllers/ProductosController.cs`. **Acción:** Activar método `Estado()` | **Resultado:** `/Productos/Estado` → 200 texto plano.|
+| 1.4.3 | `Controllers/ProductosController.cs`; `Views/Productos/Detalle.cshtml`. **Acción:** Activar `Detalle(int id)`; reutilizar la vista suministrada | **Resultado:** Detalle(2) → 200; 99 → 404; 0 → 400.|
+| 1.4.4 | `Controllers/ProductosController.cs`. **Acción:** Activar `Ficha(int id)` con `[HttpGet("/catalogo/ficha/{id:int}")]` | **Resultado:** Ficha(2) → 200; texto no numérico → 404.|
+| 1.4.5 | `Views/Productos/Index.cshtml`. **Acción:** Activar enlaces Razor de detalle dentro del bucle | **Resultado:** Enlaces a detalles 1, 2 y 3.|
+| Reto 1.4 | `Controllers/ProductosController.cs`. **Acción:** Activar `Resumen(int id)` JSON | **Resultado:** Resumen(2) → 200 JSON; 99 → 404.|
 
-**Regla de trazabilidad.** No se considera resuelto un reto solo porque se vea su nombre en el código: se comprueba el resultado esperado con el proyecto activado. Los bloques comentados permanecen como material de ejecución del alumno; no deben sustituirse por capturas ni pseudocódigo.
 ## Desarrollo práctico paso a paso
 
 
@@ -2402,7 +2398,7 @@ Este ejercicio ayuda a evitar un error frecuente: crear nuevas vistas para resol
 
 Si `Ficha` devolviera `View(producto)` sin nombre, MVC podría intentar encontrar una vista asociada a la acción Ficha. El proyecto no pretende enseñar una segunda representación distinta; por eso el código usa explícitamente la cadena `"Detalle"`.
 
-No es necesario modificar el método para comprobar este razonamiento. La práctica ya incluye la versión correcta y las pruebas automatizadas verifican que funciona con su ruta por atributos.
+No es necesario modificar el método para comprobar este razonamiento: compara las respuestas obtenidas con las esperadas en el ejercicio.
 
 ### Paso 1.4.5 — Activar enlaces de detalle desde cada producto del listado
 
@@ -2575,7 +2571,7 @@ El ejemplo muestra los elementos relevantes de la respuesta, no necesariamente t
 
 **¿Dónde está el código del reto?** En este documento y en `PROYECTO/1.4/CursoWeb.Mvc/Controllers/ProductosController.cs`, delimitado por `RETO 1.4`. No se crea una solución ajena al proyecto; el alumno activa la variante incluida.
 
-**¿Cómo se prueba automáticamente?** Mediante el estado `reto` de `M01_MVC/TESTS/1.4_e2e.sh`, que quita los delimitadores en una copia temporal, compila, arranca Kestrel y comprueba códigos y contenido JSON.
+**¿Cómo comprobar el reto?** Ejecuta la aplicación con el bloque del reto activado y compara las respuestas de las URL indicadas.
 
 **Ejecutar el reto JSON como consumidor.**
 
@@ -2790,7 +2786,7 @@ La comprobación debe confirmar una respuesta JSON válida con las propiedades c
 
 El listado `/Productos`, la portada `/` y los recursos CSS deben continuar funcionando después de activar las acciones nuevas. Si alguno deja de funcionar, hay una regresión que el alumno debe investigar antes de dar el capítulo por terminado.
 
-Esta es la razón por la que el script `1.4_e2e.sh` prueba también funcionalidades que no se han introducido en 1.4. Una ampliación correcta conserva los contratos previos.
+Esta comprobación también permite detectar si un cambio rompe funcionalidades desarrolladas en los pasos anteriores.
 
 ## Resolución de incidencias
 
@@ -2929,18 +2925,17 @@ Detener la ejecución antes de modificar los bloques. En los pasos siguientes pu
 
 ### Mapa verificable de cada paso
 
-Cada fila permite localizar exactamente qué debe consultar o modificar el alumno. **Observar** significa que el código ya está activo y no debe descomentarse; **activar** significa que el proyecto incluye el bloque preparado. Las pruebas E2E ejecutan los estados indicados, pero no reemplazan la observación manual del navegador.
+Cada fila permite localizar exactamente qué debe consultar o modificar el alumno. **Observar** significa que el código ya está activo y no debe descomentarse; **activar** significa que el proyecto incluye el bloque preparado.
 
 | Paso | Archivo y acción del alumno | Resultado y comprobación |
 |---|---|---|
-| 1.5.1 | `Views/Productos/Index.cshtml`; `Views/Productos/Detalle.cshtml`. **Acción:** Distinguir modelo colección de un modelo individual | **Resultado:** Catálogo y detalle presentan los tipos adecuados. **Prueba:** Estado inicial de `1.5_e2e.sh` |
-| 1.5.2 | `Views/Productos/Index.cshtml`. **Acción:** Activar condición `Model.Count >= 3` | **Resultado:** Mensaje `catalogo-completo` en el listado. **Prueba:** Estado condicional de `1.5_e2e.sh` |
-| 1.5.3 | `Views/Shared/_Layout.cshtml`; `Views/Productos/Detalle.cshtml`. **Acción:** Activar definición y representación de `NotasPagina` conjuntamente | **Resultado:** Nota en detalle, otras páginas continúan funcionando. **Prueba:** Estado de secciones de `1.5_e2e.sh` |
-| 1.5.4 | `Views/Productos/Index.cshtml`; `Views/Shared/_TarjetaProducto.cshtml`. **Acción:** Activar Partial Tag Helper dentro de `foreach` | **Resultado:** Tres tarjetas con `data-producto-id` distinto. **Prueba:** Estado de tarjetas de `1.5_e2e.sh` |
-| 1.5.5 | `Views/Productos/Detalle.cshtml`; `Views/Shared/_TarjetaProducto.cshtml`. **Acción:** Activar reutilización de parcial en ficha | **Resultado:** Una tarjeta del producto solicitado. **Prueba:** Estado de reutilización de `1.5_e2e.sh` |
-| Reto 1.5 | `Views/Shared/_TarjetaProducto.cshtml`. **Acción:** Activar comparación `Model.Precio < 3m` | **Resultado:** Etiqueta solo en Lápiz; ausente en Cuaderno y Carpeta. **Prueba:** Escenario del reto de `1.5_e2e.sh` |
+| 1.5.1 | `Views/Productos/Index.cshtml`; `Views/Productos/Detalle.cshtml`. **Acción:** Distinguir modelo colección de un modelo individual | **Resultado:** Catálogo y detalle presentan los tipos adecuados.|
+| 1.5.2 | `Views/Productos/Index.cshtml`. **Acción:** Activar condición `Model.Count >= 3` | **Resultado:** Mensaje `catalogo-completo` en el listado.|
+| 1.5.3 | `Views/Shared/_Layout.cshtml`; `Views/Productos/Detalle.cshtml`. **Acción:** Activar definición y representación de `NotasPagina` conjuntamente | **Resultado:** Nota en detalle, otras páginas continúan funcionando.|
+| 1.5.4 | `Views/Productos/Index.cshtml`; `Views/Shared/_TarjetaProducto.cshtml`. **Acción:** Activar Partial Tag Helper dentro de `foreach` | **Resultado:** Tres tarjetas con `data-producto-id` distinto.|
+| 1.5.5 | `Views/Productos/Detalle.cshtml`; `Views/Shared/_TarjetaProducto.cshtml`. **Acción:** Activar reutilización de parcial en ficha | **Resultado:** Una tarjeta del producto solicitado.|
+| Reto 1.5 | `Views/Shared/_TarjetaProducto.cshtml`. **Acción:** Activar comparación `Model.Precio < 3m` | **Resultado:** Etiqueta solo en Lápiz; ausente en Cuaderno y Carpeta.|
 
-**Regla de trazabilidad.** No se considera resuelto un reto solo porque se vea su nombre en el código: se comprueba el resultado esperado con el proyecto activado. Los bloques comentados permanecen como material de ejecución del alumno; no deben sustituirse por capturas ni pseudocódigo.
 ## Desarrollo práctico paso a paso
 
 
@@ -3548,7 +3543,7 @@ En una aplicación real, las reglas que afectan a operaciones económicas o perm
 | Tarjeta en detalle | Anteriores + 1.5.5 | Una tarjeta de producto en cada ficha |
 | **Reto** | Todo lo anterior + RETO 1.5 | Lápiz se etiqueta como económico en catálogo y detalle; los otros productos no |
 
-En cada etapa se debe confirmar al menos una vez que el código compila y el HTML esperado llega al navegador. Las pruebas automatizadas reconstruyen las seis etapas completas con una aplicación HTTP real.
+En cada etapa comprueba que el proyecto compila, que las rutas responden y que los cambios esperados se observan en la interfaz.
 
 **Recorrido de regresión de todo M01.**
 
@@ -3569,7 +3564,7 @@ Al revisar `/Productos`, comprueba el contador de tres productos, el mensaje de 
 
 Después solicita `Detalle/1` y confirma que la etiqueta no aparece en la tarjeta de Cuaderno. Esta última comprobación evita dar por finalizado el módulo tras observar solamente un caso positivo.
 
-**Comparar la ejecución manual con el script de pruebas.**
+**Comprobación manual de los cambios.**
 
 Detén el servidor y ejecuta desde la raíz del repositorio:
 
