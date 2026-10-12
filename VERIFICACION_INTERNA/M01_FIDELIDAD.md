@@ -4,16 +4,16 @@ Cada PDF procede exclusivamente de su Markdown. Las marcas de formato, tablas y 
 
 | Documento | Punto | Páginas PDF | Palabras MD | Caracteres MD | Palabras PDF | Caracteres PDF | Tokens faltantes |
 |---|---|---|---:|---:|---:|---:|---:|
-| TEORIA | 1.1 | 3-20 | 7728 | 52575 | 7667 | 53070 | 0 |
-| TEORIA | 1.2 | 21-33 | 6010 | 39985 | 5921 | 40610 | 0 |
-| TEORIA | 1.3 | 34-48 | 6405 | 45473 | 6391 | 45554 | 0 |
-| TEORIA | 1.4 | 49-68 | 8628 | 58588 | 8551 | 59147 | 0 |
-| TEORIA | 1.5 | 69-84 | 6634 | 45270 | 6586 | 45002 | 0 |
-| PRACTICAS | 1.1 | 3-14 | 4877 | 33531 | 4836 | 33555 | 0 |
-| PRACTICAS | 1.2 | 15-27 | 4917 | 33715 | 4884 | 33514 | 0 |
-| PRACTICAS | 1.3 | 28-40 | 4985 | 35238 | 4913 | 35387 | 0 |
-| PRACTICAS | 1.4 | 41-57 | 6155 | 44006 | 6092 | 43605 | 0 |
-| PRACTICAS | 1.5 | 58-76 | 7671 | 53006 | 7603 | 52967 | 0 |
+| TEORIA | 1.1 | 3-21 | 7728 | 52575 | 7659 | 52992 | 0 |
+| TEORIA | 1.2 | 22-35 | 6010 | 39985 | 5912 | 40596 | 0 |
+| TEORIA | 1.3 | 36-51 | 6405 | 45473 | 6400 | 45626 | 0 |
+| TEORIA | 1.4 | 52-73 | 8628 | 58588 | 8554 | 59358 | 0 |
+| TEORIA | 1.5 | 74-90 | 6635 | 45293 | 6585 | 45015 | 0 |
+| PRACTICAS | 1.1 | 3-15 | 4877 | 33531 | 4838 | 33599 | 0 |
+| PRACTICAS | 1.2 | 16-29 | 4917 | 33715 | 4886 | 33507 | 0 |
+| PRACTICAS | 1.3 | 30-43 | 4985 | 35238 | 4913 | 35358 | 0 |
+| PRACTICAS | 1.4 | 44-61 | 6155 | 44006 | 6092 | 43581 | 0 |
+| PRACTICAS | 1.5 | 62-81 | 7671 | 53006 | 7607 | 52957 | 0 |
 
 La auditoría exige cero tokens normalizados faltantes por capítulo; la lectura del PDF puede reordenar elementos de tablas y diagramas.
 La identidad literal de la fuente está verificada con la copia Markdown incrustada y su huella SHA-256.
