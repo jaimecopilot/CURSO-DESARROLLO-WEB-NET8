@@ -1292,7 +1292,7 @@ Para consolidar, redacta una historia de un único producto utilizando su Id rea
 
 La respuesta excelente no es una narración genérica de «crear, leer, actualizar y eliminar». Debe indicar **qué solicitud produjo cada cambio** y **qué lectura posterior confirmó la nueva situación**. Esa diferencia convierte una sucesión de clics en una prueba comprensible de persistencia. En un proyecto profesional podrías automatizarla, pero para este nivel introductorio basta con comprender y reproducir la secuencia desde Visual Studio y el navegador.
 
-Si tras todos los pasos el catálogo funciona, no extrapoles que la aplicación ya posee autorización de usuarios, control de concurrencia o una estrategia de migraciones. Esas capas tienen objetivos propios. Aquí habrás demostrado correctamente la integración de MVC, validación y EF Core bajo unas condiciones de laboratorio explícitas.
+Aunque el catálogo funcione, no deduzcas que ya incorpora autorización, control de concurrencia o migraciones. Son responsabilidades diferentes. Lo demostrado es la integración de MVC, validación y EF Core en un laboratorio.
 
 
 # P2.5. Comparar MVC y Razor Pages dentro de la misma aplicación
