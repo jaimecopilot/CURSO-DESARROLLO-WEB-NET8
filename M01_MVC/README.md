@@ -6,10 +6,10 @@
 
 ## Material del alumno
 
-- [Teoría completa en Markdown](TEORIA/M01_TEORIA.md) — [PDF de teoría (80 páginas)](TEORIA/M01_TEORIA.pdf).
-- [Prácticas completas, ejercicios y retos en Markdown](PRACTICAS/M01_PRACTICAS.md) — [PDF de prácticas (81 páginas)](PRACTICAS/M01_PRACTICAS.pdf).
+- [Teoría completa en Markdown](TEORIA/M01_TEORIA.md) — [PDF de teoría](TEORIA/M01_TEORIA.pdf).
+- [Prácticas completas, ejercicios y retos en Markdown](PRACTICAS/M01_PRACTICAS.md) — [PDF de prácticas](PRACTICAS/M01_PRACTICAS.pdf).
 
-Los documentos cubren los cinco capítulos, sin PDF por punto. **Nota editorial:** los PDF disponibles pertenecen a la última edición publicada; las mejoras didácticas de la rama `revision-didactica/m01` deben incorporarse a los PDF una vez cerrado el texto y revisada su paginación.
+Los documentos reúnen los cinco capítulos del módulo. Cada PDF corresponde a su manual completo y no existe un PDF independiente por ejercicio.
 
 ## Proyecto y evolución
 
@@ -27,14 +27,12 @@ Cada carpeta de `PROYECTO` guarda **un estado reproducible de la misma aplicaci�
 
 Para ejecutar una versión, entrar en la carpeta indicada y utilizar `dotnet run --no-launch-profile --urls http://localhost:5091`. No arrancar dos versiones sobre el mismo puerto.
 
-## Comprobación
+## Comprobación funcional
 
-Para validar todos los estados y retos se utiliza el workflow [M01 E2E](../.github/workflows/m01-ci.yml), que ejecuta `M01_MVC/TESTS/1.1_e2e.sh` hasta `1.5_e2e.sh`. Estas son pruebas de respuesta HTTP real sobre Kestrel; la exploración visual con navegador forma parte de la práctica presencial.
+Después de cada ejercicio, abre las direcciones indicadas en el cuaderno de prácticas y compara el resultado con el comportamiento esperado. Comprueba el HTML, los códigos HTTP, la navegación y el efecto de activar los bloques del capítulo.
 
 El ejercicio final de 1.5 es un catálogo con listados, detalles y tarjetas Razor reutilizables, todavía con datos en memoria. Su persistencia se abordará en M02.
 
 ## Orientación didáctica
 
-El recorrido esencial son los pasos numerados y los resultados observables; las profundizaciones son actividades de ampliación y los retos se intentan antes de consultar el código de referencia. Se trabaja con cinco estados identificables del catálogo MVC. Los documentos y el código se contrastan antes de publicar una nueva edición de PDF.
-
-La revisión didáctica continúa en la rama `revision-didactica/m01`; no se integra en `main` sin aprobación.
+El recorrido esencial son los pasos numerados y los resultados observables; las profundizaciones son actividades de ampliación y los retos se intentan antes de consultar el código de referencia. Se trabaja con cinco estados identificables del catálogo MVC. 
