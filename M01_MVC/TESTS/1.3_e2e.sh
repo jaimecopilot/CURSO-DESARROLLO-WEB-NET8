@@ -71,6 +71,15 @@ PY
   status=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE/no-existe")
   [[ "$status" == 404 ]]
 
+  status=$(curl -sS -o "$TMP/aplicacion-$state.txt" -w "%{http_code}" "$BASE/recursos/ejercicio-publicacion.txt")
+  if [[ "$state" == "aplicacion" ]]; then
+    [[ "$status" == 200 ]] || { echo "Recurso autónomo no publicado" >&2; exit 1; }
+    grep -Fq 'EJERCICIO DE PUBLICACIÓN' "$TMP/aplicacion-$state.txt"
+    grep -Fq 'href="/recursos/ejercicio-publicacion.txt"' "$TMP/prod-$state.html"
+  else
+    [[ "$status" == 404 ]] || { echo "El recurso autónomo no debería estar publicado en $state" >&2; exit 1; }
+    ! grep -Fq 'href="/recursos/ejercicio-publicacion.txt"' "$TMP/prod-$state.html"
+  fi
   if [[ "$state" == "base" ]]; then
     ! grep -Fq "P1.3 configuracion: Curso MVC de productos" "$TMP/log-$state.txt"
   else
@@ -112,6 +121,7 @@ for state, enable_log, enable_css, enable_guide, enable_reto in [
     ("log", True, False, False, False),
     ("css", True, True, False, False),
     ("guia", True, True, True, False),
+    ("aplicacion", True, True, True, False),
     ("reto", True, True, True, True),
 ]:
     dest = temp / state
@@ -135,11 +145,20 @@ for state, enable_log, enable_css, enable_guide, enable_reto in [
         assert content.count(start) == 1 and content.count(end) == 1, f"Falta bloque {start}"
         if enabled:
             content = content.replace(start, "").replace(end, "")
+    if state == "aplicacion":
+        destination = dest / "wwwroot" / "recursos" / "ejercicio-publicacion.txt"
+        source = dest / "DOCUMENTACION" / "ejercicio-publicacion.txt"
+        assert source.is_file() and not destination.exists()
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(source.read_bytes())
+        marker = '            @* APLICACION 1.3.5: escribe aquí tu propio enlace <a> al recurso /recursos/ejercicio-publicacion.txt. Debe quedar junto a los enlaces de la navegación. *@'
+        assert content.count(marker) == 1
+        content = content.replace(marker, '            <a href="/recursos/ejercicio-publicacion.txt">Publicación autónoma</a>')
     layout.write_text(content, encoding="utf-8")
 PY
 
-for state in log css guia reto; do
+for state in log css guia aplicacion reto; do
   run_scenario "$TMP/$state" "$state"
 done
 
-echo "P1.3: cinco escenarios E2E superados, reto incluido."
+echo "P1.3: seis escenarios E2E reales, incluida publicación autónoma y reto."
