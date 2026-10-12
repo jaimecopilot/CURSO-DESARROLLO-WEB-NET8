@@ -1306,6 +1306,66 @@ Reiniciar la aplicación, abrir `/Productos` y comprobar que ahora hay un enlace
 
 Aquí no hemos creado ninguna clase nueva ni un método de controlador. El trabajo ya lo hace el middleware de archivos estáticos.
 
+## Aplicación autónoma P1.3 — convertir un archivo del proyecto en un recurso público
+
+En el punto 1.3 hemos recorrido el árbol de una aplicación MVC y aprendido a distinguir `Controllers`, `Views`, `Program.cs`, `appsettings.json` y la carpeta `wwwroot`. Los pasos 1.3.4 y 1.3.5 ofrecen ejemplos de recursos estáticos preparados. Esta actividad requiere dar un paso adicional: **decidir y ejecutar tú mismo un cambio de ubicación que modifique el comportamiento HTTP**, y crear un enlace HTML al recurso sin añadir una acción MVC.
+
+### El problema
+
+Un compañero ha redactado una pequeña guía de laboratorio que debe ser accesible desde el navegador, sin entrar en el proyecto ni autenticar a nadie. El archivo está en `PROYECTO/1.3/CursoWeb.Mvc/DOCUMENTACION/ejercicio-publicacion.txt`. No contiene información sensible, pero en su ubicación actual **no debe servirse** por el middleware de archivos estáticos.
+
+En cambio, el navegador ya puede pedir `/recursos/guia-publica.txt`, porque ese documento está bajo `wwwroot`. Necesitamos decidir cómo poner la nueva guía al mismo nivel, comprobar el cambio desde HTTP y añadir un enlace en la navegación del catálogo.
+
+### A — Identificar el archivo y predecir su disponibilidad
+
+Abre el proyecto `PROYECTO/1.3/CursoWeb.Mvc` y localiza físicamente estos dos elementos:
+
+- `DOCUMENTACION/ejercicio-publicacion.txt`, dentro del proyecto pero fuera de la raíz pública.
+- `wwwroot/recursos/guia-publica.txt`, servido directamente por ASP.NET Core.
+
+Observa en `Program.cs` la llamada `app.UseStaticFiles();`. No se trata de una acción del controlador, sino de un middleware que puede atender solicitudes de recursos físicos publicados. Por eso no existe una acción `GuiaPublica()` y aun así el archivo responde HTTP 200.
+
+Antes de mover nada, arranca el proyecto y pide `http://localhost:5093/recursos/ejercicio-publicacion.txt` (si utilizas otro puerto, sustitúyelo por el que realmente muestre la consola). Como el nuevo recurso todavía no está bajo `wwwroot`, debe devolver 404. Después solicita `/DOCUMENTACION/ejercicio-publicacion.txt`: tampoco debería ser público. **La existencia de un archivo en una carpeta de proyecto no implica que ASP.NET Core lo sirva por HTTP.**
+
+### B — Publicar una copia deliberadamente
+
+Conserva el original en `DOCUMENTACION` y copia el archivo a `wwwroot/recursos/ejercicio-publicacion.txt`. Puedes utilizar el Explorador de soluciones o el explorador de archivos de Windows. Asegúrate de que el nombre y la extensión son correctos, y evita crear una carpeta anidada `wwwroot/wwwroot` por error.
+
+No modifiques el controlador ni crees `[HttpGet]` adicional. Tampoco elimines `UseStaticFiles()`: esa llamada es justamente la infraestructura que queremos estudiar. Una copia resulta preferible al traslado en este laboratorio porque mantiene la prueba de que el original fuera de la raíz pública sigue inaccesible.
+
+Vuelve a ejecutar la aplicación. Debes observar esta diferencia:
+
+| URL solicitada | Antes de copiar | Después de copiar | Por qué |
+|---|---|---|---|
+| `/recursos/ejercicio-publicacion.txt` | 404 | 200, archivo de texto | Ahora existe dentro de `wwwroot` |
+| `/DOCUMENTACION/ejercicio-publicacion.txt` | 404 | 404 | La carpeta no es pública |
+| `/Productos` | 200 HTML | 200 HTML | No hemos alterado MVC |
+| `/css/site.css` | 200 CSS | 200 CSS | Los recursos previos siguen accesibles |
+
+Comprueba `Content-Type` y el cuerpo del archivo. No esperes un layout MVC alrededor del texto: el middleware estático devuelve el recurso, no ejecuta `ProductosController` ni representa una vista Razor.
+
+### C — Escribir un enlace en el layout
+
+El recurso ahora existe, pero la aplicación aún no permite descubrirlo desde su interfaz. Abre `Views/Shared/_Layout.cshtml` y busca el comentario `APLICACION 1.3.5`. **Sustituye ese comentario por un enlace HTML escrito por ti**. El destino debe ser `/recursos/ejercicio-publicacion.txt` y su texto visible puede ser «Publicación autónoma».
+
+El enlace debe quedar dentro de `<nav>`, junto a «Inicio» y «Productos», no dentro de `ProductosController`. Guarda y abre la portada y el catálogo. El enlace debe aparecer en las dos páginas, porque comparten el mismo layout. Al pulsarlo, el navegador solicitará el archivo de texto y no una acción MVC.
+
+Esta tarea enlaza tres decisiones distintas: la **ubicación del recurso**, la **infraestructura que lo sirve** y la **interfaz de navegación** que permite encontrarlo. Ninguna reemplaza a las demás.
+
+### D — Diagnosticar el resultado
+
+Si el enlace aparece pero devuelve 404, inspecciona el `href` y la carpeta física dentro de `wwwroot`. Si el archivo se sirve por URL directa pero no aparece el enlace, el problema está en el layout o en el comentario HTML/Razor, no en los archivos estáticos. Si no puedes solicitar ni el CSS ni el nuevo archivo, verifica la existencia de `UseStaticFiles()` y que estás ejecutando el proyecto 1.3.
+
+Una URL 404 no revela por sí sola la causa. En este ejemplo puede significar que el recurso todavía no se copió, que el nombre contiene un error o que la aplicación atendida no es la carpeta que has editado. Formula una hipótesis, observa la ruta y comprueba el archivo correspondiente antes de cambiar código arbitrariamente.
+
+### E — Razonar la decisión de seguridad
+
+No confundas «está publicado» con «está permitido publicarlo». Este documento contiene únicamente información de laboratorio. Nunca copies a `wwwroot` contraseñas, tokens, claves privadas, datos personales ni informes internos reales. Para estudiar el alcance de la raíz pública conservamos `DOCUMENTACION/nota-interna.txt` sin mover y comprobamos que su URL sigue devolviendo 404.
+
+**Preguntas de consolidación.** ¿Cuál de los dos archivos cambió su disponibilidad pública y por qué? ¿Por qué es posible obtener un texto 200 sin crear un controlador? ¿Por qué el enlace debe escribirse en el layout si queremos verlo en varias páginas? ¿Qué comprobarías primero si el enlace existiera pero el destino no? ¿La ausencia de un enlace hace que un recurso bajo `wwwroot` sea privado?
+
+**Resultado:** has ejecutado una decisión de publicación, creado un enlace HTML propio, comprobado 404 antes y 200 después y conservado el catálogo sin cambios. La práctica aplica el mapa de responsabilidades explicado en la teoría, no solo el procedimiento mecánico de activar comentarios.
+
 ## Reto: aplicación de los pasos
 
 **Reto 1.3 — Recurso público frente a archivo interno.**
@@ -1468,6 +1528,16 @@ Si la navegación muestra Guía pública pero al pulsarla aparece 404, examina e
 En el proyecto de la práctica no se ha preparado un proveedor de archivos alternativo que publique esa carpeta. Si la URL correspondiente deja de devolver 404, comprueba que estás ejecutando la configuración original y que no se han añadido otras reglas de publicación fuera del ejercicio.
 
 Este último caso pone de manifiesto que una prueba negativa puede descubrir una regresión de configuración, incluso cuando las páginas principales siguen respondiendo correctamente.
+
+### Solución razonada de la aplicación autónoma P1.3
+
+Tras haberla realizado, compara tu implementación con esta referencia: una copia de `DOCUMENTACION/ejercicio-publicacion.txt` en `wwwroot/recursos/ejercicio-publicacion.txt`, y el siguiente enlace en `Views/Shared/_Layout.cshtml`:
+
+~~~html
+<a href="/recursos/ejercicio-publicacion.txt">Publicación autónoma</a>
+~~~
+
+La copia dentro de `wwwroot` es la decisión que modifica la disponibilidad HTTP; el enlace solo facilita la navegación. Si eliminas el enlace pero mantienes el archivo publicado, la URL sigue respondiendo. Si mantienes el enlace y retiras el archivo, el navegador llegará a una dirección inexistente y recibirá 404. Se trata de dos mecanismos distintos que el alumno debe poder explicar.
 
 ## Resultado y continuidad
 
