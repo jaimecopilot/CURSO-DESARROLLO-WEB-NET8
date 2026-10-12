@@ -296,6 +296,8 @@ Con la aplicación funcionando, verifica que `/` y `/Home/Index` corresponden a 
 
 **Preparación:** utiliza `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc` y deja activados los pasos 1.1.4 y 1.1.5. Detén la aplicación antes de editar.
 
+**Intento autónomo:** antes de consultar los bloques marcados `RETO 1.1`, decide en qué archivo debe escribirse una cabecera HTTP y en cuál debe aparecer un párrafo HTML. Escribe tu propuesta y predice en qué parte de la respuesta se verá cada cambio. Después compara con el código de referencia comentado.
+
 **Acción 1 — controlador.** En `Controllers/HomeController.cs`, localiza las líneas marcadas `RETO 1.1`. Descomenta exclusivamente la asignación:
 
 ~~~csharp
@@ -795,6 +797,8 @@ Con todos los pasos 1.2.3, 1.2.4 y 1.2.5 activos y la página `/Productos` funci
 
 **Pregunta que debes resolver:** si cambia el nombre en el controlador pero no se modifica el bucle `@foreach` de la vista, ¿por qué cambia automáticamente el texto mostrado al usuario?
 
+**Intento autónomo:** realiza primero el cambio en la colección de productos sin consultar la variante ya preparada. Comprueba qué propiedad debe mantenerse y por qué el contador debe seguir siendo tres. Utiliza el bloque comentado posterior como referencia para comparar tu solución.
+
 **Código preparado dentro del proyecto.**
 
 Abre `M01_MVC/PROYECTO/1.2/CursoWeb.Mvc/Controllers/ProductosController.cs`. Dentro de la lista del **paso 1.2.3**, una vez retirados los delimitadores de comentario de dicho paso, encontrarás las siguientes líneas:
@@ -1235,6 +1239,8 @@ Aquí no hemos creado ninguna clase nueva ni un método de controlador. El traba
 Se pide añadir un enlace visible llamado **Aviso de laboratorio**, que permita al alumno abrir un archivo de texto público. También debes localizar un segundo archivo de texto que **no se publique** por la configuración actual de `UseStaticFiles()` y explicar por qué produce otra respuesta.
 
 El reto comprueba si sabes razonar a partir de la **estructura física del proyecto**, la raíz web y el layout, y no únicamente repetir los comandos del paso 1.3.5.
+
+**Intento autónomo:** sin mirar aún el fragmento de solución, identifica el archivo del layout que modificarías y predice las respuestas al solicitar el archivo situado dentro de `wwwroot` y el situado fuera. Justifica ambas decisiones antes de activar el enlace suministrado.
 
 ### Código incluido en el proyecto
 
@@ -1800,7 +1806,9 @@ El controlador MVC produce HTML en `Detalle` y texto plano en `Estado`. El reto 
 - Para un segmento no entero, la ruta no debe coincidir y se obtiene HTTP 404.
 - No crear una vista `Resumen.cshtml` ni añadir una segunda fuente de datos.
 
-El alumnado debe intentar explicar la solución antes de activarla. El código completo está disponible **comentado en el proyecto** y se reproduce aquí para evitar que el reto dependa de material externo.
+**Intento autónomo:** diseña primero una acción `Resumen(int id)` con la ruta por atributos requerida, reutilizando `ObtenerProductosEjemplo()`. Elige por tu cuenta cuándo devolver `NotFound()` y cuándo `Ok(...)`. No consultes aún el bloque siguiente: compáralo después con tu propuesta e identifica cualquier diferencia.
+
+El código completo también está disponible **comentado en el proyecto**, como solución de referencia, para que el reto no dependa de material externo.
 
 ### Código del reto y explicación
 
@@ -2535,6 +2543,8 @@ El catálogo de prueba tiene estos precios:
 Se pide que las **tarjetas de productos con precio inferior a 3 €** muestren el texto **Precio económico**. La condición debe escribirse **solo en la vista parcial** y afectar automáticamente tanto a las tarjetas del listado como a la tarjeta de la ficha de detalle.
 
 **Resultado esperado:** Lápiz muestra la etiqueta; Cuaderno y Carpeta no. No cambies `ProductosController.cs`, los modelos ni los archivos de las vistas que incluyen la parcial.
+
+**Intento autónomo:** escribe primero la condición Razor que compara `Model.Precio` con 3 y decide dónde colocarla para que afecte a ambas páginas. Comprueba la sintaxis del literal decimal antes de consultar el código del reto, preparado y comentado como solución de referencia.
 
 ### Código del reto incluido en el proyecto
 
