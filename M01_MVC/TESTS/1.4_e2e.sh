@@ -78,7 +78,7 @@ PY
         get "$state" "/Productos/Detalle/2" 404 detalle
     fi
 
-    if [[ "$state" == "atributo" || "$state" == "enlaces" || "$state" == "reto" ]]; then
+    if [[ "$state" == "atributo" || "$state" == "enlaces" || "$state" == "aplicacion" || "$state" == "reto" ]]; then
         get "$state" "/catalogo/ficha/2" 200 ficha
         grep -Fq 'id="detalle-producto"' "$TMP/$state-ficha.body"
         get "$state" "/catalogo/ficha/99" 404 ficha404
@@ -88,7 +88,7 @@ PY
         get "$state" "/catalogo/ficha/2" 404 ficha
     fi
 
-    if [[ "$state" == "enlaces" || "$state" == "reto" ]]; then
+    if [[ "$state" == "enlaces" || "$state" == "aplicacion" || "$state" == "reto" ]]; then
         python3 - "$TMP/$state-index.body" <<'PY'
 from pathlib import Path
 import sys
@@ -114,6 +114,16 @@ PY
     else
         get "$state" "/catalogo/resumen/2" 404 resumen
     fi
+    if [[ "$state" == "aplicacion" ]]; then
+        get "$state" "/catalogo/buscar/Cuaderno" 200 buscar
+        grep -Fq 'id="detalle-nombre"' "$TMP/$state-buscar.body"
+        grep -Fq 'Cuaderno' "$TMP/$state-buscar.body"
+        get "$state" "/catalogo/buscar/cuaderno" 200 buscarMin
+        get "$state" "/catalogo/buscar/NoExiste" 404 buscar404
+        grep -iq '^Content-Type: text/html' "$TMP/$state-buscar.headers"
+    else
+        get "$state" "/catalogo/buscar/Cuaderno" 404 buscar
+    fi
     echo "E2E OK: P1.4 $state (MVC, rutas convencionales/atributos y respuestas)"
     kill "$PID" 2>/dev/null || true
     wait "$PID" 2>/dev/null || true
@@ -132,6 +142,7 @@ states=[
     ("detalle",True,True,False,False,False),
     ("atributo",True,True,True,False,False),
     ("enlaces",True,True,True,True,False),
+    ("aplicacion",True,True,True,True,False),
     ("reto",True,True,True,True,True)
 ]
 blocks=[
@@ -150,6 +161,23 @@ for name, estado, detalle, atributo, enlaces, reto in states:
         end=f"    {marker} FIN */"
         assert text.count(start)==1 and text.count(end)==1, f"Bloque {marker} ausente"
         if enabled: text=text.replace(start,"").replace(end,"")
+    if name == "aplicacion":
+        marker = '    // APLICACION 1.4 — Escribe aquí una acción propia BuscarPorNombre(string nombre).'
+        assert text.count(marker) == 1
+        answer = '''    [HttpGet("/catalogo/buscar/{nombre}")]
+    public IActionResult BuscarPorNombre(string nombre)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(
+            p => string.Equals(p.Nombre, nombre, StringComparison.OrdinalIgnoreCase));
+        if (producto is null)
+        {
+            return NotFound();
+        }
+        return View("Detalle", producto);
+    }
+
+'''
+        text = text.replace(marker, answer + marker)
     ctl.write_text(text,encoding="utf-8")
     v=dest/"Views"/"Productos"/"Index.cshtml"
     h=v.read_text(encoding="utf-8")
@@ -159,7 +187,7 @@ for name, estado, detalle, atributo, enlaces, reto in states:
     if enlaces: h=h.replace(start,"").replace(end,"")
     v.write_text(h,encoding="utf-8")
 PY
-for state in estado detalle atributo enlaces reto; do
+for state in estado detalle atributo enlaces aplicacion reto; do
     run_scenario "$TMP/$state" "$state"
 done
-echo "P1.4: seis escenarios E2E reales superados, incluido el reto."
+echo "P1.4: siete escenarios E2E reales, incluida búsqueda por nombre y reto."
