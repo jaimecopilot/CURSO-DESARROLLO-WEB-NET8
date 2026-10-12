@@ -8,6 +8,7 @@ on:
       - "M01_MVC/TEORIA/M01_TEORIA.md"
       - "M01_MVC/PRACTICAS/M01_PRACTICAS.md"
       - "M01_MVC/DOCS/**"
+      - "VERIFICACION_INTERNA/auditar_fidelidad_m01.py"
       - ".github/workflows/m01-pdf.yml"
 
 permissions:
