@@ -18,32 +18,54 @@ La inspección visual humana página a página no se sustituye por estas comprob
     "tipo": "TEORIA",
     "paginas": 75,
     "palabras_md": 22385,
+    "cobertura_palabras_visibles": 0.999956,
+    "palabras_faltantes_en_extraccion": [
+      [
+        "trustservercertificate",
+        1
+      ]
+    ],
     "caracteres_md": 154753,
     "bytes_pdf": 499246,
     "sha256_md": "b2a6eef1052093e55ac643f2635981fbc67540b1a9c6614ab1be8321247a7cd1",
     "fuente_md_incrustada_identica": true,
     "capitulos_inicio": {
-      "1": 2,
-      "2": 2,
-      "3": 2,
-      "4": 2,
-      "5": 2
+      "1": 3,
+      "2": 15,
+      "3": 30,
+      "4": 46,
+      "5": 66
     }
   },
   {
     "tipo": "PRACTICAS",
     "paginas": 72,
     "palabras_md": 22148,
+    "cobertura_palabras_visibles": 0.999825,
+    "palabras_faltantes_en_extraccion": [
+      [
+        "trustservercertificate",
+        2
+      ],
+      [
+        "aplicación",
+        1
+      ],
+      [
+        "cshtml",
+        1
+      ]
+    ],
     "caracteres_md": 150944,
-    "bytes_pdf": 474519,
+    "bytes_pdf": 474521,
     "sha256_md": "e4a8599fbcfeee34d4543d90cd767e5424dc5d4956c733bde1fb49469d34f2ea",
     "fuente_md_incrustada_identica": true,
     "capitulos_inicio": {
-      "1": 2,
-      "2": 2,
-      "3": 2,
-      "4": 2,
-      "5": 2
+      "1": 3,
+      "2": 16,
+      "3": 29,
+      "4": 45,
+      "5": 64
     }
   }
 ]
