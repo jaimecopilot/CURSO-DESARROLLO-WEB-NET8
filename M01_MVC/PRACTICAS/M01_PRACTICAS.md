@@ -236,6 +236,7 @@ Detener de nuevo la aplicación. Abrir `Views/Home/Index.cshtml`. Al final apare
 <section id="marca-paso-1-1-5">
     <h2>Contenido añadido durante la práctica</h2>
     <p>El navegador ha recibido una nueva versión de la vista Razor.</p>
+    <!-- APLICACIÓN 1.1.5: reemplaza este comentario por un párrafo id="razonamiento-1-1". Escribe con tus palabras qué hace el servidor. -->
 </section>
 PASO 1.1.5 (fin) *@
 ~~~
@@ -248,12 +249,23 @@ Eliminar completamente la línea `@* PASO 1.1.5 (inicio)` y la línea `PASO 1.1.
 <section id="marca-paso-1-1-5">
     <h2>Contenido añadido durante la práctica</h2>
     <p>El navegador ha recibido una nueva versión de la vista Razor.</p>
+    <!-- APLICACIÓN 1.1.5: reemplaza este comentario por un párrafo id="razonamiento-1-1". Escribe con tus palabras qué hace el servidor. -->
 </section>
 ~~~
 
 Guardar, reiniciar `dotnet run` y recargar. En la página, debajo del mensaje inicial, debe verse **Contenido añadido durante la práctica**. En F12 → Red → Response debe aparecer también el elemento `<section id="marca-paso-1-1-5">`.
 
 **Qué hemos aprendido:** modificar una vista modifica el cuerpo HTML de la respuesta. La URL `/` y la acción `Index()` siguen siendo las mismas; ahora el navegador dispone de más elementos para representar.
+
+**Aplicación autónoma del paso 1.1.5 — escribir, no solo activar.**
+
+El bloque anterior es la demostración guiada. Ahora utiliza **el mismo archivo real** para demostrar que has comprendido la diferencia entre una vista fuente y el HTML entregado. Localiza el comentario HTML marcado `APLICACIÓN 1.1.5` dentro del elemento `<section>` que acabas de activar y **sustitúyelo por un párrafo escrito por ti**.
+
+El nuevo elemento debe tener el atributo `id="razonamiento-1-1"` y explicar, con tus palabras, que el servidor ejecuta la acción MVC y produce HTML que el navegador representa. No copies otro `<h1>`, no modifiques el controlador y no añadas otra ruta. Es importante que el contenido lo redactes tú; la solución de referencia está separada al final de P1.1.
+
+Antes de ejecutar, predice si se modificará el `Content-Type`, el código de estado, la cabecera `X-Curso-Paso` o solamente el cuerpo HTML. Después inicia la aplicación, abre `/` y examina tanto la página como la respuesta del documento en F12 → Red. **Resultado observable:** tu nuevo párrafo aparece una sola vez dentro de `marca-paso-1-1-5`; las rutas existentes y la hoja CSS siguen funcionando. Comprueba que `/css/site.css` no contiene ese párrafo.
+
+Si no aparece, revisa el archivo que has editado, los delimitadores de comentario y el proyecto que está ejecutándose antes de modificar otras partes de la aplicación.
 
 Los pasos 1.1.4 y 1.1.5 son **compatibles**. Se pueden mantener activados simultáneamente: el primero añade una cabecera, mientras que el segundo añade contenido.
 
@@ -415,6 +427,16 @@ El camino correcto de diagnóstico es detener el proceso, comprobar el directori
 **Continuidad del proyecto.**
 
 **Conservar el proyecto CursoWeb.Mvc y los archivos modificados.** En los siguientes capítulos añadiremos modelos de productos, nuevas acciones y vistas sin repetir toda la creación inicial. No introducimos EF Core todavía: aparecerá en el día 2. La aplicación temporal `.work/PlantillaMvc` se puede eliminar una vez comprendida la plantilla.
+
+**Solución de referencia — aplicación autónoma 1.1.5 (consultar después del intento).**
+
+Una solución válida, entre muchas posibles, reemplaza el comentario señalado por:
+
+~~~cshtml
+<p id="razonamiento-1-1">ASP.NET Core ejecuta la acción MVC en el servidor; la vista Razor genera el HTML que llega al navegador.</p>
+~~~
+
+El texto puede expresarse de otra manera si mantiene el sentido. La ubicación en `Views/Home/Index.cshtml` explica por qué el resultado cambia el cuerpo de la respuesta sin añadir otra acción ni alterar sus cabeceras HTTP. El proyecto inicial no trae esta solución activa: el alumno debe escribirla y puede contrastarla después con este ejemplo.
 
 
 # P1.2. El flujo Modelo–Vista–Controlador
