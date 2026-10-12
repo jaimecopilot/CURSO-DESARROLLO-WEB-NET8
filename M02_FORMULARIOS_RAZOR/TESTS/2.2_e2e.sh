@@ -15,7 +15,7 @@ trap cleanup EXIT
 start() {
   local dir="$1" label="$2" ready=0
   dotnet build "$dir/CursoWeb.Mvc.csproj" -c Release --nologo
-  dotnet "$dir/bin/Release/net8.0/CursoWeb.Mvc.dll" --urls "$BASE" >"$TMP/$label.log" 2>&1 &
+  (cd "$dir" && dotnet bin/Release/net8.0/CursoWeb.Mvc.dll --urls "$BASE") >"$TMP/$label.log" 2>&1 &
   PID=$!
   for i in {1..40}; do
     if curl -fsS -o /dev/null "$BASE/Productos/Crear" 2>/dev/null; then ready=1; break; fi
