@@ -3,7 +3,7 @@ name: M01 - Generar y verificar los dos PDF
 on:
   workflow_dispatch:
   push:
-    branches: [desarrollo/m01-mvc, revision-didactica/m01]
+    branches: [desarrollo/m01-mvc]
     paths:
       - "M01_MVC/TEORIA/M01_TEORIA.md"
       - "M01_MVC/PRACTICAS/M01_PRACTICAS.md"
