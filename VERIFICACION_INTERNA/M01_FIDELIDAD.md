@@ -13,7 +13,7 @@ Cada PDF procede exclusivamente de su Markdown. Las marcas de formato, tablas y 
 | PRACTICAS | 1.2 | 15-27 | 4917 | 33715 | 4884 | 33514 | 0 |
 | PRACTICAS | 1.3 | 28-40 | 4985 | 35238 | 4913 | 35387 | 0 |
 | PRACTICAS | 1.4 | 41-57 | 6155 | 44006 | 6092 | 43605 | 0 |
-| PRACTICAS | 1.5 | 58-75 | 7307 | 50625 | 7266 | 50456 | 0 |
+| PRACTICAS | 1.5 | 58-76 | 7671 | 53006 | 7603 | 52967 | 0 |
 
 La auditoría exige cero tokens normalizados faltantes por capítulo; la lectura del PDF puede reordenar elementos de tablas y diagramas.
 La identidad literal de la fuente está verificada con la copia Markdown incrustada y su huella SHA-256.
