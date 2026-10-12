@@ -708,6 +708,116 @@ Si pulsamos Seleccionar y aparece otro nombre, ¿qué revisamos? El Id capturado
 Estos diagnósticos responden a síntomas diferentes. Aprender a distinguirlos evita arreglos arbitrarios que podrían ocultar la causa. No necesitamos incorporar logs empresariales ni herramientas de estado global; la observación del código, los puntos de interrupción y la respuesta visible bastan para los objetivos de este módulo.
 
 
+## Un editor real en memoria: identidad, record y representación
+
+Hasta ahora P3.4 ha demostrado dos operaciones: seleccionar un producto sin cambiar la colección y añadir otro elemento a esa colección. El temario pide además un **editor simple** que permita cambiar un dato del producto seleccionado y observar el resultado en pantalla. El paso 3.4.5 completa esta necesidad sin repetir la infraestructura de formularios y EF Core de M02.
+
+Editar correctamente exige responder tres preguntas. ¿Qué producto queremos modificar? ¿Qué valor nuevo ha escrito el usuario? ¿Qué componente es responsable de actualizar la colección? La primera pregunta no debería resolverse utilizando un nombre, porque pueden existir nombres repetidos. La segunda necesita un campo enlazado cuyo contenido pueda diferir temporalmente del dato original. La tercera corresponde al componente propietario de la lista.
+
+### Conservar la identidad del producto
+
+El método de selección inicial guarda el nombre que debe mostrarse en la cabecera. Eso es suficiente para una demostración visual, pero no para identificar sin ambigüedad un producto durante una edición. El editor introduce dos campos nuevos:
+
+~~~csharp
+private int? idEnEdicion;
+private string nombreEditado = string.Empty;
+~~~
+
+La nulabilidad del identificador expresa que al abrir la página aún no se ha elegido ningún producto. El texto `nombreEditado` almacena la propuesta que se introduce en el control. La propiedad `seleccion` continúa encargándose del resumen visible. Separar estos tres conceptos evita usar una cadena como identificador o aplicar cambios a un elemento distinto cuando dos productos tienen el mismo nombre.
+
+Al pulsar Seleccionar en una tarjeta, el nuevo manejador inicializa el editor:
+
+~~~csharp
+private void SeleccionarParaEditar(int id)
+{
+    var producto = productos.First(p => p.Id == id);
+    idEnEdicion = id;
+    seleccion = producto.Nombre;
+    nombreEditado = producto.Nombre;
+}
+~~~
+
+Observa las asignaciones por separado. El método recuerda la identidad, actualiza lo que se comunica al usuario como selección y rellena el campo que posteriormente podrá modificar. En ese momento todavía **no** ha alterado los datos del catálogo. La operación de selección y la operación de guardado siguen siendo independientes.
+
+El botón que ejecuta ese método utiliza una lambda como la selección anterior, pero cambia el manejador:
+
+~~~razor
+<button @onclick="() => SeleccionarParaEditar(producto.Id)">
+    Seleccionar
+</button>
+~~~
+
+En el proyecto didáctico el botón aparece como una variante preparada para **sustituir** el botón de P3.4.2, no para acumular dos botones de selección dentro de cada tarjeta. Esta decisión conserva la continuidad de los pasos: podemos comenzar por una selección simple y evolucionar hacia la selección que prepara una edición.
+
+### La diferencia entre escribir un valor y aplicarlo
+
+El campo de edición tiene un binding independiente:
+
+~~~razor
+<label>Editar nombre:
+    <input id="editar-nombre" @bind="nombreEditado" />
+</label>
+<button id="guardar-cambio" @onclick="GuardarCambio">
+    Guardar nombre
+</button>
+~~~
+
+Supongamos que hemos seleccionado Lápiz y que el campo muestra «Lápiz». El usuario escribe «Lápiz rojo». Esa escritura prepara un valor nuevo que se comunica al componente mediante `@bind`. La lista de productos puede seguir mostrando el nombre original hasta que se pulse Guardar nombre. Esta separación hace visible una distinción habitual de la programación de interfaces: **el valor de edición no es necesariamente el valor ya confirmado**.
+
+En MVC obtuvimos un comportamiento comparable mediante un formulario y una operación POST. Aquí el mecanismo no pasa por una acción MVC ni por `ModelState`: los eventos de un componente interactivo coordinan campos locales y representación. Que la idea de «confirmar un cambio» sea común no implica que el flujo de ejecución sea idéntico.
+
+### Sustituir un record conservando Id y precio
+
+Nuestro modelo Producto es un `record`. En lugar de crear un objeto nuevo con un identificador distinto o intentar tratar sus propiedades posicionales como un objeto mutable cualquiera, utilizamos una expresión `with` para conservar las propiedades no modificadas:
+
+~~~csharp
+private void GuardarCambio()
+{
+    if (idEnEdicion is null ||
+        string.IsNullOrWhiteSpace(nombreEditado))
+        return;
+
+    var indice = productos.FindIndex(
+        p => p.Id == idEnEdicion.Value);
+
+    if (indice < 0)
+        return;
+
+    productos[indice] = productos[indice] with
+    {
+        Nombre = nombreEditado.Trim()
+    };
+    seleccion = productos[indice].Nombre;
+}
+~~~
+
+La primera condición rechaza una edición sin selección y una entrada vacía o compuesta por espacios. El `FindIndex` localiza el lugar que ocupa el producto de ese Id dentro de la colección. Si no existe, retorna sin tocar otro producto. La expresión `with` construye el nuevo valor que conserva el Id y el precio mientras cambia el nombre, y la asignación sustituye el elemento dentro de la lista.
+
+No debe confundirse esta operación con `productos.Add`: añadir crea un elemento más; editar sustituye el valor de un elemento existente. Al final de la operación debe haber tres productos, no cuatro. El Id del producto editado seguirá siendo 2 si habíamos seleccionado Lápiz. Su precio también debe mantenerse, porque la expresión `with` solo especifica la propiedad Nombre.
+
+La última asignación actualiza `seleccion` con el nuevo nombre. Si el usuario acaba de cambiar Lápiz por «Lápiz rojo», mantener la frase «Seleccionado: Lápiz» sería un estado visual incoherente. El componente que posee la colección es también responsable de sincronizar los otros campos de presentación que dependen de ese cambio.
+
+### El recorrido positivo y sus comprobaciones
+
+El alumno puede reconstruir esta edición sin salir de `/productos`. Primero ve tres tarjetas. Después pulsa Seleccionar en Lápiz y comprueba que el editor se rellena con su nombre. Escribe «Lápiz rojo» y pulsa Guardar nombre. La tarjeta con Id 2 presenta el nombre actualizado y conserva el precio. El número de tarjetas sigue siendo tres. La cabecera de selección también muestra el valor nuevo.
+
+Cada observación sirve para comprobar una regla. La coincidencia de Id prueba que se modificó el elemento correcto. La cantidad constante prueba que no se añadió otro objeto accidentalmente. El precio conservado prueba que la expresión `with` mantuvo los valores ajenos al cambio. La cabecera actualizada prueba que el componente mantuvo una representación coherente.
+
+En una prueba negativa, el usuario introduce únicamente espacios y pulsa Guardar. El método debe rechazar el cambio, por lo que la tarjeta conserva el nombre anterior. Otra prueba negativa consiste en pulsar Guardar sin seleccionar antes un producto. Como `idEnEdicion` sigue siendo null, no se modifica una tarjeta arbitraria. Estas situaciones se pueden estudiar con C# y la interfaz existente, sin construir una infraestructura de errores remotos.
+
+### Qué enseña exactamente este editor
+
+Aunque parezca una operación de edición de un CRUD, **no es el mismo ejercicio que M02**. Allí se aprendió a procesar formularios, validar ModelState y persistir mediante EF Core. Aquí la competencia central es relacionar identidad de un componente, binding, evento de guardado, modificación de una colección y nueva representación. El cambio existe en memoria y puede desaparecer cuando el circuito se reinicia o el componente vuelve a crearse.
+
+Esta delimitación ayuda a evitar un falso aprendizaje: no deberíamos describir la operación como un UPDATE SQL, porque el proyecto no contiene ninguna llamada que lo realice. La explicación debe seguir lo que realmente hace el código, incluso cuando los nombres de los botones se parezcan a los de la aplicación MVC anterior.
+
+### Un diagnóstico que parte del síntoma y no del framework
+
+Si la selección visual cambia pero el campo de edición no se rellena, comprueba que se utiliza `SeleccionarParaEditar` y no el manejador anterior. Si al guardar se crea una cuarta tarjeta, revisa que no hayas sustituido `productos[indice] = ...` por `productos.Add(...)`. Si se modifica la tarjeta equivocada, inspecciona `idEnEdicion` y el predicado de `FindIndex`. Si el nombre cambia pero el precio también, investiga cómo construiste el record actualizado. Si el botón no responde, comprueba que sus fragmentos Razor y C# se activaron conjuntamente y que la página sigue siendo interactiva.
+
+Estas preguntas preparan una destreza transferible: un editor de componentes no se verifica únicamente comprobando que su código compila. Debe conservar una identidad, aplicar el cambio correcto, rechazar una entrada inválida y producir una representación coherente. P3.4.5 permite observar esas propiedades con muy pocos conceptos nuevos.
+
+
 # 3.5. Comunicación padre–hijo: parámetros y EventCallback
 
 ## Cuando el botón está dentro del hijo, pero el dato pertenece al padre
