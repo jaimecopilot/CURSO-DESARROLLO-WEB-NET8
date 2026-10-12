@@ -24,11 +24,13 @@ jobs:
           python-version: "3.12"
       - name: Instalar maquetador y validadores de PDF
         run: |
-          python -m pip install "markdown-it-py>=3,<5" "pygments>=2.17,<3" "weasyprint>=63,<69" "pypdf>=5,<8" "pymupdf>=1.24,<2"
+          python -m pip install "markdown-it-py>=3,<5" "pygments>=2.17,<3" "weasyprint>=63,<69" "pypdf>=5,<8" "pymupdf>=1.24,<2" "beautifulsoup4>=4.12,<5"
           sudo apt-get update -qq
           sudo apt-get install -y graphviz fonts-dejavu-core
       - name: Comprobar las fuentes y generar dos PDF exactos
         run: python M02_FORMULARIOS_RAZOR/DOCS/generar_m02_pdf.py
+      - name: Contrastar texto visible contra Markdown por capítulo
+        run: python VERIFICACION_INTERNA/auditar_m02_fidelidad.py
       - name: Renderizar todas las páginas para inspección técnica
         run: |
           python - <<'PY'
@@ -52,12 +54,13 @@ jobs:
             M02_FORMULARIOS_RAZOR/TEORIA/M02_TEORIA.pdf
             M02_FORMULARIOS_RAZOR/PRACTICAS/M02_PRACTICAS.pdf
             VERIFICACION_INTERNA/M02_PDFS_VALIDACION.md
+            VERIFICACION_INTERNA/M02_FIDELIDAD.md
           if-no-files-found: error
       - name: Publicar únicamente PDF y métricas en rama M02
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add M02_FORMULARIOS_RAZOR/TEORIA/M02_TEORIA.pdf M02_FORMULARIOS_RAZOR/PRACTICAS/M02_PRACTICAS.pdf VERIFICACION_INTERNA/M02_PDFS_VALIDACION.md
+          git add M02_FORMULARIOS_RAZOR/TEORIA/M02_TEORIA.pdf M02_FORMULARIOS_RAZOR/PRACTICAS/M02_PRACTICAS.pdf VERIFICACION_INTERNA/M02_PDFS_VALIDACION.md VERIFICACION_INTERNA/M02_FIDELIDAD.md
           if git diff --cached --quiet; then
             echo "Los PDF ya corresponden a los Markdown."
           else
