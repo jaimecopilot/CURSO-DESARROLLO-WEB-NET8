@@ -918,7 +918,7 @@ Para distinguir entrega de datos y representación, construiremos el proyecto en
 | C, listado | `View(productos)` | Cuenta y muestra los nombres | Solo Inicio |
 | D, completo | `View(productos)` | Cuenta y muestra los nombres | Inicio y Productos |
 
-La práctica no requiere escribir cuatro aplicaciones distintas. En `PROYECTO/1.2/CursoWeb.Mvc` están preparados los fragmentos que el alumno activa paso a paso, y una batería E2E reconstruye cada estado sobre una copia temporal.
+La práctica no requiere escribir cuatro aplicaciones distintas. En `PROYECTO/1.2/CursoWeb.Mvc` están preparados los fragmentos que el alumno activa paso a paso, y el alumno compara el efecto de activar cada fragmento desde el navegador.
 
 **El contrato de datos como vínculo entre componentes.**
 
@@ -1414,7 +1414,7 @@ En Visual Studio, seleccionar un perfil de inicio y pulsar **Ejecutar** realiza 
 
 **Un diagnóstico que evita modificar el archivo equivocado.** Imagina que `GET /Productos` devuelve los mismos tres registros, pero el navegador intenta abrir un puerto diferente. En ese caso debemos revisar primero el perfil o los argumentos de arranque. Cambiar `Models/Producto.cs` no resolvería el problema. Por el contrario, si el servidor escucha correctamente y el mensaje `Curso:Nombre` del paso 1.3.3 no coincide con el esperado, es razonable comprobar `appsettings.json` y el código de lectura de configuración.
 
-Esta distinción también permite entender por qué los scripts E2E no necesitan utilizar el navegador de Visual Studio. Pueden iniciar Kestrel con una dirección conocida y comprobar las respuestas HTTP reales. El mecanismo de prueba cambia, pero se está construyendo y ejecutando la misma aplicación.
+Esta distinción también permite comprobar la aplicación desde distintas herramientas: la ventana de ejecución de Visual Studio confirma el puerto de Kestrel, mientras que el navegador y `curl` permiten observar la respuesta HTTP de cada URL.
 
 ## Recursos públicos y respuestas HTTP
 
@@ -1970,7 +1970,7 @@ Para el caso de `id=0`, el método debe terminar en `BadRequest`. Para `id=99`, 
 
 Estas tres rutas de ejecución cubren las decisiones esenciales del método sin exigir conocimientos avanzados de testing. Son además situaciones independientes: cambiar la comprobación de cero no debería hacer desaparecer el producto de id 2.
 
-La prueba E2E añade la infraestructura de enrutamiento y HTTP. Por tanto, comprueba no solo que el método tiene unas ramas determinadas, sino también que las URLs del proyecto permiten alcanzarlas y que la respuesta final representa el resultado previsto.
+Al introducir cada identificador en la URL, se observa el recorrido completo: la ruta selecciona la acción, la acción decide el resultado y el servidor devuelve el estado HTTP correspondiente.
 
 **Evitar suposiciones sobre el enlace de modelos.**
 
@@ -2025,9 +2025,7 @@ Una batería que probara únicamente `/Productos/Detalle/2` podría pasar aunque
 
 **La importancia de no falsear el resultado esperado.**
 
-Si la acción devuelve 400 para el id 0, no deberíamos modificar el test para esperar 200 y conseguir un resultado verde. El código y la expectativa didáctica deben concordar. De la misma manera, si el reto propone una respuesta JSON, no es aceptable sustituirla por texto plano únicamente porque contenga el mismo nombre.
-
-La trazabilidad del curso exige que el enunciado, el código activable y las pruebas describan el mismo comportamiento. Esa regla se aplica especialmente a los retos, que no se consideran completos por el mero hecho de estar explicados verbalmente.
+Si la acción devuelve 400 para el identificador 0, no debe presentarse esa respuesta como si fuera un 200 correcto: cada resultado HTTP expresa una decisión distinta. Del mismo modo, si se pide devolver JSON, una cadena de texto con el nombre del producto no es equivalente. Explica siempre qué método genera la respuesta y por qué.
 
 ## Resultados HTTP y representación
 
