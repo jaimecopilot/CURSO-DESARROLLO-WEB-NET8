@@ -55,17 +55,40 @@ public class ProductosController : Controller
     [ValidateAntiForgeryToken]
     public IActionResult Crear(ProductoFormulario entrada)
     {
+        // PASO 2.3.3: observar qué información contiene ModelState.
+        // El model binder también puede registrar errores de conversión.
+        // ACTIVAR (solo durante la investigación): el siguiente bucle opcional
+        // registra las claves con problemas en la salida de depuración.
+        /* PASO 2.3.3 INICIO
+        foreach (var estado in ModelState.Where(x => x.Value?.Errors.Count > 0))
+        {
+            foreach (var error in estado.Value!.Errors)
+                System.Diagnostics.Debug.WriteLine(
+                    $"P2.3, campo {estado.Key}: {error.ErrorMessage}");
+        }
+        PASO 2.3.3 FIN */
+
         if (!ModelState.IsValid)
         {
-            // Conserva los datos recibidos y muestra los mensajes junto al formulario.
+            // PASO 2.3.4: devolver el mismo modelo de entrada permite
+            // conservar datos introducidos y mostrar errores en Crear.cshtml.
             return View(entrada);
         }
 
+        // Solo protege el estado previo a activar las reglas de P2.3.2:
+        // un formulario incompleto no puede crear una entidad válida.
+        // Una vez activadas [Required], estas entradas quedan rechazadas
+        // por ModelState antes de alcanzar este punto.
+        if (string.IsNullOrWhiteSpace(entrada.Nombre) || entrada.Precio is null)
+            return BadRequest("Nombre y precio son obligatorios.");
+
+        // P2.3: conversión explícita de DTO de entrada a modelo del catálogo.
+        // No se guarda. En P2.4 el identificador lo generará la base de datos.
         var producto = new Producto
         {
             Id = 4,
-            Nombre = entrada.Nombre!,
-            Precio = entrada.Precio!.Value
+            Nombre = entrada.Nombre,
+            Precio = entrada.Precio.Value
         };
         return View("Confirmacion", producto);
     }
