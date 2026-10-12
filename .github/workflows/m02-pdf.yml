@@ -24,7 +24,7 @@ jobs:
           python-version: "3.12"
       - name: Instalar maquetador y validadores de PDF
         run: |
-          python -m pip install "markdown-it-py>=3,<5" "pygments>=2.17,<3" "weasyprint>=63,<69" "pypdf>=5,<8" "pymupdf>=1.24,<2" "beautifulsoup4>=4.12,<5" "beautifulsoup4>=4.12,<5"
+          python -m pip install "markdown-it-py>=3,<5" "pygments>=2.17,<3" "weasyprint>=63,<69" "pypdf>=5,<8" "pymupdf>=1.24,<2" "beautifulsoup4>=4.12,<5"
           sudo apt-get update -qq
           sudo apt-get install -y graphviz fonts-dejavu-core
       - name: Comprobar las fuentes y generar dos PDF exactos
@@ -65,7 +65,14 @@ jobs:
             echo "Los PDF ya corresponden a los Markdown."
           else
             git commit -m "docs(m02): publicar dos PDF y métricas derivados de MD"
-            git fetch origin "$GITHUB_REF_NAME"
-            git rebase "origin/$GITHUB_REF_NAME"
+            # No intentar rebase de PDF binarios ni sobreescribir la rama.
+            # Si ha avanzado desde el checkout, este resultado es obsoleto;
+            # la última ejecución sobre el nuevo HEAD será la que publique.
+            remote_sha="$(git ls-remote origin "refs/heads/$GITHUB_REF_NAME" | cut -f1)"
+            if [ "$remote_sha" != "$GITHUB_SHA" ]; then
+              echo "::warning::Rama actualizada durante la generación: no publicar PDF obsoletos."
+              echo "Base de este run: $GITHUB_SHA; HEAD remoto: $remote_sha"
+              exit 0
+            fi
             git push origin "HEAD:$GITHUB_REF_NAME"
           fi
