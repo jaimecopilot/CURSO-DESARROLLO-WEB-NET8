@@ -51,7 +51,7 @@ function Stop-Web {
 }
 function Get-Response([string]$url) {
   $response = $script:client.GetAsync("$baseUrl$url").GetAwaiter().GetResult()
-  return @{ Code=[int]$response.StatusCode; Html=($response.Content.ReadAsStringAsync().GetAwaiter().GetResult()) }
+  return @{ Code=[int]$response.StatusCode; Html=[Net.WebUtility]::HtmlDecode(($response.Content.ReadAsStringAsync().GetAwaiter().GetResult())) }
 }
 function Get-Token {
   $page = Get-Response "/Comparacion"
