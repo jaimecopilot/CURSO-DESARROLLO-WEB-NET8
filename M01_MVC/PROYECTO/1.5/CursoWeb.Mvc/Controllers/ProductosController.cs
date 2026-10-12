@@ -46,6 +46,24 @@ public class ProductosController : Controller
         return producto is null ? NotFound() : View("Detalle", producto);
     }
 
+    // TRANSFERENCIA OPCIONAL P1.4 A P1.5:
+    // Este bloque permite conservar también la búsqueda autónoma por nombre
+    // realizada en la práctica anterior. No es parte de los pasos mínimos
+    // de P1.5: activar solamente durante el recorrido de integración final.
+    /* APLICACION P1.4 EN P1.5 INICIO
+    [HttpGet("/catalogo/buscar/{nombre}")]
+    public IActionResult BuscarPorNombre(string nombre)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(
+            p => string.Equals(p.Nombre, nombre, StringComparison.OrdinalIgnoreCase));
+        if (producto is null)
+        {
+            return NotFound();
+        }
+        return View("Detalle", producto);
+    }
+    APLICACION P1.4 EN P1.5 FIN */
+
     // El reto 1.4 permanece identificado como variante histórica.
     // P1.5 trabaja específicamente con presentación Razor y vistas parciales.
     /* RETO 1.4 INICIO
