@@ -491,6 +491,104 @@ Ahora compila y ejecuta. Escribe «Regla» y pulsa Añadir. Debe aparecer una cu
 
 **Estado persistente:** recarga la ruta completamente para iniciar otra instancia de componente. Lo normal es que reaparezcan los tres productos originales. Es coherente: la lista pertenece a la sesión/instancia de interfaz y no se almacena en SQL ni se envía a la API que todavía no existe. Un resultado visual de «cuatro tarjetas» no demuestra un INSERT.
 
+### 3.4.5. Editor de nombre: sustituir el valor de una tarjeta, no añadir otra
+
+**Objetivo.** Completar el editor simple previsto para P3.4. Una vez que sabes seleccionar un producto, escribir en un input y añadir un elemento en memoria, aplicarás las mismas ideas a una operación diferente: **editar el nombre de un producto ya existente conservando su Id y su precio**. No se utiliza EF Core ni se realizan peticiones HTTP.
+
+**Punto de partida.** Trabaja en `M03_BLAZOR/PROYECTO/3.4/CursoWeb.Blazor/Components/Pages/Productos.razor` con los pasos 3.4.2, 3.4.3 y 3.4.4 activados. Comprueba que seleccionar Lápiz cambia el texto y que añadir Regla crea una cuarta tarjeta. Para realizar la edición de manera controlada, recarga la página y comienza con los tres productos de ejemplo. No ejecutes otros procesos de la misma aplicación en el puerto 5092.
+
+**Paso A: comprender por qué el nombre no identifica correctamente una edición.** En el estado anterior `Seleccionar(int id)` buscaba el producto y almacenaba su nombre en `seleccion`. Esa información permite mostrar una frase, pero no es una referencia suficientemente robusta para editar. Dos productos podrían tener el mismo nombre. Por ello, el nuevo manejador recordará el Id seleccionado en `idEnEdicion`, mientras un segundo campo guardará el texto que se propone escribir.
+
+**Paso B: activar el estado y los métodos del editor.** Localiza en `@code` el bloque C# marcado `PASO 3.4.5 INICIO` y `PASO 3.4.5 FIN`. Elimina esas dos líneas delimitadoras, dejando activo el código interior. Contiene los campos:
+
+~~~csharp
+private int? idEnEdicion;
+private string nombreEditado = string.Empty;
+~~~
+
+Y un método que prepara el editor:
+
+~~~csharp
+private void SeleccionarParaEditar(int id)
+{
+    var producto = productos.First(p => p.Id == id);
+    idEnEdicion = id;
+    seleccion = producto.Nombre;
+    nombreEditado = producto.Nombre;
+}
+~~~
+
+Fíjate en que el método no altera `productos`. Primero obtiene el objeto por identidad, después conserva el Id, y por último coloca el nombre tanto en la frase de selección como en el campo de edición. Este último valor será la base sobre la que el alumno escriba un cambio.
+
+**Paso C: sustituir el botón Seleccionar.** Dentro del `foreach` de tarjetas existen ahora dos versiones de botón. La del paso 3.4.2 estará activa:
+
+~~~razor
+<button @onclick="() => Seleccionar(producto.Id)">Seleccionar</button>
+~~~
+
+Coméntala usando `@*` y `*@`. Activa en su lugar la variante del paso 3.4.5, preparada justo debajo:
+
+~~~razor
+<button @onclick="() => SeleccionarParaEditar(producto.Id)">
+    Seleccionar
+</button>
+~~~
+
+**Importante:** el segundo botón debe seguir estando **dentro del bucle y del artículo de cada producto**. No lo copies fuera del `foreach`, porque entonces la variable `producto` no tendría el mismo alcance. Mantén una sola versión activa por tarjeta para que la interfaz no muestre dos botones Seleccionar innecesarios.
+
+**Paso D: activar el campo y el botón de guardado.** En la misma página, después de las tarjetas, localiza los comentarios del paso 3.4.5 correspondientes a:
+
+~~~razor
+<label>Editar nombre:
+    <input id="editar-nombre" @bind="nombreEditado" />
+</label>
+<button id="guardar-cambio" @onclick="GuardarCambio">
+    Guardar nombre
+</button>
+~~~
+
+El archivo original tiene estos elementos escritos en una línea cada uno. Retira sus delimitadores de comentario Razor, conserva los identificadores y comprueba que el método `GuardarCambio` también está activo dentro del bloque C#. Si activas el botón sin el método, tendrás un error de compilación: la recuperación correcta es activar el código del mismo paso, no crear otro método de nombre distinto.
+
+**Paso E: comprender el código de GuardarCambio antes de pulsar.** El método contiene un retorno anticipado si `idEnEdicion` es null o el texto está vacío. Después busca la posición del producto mediante el Id:
+
+~~~csharp
+var indice = productos.FindIndex(p => p.Id == idEnEdicion.Value);
+if (indice < 0)
+    return;
+~~~
+
+Si la identidad no aparece en la lista, la operación no debe modificar arbitrariamente otro producto. A continuación, el código sustituye el valor del record en esa posición:
+
+~~~csharp
+productos[indice] = productos[indice] with
+{
+    Nombre = nombreEditado.Trim()
+};
+seleccion = productos[indice].Nombre;
+~~~
+
+La expresión `with` conserva las otras propiedades del record original. No utilizamos `productos.Add`, porque añadir produciría un cuarto objeto y estaríamos realizando otra operación distinta de editar.
+
+**Paso F: compilar y ejecutar la edición positiva.** Guarda todos los cambios y ejecuta `dotnet build`. Abre `http://localhost:5092/productos`. Comprueba que existen tres tarjetas y que el nuevo campo de edición está disponible. Pulsa Seleccionar en Lápiz. El campo `editar-nombre` debe mostrar «Lápiz». Escribe «Lápiz rojo» y pulsa Guardar nombre.
+
+**Resultados esperados:** la tarjeta con `data-producto-id="2"` debe mostrar «Lápiz rojo». El precio debe seguir siendo 1.20 y el total de tarjetas debe continuar siendo tres. La línea de selección también debe actualizarse a «Seleccionado: Lápiz rojo». La operación no crea un nuevo producto: sustituye el valor del que ya tenía ese Id. Comprueba todos esos resultados y no te conformes únicamente con que el botón parezca responder.
+
+**Paso G: ejecutar un caso negativo.** Con el mismo producto seleccionado, borra el campo de edición, escribe tres espacios y pulsa Guardar nombre. El código contiene `string.IsNullOrWhiteSpace`, por lo que el producto debe conservar «Lápiz rojo». Otra posibilidad negativa es intentar guardar antes de seleccionar ningún producto en una nueva carga de la página: `idEnEdicion` será null y el método regresará sin hacer modificaciones.
+
+**Paso H: contrastar edición y alta.** En el mismo componente siguen existiendo `nuevoNombre` y el botón Añadir. La alta incrementa el tamaño de la colección y asigna un Id nuevo. La edición conserva el tamaño e identidad, pero modifica una propiedad del objeto existente. Escribe en tu cuaderno dos secuencias: entrada → Añadir → cuarta tarjeta y selección → entrada de edición → Guardar → mismo Id con nombre distinto. Las dos usan C# y Razor, pero aplican operaciones de estado diferentes.
+
+**Diagnóstico 1 — se crean cuatro tarjetas.** Revisa si, por error, utilizaste `productos.Add` dentro de `GuardarCambio`. El proyecto canónico utiliza `productos[indice] = ...`. La sustitución no debería incrementar la cantidad de elementos. Si quieres verificar la diferencia, inspecciona `productos.Count` antes y después del evento.
+
+**Diagnóstico 2 — cambia el producto equivocado.** Comprueba que has activado `SeleccionarParaEditar(producto.Id)` dentro del bucle y que `FindIndex` compara el Id recibido. Si buscaras por `Nombre`, un catálogo con nombres duplicados haría ambigua la elección. El identificador existe precisamente para evitar esa situación.
+
+**Diagnóstico 3 — la edición no se refleja hasta recargar.** Comprueba que la página declara `@rendermode InteractiveServer` y que el botón ejecuta `GuardarCambio`. Verifica que el campo de edición actualiza `nombreEditado` y que se asigna el record modificado a la lista que representa el `foreach`. No deberías necesitar una recarga completa para ver el resultado de un evento local correctamente conectado.
+
+**Diagnóstico 4 — la selección sigue mostrando el nombre antiguo.** La edición podría estar sustituyendo el objeto sin actualizar la frase de selección. Revisa la asignación final `seleccion = productos[indice].Nombre`. Esta es una regla de consistencia de presentación que pertenece al componente dueño del estado, no a una función de CSS ni a la infraestructura HTTP.
+
+**Diagnóstico 5 — un nombre compuesto por espacios borra el original.** Comprueba la condición de entrada `string.IsNullOrWhiteSpace(nombreEditado)` antes de modificar la colección. La versión preparada no guarda valores vacíos. No hace falta construir un formulario MVC con DataAnnotations para practicar esta condición básica dentro del editor.
+
+**Conclusión pedagógica:** P3.4.5 combina las ideas anteriores para mostrar un caso distinto de interacción real. Puedes conservar el Id, modificar un nombre, rechazar un cambio inválido y observar una representación coherente sin incorporar ninguna tecnología de M04. La teoría 3.4, apartado «Un editor real en memoria», explica por qué este resultado es diferente de un CRUD persistente.
+
 ### Reto 3.4 — Limpiar la selección sin alterar el catálogo
 
 El proyecto contiene un botón y un método comentados bajo la marca `RETO 3.4`. Su objetivo es practicar que un mismo estado puede cambiar por otra acción distinta de Seleccionar.
