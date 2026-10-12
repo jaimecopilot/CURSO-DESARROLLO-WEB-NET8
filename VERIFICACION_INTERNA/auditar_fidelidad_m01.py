@@ -59,7 +59,7 @@ def visible_markdown(md_text):
     # y también en la fuente Markdown canónica adjunta byte por byte.
     # Para comparar texto *visible*, aplicar la misma representación.
     bibliography=re.sub(
-        r"(?m)^(-\\s+[^\\n]*?:\\s*)(https?://[^\\s<>]+)",
+        r"(?m)^(-\s+[^\n]*?:\s*)(https?://[^\s<>]+)",
         lambda m: m.group(1) + "[Consultar fuente](" + m.group(2) + ")",
         non_diagram,
     )
