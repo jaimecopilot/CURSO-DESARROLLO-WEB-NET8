@@ -73,3 +73,19 @@ La correspondencia es **bidireccional**: todo ejercicio debe tener explicación 
 ## Estado inicial de reparación (12/10/2026)
 
 Auditoría del estado anterior, **no certificación de resultado**: 3.4 vuelve a dibujar `article.tarjeta` en la página en vez de usar `TarjetaProducto`; 3.5 elimina alta, edición y filtros; 3.6 elimina la interactividad desarrollada, conservando solo representación asíncrona. Las pruebas previas cubren ejercicios separados pero no comprueban regresiones de la aplicación acumulativa. Es imprescindible rehacer esos estados y las comprobaciones cruzadas antes de publicar manuales definitivos.
+
+## Alerta preliminar de metodología en M01 y M02 (no reabrir ni alterar sin plan)
+
+Tras la aclaración explícita del autor del curso, hay que auditar **los tres módulos**, no solo M03, contra el mismo criterio TEORÍA COMPLETA → PRÁCTICAS 100 % CÓDIGO EXPLICADO → CÓDIGO REPRODUCIBLE.
+
+Observación aproximada sobre el *cuerpo principal* de los tres manuales de prácticas (excluyendo el anexo M03):
+
+| Módulo | Bloques de código de prácticas | Líneas de código en esos bloques | Archivos fuente/config. en instantánea final | Nombres de archivos NO mencionados literalmente en el manual |
+|---|---:|---:|---:|---|
+| M01 | 134 | ~606 | 16 | 0 |
+| M02 | 58 | ~271 | 25 | 4 |
+| M03 | 56 | ~160 | 16 | 2 |
+
+Estas medidas orientativas NO prueban por sí solas si una línea de código se explica o no, y mencionar un archivo NO equivale a explicar su contenido. M01 está más desarrollado, pero su cobertura completa no se puede presumir. M02 y M03 necesitan una auditoría exhaustiva fuente por fuente. Verificar en particular la configuración, layouts, archivos plantilla, CSS, servicios, código de páginas, controles, models y archivos de arranque. El criterio de aceptación no es solo cantidad de fragmentos, sino **reproducibilidad y explicación del 100 % de las fuentes versionadas**, sin depender de supuestos.
+
+Esta alerta es interna y NO debe incluirse en PDFs/manuales del alumno.
