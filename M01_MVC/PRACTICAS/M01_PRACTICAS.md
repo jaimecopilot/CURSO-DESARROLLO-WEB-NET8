@@ -798,65 +798,6 @@ Acceder de nuevo a `/Productos`. Ahora deben aparecer el contador y **los tres n
 
 Detener el proceso antes del siguiente paso.
 
-**Profundización aplicada: Distinguir el valor del modelo y la plantilla de presentación.**
-
-**Activar solo el envío de datos.**
-
-Partimos de la versión inicial, con el bloque del controlador aún comentado. Retira las dos líneas delimitadoras del comentario `PASO 1.2.3` y comenta la instrucción `return View();` que se utilizaba antes. No cambies todavía la vista.
-
-Compila y ejecuta:
-
-~~~bash
-dotnet build
-dotnet run --no-launch-profile --urls http://localhost:5091
-~~~
-
-Abre `http://localhost:5091/Productos`. Debe aparecer un mensaje indicando tres productos, pero no las filas de Cuaderno, Lápiz y Carpeta.
-
-**Diagnóstico:** el dato de la colección ha llegado correctamente al archivo de vista; lo sabemos porque `@Model.Count` puede obtener su cantidad. La ausencia de filas no demuestra que falte el modelo. Demuestra que todavía no se ha activado su representación detallada.
-
-**Activar el bucle de representación.**
-
-Detén el proceso y abre `Views/Productos/Index.cshtml`. Localiza el bloque `PASO 1.2.4`:
-
-~~~cshtml
-@* PASO 1.2.4 (inicio)
-<ul id="listado-productos">
-@foreach (var producto in Model)
-{
-    <li data-id="@producto.Id">@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
-}
-</ul>
-PASO 1.2.4 (fin) *@
-~~~
-
-Elimina únicamente las dos líneas de comentario Razor. Guarda, compila y ejecuta. En `/Productos` deben aparecer los tres productos. El código del controlador no ha cambiado desde el estado anterior.
-
-Comprueba que cada elemento tiene un atributo `data-id` que coincide con su identificador. No basta con ver los nombres: identifica el valor `1` junto a Cuaderno, `2` junto a Lápiz y `3` junto a Carpeta en el HTML.
-
-**Seguir una sola propiedad desde su origen hasta la respuesta.**
-
-Elige el producto Lápiz. Localiza `Nombre = "Lápiz"` dentro del inicializador del controlador. Comprueba que `Producto` tiene la propiedad `Nombre` y que la vista lee `producto.Nombre`.
-
-El recorrido argumentado es:
-
-1. La clase `Producto` define que existe una propiedad `Nombre`.
-2. El controlador crea un objeto y establece su valor en `"Lápiz"`.
-3. La colección de productos se entrega a la vista mediante `View(productos)`.
-4. El `foreach` extrae cada objeto de la colección.
-5. La expresión `@producto.Nombre` representa el valor recibido.
-6. El navegador muestra el texto dentro de un elemento `<li>`.
-
-Repite la explicación para `Id` y `Precio`. La primera se representa como atributo HTML; la segunda se formatea con dos decimales. Los mismos objetos dan lugar a diferentes partes del marcado según las expresiones de la vista.
-
-**Comprobar que el navegador no recibe el modelo C# original.**
-
-En F12 → Red, recarga `/Productos` y consulta el cuerpo de la respuesta. Busca la cadena `listado-productos` y observa los tres elementos `<li>`.
-
-No debes encontrar el código ejecutable `new List<Producto>` dentro de la respuesta, porque la colección se construye en el servidor. Tampoco se envía al navegador el bucle `@foreach` para que lo ejecute: Razor ya ha representado su resultado.
-
-Esto demuestra la diferencia entre el archivo fuente `.cshtml` y el HTML resultante. Es una comprobación sencilla que se volverá importante al comparar las vistas MVC con los componentes Blazor del tercer día.
-
 ### Paso 1.2.5. Activar navegación reutilizando el layout
 
 Abrir `Views/Shared/_Layout.cshtml`, localizar el enlace activo Inicio y, justo después, el fragmento comentado:
@@ -875,34 +816,6 @@ Reiniciar la aplicación, abrir `/` y comprobar que la cabecera incluye los enla
 **Qué hemos aprendido:** cambiar el menú no obliga a tocar la clase `Producto` ni el controlador. El layout es una pieza de presentación reutilizable. En el capítulo 1.5 profundizaremos en layouts y vistas parciales; aquí interesa únicamente la separación entre navegación, selección de datos y representación.
 
 **Comprobación extra:** escribir `http://localhost:5091/Productos/Index` y confirmar que conduce a la misma página que `/Productos`. El funcionamiento se debe al enrutamiento convencional de `Program.cs`.
-
-**Profundización aplicada: El layout como responsabilidad distinta.**
-
-El paso 1.2.5 permite activar un enlace adicional en el diseño compartido. En `Views/Shared/_Layout.cshtml` se encuentra:
-
-~~~cshtml
-@* PASO 1.2.5 (inicio)
-<a href="/Productos">Productos</a>
-PASO 1.2.5 (fin) *@
-~~~
-
-Al retirar las dos líneas delimitadoras del comentario Razor, el enlace aparece en las páginas que utilizan el layout. No hace falta editar `Models/Producto.cs` ni cambiar el código de `ProductosController.Index()`.
-
-Esta es una buena oportunidad para comparar tres modificaciones consecutivas:
-
-| Cambio | Archivo responsable | Evidencia |
-|---|---|---|
-| Entregar los productos | `ProductosController.cs` | Aparece el contador |
-| Mostrar los productos | `Views/Productos/Index.cshtml` | Aparecen filas de lista |
-| Mostrar acceso desde el menú | `Views/Shared/_Layout.cshtml` | Aparece el enlace Productos |
-
-Explica por qué los tres cambios no deberían combinarse en una sola modificación de código. El objetivo es mantener visible qué responsabilidad corresponde a cada archivo y poder corregir un fallo sin modificar piezas ajenas.
-
-### Relacionar el layout con la navegación del navegador
-
-Cuando haces clic en Productos, el navegador solicita `/Productos`. El enlace HTML no envía directamente una lista C# al cliente. Simplemente contiene una dirección que el servidor debe atender.
-
-Si el enlace existiera pero no hubiera un controlador compatible, el navegador podría llegar a una respuesta 404. Por eso una comprobación completa debe verificar tanto la presencia del enlace como la respuesta de la dirección a la que apunta.
 
 ### Paso 1.2.6. Explicar el recorrido con el código abierto
 
@@ -1383,48 +1296,6 @@ Reiniciar la aplicación, abrir `/Productos` y comprobar que ahora hay un enlace
 
 Aquí no hemos creado ninguna clase nueva ni un método de controlador. El trabajo ya lo hace el middleware de archivos estáticos.
 
-**Profundización aplicada: Archivos de texto públicos y no públicos.**
-
-**Comparar las rutas físicas.**
-
-Abre estos dos archivos dentro del proyecto:
-
-~~~text
-wwwroot/recursos/guia-publica.txt
-DOCUMENTACION/nota-interna.txt
-~~~
-
-Ambos son textos y ambos forman parte del árbol del proyecto, pero solo el primero está dentro de la raíz web utilizada por el middleware de archivos estáticos.
-
-Con la aplicación ejecutándose, prueba:
-
-~~~bash
-curl -i http://localhost:5091/recursos/guia-publica.txt
-curl -i http://localhost:5091/DOCUMENTACION/nota-interna.txt
-~~~
-
-La primera URL debe devolver 200 y el contenido de la guía. La segunda debe devolver 404, porque nuestro proyecto no ha configurado una ruta que publique automáticamente la carpeta `DOCUMENTACION`.
-
-**Habilitar el enlace de la guía.**
-
-En el layout encuentra el bloque `PASO 1.3.5` y retira los delimitadores de comentario:
-
-~~~cshtml
-@* PASO 1.3.5 (inicio)
-<a href="/recursos/guia-publica.txt">Guía pública</a>
-PASO 1.3.5 (fin) *@
-~~~
-
-Tras activarlo, el enlace aparecerá en la navegación del sitio. Pulsa el enlace y confirma que llega al mismo archivo que ya habías probado mediante su URL directa.
-
-**Pregunta clave:** ¿ha cambiado la posibilidad de acceder al archivo o únicamente la navegación? En este ejemplo ha cambiado la navegación. El archivo de `wwwroot` ya era público antes de añadir el enlace.
-
-**Evitar conclusiones incorrectas sobre seguridad.**
-
-No debemos interpretar la respuesta 404 de `nota-interna.txt` como una garantía universal de secreto. El archivo existe en el repositorio, y si el repositorio es público puede leerse desde el servicio donde está publicado el código fuente.
-
-El resultado 404 solo muestra que el middleware estático de esta aplicación no publica directamente esa ruta con la configuración actual. Otra configuración de servidor o una acción específica podría exponerla. Este detalle es importante para no convertir una convención de carpetas en una supuesta política de protección de datos.
-
 ## Reto: aplicación de los pasos
 
 **Reto 1.3 — Recurso público frente a archivo interno.**
@@ -1840,50 +1711,6 @@ curl -i http://localhost:5091/Productos/Estado
 
 Detener el proceso antes de continuar.
 
-**Profundización aplicada: Diferenciar tres tipos de resultado HTTP.**
-
-**Texto plano de Estado.**
-
-El bloque `PASO 1.4.2` contiene:
-
-~~~csharp
-[HttpGet]
-public IActionResult Estado()
-{
-    return Content("Catalogo MVC disponible", "text/plain");
-}
-~~~
-
-Activa el método retirando las dos líneas de comentario que lo delimitan. Compila y ejecuta la aplicación, y solicita:
-
-~~~bash
-curl -i http://localhost:5091/Productos/Estado
-~~~
-
-Debes encontrar una respuesta satisfactoria y el texto `Catalogo MVC disponible`. Observa que no aparece la estructura completa del layout; no hemos utilizado `View()`.
-
-**Vista HTML de Detalle.**
-
-El bloque `PASO 1.4.3` permite activar `Detalle(int id)`. Cuando visitas `/Productos/Detalle/2` y el producto existe, la acción devuelve `View(producto)`.
-
-La respuesta se genera utilizando `Views/Productos/Detalle.cshtml`. En ella debes localizar los elementos con identificadores `detalle-id`, `detalle-nombre` y `detalle-precio`. La página también incorpora el layout del sitio.
-
-La diferencia respecto al método Estado es visible en el cuerpo y en el tipo de contenido de la respuesta. Ambas acciones están en el mismo controlador, pero producen formatos diferentes.
-
-**Resultado JSON del reto.**
-
-Al final del capítulo, el bloque `RETO 1.4` permite activar `Resumen(int id)`, que devuelve `Ok(new { producto.Id, producto.Nombre })`. La respuesta contiene datos JSON y no necesita una vista.
-
-**Comparación que debes poder explicar:**
-
-| Acción | URL | Instrucción central | Representación |
-|---|---|---|---|
-| Estado | `/Productos/Estado` | `Content(..., "text/plain")` | Texto |
-| Detalle | `/Productos/Detalle/2` | `View(producto)` | HTML |
-| Resumen | `/catalogo/resumen/2` | `Ok(new {...})` | JSON |
-
-El objetivo no es convertir MVC en un curso completo de Web API. Solo demostramos que una acción del controlador puede elegir entre distintos resultados HTTP.
-
 ### Paso 1.4.3 — Activar la ficha de detalle con parámetro id
 
 Primero abrir `Views/Productos/Detalle.cshtml`. La vista ya existe en el proyecto, con su código completo:
@@ -1953,56 +1780,6 @@ En el navegador, los códigos 400/404 pueden aparecer como páginas de error sen
 
 Detener el proceso antes del siguiente paso.
 
-**Profundización aplicada: Analizar el parámetro id en varios escenarios.**
-
-**Producto existente.**
-
-Con el paso 1.4.3 activado, solicita `/Productos/Detalle/2`. El valor 2 llega al parámetro `id` del método. La acción busca la instancia de producto cuyo identificador coincide y entrega ese objeto a la vista.
-
-El archivo de vista declara:
-
-~~~cshtml
-@model CursoWeb.Mvc.Models.Producto
-~~~
-
-Esta vez no se trata de una colección. La ficha muestra los datos de un objeto individual. Comprueba que el nombre de la ficha es Lápiz y que su identificador corresponde al solicitado.
-
-**Producto inexistente.**
-
-Solicita `/Productos/Detalle/99`. El valor 99 es un entero positivo, pero no corresponde a ninguno de los tres objetos de ejemplo. La búsqueda mediante `FirstOrDefault` no encuentra un producto y la acción devuelve `NotFound()`.
-
-Comprueba el código 404 con F12 o `curl -i`. No supongas que todo 404 significa que no existe una ruta: en este caso, la acción sí se ejecuta y decide que no hay un producto con ese identificador.
-
-**Identificador rechazado explícitamente.**
-
-Solicita `/Productos/Detalle/0`. El valor cumple el formato entero, pero la acción contiene una condición que lo rechaza:
-
-~~~csharp
-if (id <= 0)
-{
-    return BadRequest("El identificador debe ser mayor que cero.");
-}
-~~~
-
-El código esperado es 400. La diferencia respecto al caso anterior procede de una decisión escrita en el método, no de una propiedad automática de cualquier variable `int`.
-
-**Ausencia del segmento opcional.**
-
-Prueba `/Productos/Detalle`. En este ejemplo, con la ruta convencional y el parámetro entero no anulable, la acción puede recibir el valor predeterminado cero al faltar el segmento, y la misma regla produce 400.
-
-Esta situación ayuda a distinguir una plantilla que permite omitir un segmento de un método que considera válido cualquier valor obtenido. La URL puede corresponder a una acción y, sin embargo, esta puede rechazar la entrada.
-
-**Construir una matriz de evidencias.**
-
-| URL | Estado esperado | ¿Qué línea explica el resultado? |
-|---|---:|---|
-| `/Productos/Detalle/1` | 200 | `return View(producto)` |
-| `/Productos/Detalle/2` | 200 | `return View(producto)` |
-| `/Productos/Detalle/99` | 404 | `return NotFound()` |
-| `/Productos/Detalle/0` | 400 | `return BadRequest(...)` |
-
-El alumnado debe localizar las líneas en el proyecto real. No basta con leer la tabla: comprueba cada resultado mediante una solicitud HTTP y relaciona el código de estado con la condición del método.
-
 ### Paso 1.4.4 — Añadir una URL por atributos para reutilizar la misma vista
 
 El listado utiliza una ruta convencional como `/Productos/Detalle/2`. Ahora incorporaremos una dirección distinta, `/catalogo/ficha/2`, usando un atributo en el método.
@@ -2047,81 +1824,6 @@ La primera debe mostrar la ficha de Lápiz con HTTP 200; las otras tres deben re
 
 **Comparación razonada:** las dos acciones `Detalle(2)` y `Ficha(2)` terminan generando el **mismo HTML**, aunque fueron seleccionadas mediante URLs diferentes.
 
-**Profundización aplicada: Entender una ruta por atributos.**
-
-El bloque `PASO 1.4.4` añade una acción con esta plantilla:
-
-~~~csharp
-[HttpGet("/catalogo/ficha/{id:int}")]
-public IActionResult Ficha(int id)
-{
-    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
-    if (producto is null)
-    {
-        return NotFound();
-    }
-
-    return View("Detalle", producto);
-}
-~~~
-
-Retira los delimitadores del comentario y compila. Antes de abrir el navegador, explica por qué `/catalogo/ficha/2` debería alcanzar esta acción aunque el controlador se llame `ProductosController`.
-
-La respuesta es que la plantilla del atributo define una URL explícita. No depende de construir el nombre convencional `/Productos/Ficha/2`.
-
-**Comparar dos direcciones que producen la misma vista.**
-
-Abre:
-
-~~~text
-http://localhost:5091/Productos/Detalle/2
-http://localhost:5091/catalogo/ficha/2
-~~~
-
-Ambas deben representar los datos del producto Lápiz utilizando `Views/Productos/Detalle.cshtml`. El método `Ficha` lo indica explícitamente mediante `View("Detalle", producto)`.
-
-No se han creado dos archivos distintos de detalle. Esta reutilización es una buena manera de aprender que el nombre de la acción y el nombre de la vista no tienen que coincidir siempre, aunque MVC utilice esa correspondencia como convención predeterminada.
-
-**Comprobar la restricción de entero.**
-
-Solicita `/catalogo/ficha/no-numero`. La ruta especifica `{id:int}`, de modo que ese segmento no cumple la restricción. El resultado esperado es 404 por ausencia de coincidencia con el endpoint.
-
-Compara con `/catalogo/ficha/99`. El segundo segmento es un entero válido para la ruta, pero no corresponde a un producto. La acción puede ejecutarse y devolver igualmente 404.
-
-**Pregunta:** ¿por qué ambos casos generan el mismo estado aunque no tengan la misma causa? Porque 404 puede indicar que no existe una ruta compatible o que una acción seleccionada no encuentra el recurso solicitado. Para conocer el motivo debemos inspeccionar la URL, la plantilla y el método.
-
-**Distinguir una URL inexistente de una vista inexistente.**
-
-Solicita `/Productos/Ficha/2`. En esta aplicación la acción `Ficha` está asociada a una ruta por atributos absoluta, no a la dirección convencional que corresponde a su nombre. No se espera que la dirección convencional funcione.
-
-No intentes resolverlo añadiendo una copia de `Ficha.cshtml`. La cuestión no es encontrar una vista, sino seleccionar correctamente la acción. El archivo que reutiliza la acción es `Detalle.cshtml`.
-
-**Profundización aplicada: La ruta y el nombre de la vista.**
-
-**Comprobar el nombre predeterminado de la vista.**
-
-En `Detalle(int id)`, después de localizar un producto, la acción utiliza `return View(producto);`. Al no señalar un nombre, MVC aplica convenciones para buscar una vista relacionada con el nombre de la acción.
-
-En nuestro proyecto existe `Views/Productos/Detalle.cshtml`. Debes poder explicar por qué esa ubicación corresponde al controlador Productos y a la acción Detalle.
-
-**Comprobar un nombre explícito diferente.**
-
-En `Ficha(int id)` se utiliza `return View("Detalle", producto);`. El nombre de la acción es Ficha, pero se entrega el modelo a la misma vista de Detalle. No necesitamos duplicar la plantilla HTML en un archivo `Ficha.cshtml`.
-
-Abre las dos URLs válidas de detalle y compara su contenido. Si ambas muestran Lápiz con los mismos datos, has observado la reutilización del archivo de presentación a partir de dos acciones.
-
-**Distinguir la dirección seleccionada de la plantilla seleccionada.**
-
-La ruta `/catalogo/ficha/2` está definida por el atributo de `Ficha`. La vista seleccionada se llama Detalle. Una es una dirección externa de la aplicación y la otra es un archivo Razor utilizado para producir HTML. Sus nombres no tienen que coincidir.
-
-Este ejercicio ayuda a evitar un error frecuente: crear nuevas vistas para resolver una ruta que no está registrada. Antes de crear archivos debemos comprobar en qué fase del recorrido se produce el problema.
-
-**Justificar por qué el retorno explicita el nombre.**
-
-Si `Ficha` devolviera `View(producto)` sin nombre, MVC podría intentar encontrar una vista asociada a la acción Ficha. El proyecto no pretende enseñar una segunda representación distinta; por eso el código usa explícitamente la cadena `"Detalle"`.
-
-No es necesario modificar el método para comprobar este razonamiento: compara las respuestas obtenidas con las esperadas en el ejercicio.
-
 ### Paso 1.4.5 — Activar enlaces de detalle desde cada producto del listado
 
 Una URL puede funcionar sin que exista aún un enlace visible hacia ella. Ahora añadiremos navegación al listado de forma que cada producto conduzca a su ficha.
@@ -2151,40 +1853,6 @@ Abrir `Views/Productos/Index.cshtml`. Dentro del `@foreach` localizar:
 Reiniciar la aplicación y abrir `http://localhost:5091/Productos`. Debe aparecer el texto **Ver detalle** junto a cada producto. Pulsa el enlace de Lápiz; comprueba que la ficha muestra id 2, nombre Lápiz y precio. Utiliza el enlace **Volver al catálogo** de la vista de detalle para regresar.
 
 **Por qué activamos el enlace al final:** antes de crear `Detalle(int id)`, el enlace conduciría a una dirección sin acción válida. Ahora se ha comprobado antes el endpoint y después la navegación.
-
-**Profundización aplicada: Comprobar los enlaces generados por Razor.**
-
-Una vez activados Detalle y Ficha, abre `Views/Productos/Index.cshtml` y localiza el bloque `PASO 1.4.5`:
-
-~~~cshtml
-@* PASO 1.4.5 (inicio)
-<a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
-PASO 1.4.5 (fin) *@
-~~~
-
-Retira las líneas delimitadoras del comentario Razor. El enlace se encuentra dentro de un bucle `foreach`, por lo que se generará uno para cada objeto.
-
-**Comprobar que los enlaces son distintos.**
-
-Abre `/Productos` e inspecciona el HTML generado. Debes encontrar los destinos:
-
-~~~text
-/Productos/Detalle/1
-/Productos/Detalle/2
-/Productos/Detalle/3
-~~~
-
-El texto visual «Ver detalle» puede repetirse, pero el atributo `href` incorpora el valor `Id` de cada objeto. Esta diferencia permite navegar a fichas individuales sin escribir a mano tres enlaces distintos en el archivo Razor.
-
-**Navegar por dos recorridos completos.**
-
-Haz clic en el enlace del segundo producto y verifica la ficha de Lápiz. Regresa mediante `Volver al catálogo`. Después abre el enlace del primer producto y comprueba la ficha de Cuaderno.
-
-El objetivo es observar que el controlador recibe valores distintos aunque la acción es la misma. La vista de detalle también es la misma; cambia el objeto que recibe como modelo.
-
-**Comprobar que la lista anterior no ha desaparecido.**
-
-El paso 1.4.5 añade enlaces dentro del listado existente. No debe eliminar los nombres ni el contador de tres productos. Una regresión que conserve los enlaces pero haga desaparecer los datos del listado sería un resultado incorrecto.
 
 ## Reto: aplicación de los pasos
 
@@ -2774,37 +2442,6 @@ Abrir `/Productos`. Debe aparecer el mensaje **El catálogo contiene al menos tr
 
 Detener la ejecución para pasar al siguiente ejercicio.
 
-**Profundización aplicada: Condiciones Razor sin cambiar el modelo.**
-
-**Activar un mensaje según la cantidad.**
-
-En `Views/Productos/Index.cshtml` localiza el bloque `PASO 1.5.2`:
-
-~~~cshtml
-@* PASO 1.5.2 (inicio)
-@if (Model.Count >= 3)
-{
-    <p id="catalogo-completo">El catálogo contiene al menos tres productos.</p>
-}
-PASO 1.5.2 (fin) *@
-~~~
-
-Retira los delimitadores del comentario Razor y conserva la condición. Compila y ejecuta. En `/Productos` debe aparecer el mensaje porque el catálogo tiene tres elementos.
-
-No cambies la lista en `ProductosController`: el objetivo es demostrar que la vista puede decidir si representa una pieza de marcado según los datos recibidos.
-
-**Inspeccionar el fragmento generado.**
-
-En la respuesta HTML busca `id="catalogo-completo"`. Verifica que el párrafo aparece después de activar el bloque. La expresión `@if` no se envía como código ejecutable al navegador.
-
-Compara esta comprobación con la realizada en el punto 1.2, donde primero aparecía un contador y después activábamos el bucle de productos. En ambos casos, Razor utiliza datos del modelo para determinar contenido de la respuesta.
-
-**Interpretar correctamente la comprobación de nulos.**
-
-El `@if (Model.Count >= 3)` se ha incluido dentro de un `else` que corresponde a `if (Model is null)`. Eso es importante: evita acceder a `Count` cuando el modelo es nulo.
-
-No cambies la organización de las llaves para ahorrar líneas. La estructura existente es intencionada y ayuda a razonar sobre los dos estados de modelo que vimos anteriormente.
-
 ### Paso 1.5.3 — Extender el layout mediante una sección Razor opcional
 
 Este paso requiere **dos cambios coordinados**. En uno, el layout establece dónde mostrará notas adicionales; en el otro, la vista de detalle define qué texto debe ocupar esa zona.
@@ -2861,51 +2498,6 @@ A continuación visita `/Productos` y `/`. Ambas deben funcionar sin definir la 
 
 Detener el servidor antes de continuar.
 
-**Profundización aplicada: Comprender una sección de layout.**
-
-**Localizar el espacio de representación.**
-
-Abre `Views/Shared/_Layout.cshtml` y busca el comentario `PASO 1.5.3`:
-
-~~~cshtml
-@* PASO 1.5.3 (inicio)
-<aside id="notas-del-layout" aria-label="Notas de la página">
-    @await RenderSectionAsync("NotasPagina", required: false)
-</aside>
-PASO 1.5.3 (fin) *@
-~~~
-
-La instrucción `RenderSectionAsync` declara un lugar para mostrar contenido que algunas vistas pueden definir. El nombre `NotasPagina` debe coincidir con el utilizado por la vista.
-
-**Localizar el contenido proporcionado por la ficha.**
-
-En `Views/Productos/Detalle.cshtml` busca:
-
-~~~cshtml
-@* PASO 1.5.3 (inicio)
-@section NotasPagina
-{
-    <p id="nota-pagina-detalle">Detalle construido con una vista Razor tipada.</p>
-}
-PASO 1.5.3 (fin) *@
-~~~
-
-Este bloque proporciona el texto que el layout representará. El archivo de detalle sigue conteniendo también sus elementos principales con `Id`, `Nombre` y `Precio`.
-
-**Activar los dos bloques coordinadamente.**
-
-Retira los delimitadores del comentario en ambos archivos antes de compilar. No actives únicamente la definición de la sección y dejes el layout sin el marcador que la consume.
-
-Compila e inicia. Abre `/Productos/Detalle/2`. Debes encontrar el mensaje de la sección dentro de la estructura compartida, separado del cuerpo principal de la ficha.
-
-Después abre `/Productos` y `/`. Las páginas deben seguir funcionando aunque no definan `NotasPagina`, porque el layout usa `required: false`.
-
-**Demostrar que no se ha creado una vista nueva.**
-
-La sección no requiere una URL independiente ni un nuevo controlador. El contenido se define en `Detalle.cshtml` y se inserta donde el layout lo solicita.
-
-Esta observación diferencia las secciones de la navegación. No hemos creado una página `/NotasPagina` ni un archivo `NotasPagina.cshtml`. Hemos ampliado la composición de una respuesta HTML existente.
-
 ### Paso 1.5.4 — Representar una vista parcial por cada producto del catálogo
 
 El proyecto incorpora una **vista parcial tipada** en `Views/Shared/_TarjetaProducto.cshtml`. Abre el archivo y localiza:
@@ -2961,60 +2553,6 @@ Abrir `/Productos`. Debajo de la lista clásica debe aparecer la sección **Vist
 
 **Comprobación técnica:** en F12 → Red → Response, localizar `id="tarjetas-catalogo"` y exactamente **tres** elementos con `class="tarjeta-producto"`. No se han generado tres peticiones HTTP nuevas para las tarjetas: son fragmentos de una única respuesta HTML.
 
-**Profundización aplicada: Utilizar una vista parcial en una colección.**
-
-**Leer la parcial antes de invocarla.**
-
-Abre `Views/Shared/_TarjetaProducto.cshtml`. Identifica:
-
-~~~cshtml
-@model CursoWeb.Mvc.Models.Producto
-
-<article class="tarjeta-producto" data-producto-id="@Model.Id">
-    <h3>@Model.Nombre</h3>
-    <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
-    <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
-</article>
-~~~
-
-El archivo real contiene también un bloque comentado del reto. No lo actives todavía. Comprueba que la parcial recibe un **objeto Producto**, no la colección completa que recibe el listado.
-
-Pregunta: ¿qué representa `data-producto-id`? Un atributo HTML que contiene el identificador del objeto actual. No es una ruta ni una variable global; sirve para identificar el producto en el documento generado.
-
-**Activar el Partial Tag Helper en el listado.**
-
-En `Views/Productos/Index.cshtml` busca el comentario `PASO 1.5.4`:
-
-~~~cshtml
-@* PASO 1.5.4 (inicio)
-<section id="tarjetas-catalogo" aria-label="Tarjetas reutilizables de productos">
-    <h2>Vista de tarjetas</h2>
-    @foreach (var producto in Model)
-    {
-        <partial name="_TarjetaProducto" model="producto" />
-    }
-</section>
-PASO 1.5.4 (fin) *@
-~~~
-
-Retira las dos líneas delimitadoras del comentario Razor. Conservar el `foreach` es fundamental: cada elemento de la colección se pasa por separado a la parcial.
-
-La directiva de importación `@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers` ya está presente en el proyecto. No necesitas instalar ningún paquete ni copiar manualmente el contenido de la parcial en el listado.
-
-**Comprobar las tres tarjetas por su identificador.**
-
-Compila e inicia. Abre `/Productos`. Deben aparecer el listado clásico y una nueva sección titulada **Vista de tarjetas**.
-
-Comprueba que existen tres tarjetas y que sus atributos `data-producto-id` tienen los valores 1, 2 y 3. Revisa también que cada tarjeta muestra el nombre y el precio correctos.
-
-No basta con comprobar que aparecen tres elementos visualmente parecidos. Cada tarjeta debe recibir un objeto diferente. Si las tres mostraran Cuaderno, por ejemplo, habría una incidencia en el dato que se pasa a la parcial o en la expresión que se representa.
-
-**Observar el HTML resultante.**
-
-En F12 → Red, inspecciona el documento principal y busca `class="tarjeta-producto"`. Debe aparecer tres veces.
-
-No deberías encontrar tres nuevas solicitudes HTTP a `_TarjetaProducto.cshtml`. La parcial no es un recurso servido al navegador por separado: Razor la representa dentro de la respuesta de `/Productos`.
-
 ### Paso 1.5.5 — Reutilizar la misma parcial en la vista de detalle
 
 Detener la aplicación y abrir `Views/Productos/Detalle.cshtml`. Localizar el bloque:
@@ -3039,35 +2577,6 @@ Compilar y ejecutar de nuevo. Visita `/Productos/Detalle/2`: bajo los datos de l
 Regresar a `/Productos`: sus tres tarjetas continúan presentes y no han cambiado de estructura.
 
 **Conclusión del paso:** el mismo archivo de parcial puede renderizarse muchas veces con modelos distintos, en páginas diferentes, sin duplicar marcado. Esta es la principal ventaja de la reutilización que se quiere enseñar en P1.5.
-
-**Profundización aplicada: Reutilizar la misma parcial en un contexto distinto.**
-
-**Activar la parcial dentro del detalle.**
-
-Abre `Views/Productos/Detalle.cshtml` y localiza `PASO 1.5.5`:
-
-~~~cshtml
-@* PASO 1.5.5 (inicio)
-<section id="tarjeta-detalle" aria-label="Ficha presentada como tarjeta">
-    <h2>Tarjeta reutilizada en el detalle</h2>
-    <partial name="_TarjetaProducto" model="Model" />
-</section>
-PASO 1.5.5 (fin) *@
-~~~
-
-Retira los delimitadores de comentario. Observa que el atributo `model` contiene ahora `Model`, no una variable `producto` creada por un bucle. La vista de detalle recibe un único `Producto`.
-
-**Comparar la cantidad de parciales representadas.**
-
-Visita `/Productos`: deben seguir apareciendo tres tarjetas. Visita `/Productos/Detalle/2`: debe aparecer una única tarjeta correspondiente a Lápiz. Visita `/Productos/Detalle/1` y comprueba la tarjeta de Cuaderno.
-
-En ambos contextos el marcado procede del mismo archivo `_TarjetaProducto.cshtml`. No hemos creado una copia en `Views/Productos` ni hemos añadido otra acción para representar tarjetas.
-
-**Explicar la reutilización en términos de mantenimiento.**
-
-Si en el futuro hubiera que cambiar el texto «Precio» por otro, ¿cuántos archivos de tarjeta habría que modificar? Solo `_TarjetaProducto.cshtml`, siempre que las dos páginas continúen utilizándola.
-
-Si copiáramos el marcado en la lista y en el detalle, habría que mantener ambas versiones. La práctica pretende demostrar el beneficio de evitar esa duplicación.
 
 **Profundización aplicada: Taller final de P1.5 — Rastrear una misma tarjeta por dos páginas.**
 
