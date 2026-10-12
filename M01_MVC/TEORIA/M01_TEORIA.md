@@ -851,6 +851,16 @@ Este fragmento es **un ejemplo de lectura conceptual**, no un paso que deba acti
 
 En el código ejecutable del curso no añadimos `Descripcion` durante 1.2; la clase suministrada mantiene únicamente las tres propiedades necesarias, y el reto se concentra en variar el nombre de una instancia. Con ello mantenemos un ejercicio acotado y reproducible.
 
+### Puente práctico: observar un modelo sin copiar sus valores
+
+Hasta aquí hemos separado el objeto `Producto`, el controlador que lo prepara y la vista que lo representa. La separación resulta realmente útil cuando añadimos una necesidad de presentación **sin volver a modificar los datos**. Pensemos que la página debe destacar el nombre del primer producto, además de mostrar la colección.
+
+Si la acción ya entrega una lista con `View(productos)`, no necesita construir una segunda colección ni generar una frase HTML. El dato está disponible en la vista a través de `Model`. Pero hay una condición que no podemos ignorar: **tener una referencia a una lista no garantiza que haya un primer elemento**. La vista del curso comprueba primero `Model is null`; dentro de la rama que tiene lista, puede examinar `Model.Count` antes de acceder a un índice.
+
+Esta es una diferencia fundamental entre tres situaciones: una referencia nula, una colección vacía y una colección con datos. La primera no ofrece ninguna instancia de lista; la segunda es una lista válida sin elementos; la tercera permite seleccionar posiciones como la inicial. Esas situaciones pueden necesitar presentaciones distintas, y no se resuelven escribiendo valores fijos en Razor.
+
+La aplicación autónoma P1.2 exige usar esa distinción para construir **una frase dependiente del modelo**, no una frase que contenga el nombre Cuaderno como texto constante. Si después se sustituye ese nombre por Bloc en el controlador, tanto el listado como la frase deberían cambiar. Ese resultado será una evidencia más sólida de separación de responsabilidades que una definición memorizada de MVC.
+
 ## Cómo llegan los datos a la vista
 
 **El recorrido completo de una petición.**
@@ -1430,6 +1440,14 @@ En Visual Studio, seleccionar un perfil de inicio y pulsar **Ejecutar** realiza 
 
 Esta distinción también permite comprobar la aplicación desde distintas herramientas: la ventana de ejecución de Visual Studio confirma el puerto de Kestrel, mientras que el navegador y `curl` permiten observar la respuesta HTTP de cada URL.
 
+### Puente práctico: qué significa publicar una copia de un archivo
+
+La infraestructura `app.UseStaticFiles()` no permite por sí sola que cualquier ruta del disco sea pública. En el caso sencillo de este curso, los archivos estáticos se buscan en la raíz web `wwwroot`. El archivo `wwwroot/recursos/guia-publica.txt` se puede solicitar como `/recursos/guia-publica.txt`; en cambio, un documento que permanezca en `DOCUMENTACION` no se publicará automáticamente con esa ruta.
+
+La diferencia no reside en que un archivo de texto necesite un controlador especial. Reside en **la ubicación física del recurso y en el middleware responsable de responder**. Si hacemos una copia deliberada de un documento de laboratorio a la carpeta pública, una URL que antes devolvía 404 podrá devolver 200. Si solo añadimos un enlace desde el layout pero no copiamos el archivo, el enlace llevará a un recurso inexistente. Y si el archivo ya es público pero no aparece ningún enlace, su URL directa seguirá funcionando.
+
+Este es el problema de la aplicación autónoma P1.3: pasar de un recurso no publicado a uno publicado y distinguir esa decisión de la decisión visual de mostrar un enlace. También nos obliga a introducir un límite importante: que una ruta de archivo sea técnica y fácilmente publicable no convierte en adecuado publicar contraseñas, datos personales o documentación sensible. El laboratorio usa un texto inofensivo preparado para el ejercicio, sin trasladar documentos internos reales.
+
 ## Recursos públicos y respuestas HTTP
 
 **wwwroot: rutas físicas y URLs no son lo mismo.**
@@ -1800,6 +1818,16 @@ Si la acción está activa y selecciona correctamente el producto, la llamada `V
 En una aplicación más grande, múltiples rutas pueden llevar a una misma representación. Si copiamos una vista por cada dirección sin que exista una necesidad de diseño diferente, aumentamos innecesariamente el mantenimiento. El proyecto del curso muestra una alternativa concreta y sencilla: reutilizar una vista y expresar su nombre cuando la convención basada en el nombre de la acción no es apropiada.
 
 No estamos promoviendo que todas las acciones utilicen siempre la misma plantilla. Solo demostramos que la elección de la ruta y la elección de la vista son decisiones independientes que podemos coordinar de forma explícita.
+
+### Puente práctico: dos criterios de búsqueda y una sola vista
+
+El detalle del catálogo utiliza un identificador entero: `Detalle(int id)` busca un elemento por `Id` y decide entre un resultado de vista, 400 o 404. Sin embargo, un identificador no es el único dato que puede viajar en un segmento de ruta. Un parámetro de tipo `string` permite expresar una consulta por nombre. Por ejemplo, una plantilla por atributos del estilo `/catalogo/buscar/{nombre}` puede transportar la palabra Cuaderno y enlazarla con un argumento `string nombre`.
+
+Esta selección responde a dos preguntas distintas: **¿la URL coincide con una ruta que existe?** y **¿existe un producto que cumple el criterio recibido?** La primera corresponde a routing y model binding; la segunda, a la lógica de la acción. La coincidencia con la plantilla no garantiza que el catálogo contenga el nombre solicitado, del mismo modo que recibir `id=99` no garantiza que exista el producto 99.
+
+Para comparar nombres sin que cambie el resultado por la capitalización puede emplearse `StringComparison.OrdinalIgnoreCase`. Es una decisión explícita del código de búsqueda; no la aporta automáticamente el atributo `[HttpGet]`. Una vez encontrado un `Producto`, podemos utilizar la misma vista `Detalle.cshtml` que usábamos en la búsqueda por identificador: la vista necesita un objeto del tipo correcto, no conocer el criterio con que se obtuvo.
+
+En P1.4 el alumno escribirá esa segunda acción en el controlador existente. Al abrir un producto con dos URLs distintas tendrá que explicar por qué el HTML puede ser el mismo y, sin embargo, **los mecanismos de selección del producto son diferentes**. El reto JSON posterior trabaja sobre otro eje: modificar el formato del resultado. No debemos confundir cambiar la ruta con cambiar el tipo de respuesta.
 
 ## Parámetros, búsqueda y decisiones de la acción
 
@@ -2699,6 +2727,16 @@ La ficha de Lápiz incluye una sección de notas y el catálogo no la declara. S
 El alumno también debe comprender por qué el código se activa en ambos archivos en el mismo paso. Si se declara una sección en una vista sin que exista un mecanismo apropiado para representarla o ignorarla, el motor de vistas puede detectar una sección sin consumir. La práctica evita deliberadamente dejar el proyecto en ese estado intermedio.
 
 Las secciones pertenecen a la composición de una vista completa con su layout. No constituyen un mecanismo general para enviar contenido desde cualquier vista parcial. Por eso el mensaje `NotasPagina` se define en `Detalle.cshtml` y no en `_TarjetaProducto.cshtml`.
+
+### Puente práctico: centralizar una decisión que aparece dos veces
+
+En `Views/Productos/Index.cshtml` recorremos una colección; en `Views/Productos/Detalle.cshtml` recibimos un producto individual. Si ambas páginas necesitan la misma tarjeta, escribir su marcado dos veces puede parecer rápido, pero convierte cada cambio visual en dos tareas de mantenimiento. Un cambio aplicado solo al listado dejaría la ficha de detalle con una presentación distinta.
+
+La vista parcial `_TarjetaProducto.cshtml` recibe un `Producto` por su propio contrato `@model`. Esto significa que puede leer `Model.Nombre` y `Model.Precio` **sin saber de qué página fue invocada**. El listado entrega cada elemento de la colección; el detalle entrega su propio objeto. La parcial solo transforma ese producto en un fragmento de HTML.
+
+Lo mismo ocurre con las decisiones de presentación. Si queremos señalar los productos de precio elevado o económico, podemos evaluar una condición `@if` dentro de la tarjeta. Colocarla en la parcial evita repetir una condición en ambas páginas; colocarla solamente en el layout sería inadecuado porque ese marco compartido no recibe de forma natural el producto de cada tarjeta.
+
+En P1.5 el alumno escribirá una regla nueva con un umbral de 4 € para comprobar el efecto tanto en el catálogo como en el detalle. El reto del mismo punto usa un umbral distinto para el precio económico. Ambas actividades tienen sentido porque obligan a **razonar la ubicación de la regla** y contrastar el resultado en más de un contexto, no porque sea complejo escribir una comparación decimal.
 
 ## Vistas parciales y reutilización
 
