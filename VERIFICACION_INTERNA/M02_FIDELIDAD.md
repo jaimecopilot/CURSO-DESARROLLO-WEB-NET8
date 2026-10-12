@@ -14,8 +14,8 @@ excluyendo las cabeceras y pies repetidos y los bloques Mermaid transformados en
 | PRACTICAS | P2.1 | 4-17 | 100.00% | 0 |
 | PRACTICAS | P2.2 | 18-30 | 100.00% | 0 |
 | PRACTICAS | P2.3 | 31-48 | 99.98% | 1 |
-| PRACTICAS | P2.4 | 49-69 | 99.97% | 2 |
-| PRACTICAS | P2.5 | 70-78 | 99.96% | 1 |
+| PRACTICAS | P2.4 | 49-69 | 99.98% | 1 |
+| PRACTICAS | P2.5 | 70-78 | 100.00% | 0 |
 
 Los contadores de tokens son un diagnóstico de extracción textual: no prueban idéntica maquetación,
 igualdad visual de los diagramas ni ausencia de errores de lectura humana.
@@ -225,17 +225,13 @@ igualdad visual de los diagramas ni ausencia de errores de lectura humana.
         "punto": "P2.4",
         "desde": 49,
         "hasta": 69,
-        "palabras_visibles_md": 6275,
+        "palabras_visibles_md": 6276,
         "palabras_extraidas_pdf": 6277,
-        "cobertura": 0.999681,
-        "tokens_no_encontrados": 2,
+        "cobertura": 0.999841,
+        "tokens_no_encontrados": 1,
         "ejemplos_missing": [
           [
             "aplicación",
-            1
-          ],
-          [
-            "trustservercertificate",
             1
           ]
         ],
@@ -247,14 +243,6 @@ igualdad visual de los diagramas ni ausencia de errores de lectura humana.
           [
             "n",
             1
-          ],
-          [
-            "trustservercer",
-            1
-          ],
-          [
-            "tificate",
-            1
           ]
         ]
       },
@@ -262,26 +250,12 @@ igualdad visual de los diagramas ni ausencia de errores de lectura humana.
         "punto": "P2.5",
         "desde": 70,
         "hasta": 78,
-        "palabras_visibles_md": 2352,
+        "palabras_visibles_md": 2353,
         "palabras_extraidas_pdf": 2353,
-        "cobertura": 0.999575,
-        "tokens_no_encontrados": 1,
-        "ejemplos_missing": [
-          [
-            "trustservercertificate",
-            1
-          ]
-        ],
-        "ejemplos_extra": [
-          [
-            "trustservercertifica",
-            1
-          ],
-          [
-            "te",
-            1
-          ]
-        ]
+        "cobertura": 1.0,
+        "tokens_no_encontrados": 0,
+        "ejemplos_missing": [],
+        "ejemplos_extra": []
       }
     ]
   }
