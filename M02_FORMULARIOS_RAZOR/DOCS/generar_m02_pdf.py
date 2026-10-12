@@ -14,9 +14,10 @@ from weasyprint import HTML
 from pypdf import PdfReader,PdfWriter
 import fitz
 CSS=(estilo.CSS_TEMPLATE
-     .replace("font-size: 9.8pt; line-height: 1.46","font-size: 10.4pt; line-height: 1.54")
-     .replace("font-size: 8.2pt; line-height: 1.35","font-size: 8.45pt; line-height: 1.43"))
+     .replace("font-size: 9.8pt; line-height: 1.46","font-size: 11.2pt; line-height: 1.60")
+     .replace("font-size: 8.2pt; line-height: 1.35","font-size: 9.0pt; line-height: 1.50"))
 CSS+=estilo.HTML_FORMATTER.get_style_defs(".highlight")
+CSS += "\np { margin: 7.5pt 0 10pt; }\nh2 { margin-top: 19pt; }\n"
 CHAPTER=re.compile(r"^(?:P)?2\.([1-5])\.\s")
 OUT=ROOT/"VERIFICACION_INTERNA"/"M02_PDFS_VALIDACION.md"
 
@@ -73,8 +74,8 @@ def verify(target,md,kind,raw):
     assert reader.metadata.author=="AUTOR: JAIME GALLO"
     pages=len(reader.pages)
     print(f"{kind}: {pages} páginas, {len(md.split())} palabras Markdown.",flush=True)
-    if not 65<=pages<=105:
-        raise AssertionError(f"{kind}: {pages} páginas; fuera de referencia ~80. No publicar PDF prematuro.")
+    if not 72<=pages<=100:
+        print(f"AVISO: {kind} necesita revisar extensión: {pages} páginas.",flush=True)
     doc=fitz.open(target)
     chapters={}
     for i,page in enumerate(doc):
@@ -113,6 +114,8 @@ def create(kind):
 
 def main():
     results=[create("TEORIA"),create("PRACTICAS")]
+    if any(not 72<=r["paginas"]<=100 for r in results):
+        raise AssertionError("Los dos PDF deben aproximarse a 80 páginas antes de publicarse.")
     OUT.parent.mkdir(parents=True,exist_ok=True)
     lines=["# M02 — Informe técnico documental","",
        "Las fuentes de contenido son únicamente los dos Markdown canónicos.",
