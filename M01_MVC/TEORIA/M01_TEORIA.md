@@ -2706,11 +2706,11 @@ Una sección Razor permite que una vista defina contenido destinado a una regió
 
 En el layout:
 
-En el layout compartido se reserva el lugar mediante `@RenderSection("Notas", required: false)`, una sección opcional que no obliga a cada vista a definir contenido adicional.
+En el layout compartido se reserva el lugar mediante `@await RenderSectionAsync("NotasPagina", required: false)`, una sección opcional que no obliga a cada vista a definir contenido adicional.
 
 En la vista de detalle:
 
-La vista `Detalle.cshtml` aporta su propio bloque `@section Notas { ... }`. La vista del catálogo no lo aporta, y por eso ambas funcionan con el mismo layout sin crear contenido vacío.
+La vista `Detalle.cshtml` aporta su propio bloque `@section NotasPagina { ... }`. La vista del catálogo no lo aporta, y por eso ambas funcionan con el mismo layout sin crear contenido vacío.
 
 La vista declara la sección y el layout define dónde se representa. Como el parámetro `required` es `false`, otras vistas que no declaran esa sección pueden seguir utilizándolo sin tener que añadir texto vacío.
 
