@@ -553,7 +553,7 @@ El recorrido troncal de esta práctica comprende los pasos **2.3.1 a 2.3.4**. La
 
 **Teoría relacionada:** punto 2.3 del manual del módulo. Si un resultado sorprende, vuelve a consultar la distinción entre model binding, validación declarativa y visualización de errores.
 
-**Proyecto a abrir:** `M02_FORMULARIOS_RAZOR/PROYECTO/2.3/CursoWeb.Mvc/CursoWeb.Mvc.csproj`. No modifiques el M01 aprobado ni las carpetas de 2.1 o 2.2. La carpeta 2.3 es el punto de partida propio de este ejercicio y conserva los mecanismos HTML y Tag Helpers estudiados antes.
+**Proyecto a abrir:** `M02_FORMULARIOS_RAZOR/PROYECTO/2.3/CursoWeb.Mvc/CursoWeb.Mvc.csproj`. No modifiques los proyectos de M01 ni las carpetas de 2.1 o 2.2. La carpeta 2.3 es el punto de partida propio de este ejercicio y conserva los mecanismos HTML y Tag Helpers estudiados antes.
 
 ### Arranque reproducible
 
