@@ -7,6 +7,14 @@
 
 **AUTOR: JAIME GALLO**
 
+## Cómo trabajar con este cuaderno en seis horas
+
+El **recorrido esencial** de cada práctica está formado por sus pasos numerados y la comprobación observable de cada uno. El profesor presenta el concepto en teoría, el alumno predice el comportamiento, activa o implementa el cambio indicado y verifica el resultado en el navegador. En cada paso debe poder explicar **qué archivo interviene, por qué, y qué cambio observable produce**.
+
+Los apartados **«Profundización aplicada» son ampliaciones opcionales**, apropiadas para alumnado que avanza más rápido o para trabajo posterior. **No forman parte del itinerario obligatorio de las seis horas**; algunos anticipan cambios de otros pasos y deben abordarse solo cuando esos pasos ya estén comprendidos. Las preguntas y los retos deben intentarse primero sin leer la solución, aunque el código de apoyo permanezca disponible y comentado en el proyecto.
+
+**Orientación del módulo:** 120 minutos de explicación, 210 minutos de trabajo guiado y 30 minutos de resolución de dudas. No es necesario leer en voz alta todos los ejemplos ni ejecutar todas las variantes para completar el recorrido esencial. La evidencia del aprendizaje consiste en modificar, observar y explicar la aplicación, no en superar controles internos.
+
 ### Índice del módulo
 
 - **P1.1. Primera aplicación MVC y recorrido de una petición HTTP**
@@ -3538,7 +3546,7 @@ Después solicita `Detalle/1` y confirma que la etiqueta no aparece en la tarjet
 **Comprobación del alumno:** ejecuta la aplicación con los bloques indicados activados y verifica manualmente las URL y los cambios descritos en este apartado.
 
 
-Sin embargo, el alumno todavía debe explicar qué se ejecuta dentro del servidor, qué HTML recibe el navegador y por qué una vista parcial puede utilizarse en varios lugares. Los tests automáticos son una ayuda para la reproducibilidad, no sustituyen la comprensión del flujo.
+Como cierre, explica qué se ejecuta dentro del servidor, qué HTML recibe el navegador y por qué una vista parcial puede utilizarse en varios lugares.
 
 **Comprobación final por escenarios sin modificar la fuente.**
 
