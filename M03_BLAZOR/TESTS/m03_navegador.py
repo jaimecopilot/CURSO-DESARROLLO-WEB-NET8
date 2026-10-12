@@ -281,7 +281,8 @@ def t35deshacer(p):
     t35(p)
     rel="Components/Pages/Productos.razor"
     enable_block(p,rel,"RETO INTEGRADOR 3.5.5")
-    edit(p,rel,'AlQuitar="Quitar"','AlQuitar="QuitarConDeshacer"')
+    edit(p,rel,'<TarjetaProducto Producto="producto" AlSeleccionar="Seleccionar" AlQuitar="Quitar" />',
+         '<TarjetaProducto Producto="producto" AlSeleccionar="Seleccionar" AlQuitar="QuitarConDeshacer" />')
     edit(p,rel,'@* <button id="deshacer" disabled="@(eliminacionPendiente is null)" @onclick="DeshacerEliminacion">Deshacer última eliminación</button> *@',
          '<button id="deshacer" disabled="@(eliminacionPendiente is null)" @onclick="DeshacerEliminacion">Deshacer última eliminación</button>')
     edit(p,rel,'@* <p id="estado-deshacer">@TextoDeshacer</p> *@',
