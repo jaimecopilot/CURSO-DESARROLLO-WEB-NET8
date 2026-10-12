@@ -2751,6 +2751,54 @@ Una explicación adecuada del reto tiene que cubrir ambos resultados: presencia 
 
 Este análisis permite separar cambios de datos, cambios de contenido compartido y cambios de estructura de página.
 
+## Aplicación autónoma P1.5 — una regla de precio visible en dos páginas
+
+El capítulo explica que una vista parcial permite reutilizar el mismo marcado en el listado y en la ficha de detalle. Los pasos 1.5.4 y 1.5.5 preparan esta reutilización mediante `_TarjetaProducto.cshtml`. Para comprobar que has comprendido por qué la extraemos, resolverás un requisito nuevo: **señalar los productos de precio igual o superior a 4 € con una etiqueta visual**, sin duplicar la decisión en dos vistas.
+
+### A — Encontrar la responsabilidad adecuada
+
+Abre el proyecto `PROYECTO/1.5/CursoWeb.Mvc` con el paso 1.5.5 ya activado. Inspecciona `Views/Productos/Index.cshtml` y `Views/Productos/Detalle.cshtml`: ambos deben utilizar la misma parcial con `<partial name="_TarjetaProducto" ... />`, aunque entregan el modelo de forma distinta. El listado itera la colección; el detalle tiene un único `Producto`.
+
+Observa que la parcial comienza con `@model CursoWeb.Mvc.Models.Producto`. Por lo tanto, dentro de ella `Model.Precio` se refiere al precio de **un solo producto**. Esa es la información suficiente para nuestra condición. No hace falta volver a buscar el producto por identificador, consultar otra lista ni crear otra acción.
+
+Antes de escribir, predice cuántas etiquetas nuevas aparecerán. Con los productos del curso —Cuaderno: 4,50 €, Lápiz: 1,20 €, Carpeta: 3,75 €— únicamente Cuaderno cumple `Precio >= 4m`. En el listado habrá una etiqueta, mientras que en la ficha de Cuaderno habrá otra representación de la **misma regla**. El número de tarjetas no debe cambiar.
+
+### B — Escribir la condición, no activarla mecánicamente
+
+Localiza en `Views/Shared/_TarjetaProducto.cshtml` el comentario `APLICACION 1.5`, situado después del párrafo del precio. Reemplázalo por una condición Razor que redactes tú mismo. La expresión debe ser `Model.Precio >= 4m` y el contenido representado en el caso verdadero debe ser:
+
+~~~html
+<strong class="etiqueta-destacada">Producto destacado</strong>
+~~~
+
+El sufijo `m` conserva el tipo decimal del precio; no conviertas un valor monetario a `double` sin necesidad. Coloca la condición dentro de la parcial y **no** en `Index.cshtml` ni en `Detalle.cshtml`. Si escribes dos condiciones separadas puedes conseguir algo parecido visualmente, pero habrás perdido la razón pedagógica del ejercicio: mantener una sola regla de presentación reutilizable.
+
+El reto final del punto 1.5 utiliza un umbral distinto para mostrar «Precio económico» cuando el precio es inferior a 3 €. No confundas ambos requisitos: la aplicación autónoma debe funcionar por separado. Más tarde podrás activar ambas reglas, y entonces Lápiz mostrará la etiqueta económica y Cuaderno la destacada.
+
+### C — Comprobar el catálogo y dos fichas
+
+Construye y ejecuta el proyecto. Abre `/Productos` y localiza las tres tarjetas; una de ellas debe contener `class="etiqueta-destacada"`. Comprueba que corresponde a Cuaderno y que no aparece junto a Lápiz ni Carpeta.
+
+Abre luego `/Productos/Detalle/1`, la ficha de Cuaderno, y `/Productos/Detalle/2`, la de Lápiz. En la primera debe aparecer la etiqueta; en la segunda, no. Para comprobarlo con precisión, inspecciona el HTML generado desde F12 → Red o desde el inspector de elementos. Las expresiones Razor y el contenido de los comentarios de servidor no deben aparecer como código sin procesar en el HTML recibido.
+
+Repite la navegación hacia `/` y `/Productos`. El layout, la sección opcional del detalle, las rutas y el resto de los productos deben permanecer intactos. La regla nueva es una **evolución de la presentación**, no una modificación del catálogo.
+
+### D — Diagnosticar tres errores diferentes
+
+**No se ve ninguna etiqueta.** Comprueba que el código está fuera del comentario Razor, que su condición está dentro de `_TarjetaProducto.cshtml` y que la parcial se está utilizando en ambas pantallas. Si activaste solo 1.5.4, la tarjeta podría verse en el catálogo pero no en detalle; completa 1.5.5 antes de evaluar ambas páginas.
+
+**Aparecen tres etiquetas.** La condición podría estar fuera del `@if`, o haberse puesto un valor fijo que no utiliza `Model.Precio`. Comprueba el operador `>=`, el umbral decimal y dónde se encuentran las llaves del bloque.
+
+**La etiqueta aparece en la lista pero no en el detalle.** Es posible que hayas escrito la regla directamente en `Index.cshtml` en lugar de la parcial. También puede faltar la activación de P1.5.5. Revisa primero las rutas y el código que entrega la parcial antes de copiar el `if` a una segunda vista.
+
+### E — Explicar por qué funciona
+
+Esta actividad permite distinguir tres mecanismos que comparten sintaxis Razor pero tienen funciones distintas: `@model` define el tipo de dato que recibe una vista; el layout aporta el marco de la página; una vista parcial presenta un fragmento reutilizable que recibe su propio modelo. La nueva condición no necesita una sección del layout ni un controlador.
+
+**Preguntas de razonamiento.** ¿Por qué la misma condición se evalúa una vez por producto en el catálogo y solo una vez en la ficha de detalle? ¿Qué cambia si el precio de Carpeta supera los 4 €? ¿Cuántos archivos deberías modificar para cambiar el texto «Producto destacado» por otro? ¿En qué casos una regla debería vivir en el dominio y no en Razor? ¿Por qué es posible que una página devuelva 200 y, aun así, falte la etiqueta esperada?
+
+**Resultado verificable:** el alumno escribe una condición propia en la parcial, observa su efecto en dos contextos y demuestra que la lógica de presentación permanece centralizada. El reto posterior de precio económico utiliza el mismo principio con otra condición, pero no sustituye esta aplicación.
+
 ## Reto: aplicación de los pasos
 
 **Reto 1.5 — Destacar productos económicos reutilizando una única parcial.**
@@ -2925,6 +2973,19 @@ Si consigues seguir Lápiz desde su definición en el controlador hasta la tarje
 **Fallo 5: la etiqueta económica aparece en Cuaderno.** Revisa la condición y el umbral. El precio de Cuaderno es superior a 3 €, así que no debería mostrarla.
 
 La técnica común consiste en observar qué parte del resultado es incorrecta y regresar al archivo responsable de esa parte, evitando reescribir simultáneamente el controlador, la vista y el layout.
+
+### Solución de referencia de la aplicación autónoma P1.5
+
+Una vez completado tu intento, compara la lógica con este ejemplo, ubicado **una única vez** dentro de `Views/Shared/_TarjetaProducto.cshtml`:
+
+~~~cshtml
+@if (Model.Precio >= 4m)
+{
+    <strong class="etiqueta-destacada">Producto destacado</strong>
+}
+~~~
+
+No debes copiar este bloque también al listado o al detalle. Ambas vistas reciben la salida de la misma parcial. Al ejecutar con la colección del curso, solo Cuaderno cumple la condición. Si más adelante cambias los datos, Razor vuelve a evaluar la condición con los valores actuales sin que debas modificar el HTML.
 
 ## Resultado y continuidad
 
