@@ -935,6 +935,464 @@ Al final del módulo, abre P3.6 y describe cinco diferencias entre la aplicació
 
 Si puedes relacionar estos cinco aspectos con código real, explicar un caso positivo y negativo y distinguir estado de componente de persistencia, habrás alcanzado el objetivo de la jornada. No hay que construir todavía un CRUD nuevo ni desplegar infraestructura adicional.
 
+
+## Anexo práctico — Archivos canónicos de cada estado inicial
+
+Este anexo reproduce íntegramente los archivos específicos que intervienen en las transiciones del módulo, extraídos de la misma rama del proyecto. No sustituye las instrucciones anteriores: sirve para consultar el **estado inicial reproducible**, recuperar un bloque comentado o comparar tu solución con el archivo entregado. Los archivos comunes que no cambian entre los seis estados se omiten aquí para evitar repetir boilerplate. Cada fragmento conserva su ruta exacta, y los cambios posteriores se efectúan siguiendo los pasos 3.1–3.6.
+
+### Archivos específicos de P3.1
+
+#### Program.cs
+
+**Ruta exacta:** `M03_BLAZOR/PROYECTO/3.1/CursoWeb.Blazor/Program.cs`.
+
+Arranque del host, servicios de Razor Components y mapeo de Interactive Server. Compara ambos registros con las directivas de las dos páginas.
+
+~~~csharp
+using CursoWeb.Blazor.Components;
+
+var builder = WebApplication.CreateBuilder(args);
+// Servicios necesarios para componentes Razor y circuitos Interactive Server.
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+
+var app = builder.Build();
+if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/error");
+app.UseStaticFiles();
+app.UseAntiforgery();
+// El modo Interactive Server necesita tanto servicios como endpoint.
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+app.Run();
+public partial class Program { }
+~~~
+
+#### Components/Pages/Estatica.razor
+
+**Ruta exacta:** `M03_BLAZOR/PROYECTO/3.1/CursoWeb.Blazor/Components/Pages/Estatica.razor`.
+
+Primera mitad de la comparación: el método existe, pero la página no declara un modo interactivo.
+
+~~~razor
+@page "/estatica"
+<PageTitle>SSR estático</PageTitle>
+<h1>P3.1 | Componente con SSR estático</h1>
+<p>El servidor envía HTML. Este ejemplo no declara un modo de renderizado interactivo.</p>
+<p id="contador-estatico">Pulsaciones: @contador</p>
+<button id="boton-estatico" @onclick="Incrementar">Pulsar (sin interacción)</button>
+<p class="mensaje">Aunque el marcado contenga @@onclick, sin renderizado interactivo no se ejecuta el evento C# tras pulsar.</p>
+@code {
+    private int contador;
+    private void Incrementar() => contador++;
+}
+~~~
+
+#### Components/Pages/Interactiva.razor
+
+**Ruta exacta:** `M03_BLAZOR/PROYECTO/3.1/CursoWeb.Blazor/Components/Pages/Interactiva.razor`.
+
+Segunda mitad: la directiva InteractiveServer habilita el circuito y contiene la variante de incremento doble del reto.
+
+~~~razor
+@page "/interactiva"
+@rendermode InteractiveServer
+<PageTitle>Interactive Server</PageTitle>
+<h1>P3.1 | Componente interactivo en servidor</h1>
+<p>El evento se procesa en el circuito de Blazor y la pantalla se actualiza sin navegación HTTP.</p>
+<p id="contador-interactivo">Pulsaciones: @contador</p>
+<button id="boton-interactivo" @onclick="Incrementar">Pulsar (interactivo)</button>
+@code {
+    private int contador;
+    private void Incrementar() => contador++;
+    // RETO 3.1: sustituye la línea anterior por esta variante (no mantener ambas):
+    // private void Incrementar() => contador += 2;
+}
+~~~
+
+### Archivos específicos de P3.2
+
+#### Components/Layout/MainLayout.razor
+
+**Ruta exacta:** `M03_BLAZOR/PROYECTO/3.2/CursoWeb.Blazor/Components/Layout/MainLayout.razor`.
+
+El enlace Productos está preparado en un comentario; su activación permite navegar a una ruta que ya existe.
+
+~~~razor
+@inherits LayoutComponentBase
+<header><strong>Curso ASP.NET Core · Blazor B</strong>
+<nav>
+    <NavLink href="/" Match="NavLinkMatch.All">Inicio</NavLink>
+    <NavLink href="/estatica">SSR estático</NavLink>
+    <NavLink href="/interactiva">SSR interactivo</NavLink>
+    @* PASO 3.2.2 (ACTIVAR): quita las marcas de comentario de este NavLink. *@
+    @* <NavLink href="/productos">Productos</NavLink> *@
+</nav></header>
+<main>@Body</main>
+~~~
+
+#### Components/Pages/Productos.razor
+
+**Ruta exacta:** `M03_BLAZOR/PROYECTO/3.2/CursoWeb.Blazor/Components/Pages/Productos.razor`.
+
+Colección inicial y bucle Razor. El ejercicio de cuarta fila está identificado junto a los datos a modificar.
+
+~~~razor
+@page "/productos"
+@rendermode InteractiveServer
+<PageTitle>Productos</PageTitle>
+<h1>P3.2 | Página Productos</h1>
+<p>Catálogo de ejemplo en memoria. Todavía no consumimos una API.</p>
+<ul id="lista-productos">
+    @foreach (var producto in productos)
+    {
+        <li>@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+    }
+</ul>
+@code {
+    private readonly List<Producto> productos =
+    [
+        new(1, "Cuaderno", 4.50m),
+        new(2, "Lápiz", 1.20m),
+        new(3, "Carpeta", 3.75m)
+        // APLICACIÓN 3.2: añade una coma tras Carpeta y activa esta cuarta fila.
+        // , new(4, "Regla", 2.50m)
+    ];
+}
+~~~
+
+### Archivos específicos de P3.3
+
+#### Components/TarjetaProducto.razor
+
+**Ruta exacta:** `M03_BLAZOR/PROYECTO/3.3/CursoWeb.Blazor/Components/TarjetaProducto.razor`.
+
+Contrato [Parameter] y representación visual de un objeto. Contiene la variante condicional del reto.
+
+~~~razor
+<article class="tarjeta" data-producto-id="@Producto.Id">
+    <h2>@Producto.Nombre</h2>
+    <p>Precio: @Producto.Precio.ToString("0.00") €</p>
+    <small>Referencia @Producto.Id</small>
+    @* RETO 3.3: eliminar los delimitadores del bloque siguiente. *@
+    @*
+    @if (Producto.Precio > 4m)
+    {
+        <p class="mensaje">Precio superior a 4 euros</p>
+    }
+    *@
+</article>
+@code {
+    [Parameter, EditorRequired] public Producto Producto { get; set; } = default!;
+}
+~~~
+
+#### Components/Pages/Productos.razor
+
+**Ruta exacta:** `M03_BLAZOR/PROYECTO/3.3/CursoWeb.Blazor/Components/Pages/Productos.razor`.
+
+Muestra las dos representaciones alternativas del padre: lista HTML inicial y tarjetas comentadas; debes sustituir una por otra.
+
+~~~razor
+@page "/productos"
+@rendermode InteractiveServer
+<PageTitle>Productos</PageTitle>
+<h1>P3.3 | Composición y parámetros</h1>
+<p>Tres productos en memoria. Cada tarjeta es una instancia del mismo componente.</p>
+@* PASO 3.3.2: el siguiente listado ya funciona en el estado inicial. *@
+<ul id="lista-productos">
+    @foreach (var producto in productos)
+    {
+        <li>@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+    }
+</ul>
+@* PASO 3.3.3 (ACTIVAR): comenta el bloque <ul> anterior y quita los
+   delimitadores del bloque siguiente, que pasa cada objeto mediante [Parameter]. *@
+@*
+<div class="tarjetas" id="tarjetas-productos">
+    @foreach (var producto in productos)
+    {
+        <TarjetaProducto Producto="producto" />
+    }
+</div>
+*@
+@code {
+    private readonly List<Producto> productos =
+    [
+        new(1, "Cuaderno", 4.50m),
+        new(2, "Lápiz", 1.20m),
+        new(3, "Carpeta", 3.75m)
+    ];
+}
+~~~
+
+### Archivos específicos de P3.4
+
+#### Components/Pages/Productos.razor
+
+**Ruta exacta:** `M03_BLAZOR/PROYECTO/3.4/CursoWeb.Blazor/Components/Pages/Productos.razor`.
+
+Contiene cada transición numerada: selección, binding, alta y reto. Observa que los campos y métodos todavía no activados no participan en la compilación inicial.
+
+~~~razor
+@page "/productos"
+@rendermode InteractiveServer
+<PageTitle>Eventos</PageTitle>
+<h1>P3.4 | Estado y eventos</h1>
+<p>Los datos existen únicamente durante la sesión interactiva de este componente.</p>
+<p id="seleccion">Seleccionado: @seleccion</p>
+<div class="tarjetas" id="tarjetas-productos">
+    @foreach (var producto in productos)
+    {
+        <article class="tarjeta" data-producto-id="@producto.Id">
+            <strong>@producto.Nombre</strong>
+            <p>@producto.Precio.ToString("0.00") €</p>
+            @* PASO 3.4.2 (ACTIVAR): descomenta este botón al activar Seleccionar. *@
+            @* <button @onclick="() => Seleccionar(producto.Id)">Seleccionar</button> *@
+        </article>
+    }
+</div>
+@* PASO 3.4.3 (ACTIVAR): descomenta el input tras activar el campo nuevoNombre. *@
+@* <label>Nombre nuevo: <input id="nombre-nuevo" @bind="nuevoNombre" /></label> *@
+@* PASO 3.4.4 (ACTIVAR): descomenta el botón tras activar Agregar. *@
+@* <button id="agregar" @onclick="Agregar">Añadir producto</button> *@
+@* RETO 3.4 (ACTIVAR): botón para deshacer la selección. *@
+@* <button id="limpiar" @onclick="Limpiar">Limpiar selección</button> *@
+@code {
+    private readonly List<Producto> productos =
+    [
+        new(1, "Cuaderno", 4.50m),
+        new(2, "Lápiz", 1.20m),
+        new(3, "Carpeta", 3.75m)
+    ];
+    private string seleccion = "ninguno";
+
+    /* PASO 3.4.2 INICIO
+    private void Seleccionar(int id)
+    {
+        seleccion = productos.First(p => p.Id == id).Nombre;
+    }
+    PASO 3.4.2 FIN */
+
+    /* PASO 3.4.3 INICIO
+    private string nuevoNombre = string.Empty;
+    PASO 3.4.3 FIN */
+
+    /* PASO 3.4.4 INICIO
+    private int siguienteId = 4;
+    private void Agregar()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoNombre))
+            return;
+        productos.Add(new Producto(siguienteId++, nuevoNombre.Trim(), 5m));
+        nuevoNombre = string.Empty;
+    }
+    PASO 3.4.4 FIN */
+
+    /* RETO 3.4 INICIO
+    private void Limpiar() => seleccion = "ninguno";
+    RETO 3.4 FIN */
+}
+~~~
+
+### Archivos específicos de P3.5
+
+#### Components/TarjetaProducto.razor
+
+**Ruta exacta:** `M03_BLAZOR/PROYECTO/3.5/CursoWeb.Blazor/Components/TarjetaProducto.razor`.
+
+Parámetros y callbacks del hijo, incluidos los métodos que emiten una intención tipada.
+
+~~~razor
+<article class="tarjeta" data-producto-id="@Producto.Id">
+    <h2>@Producto.Nombre</h2>
+    <p>Precio: @Producto.Precio.ToString("0.00") €</p>
+    <small>Referencia @Producto.Id</small>
+    @* PASO 3.5.2 (ACTIVAR) al declarar AlSeleccionar: *@
+    @* <button @onclick="NotificarSeleccion">Seleccionar</button> *@
+    @* RETO 3.5 (ACTIVAR) al declarar AlQuitar: *@
+    @* <button @onclick="NotificarQuitar">Quitar</button> *@
+</article>
+@code {
+    [Parameter, EditorRequired] public Producto Producto { get; set; } = default!;
+
+    /* PASO 3.5.2 INICIO
+    [Parameter] public EventCallback<int> AlSeleccionar { get; set; }
+    private Task NotificarSeleccion() => AlSeleccionar.InvokeAsync(Producto.Id);
+    PASO 3.5.2 FIN */
+
+    /* RETO 3.5 INICIO
+    [Parameter] public EventCallback<int> AlQuitar { get; set; }
+    private Task NotificarQuitar() => AlQuitar.InvokeAsync(Producto.Id);
+    RETO 3.5 FIN */
+}
+~~~
+
+#### Components/Pages/Productos.razor
+
+**Ruta exacta:** `M03_BLAZOR/PROYECTO/3.5/CursoWeb.Blazor/Components/Pages/Productos.razor`.
+
+Tres variantes de tarjeta en el padre, métodos de recepción y lista propietaria del estado; nunca dejes activas las tres variantes simultáneamente.
+
+~~~razor
+@page "/productos"
+@rendermode InteractiveServer
+<PageTitle>Comunicación</PageTitle>
+<h1>P3.5 | Comunicación padre–hijo</h1>
+<p id="seleccion">Seleccionado: @seleccion</p>
+<div class="tarjetas" id="tarjetas-productos">
+    @foreach (var producto in productos)
+    {
+        @* PASO 3.5.2: al activar AlSeleccionar en la tarjeta,
+           reemplaza esta línea por la variante siguiente. *@
+        <TarjetaProducto Producto="producto" />
+        @* <TarjetaProducto Producto="producto" AlSeleccionar="Seleccionar" /> *@
+        @* RETO 3.5: reemplaza por esta tercera variante al activar AlQuitar: *@
+        @* <TarjetaProducto Producto="producto" AlSeleccionar="Seleccionar" AlQuitar="Quitar" /> *@
+    }
+</div>
+<p id="cantidad">Total: @productos.Count</p>
+@code {
+    private readonly List<Producto> productos =
+    [
+        new(1, "Cuaderno", 4.50m),
+        new(2, "Lápiz", 1.20m),
+        new(3, "Carpeta", 3.75m)
+    ];
+    private string seleccion = "ninguno";
+
+    /* PASO 3.5.2 INICIO
+    private void Seleccionar(int id)
+    {
+        seleccion = productos.First(p => p.Id == id).Nombre;
+    }
+    PASO 3.5.2 FIN */
+
+    /* RETO 3.5 INICIO
+    private void Quitar(int id)
+    {
+        productos.RemoveAll(p => p.Id == id);
+        seleccion = "ninguno";
+    }
+    RETO 3.5 FIN */
+}
+~~~
+
+### Archivos específicos de P3.6
+
+#### Program.cs
+
+**Ruta exacta:** `M03_BLAZOR/PROYECTO/3.6/CursoWeb.Blazor/Program.cs`.
+
+Registro del contrato IProductosMemoriaService y su implementación, separado de los archivos de presentación.
+
+~~~csharp
+using CursoWeb.Blazor.Components;
+using CursoWeb.Blazor.Services;
+
+var builder = WebApplication.CreateBuilder(args);
+// Servicios necesarios para componentes Razor y circuitos Interactive Server.
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+// PASO 3.6.1: inyección por interfaz. No existe HttpClient ni API aún.
+builder.Services.AddScoped<IProductosMemoriaService, ProductosMemoriaService>();
+var app = builder.Build();
+if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/error");
+app.UseStaticFiles();
+app.UseAntiforgery();
+// El modo Interactive Server necesita tanto servicios como endpoint.
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+app.Run();
+public partial class Program { }
+~~~
+
+#### Services/IProductosMemoriaService.cs
+
+**Ruta exacta:** `M03_BLAZOR/PROYECTO/3.6/CursoWeb.Blazor/Services/IProductosMemoriaService.cs`.
+
+Interfaz asíncrona que conoce el componente; no incorpora llamadas HTTP.
+
+~~~csharp
+using CursoWeb.Blazor.Models;
+namespace CursoWeb.Blazor.Services;
+public interface IProductosMemoriaService
+{
+    Task<IReadOnlyList<Producto>> ObtenerAsync();
+}
+~~~
+
+#### Services/ProductosMemoriaService.cs
+
+**Ruta exacta:** `M03_BLAZOR/PROYECTO/3.6/CursoWeb.Blazor/Services/ProductosMemoriaService.cs`.
+
+Implementación controlada, productos ficticios y retorno alternativo de lista vacía para el reto.
+
+~~~csharp
+using CursoWeb.Blazor.Models;
+namespace CursoWeb.Blazor.Services;
+/// <summary>Servicio de laboratorio sin HTTP, EF Core ni base externa.</summary>
+public sealed class ProductosMemoriaService : IProductosMemoriaService
+{
+    public async Task<IReadOnlyList<Producto>> ObtenerAsync()
+    {
+        await Task.Delay(700);
+        // RETO 3.6 (alternativa): sustituye el bloque return siguiente por:
+        // return Array.Empty<Producto>();
+        return
+        [
+            new Producto(1, "Cuaderno", 4.50m),
+            new Producto(2, "Lápiz", 1.20m),
+            new Producto(3, "Carpeta", 3.75m)
+        ];
+    }
+}
+~~~
+
+#### Components/Pages/Productos.razor
+
+**Ruta exacta:** `M03_BLAZOR/PROYECTO/3.6/CursoWeb.Blazor/Components/Pages/Productos.razor`.
+
+Inyección, ciclo de inicialización preparado, bandera de carga, estados de presentación y mensaje opcional de lista vacía.
+
+~~~razor
+@page "/productos"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject IProductosMemoriaService Catalogo
+<PageTitle>Carga de productos</PageTitle>
+<h1>P3.6 | OnInitializedAsync</h1>
+<p>El servicio de productos usa datos en memoria y simula una operación asíncrona.</p>
+<p id="estado-carga">@estado</p>
+@if (!cargando && productos.Count > 0)
+{
+    <div class="tarjetas" id="tarjetas-productos">
+        @foreach (var producto in productos)
+        {
+            <TarjetaProducto Producto="producto" />
+        }
+    </div>
+}
+@* RETO 3.6 (ACTIVAR): mostrar un mensaje cuando no existen elementos.
+   La condición no se cumple con los tres productos de ejemplo;
+   prueba el reto retornando una lista vacía desde el servicio. *@
+@* @if (!cargando && productos.Count == 0) { <p id="sin-productos">No hay productos para mostrar.</p> } *@
+
+@code {
+    private IReadOnlyList<Producto> productos = Array.Empty<Producto>();
+    private bool cargando = true;
+    private string estado = "Servicio pendiente de activar";
+
+    /* PASO 3.6.2 INICIO
+    protected override async Task OnInitializedAsync()
+    {
+        estado = "Cargando productos...";
+        productos = await Catalogo.ObtenerAsync();
+        cargando = false;
+        estado = "Lista preparada";
+    }
+    PASO 3.6.2 FIN */
+}
+~~~
+
+### Cómo utilizar este anexo sin destruir el estado de trabajo
+
+Cuando un ejercicio deje de compilar, compara únicamente el archivo que modificaste con el estado inicial mostrado para su punto. Comprueba si conservaste ambos delimitadores de comentario o si retiraste solo uno. Para una sustitución de componentes en un bucle, cuenta las variantes activas. Si trabajas en una carpeta posterior, no copies indiscriminadamente la versión del punto anterior: perderías la transición que ya introduce el siguiente estado. La recuperación correcta consiste en partir de la carpeta de la práctica, aplicar de nuevo sus pasos numerados y observar la respuesta del navegador.
+
 ## Fuentes de consulta
 
 - Microsoft Learn: [Fundamentos de Blazor](https://learn.microsoft.com/en-us/aspnet/core/blazor/?view=aspnetcore-8.0).
