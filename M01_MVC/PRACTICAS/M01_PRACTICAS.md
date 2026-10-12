@@ -49,10 +49,12 @@ dotnet --list-sdks
 
 ### Obtener el estado inicial exacto
 
+El docente proporcionará la versión estable o el repositorio de alumnos correspondiente al curso. El siguiente comando es la forma habitual de clonar el repositorio publicado **una vez incorporado el módulo a la versión distribuida**; no hay que utilizar ramas internas de edición. Si la distribución se realiza mediante un repositorio starter independiente, sustituye la URL por la que facilite el docente.
+
 En una carpeta de trabajo elegida por el alumno:
 
 ~~~bash
-git clone --branch revision-didactica/m01 https://github.com/jaimecopilot/CURSO-DESARROLLO-WEB-NET8.git
+git clone https://github.com/jaimecopilot/CURSO-DESARROLLO-WEB-NET8.git
 cd CURSO-DESARROLLO-WEB-NET8
 ~~~
 
@@ -1371,66 +1373,6 @@ Reiniciar la aplicación, abrir `/Productos` y comprobar que ahora hay un enlace
 
 Aquí no hemos creado ninguna clase nueva ni un método de controlador. El trabajo ya lo hace el middleware de archivos estáticos.
 
-## Aplicación autónoma P1.3 — convertir un archivo del proyecto en un recurso público
-
-En el punto 1.3 hemos recorrido el árbol de una aplicación MVC y aprendido a distinguir `Controllers`, `Views`, `Program.cs`, `appsettings.json` y la carpeta `wwwroot`. Los pasos 1.3.4 y 1.3.5 ofrecen ejemplos de recursos estáticos preparados. Esta actividad requiere dar un paso adicional: **decidir y ejecutar tú mismo un cambio de ubicación que modifique el comportamiento HTTP**, y crear un enlace HTML al recurso sin añadir una acción MVC.
-
-### El problema
-
-Un compañero ha redactado una pequeña guía de laboratorio que debe ser accesible desde el navegador, sin entrar en el proyecto ni autenticar a nadie. El archivo está en `PROYECTO/1.3/CursoWeb.Mvc/DOCUMENTACION/ejercicio-publicacion.txt`. No contiene información sensible, pero en su ubicación actual **no debe servirse** por el middleware de archivos estáticos.
-
-En cambio, el navegador ya puede pedir `/recursos/guia-publica.txt`, porque ese documento está bajo `wwwroot`. Necesitamos decidir cómo poner la nueva guía al mismo nivel, comprobar el cambio desde HTTP y añadir un enlace en la navegación del catálogo.
-
-### A — Identificar el archivo y predecir su disponibilidad
-
-Abre el proyecto `PROYECTO/1.3/CursoWeb.Mvc` y localiza físicamente estos dos elementos:
-
-- `DOCUMENTACION/ejercicio-publicacion.txt`, dentro del proyecto pero fuera de la raíz pública.
-- `wwwroot/recursos/guia-publica.txt`, servido directamente por ASP.NET Core.
-
-Observa en `Program.cs` la llamada `app.UseStaticFiles();`. No se trata de una acción del controlador, sino de un middleware que puede atender solicitudes de recursos físicos publicados. Por eso no existe una acción `GuiaPublica()` y aun así el archivo responde HTTP 200.
-
-Antes de mover nada, arranca el proyecto y pide `http://localhost:5091/recursos/ejercicio-publicacion.txt` (si utilizas otro puerto, sustitúyelo por el que realmente muestre la consola). Como el nuevo recurso todavía no está bajo `wwwroot`, debe devolver 404. Después solicita `/DOCUMENTACION/ejercicio-publicacion.txt`: tampoco debería ser público. **La existencia de un archivo en una carpeta de proyecto no implica que ASP.NET Core lo sirva por HTTP.**
-
-### B — Publicar una copia deliberadamente
-
-Conserva el original en `DOCUMENTACION` y copia el archivo a `wwwroot/recursos/ejercicio-publicacion.txt`. Puedes utilizar el Explorador de soluciones o el explorador de archivos de Windows. Asegúrate de que el nombre y la extensión son correctos, y evita crear una carpeta anidada `wwwroot/wwwroot` por error.
-
-No modifiques el controlador ni crees `[HttpGet]` adicional. Tampoco elimines `UseStaticFiles()`: esa llamada es justamente la infraestructura que queremos estudiar. Una copia resulta preferible al traslado en este laboratorio porque mantiene la prueba de que el original fuera de la raíz pública sigue inaccesible.
-
-Vuelve a ejecutar la aplicación. Debes observar esta diferencia:
-
-| URL solicitada | Antes de copiar | Después de copiar | Por qué |
-|---|---|---|---|
-| `/recursos/ejercicio-publicacion.txt` | 404 | 200, archivo de texto | Ahora existe dentro de `wwwroot` |
-| `/DOCUMENTACION/ejercicio-publicacion.txt` | 404 | 404 | La carpeta no es pública |
-| `/Productos` | 200 HTML | 200 HTML | No hemos alterado MVC |
-| `/css/site.css` | 200 CSS | 200 CSS | Los recursos previos siguen accesibles |
-
-Comprueba `Content-Type` y el cuerpo del archivo. No esperes un layout MVC alrededor del texto: el middleware estático devuelve el recurso, no ejecuta `ProductosController` ni representa una vista Razor.
-
-### C — Escribir un enlace en el layout
-
-El recurso ahora existe, pero la aplicación aún no permite descubrirlo desde su interfaz. Abre `Views/Shared/_Layout.cshtml` y busca el comentario `APLICACION 1.3.5`. **Sustituye ese comentario por un enlace HTML escrito por ti**. El destino debe ser `/recursos/ejercicio-publicacion.txt` y su texto visible puede ser «Publicación autónoma».
-
-El enlace debe quedar dentro de `<nav>`, junto a «Inicio» y «Productos», no dentro de `ProductosController`. Guarda y abre la portada y el catálogo. El enlace debe aparecer en las dos páginas, porque comparten el mismo layout. Al pulsarlo, el navegador solicitará el archivo de texto y no una acción MVC.
-
-Esta tarea enlaza tres decisiones distintas: la **ubicación del recurso**, la **infraestructura que lo sirve** y la **interfaz de navegación** que permite encontrarlo. Ninguna reemplaza a las demás.
-
-### D — Diagnosticar el resultado
-
-Si el enlace aparece pero devuelve 404, inspecciona el `href` y la carpeta física dentro de `wwwroot`. Si el archivo se sirve por URL directa pero no aparece el enlace, el problema está en el layout o en el comentario HTML/Razor, no en los archivos estáticos. Si no puedes solicitar ni el CSS ni el nuevo archivo, verifica la existencia de `UseStaticFiles()` y que estás ejecutando el proyecto 1.3.
-
-Una URL 404 no revela por sí sola la causa. En este ejemplo puede significar que el recurso todavía no se copió, que el nombre contiene un error o que la aplicación atendida no es la carpeta que has editado. Formula una hipótesis, observa la ruta y comprueba el archivo correspondiente antes de cambiar código arbitrariamente.
-
-### E — Razonar la decisión de seguridad
-
-No confundas «está publicado» con «está permitido publicarlo». Este documento contiene únicamente información de laboratorio. Nunca copies a `wwwroot` contraseñas, tokens, claves privadas, datos personales ni informes internos reales. Para estudiar el alcance de la raíz pública conservamos `DOCUMENTACION/nota-interna.txt` sin mover y comprobamos que su URL sigue devolviendo 404.
-
-**Preguntas de consolidación.** ¿Cuál de los dos archivos cambió su disponibilidad pública y por qué? ¿Por qué es posible obtener un texto 200 sin crear un controlador? ¿Por qué el enlace debe escribirse en el layout si queremos verlo en varias páginas? ¿Qué comprobarías primero si el enlace existiera pero el destino no? ¿La ausencia de un enlace hace que un recurso bajo `wwwroot` sea privado?
-
-**Resultado:** has ejecutado una decisión de publicación, creado un enlace HTML propio, comprobado 404 antes y 200 después y conservado el catálogo sin cambios. La práctica aplica el mapa de responsabilidades explicado en la teoría, no solo el procedimiento mecánico de activar comentarios.
-
 ## Reto: aplicación de los pasos
 
 **Reto 1.3 — Recurso público frente a archivo interno.**
@@ -1593,6 +1535,68 @@ Si la navegación muestra Guía pública pero al pulsarla aparece 404, examina e
 En el proyecto de la práctica no se ha preparado un proveedor de archivos alternativo que publique esa carpeta. Si la URL correspondiente deja de devolver 404, comprueba que estás ejecutando la configuración original y que no se han añadido otras reglas de publicación fuera del ejercicio.
 
 Este último caso pone de manifiesto que una prueba negativa puede descubrir una regresión de configuración, incluso cuando las páginas principales siguen respondiendo correctamente.
+
+## Aplicación autónoma P1.3 — convertir un archivo del proyecto en un recurso público
+
+**Ampliación de transferencia (opcional, después del reto guiado).** Puedes realizarla al finalizar los pasos imprescindibles o como trabajo posterior.
+
+En el punto 1.3 hemos recorrido el árbol de una aplicación MVC y aprendido a distinguir `Controllers`, `Views`, `Program.cs`, `appsettings.json` y la carpeta `wwwroot`. Los pasos 1.3.4 y 1.3.5 ofrecen ejemplos de recursos estáticos preparados. Esta actividad requiere dar un paso adicional: **decidir y ejecutar tú mismo un cambio de ubicación que modifique el comportamiento HTTP**, y crear un enlace HTML al recurso sin añadir una acción MVC.
+
+### El problema
+
+Un compañero ha redactado una pequeña guía de laboratorio que debe ser accesible desde el navegador, sin entrar en el proyecto ni autenticar a nadie. El archivo está en `PROYECTO/1.3/CursoWeb.Mvc/DOCUMENTACION/ejercicio-publicacion.txt`. No contiene información sensible, pero en su ubicación actual **no debe servirse** por el middleware de archivos estáticos.
+
+En cambio, el navegador ya puede pedir `/recursos/guia-publica.txt`, porque ese documento está bajo `wwwroot`. Necesitamos decidir cómo poner la nueva guía al mismo nivel, comprobar el cambio desde HTTP y añadir un enlace en la navegación del catálogo.
+
+### A — Identificar el archivo y predecir su disponibilidad
+
+Abre el proyecto `PROYECTO/1.3/CursoWeb.Mvc` y localiza físicamente estos dos elementos:
+
+- `DOCUMENTACION/ejercicio-publicacion.txt`, dentro del proyecto pero fuera de la raíz pública.
+- `wwwroot/recursos/guia-publica.txt`, servido directamente por ASP.NET Core.
+
+Observa en `Program.cs` la llamada `app.UseStaticFiles();`. No se trata de una acción del controlador, sino de un middleware que puede atender solicitudes de recursos físicos publicados. Por eso no existe una acción `GuiaPublica()` y aun así el archivo responde HTTP 200.
+
+Antes de mover nada, arranca el proyecto y pide `http://localhost:5091/recursos/ejercicio-publicacion.txt` (si utilizas otro puerto, sustitúyelo por el que realmente muestre la consola). Como el nuevo recurso todavía no está bajo `wwwroot`, debe devolver 404. Después solicita `/DOCUMENTACION/ejercicio-publicacion.txt`: tampoco debería ser público. **La existencia de un archivo en una carpeta de proyecto no implica que ASP.NET Core lo sirva por HTTP.**
+
+### B — Publicar una copia deliberadamente
+
+Conserva el original en `DOCUMENTACION` y copia el archivo a `wwwroot/recursos/ejercicio-publicacion.txt`. Puedes utilizar el Explorador de soluciones o el explorador de archivos de Windows. Asegúrate de que el nombre y la extensión son correctos, y evita crear una carpeta anidada `wwwroot/wwwroot` por error.
+
+No modifiques el controlador ni crees `[HttpGet]` adicional. Tampoco elimines `UseStaticFiles()`: esa llamada es justamente la infraestructura que queremos estudiar. Una copia resulta preferible al traslado en este laboratorio porque mantiene la prueba de que el original fuera de la raíz pública sigue inaccesible.
+
+Vuelve a ejecutar la aplicación. Debes observar esta diferencia:
+
+| URL solicitada | Antes de copiar | Después de copiar | Por qué |
+|---|---|---|---|
+| `/recursos/ejercicio-publicacion.txt` | 404 | 200, archivo de texto | Ahora existe dentro de `wwwroot` |
+| `/DOCUMENTACION/ejercicio-publicacion.txt` | 404 | 404 | La carpeta no es pública |
+| `/Productos` | 200 HTML | 200 HTML | No hemos alterado MVC |
+| `/css/site.css` | 200 CSS | 200 CSS | Los recursos previos siguen accesibles |
+
+Comprueba `Content-Type` y el cuerpo del archivo. No esperes un layout MVC alrededor del texto: el middleware estático devuelve el recurso, no ejecuta `ProductosController` ni representa una vista Razor.
+
+### C — Escribir un enlace en el layout
+
+El recurso ahora existe, pero la aplicación aún no permite descubrirlo desde su interfaz. Abre `Views/Shared/_Layout.cshtml` y busca el comentario `APLICACION 1.3.5`. **Sustituye ese comentario por un enlace HTML escrito por ti**. El destino debe ser `/recursos/ejercicio-publicacion.txt` y su texto visible puede ser «Publicación autónoma».
+
+El enlace debe quedar dentro de `<nav>`, junto a «Inicio» y «Productos», no dentro de `ProductosController`. Guarda y abre la portada y el catálogo. El enlace debe aparecer en las dos páginas, porque comparten el mismo layout. Al pulsarlo, el navegador solicitará el archivo de texto y no una acción MVC.
+
+Esta tarea enlaza tres decisiones distintas: la **ubicación del recurso**, la **infraestructura que lo sirve** y la **interfaz de navegación** que permite encontrarlo. Ninguna reemplaza a las demás.
+
+### D — Diagnosticar el resultado
+
+Si el enlace aparece pero devuelve 404, inspecciona el `href` y la carpeta física dentro de `wwwroot`. Si el archivo se sirve por URL directa pero no aparece el enlace, el problema está en el layout o en el comentario HTML/Razor, no en los archivos estáticos. Si no puedes solicitar ni el CSS ni el nuevo archivo, verifica la existencia de `UseStaticFiles()` y que estás ejecutando el proyecto 1.3.
+
+Una URL 404 no revela por sí sola la causa. En este ejemplo puede significar que el recurso todavía no se copió, que el nombre contiene un error o que la aplicación atendida no es la carpeta que has editado. Formula una hipótesis, observa la ruta y comprueba el archivo correspondiente antes de cambiar código arbitrariamente.
+
+### E — Razonar la decisión de seguridad
+
+No confundas «está publicado» con «está permitido publicarlo». Este documento contiene únicamente información de laboratorio. Nunca copies a `wwwroot` contraseñas, tokens, claves privadas, datos personales ni informes internos reales. Para estudiar el alcance de la raíz pública conservamos `DOCUMENTACION/nota-interna.txt` sin mover y comprobamos que su URL sigue devolviendo 404.
+
+**Preguntas de consolidación.** ¿Cuál de los dos archivos cambió su disponibilidad pública y por qué? ¿Por qué es posible obtener un texto 200 sin crear un controlador? ¿Por qué el enlace debe escribirse en el layout si queremos verlo en varias páginas? ¿Qué comprobarías primero si el enlace existiera pero el destino no? ¿La ausencia de un enlace hace que un recurso bajo `wwwroot` sea privado?
+
+**Resultado:** has ejecutado una decisión de publicación, creado un enlace HTML propio, comprobado 404 antes y 200 después y conservado el catálogo sin cambios. La práctica aplica el mapa de responsabilidades explicado en la teoría, no solo el procedimiento mecánico de activar comentarios.
 
 ### Solución razonada de la aplicación autónoma P1.3
 
@@ -2816,54 +2820,6 @@ Una explicación adecuada del reto tiene que cubrir ambos resultados: presencia 
 
 Este análisis permite separar cambios de datos, cambios de contenido compartido y cambios de estructura de página.
 
-## Aplicación autónoma P1.5 — una regla de precio visible en dos páginas
-
-El capítulo explica que una vista parcial permite reutilizar el mismo marcado en el listado y en la ficha de detalle. Los pasos 1.5.4 y 1.5.5 preparan esta reutilización mediante `_TarjetaProducto.cshtml`. Para comprobar que has comprendido por qué la extraemos, resolverás un requisito nuevo: **señalar los productos de precio igual o superior a 4 € con una etiqueta visual**, sin duplicar la decisión en dos vistas.
-
-### A — Encontrar la responsabilidad adecuada
-
-Abre el proyecto `PROYECTO/1.5/CursoWeb.Mvc` con el paso 1.5.5 ya activado. Inspecciona `Views/Productos/Index.cshtml` y `Views/Productos/Detalle.cshtml`: ambos deben utilizar la misma parcial con `<partial name="_TarjetaProducto" ... />`, aunque entregan el modelo de forma distinta. El listado itera la colección; el detalle tiene un único `Producto`.
-
-Observa que la parcial comienza con `@model CursoWeb.Mvc.Models.Producto`. Por lo tanto, dentro de ella `Model.Precio` se refiere al precio de **un solo producto**. Esa es la información suficiente para nuestra condición. No hace falta volver a buscar el producto por identificador, consultar otra lista ni crear otra acción.
-
-Antes de escribir, predice cuántas etiquetas nuevas aparecerán. Con los productos del curso —Cuaderno: 4,50 €, Lápiz: 1,20 €, Carpeta: 3,75 €— únicamente Cuaderno cumple `Precio >= 4m`. En el listado habrá una etiqueta, mientras que en la ficha de Cuaderno habrá otra representación de la **misma regla**. El número de tarjetas no debe cambiar.
-
-### B — Escribir la condición, no activarla mecánicamente
-
-Localiza en `Views/Shared/_TarjetaProducto.cshtml` el comentario `APLICACION 1.5`, situado después del párrafo del precio. Reemplázalo por una condición Razor que redactes tú mismo. La expresión debe ser `Model.Precio >= 4m` y el contenido representado en el caso verdadero debe ser:
-
-~~~html
-<strong class="etiqueta-destacada">Producto destacado</strong>
-~~~
-
-El sufijo `m` conserva el tipo decimal del precio; no conviertas un valor monetario a `double` sin necesidad. Coloca la condición dentro de la parcial y **no** en `Index.cshtml` ni en `Detalle.cshtml`. Si escribes dos condiciones separadas puedes conseguir algo parecido visualmente, pero habrás perdido la razón pedagógica del ejercicio: mantener una sola regla de presentación reutilizable.
-
-El reto final del punto 1.5 utiliza un umbral distinto para mostrar «Precio económico» cuando el precio es inferior a 3 €. No confundas ambos requisitos: la aplicación autónoma debe funcionar por separado. Más tarde podrás activar ambas reglas, y entonces Lápiz mostrará la etiqueta económica y Cuaderno la destacada.
-
-### C — Comprobar el catálogo y dos fichas
-
-Construye y ejecuta el proyecto. Abre `/Productos` y localiza las tres tarjetas; una de ellas debe contener `class="etiqueta-destacada"`. Comprueba que corresponde a Cuaderno y que no aparece junto a Lápiz ni Carpeta.
-
-Abre luego `/Productos/Detalle/1`, la ficha de Cuaderno, y `/Productos/Detalle/2`, la de Lápiz. En la primera debe aparecer la etiqueta; en la segunda, no. Para comprobarlo con precisión, inspecciona el HTML generado desde F12 → Red o desde el inspector de elementos. Las expresiones Razor y el contenido de los comentarios de servidor no deben aparecer como código sin procesar en el HTML recibido.
-
-Repite la navegación hacia `/` y `/Productos`. El layout, la sección opcional del detalle, las rutas y el resto de los productos deben permanecer intactos. La regla nueva es una **evolución de la presentación**, no una modificación del catálogo.
-
-### D — Diagnosticar tres errores diferentes
-
-**No se ve ninguna etiqueta.** Comprueba que el código está fuera del comentario Razor, que su condición está dentro de `_TarjetaProducto.cshtml` y que la parcial se está utilizando en ambas pantallas. Si activaste solo 1.5.4, la tarjeta podría verse en el catálogo pero no en detalle; completa 1.5.5 antes de evaluar ambas páginas.
-
-**Aparecen tres etiquetas.** La condición podría estar fuera del `@if`, o haberse puesto un valor fijo que no utiliza `Model.Precio`. Comprueba el operador `>=`, el umbral decimal y dónde se encuentran las llaves del bloque.
-
-**La etiqueta aparece en la lista pero no en el detalle.** Es posible que hayas escrito la regla directamente en `Index.cshtml` en lugar de la parcial. También puede faltar la activación de P1.5.5. Revisa primero las rutas y el código que entrega la parcial antes de copiar el `if` a una segunda vista.
-
-### E — Explicar por qué funciona
-
-Esta actividad permite distinguir tres mecanismos que comparten sintaxis Razor pero tienen funciones distintas: `@model` define el tipo de dato que recibe una vista; el layout aporta el marco de la página; una vista parcial presenta un fragmento reutilizable que recibe su propio modelo. La nueva condición no necesita una sección del layout ni un controlador.
-
-**Preguntas de razonamiento.** ¿Por qué la misma condición se evalúa una vez por producto en el catálogo y solo una vez en la ficha de detalle? ¿Qué cambia si el precio de Carpeta supera los 4 €? ¿Cuántos archivos deberías modificar para cambiar el texto «Producto destacado» por otro? ¿En qué casos una regla debería vivir en el dominio y no en Razor? ¿Por qué es posible que una página devuelva 200 y, aun así, falte la etiqueta esperada?
-
-**Resultado verificable:** el alumno escribe una condición propia en la parcial, observa su efecto en dos contextos y demuestra que la lógica de presentación permanece centralizada. El reto posterior de precio económico utiliza el mismo principio con otra condición, pero no sustituye esta aplicación.
-
 ## Reto: aplicación de los pasos
 
 **Reto 1.5 — Destacar productos económicos reutilizando una única parcial.**
@@ -3038,6 +2994,56 @@ Si consigues seguir Lápiz desde su definición en el controlador hasta la tarje
 **Fallo 5: la etiqueta económica aparece en Cuaderno.** Revisa la condición y el umbral. El precio de Cuaderno es superior a 3 €, así que no debería mostrarla.
 
 La técnica común consiste en observar qué parte del resultado es incorrecta y regresar al archivo responsable de esa parte, evitando reescribir simultáneamente el controlador, la vista y el layout.
+
+## Aplicación autónoma P1.5 — una regla de precio visible en dos páginas
+
+**Ampliación autónoma (opcional, posterior al reto guiado).** Esta actividad pide construir una segunda regla en vez de activar un fragmento preparado. Su dificultad es deliberadamente mayor.
+
+El capítulo explica que una vista parcial permite reutilizar el mismo marcado en el listado y en la ficha de detalle. Los pasos 1.5.4 y 1.5.5 preparan esta reutilización mediante `_TarjetaProducto.cshtml`. Para comprobar que has comprendido por qué la extraemos, resolverás un requisito nuevo: **señalar los productos de precio igual o superior a 4 € con una etiqueta visual**, sin duplicar la decisión en dos vistas.
+
+### A — Encontrar la responsabilidad adecuada
+
+Abre el proyecto `PROYECTO/1.5/CursoWeb.Mvc` con el paso 1.5.5 ya activado. Inspecciona `Views/Productos/Index.cshtml` y `Views/Productos/Detalle.cshtml`: ambos deben utilizar la misma parcial con `<partial name="_TarjetaProducto" ... />`, aunque entregan el modelo de forma distinta. El listado itera la colección; el detalle tiene un único `Producto`.
+
+Observa que la parcial comienza con `@model CursoWeb.Mvc.Models.Producto`. Por lo tanto, dentro de ella `Model.Precio` se refiere al precio de **un solo producto**. Esa es la información suficiente para nuestra condición. No hace falta volver a buscar el producto por identificador, consultar otra lista ni crear otra acción.
+
+Antes de escribir, predice cuántas etiquetas nuevas aparecerán. Con los productos del curso —Cuaderno: 4,50 €, Lápiz: 1,20 €, Carpeta: 3,75 €— únicamente Cuaderno cumple `Precio >= 4m`. En el listado habrá una etiqueta, mientras que en la ficha de Cuaderno habrá otra representación de la **misma regla**. El número de tarjetas no debe cambiar.
+
+### B — Escribir la condición, no activarla mecánicamente
+
+Localiza en `Views/Shared/_TarjetaProducto.cshtml` el comentario `APLICACION 1.5`, situado después del párrafo del precio. Reemplázalo por una condición Razor que redactes tú mismo. La expresión debe ser `Model.Precio >= 4m` y el contenido representado en el caso verdadero debe ser:
+
+~~~html
+<strong class="etiqueta-destacada">Producto destacado</strong>
+~~~
+
+El sufijo `m` conserva el tipo decimal del precio; no conviertas un valor monetario a `double` sin necesidad. Coloca la condición dentro de la parcial y **no** en `Index.cshtml` ni en `Detalle.cshtml`. Si escribes dos condiciones separadas puedes conseguir algo parecido visualmente, pero habrás perdido la razón pedagógica del ejercicio: mantener una sola regla de presentación reutilizable.
+
+El reto final del punto 1.5 utiliza un umbral distinto para mostrar «Precio económico» cuando el precio es inferior a 3 €. No confundas ambos requisitos: la aplicación autónoma debe funcionar por separado. Más tarde podrás activar ambas reglas, y entonces Lápiz mostrará la etiqueta económica y Cuaderno la destacada.
+
+### C — Comprobar el catálogo y dos fichas
+
+Construye y ejecuta el proyecto. Abre `/Productos` y localiza las tres tarjetas; una de ellas debe contener `class="etiqueta-destacada"`. Comprueba que corresponde a Cuaderno y que no aparece junto a Lápiz ni Carpeta.
+
+Abre luego `/Productos/Detalle/1`, la ficha de Cuaderno, y `/Productos/Detalle/2`, la de Lápiz. En la primera debe aparecer la etiqueta; en la segunda, no. Para comprobarlo con precisión, inspecciona el HTML generado desde F12 → Red o desde el inspector de elementos. Las expresiones Razor y el contenido de los comentarios de servidor no deben aparecer como código sin procesar en el HTML recibido.
+
+Repite la navegación hacia `/` y `/Productos`. El layout, la sección opcional del detalle, las rutas y el resto de los productos deben permanecer intactos. La regla nueva es una **evolución de la presentación**, no una modificación del catálogo.
+
+### D — Diagnosticar tres errores diferentes
+
+**No se ve ninguna etiqueta.** Comprueba que el código está fuera del comentario Razor, que su condición está dentro de `_TarjetaProducto.cshtml` y que la parcial se está utilizando en ambas pantallas. Si activaste solo 1.5.4, la tarjeta podría verse en el catálogo pero no en detalle; completa 1.5.5 antes de evaluar ambas páginas.
+
+**Aparecen tres etiquetas.** La condición podría estar fuera del `@if`, o haberse puesto un valor fijo que no utiliza `Model.Precio`. Comprueba el operador `>=`, el umbral decimal y dónde se encuentran las llaves del bloque.
+
+**La etiqueta aparece en la lista pero no en el detalle.** Es posible que hayas escrito la regla directamente en `Index.cshtml` en lugar de la parcial. También puede faltar la activación de P1.5.5. Revisa primero las rutas y el código que entrega la parcial antes de copiar el `if` a una segunda vista.
+
+### E — Explicar por qué funciona
+
+Esta actividad permite distinguir tres mecanismos que comparten sintaxis Razor pero tienen funciones distintas: `@model` define el tipo de dato que recibe una vista; el layout aporta el marco de la página; una vista parcial presenta un fragmento reutilizable que recibe su propio modelo. La nueva condición no necesita una sección del layout ni un controlador.
+
+**Preguntas de razonamiento.** ¿Por qué la misma condición se evalúa una vez por producto en el catálogo y solo una vez en la ficha de detalle? ¿Qué cambia si el precio de Carpeta supera los 4 €? ¿Cuántos archivos deberías modificar para cambiar el texto «Producto destacado» por otro? ¿En qué casos una regla debería vivir en el dominio y no en Razor? ¿Por qué es posible que una página devuelva 200 y, aun así, falte la etiqueta esperada?
+
+**Resultado verificable:** el alumno escribe una condición propia en la parcial, observa su efecto en dos contextos y demuestra que la lógica de presentación permanece centralizada. El reto posterior de precio económico utiliza el mismo principio con otra condición, pero no sustituye esta aplicación.
 
 ### Solución de referencia de la aplicación autónoma P1.5
 
