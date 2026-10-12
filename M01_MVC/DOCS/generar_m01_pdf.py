@@ -205,7 +205,7 @@ CSS_TEMPLATE=r"""
   @bottom-right { content: none; }
 }
 html { font-family: "DejaVu Sans", sans-serif; }
-body { font-size: 9.3pt; line-height: 1.46; color: #1e293b; }
+body { font-size: 9.8pt; line-height: 1.46; color: #1e293b; }
 .cover { height: 235mm; box-sizing: border-box; padding-top: 60mm; break-after: page; }
 .cover h1.doc-title { font-size: 27pt; line-height: 1.25; margin-bottom: 10mm; }
 .cover h2 { font-size: 16pt; margin: 0; color: #52687a; }
@@ -232,10 +232,10 @@ thead { display: table-header-group; }
 th { background: #edf3f6; color: #13374c; border: 0.5pt solid #bbcbd4; padding: 5pt 6pt; text-align: left; }
 td { border: 0.5pt solid #c8d4da; padding: 5pt 6pt; vertical-align: top; overflow-wrap: anywhere; }
 tr { break-inside: avoid; }
-p code, li code, td code { font-family: "DejaVu Sans Mono", monospace; font-size: 8.1pt; background: #eef4f7; padding: .3pt 2pt; overflow-wrap: anywhere; }
+p code, li code, td code { font-family: "DejaVu Sans Mono", monospace; font-size: 8.4pt; background: #eef4f7; padding: .3pt 2pt; overflow-wrap: anywhere; }
 .code-block { margin: 9pt 0; break-inside: auto; border-left: 2pt solid #85aaba; background: #f5f8fa; padding: 8pt 9pt; }
 .highlight { background: transparent; }
-.highlight pre,pre { font-family: "DejaVu Sans Mono", monospace; font-size: 7.75pt; line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; margin: 0; }
+.highlight pre,pre { font-family: "DejaVu Sans Mono", monospace; font-size: 8.2pt; line-height: 1.35; white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word; margin: 0; }
 .code-block .highlight pre { white-space: pre-wrap; overflow-wrap: anywhere; }
 .diagram { display: block; text-align: center; margin: 10pt 0 13pt; break-inside: avoid; }
 .diagram svg { display: block; width: auto; height: auto; margin: 0 auto; }
@@ -254,6 +254,190 @@ def document_html(markdown: str, title: str, kind: str) -> str:
     kind_label=metadata_from_markdown(markdown,"TIPO")
     if kind_label!=("TEORÍA" if kind=="TEORIA" else "PRÁCTICAS"):
         raise ValueError(f"TIPO de documento distinto a su carpeta: {kind_label}")
+    # Las referencias bibliográficas se mantienen literales y se convierten
+    # a hipervínculos PDF; no se modifican ni resumen las fuentes Markdown.
+    markdown_html=re.sub(r'(?m)^(-\\s+[^\\n]*?:\\s*)(https?://[^\\s<>]+)\\s*
+    md.renderer.rules["fence"]=fence_render
+    body=md.render(markdown_html)
+    toc=[]
+    first=[True]
+    def heading(m):
+        val=m.group(1)
+        ident=re.search(r"(?:P?1)\.([1-5])\.",re.sub("<[^>]*>","",val))
+        if ident:
+            anchor=f"punto-{ident.group(1)}"
+            toc.append((anchor, re.sub("<[^>]*>","",val)))
+            return f'<h1 id="{anchor}" class="chapter">{val}</h1>'
+        if first[0]:
+            first[0]=False
+            return f'<h1 class="doc-title">{val}</h1>'
+        return f"<h1>{val}</h1>"
+    body=re.sub(r"<h1>(.*?)</h1>",heading,body,flags=re.S)
+    if len(toc)!=5: raise ValueError(f"Índice de {title}: se esperaban 5 capítulos, hallados {toc}")
+    # Maquetar solo metadatos ya presentes en el MD como portada.
+    cover_re=(r'(<h1 class="doc-title">.*?</h1>\s*<h2>.*?</h2>\s*'
+              r'<p><strong>CURSO:\s*'+re.escape(escape(course))+r'</strong></p>\s*'
+              r'<p><strong>TIPO:\s*'+re.escape(escape(kind_label))+r'</strong></p>\s*'
+              r'<p><strong>'+re.escape(escape(author))+r'</strong></p>)')
+    body,cover_count=re.subn(cover_re,r'<section class="cover">\1</section>',
+                            body,count=1,flags=re.S)
+    if cover_count!=1:
+        raise ValueError("No se reconoció la portada canónica con autor")
+    # El índice procede exclusivamente del Markdown; su título sirve de cabecera
+    # hasta la primera página del capítulo 1.1.
+    body=body.replace("<h3>Índice del módulo</h3>",
+                      '<h3 class="toc-heading">Índice del módulo</h3>',1)
+    def css_quote(value: str) -> str:
+        return value.replace("\\","\\\\").replace('"','\\"').replace("\n"," ")
+    css=(CSS_TEMPLATE
+         .replace("__MD_COURSE__",css_quote(course))
+         .replace("__MD_TYPE__",css_quote(kind_label))
+         .replace("__MD_AUTHOR__",css_quote(author)))
+    css+=HTML_FORMATTER.get_style_defs(".highlight")
+    return f"""<!doctype html><html lang="es"><head><meta charset="utf-8"><title>{escape(title)}</title>
+    <style>{css}</style></head><body>{body}</body></html>"""
+
+def normalize(text: str):
+    return " ".join(unicodedata.normalize("NFKC",text).lower().split())
+
+def generate(kind: str):
+    global DIAGRAM_COUNT
+    DIAGRAM_COUNT=0
+    file=BASE/kind/f"M01_{kind}.md"
+    output=BASE/kind/f"M01_{kind}.pdf"
+    markdown=file.read_text(encoding="utf-8")
+    title="M01 — Teoría de ASP.NET Core MVC" if kind=="TEORIA" else "M01 — Prácticas de ASP.NET Core MVC"
+    html=document_html(markdown,title,kind)
+    HTML(string=html,base_url=str(BASE)).write_pdf(str(output))
+    # El PDF contiene también la fuente canónica MD, byte por byte.
+    # Esta copia incrustada NO sustituye la comprobación del texto visual.
+    raw_bytes=file.read_bytes()
+    digest=hashlib.sha256(raw_bytes).hexdigest()
+    writer=PdfWriter()
+    writer.append(BytesIO(output.read_bytes()))
+    writer.add_metadata({"/Title": title, "/Author": author_from_markdown(markdown), "/Subject": "Curso de Desarrollo Web ASP.NET Core MVC .NET 8"})
+    writer.add_attachment(filename=file.name,data=raw_bytes)
+    buffer=BytesIO()
+    writer.write(buffer)
+    output.write_bytes(buffer.getvalue())
+    check_pdf(output,markdown,DIAGRAM_COUNT,source_bytes=raw_bytes,filename=file.name)
+    pdf=PdfReader(str(output))
+    return {"tipo":kind,"markdown":file.relative_to(ROOT).as_posix(),"pdf":output.relative_to(ROOT).as_posix(),
+            "palabras_markdown":len(markdown.split()),"caracteres_markdown":len(markdown),
+            "paginas_pdf":len(pdf.pages),"diagramas_renderizados":DIAGRAM_COUNT,
+            "bytes_pdf":output.stat().st_size,"md_sha256":digest,"fuente_incrustada_igual":True}
+
+def check_pdf(file: Path, md: str, diagram_count: int, source_bytes: bytes, filename: str):
+    reader=PdfReader(str(file))
+    embedded=reader.attachments.get(filename)
+    if embedded is None:
+        raise AssertionError(f"{file.name}: no está incrustada la fuente MD")
+    if isinstance(embedded,list):
+        if len(embedded)!=1: raise AssertionError(f"{file.name}: varias versiones MD incrustadas")
+        embedded=embedded[0]
+    if embedded != source_bytes:
+        raise AssertionError(f"{file.name}: el MD incrustado difiere byte por byte de la fuente")
+    if hashlib.sha256(embedded).digest()!=hashlib.sha256(source_bytes).digest():
+        raise AssertionError(f"{file.name}: huella MD no válida")
+    if reader.metadata is None or reader.metadata.author != author_from_markdown(md):
+        raise AssertionError(f"{file.name}: falta autor correcto en metadatos PDF")
+    if not reader.metadata.title:
+        raise AssertionError(f"{file.name}: falta título en metadatos PDF")
+    if not 7<=len(reader.pages)<=300: raise AssertionError(f"{file.name}: número de páginas incompatible con portada, índice y cinco capítulos: {len(reader.pages)}")
+    pdftext="\n".join(p.extract_text() or "" for p in reader.pages)
+    low=normalize(pdftext)
+    prefix="P" if "PRACTICAS" in file.as_posix() else ""
+    for n in range(1,6):
+        chapter=f"{prefix}1.{n}."
+        if chapter.lower() not in low: raise AssertionError(f"{file.name}: capítulo {chapter} ausente")
+        if prefix and f"reto 1.{n}" not in low: raise AssertionError(f"{file.name}: el reto 1.{n} no aparece")
+    for term in ["Cuaderno","Lápiz","Carpeta","Producto","Razor","Model","1.5"]:
+        if normalize(term) not in low: raise AssertionError(f"{file.name}: falta contenido {term}")
+    words=re.findall(r"\w+",pdftext.lower(),re.UNICODE)
+    source_without_urls=re.sub(r"https?://\S+","",md)
+    source_without_mermaid=re.sub(r"^~~~mermaid.*?^~~~\s*$","",source_without_urls,flags=re.M|re.S)
+    md_words=re.findall(r"\w+",source_without_mermaid.lower(),re.UNICODE)
+    fraction=min(1.0,len(words)/max(1,len(md_words)))
+    if fraction<0.58: raise AssertionError(f"{file.name}: PDF demasiado corto frente al Markdown ({fraction:.2%})")
+    if diagram_count != len(re.findall(r"^~~~mermaid\b",md,re.M)):
+        raise AssertionError(f"{file.name}: no se convirtieron todos los diagramas a SVG")
+    doc=fitz.open(str(file))
+    author=author_from_markdown(md)
+    course=metadata_from_markdown(md,"CURSO")
+    kind_label=metadata_from_markdown(md,"TIPO")
+    chapter_titles=[re.sub(r"^(?:P)?1\.[1-5]\.\s*", "", m.group(0))
+       for m in re.finditer(r"(?m)^# (?:P)?1\.[1-5]\.\s+[^\r\n]+",md)]
+    if len(chapter_titles)!=5:
+        raise AssertionError(f"{file.name}: se esperan cinco títulos de capítulo en Markdown")
+    current_chapter="Índice del módulo"
+    for i,p in enumerate(doc):
+        boxes=p.search_for(author)
+        if len(boxes)!=1:
+            raise AssertionError(f"{file.name}, página {i+1}: texto del autor aparece {len(boxes)} veces, se esperaba 1")
+        if i==0:
+            if boxes[0].y0 < 90:
+                raise AssertionError(f"{file.name}: autor en cabecera en lugar de portada")
+            if "Índice del módulo" in p.get_text("text"):
+                raise AssertionError(f"{file.name}: índice mezclado con la portada")
+        else:
+            if boxes[0].y0 > 70:
+                raise AssertionError(f"{file.name}, página {i+1}: falta el autor en la cabecera superior")
+            header=p.get_text("text",clip=fitz.Rect(0,0,p.rect.width,84))
+            normalized_header=normalize(header)
+            if normalize(course) not in normalized_header:
+                raise AssertionError(f"{file.name}: página {i+1}: falta título canónico del curso en cabecera")
+            if normalize(kind_label) not in normalized_header:
+                raise AssertionError(f"{file.name}: página {i+1}: falta tipo documental en cabecera")
+            if "Índice del módulo" not in p.get_text("text"):
+                # El capítulo actual se determina por el título H1, que siempre
+                # comienza en página nueva. El de la cabecera debe corresponder
+                # con uno de los cinco títulos del Markdown (o con el índice).
+                expected_any=[normalize("Índice del módulo")]
+                expected_any += [normalize(re.sub(r"^#\s*", "",m.group(0))) for m in re.finditer(
+                    r"(?m)^# (?:P)?1\.[1-5]\.\s+[^\r\n]+", md)]
+                header_txt=normalize(header)
+                if not any(v in header_txt for v in expected_any):
+                    raise AssertionError(f"{file.name}: página {i+1}: sin título de capítulo canónico. Cabecera extraída: {header!r}")
+        if not p.get_text().strip(): raise AssertionError(f"{file.name}: página {i+1} completamente vacía")
+        w=p.rect.width
+        for x0,y0,x1,y1,*rest in p.get_text("words"):
+            if x0<1 or x1>w-1:
+                raise AssertionError(f"{file.name}: texto fuera de margen horizontal en página {i+1}")
+    print(f"PDF VALIDADO: {file.name}, {len(reader.pages)} páginas, {diagram_count} diagramas, AUTOR en portada y cabeceras posteriores validado, fuente Markdown incrustada IDENTICA byte por byte; ratio palabras {fraction:.1%}")
+
+def main():
+    from validar_m01 import run
+    run()
+    results=[generate("TEORIA"),generate("PRACTICAS")]
+    text=["# M01 — Verificación automática de PDF y Markdown","",
+          "**Carácter:** control técnico interno. No aparece en los PDF docentes.","",
+          "Las dos ediciones se generan directamente de los Markdown canónicos, sin resumir capítulos ni ejemplos.",
+          "Se comprueba la existencia de los cinco capítulos, retos, contenido fundamental, diagramas vectoriales y páginas PDF sin texto vacío ni recortes horizontales detectables.",
+          "", "| Archivo | Palabras MD | Caracteres MD | Páginas PDF | Diagramas SVG |",
+          "|---|---:|---:|---:|---:|"]
+    for item in results:
+        text.append(f"| {item['tipo']} | {item['palabras_markdown']} | {item['caracteres_markdown']} | {item['paginas_pdf']} | {item['diagramas_renderizados']} |")
+    text += ["","## Autor procedente del Markdown","",
+             "Los dos PDF presentan **AUTOR: JAIME GALLO** en portada y en la cabecera de cada página siguiente.",
+             "El texto repetido en la cabecera se toma de la línea canónica del Markdown correspondiente; no se introduce un autor independiente en el generador.",
+             "","## Huellas de fuente canónica","","| Documento | SHA-256 del MD que está incrustado en el PDF | Coincidencia byte por byte |","|---|---|---|"]
+    for item in results:
+        text.append(f"| {item['tipo']} | `{item['md_sha256']}` | {item['fuente_incrustada_igual']} |")
+    text += ["","## Alcance y límites","",
+             "La validación calcula conteos, inspecciona texto extraído y cajas de texto mediante PyMuPDF, y comprueba que cada diagrama Mermaid tiene salida SVG. "
+             "Este resultado **no implica** inspección visual manual de todas las páginas, navegación con lectores de pantalla o una clase piloto.",
+             "Las pruebas E2E del código se ejecutan mediante el workflow independiente \`m01-ci.yml\`.",
+             ""]
+    OUTPUT.parent.mkdir(parents=True,exist_ok=True)
+    OUTPUT.write_text("\n".join(text),encoding="utf-8")
+    print(json.dumps(results,ensure_ascii=False,indent=2))
+
+if __name__=="__main__":
+    try: main()
+    except Exception as e:
+        print(f"ERROR AL GENERAR PDF M01: {e}",file=sys.stderr)
+        raise
+,r'\\1<\\2>',markdown)
     md=MarkdownIt("commonmark",{"html":True}).enable("table").enable("strikethrough")
     md.renderer.rules["fence"]=fence_render
     body=md.render(markdown)
