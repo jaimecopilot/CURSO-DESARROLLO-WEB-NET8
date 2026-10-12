@@ -22,6 +22,7 @@ SPECS={
  ("1.1.3","Program.cs","PASO 1.1.3",["app.UseStaticFiles();","app.UseRouting();"]),
  ("1.1.4","Controllers/HomeController.cs","PASO 1.1.4",['Response.Headers["X-Curso-Paso"] = "1.1.4";']),
  ("1.1.5","Views/Home/Index.cshtml","PASO 1.1.5",['<section id="marca-paso-1-1-5">']),
+ ("1.1.5","Views/Home/Index.cshtml","APLICACIÓN 1.1.5",['id="razonamiento-1-1"']),
  ("RETO 1.1","Controllers/HomeController.cs","RETO 1.1",['Response.Headers["X-Curso-Reto"] = "HTTP-y-HTML";']),
  ("RETO 1.1","Views/Home/Index.cshtml","RETO 1.1",['<p id="reto-1-1">']),
 ],
@@ -63,7 +64,7 @@ SPECS={
  ("RETO 1.5","Views/Shared/_TarjetaProducto.cshtml","RETO 1.5",["Model.Precio < 3m",'class="etiqueta-economico"']),
 ]
 }
-expected_counts={"1.1":6,"1.2":5,"1.3":5,"1.4":6,"1.5":6}
+expected_counts={"1.1":7,"1.2":5,"1.3":5,"1.4":6,"1.5":6}
 
 def require(test: bool, label: str):
     if not test: raise AssertionError(label)
