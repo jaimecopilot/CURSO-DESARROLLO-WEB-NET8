@@ -16,14 +16,14 @@
 <div class="tarjetas" id="tarjetas-productos">
     @foreach (var producto in productos)
     {
-        <article class="tarjeta" data-producto-id="@producto.Id">
-            <strong>@producto.Nombre</strong>
-            <p>@producto.Precio.ToString("0.00") €</p>
+        <div class="tarjeta-con-acciones" data-elemento-id="@producto.Id">
+            @* Conservamos TarjetaProducto de P3.3: el padre administra eventos en P3.4. *@
+            <TarjetaProducto Producto="producto" />
             @* PASO 3.4.2 (ACTIVAR): descomenta este botón al activar Seleccionar. *@
             @* <button @onclick="() => Seleccionar(producto.Id)">Seleccionar</button> *@
             @* PASO 3.4.5: sustituir el botón anterior, no añadir un segundo. *@
             @* <button @onclick="() => SeleccionarParaEditar(producto.Id)">Seleccionar</button> *@
-        </article>
+        </div>
     }
 </div>
 @* PASO 3.4.3 (ACTIVAR): descomenta el input tras activar el campo nuevoNombre. *@
