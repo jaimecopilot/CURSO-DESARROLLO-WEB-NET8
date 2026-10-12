@@ -55,8 +55,14 @@ public sealed class ComparacionModel : PageModel
     /* RETO 2.5 INICIO
     public IActionResult OnPostMayusculas()
     {
-        if (!ModelState.IsValid || string.IsNullOrWhiteSpace(Nombre))
+        if (!ModelState.IsValid)
             return Page();
+
+        if (string.IsNullOrWhiteSpace(Nombre))
+        {
+            ModelState.AddModelError(nameof(Nombre), "Introduce un nombre.");
+            return Page();
+        }
 
         Mensaje = $"Nombre en mayúsculas: {Nombre.Trim().ToUpperInvariant()}";
         return Page();
