@@ -936,6 +936,96 @@ Al final del módulo, abre P3.6 y describe cinco diferencias entre la aplicació
 Si puedes relacionar estos cinco aspectos con código real, explicar un caso positivo y negativo y distinguir estado de componente de persistencia, habrás alcanzado el objetivo de la jornada. No hay que construir todavía un CRUD nuevo ni desplegar infraestructura adicional.
 
 
+## Taller complementario — Ocho incidentes reproducibles y sus soluciones
+
+Este taller amplía el material de consulta; **no añade ocho actividades obligatorias a las seis horas de clase**. Permite repetir una situación problemática, observar qué falla y recuperarla con un cambio controlado. Cada caso debe realizarse en su carpeta P3.N, partiendo del estado activado que indiquen las instrucciones anteriores. Al terminar, restaura los cambios experimentales. No necesitas otra aplicación, una API, SQL Server ni bibliotecas nuevas.
+
+### Incidente A — El método existe, pero el clic no responde (P3.1)
+
+Una persona abre `/estatica`, observa el código `@onclick="Incrementar"` y concluye que el método C# está mal escrito porque el contador no aumenta. Antes de modificar nada, compáralo con `/interactiva`: ambos contienen un botón que invoca un método semejante, pero solo la segunda página declara `@rendermode InteractiveServer`.
+
+**Reproducción:** ejecuta el proyecto 3.1, abre `/estatica`, pulsa dos veces y comprueba que el valor permanece en cero. Abre `/interactiva`, espera la conexión y pulsa dos veces. Ahora debe aparecer el valor dos. Si ambos botones compilan, su diferencia principal no es aritmética. Comprueba `Program.cs` y `App.razor` para localizar los servicios, endpoints y recursos del host, pero no añadas otro controlador.
+
+**Experimento reversible:** quita temporalmente la directiva de modo de `Interactiva.razor`, recompila y repite el clic. La página deja de responder como componente interactivo. Restaura la directiva y repite la prueba positiva. El resultado observable identifica una condición concreta del modelo de ejecución.
+
+**Explicación causal:** una respuesta HTML puede contener el valor inicial de un campo C# sin disponer del mecanismo de eventos que permite modificarlo después del clic. Compilar y descargar la página no sustituyen la prueba de interacción en navegador. La solución no es crear un POST MVC ni añadir JavaScript manualmente: es comprender el modo declarado y su infraestructura.
+
+### Incidente B — La página existe, pero no aparece en el menú (P3.2)
+
+Un alumno escribe `/productos` y ve Cuaderno, Lápiz y Carpeta. Después regresa al inicio y no encuentra un enlace Productos. Supone que la ruta está mal registrada. Antes de editar `@page`, observa que la dirección directa ya ha demostrado la existencia del componente.
+
+**Reproducción:** abre el proyecto 3.2 con `PASO 3.2.2` aún comentado. Visita la ruta directa y después el inicio. Abre `Components/Layout/MainLayout.razor` y activa el bloque `NavLink href="/productos"`. Compila y comprueba que el enlace aparece y conduce a la misma ruta que antes funcionaba escribiéndola directamente.
+
+**Control negativo:** modifica temporalmente solo el `href` hacia una ruta inexistente. El menú puede mostrar el enlace, pero su destino no corresponderá a una página. Restablece `/productos` al terminar. Esta prueba separa la existencia visual de un enlace de la existencia del endpoint que representa su destino.
+
+**Explicación causal:** `@page` declara la ruta; el layout ofrece navegación. Si la ruta funciona pero no tiene enlace, revisa el layout. Si el enlace existe pero el destino muestra contenido de NotFound, revisa las rutas. Si la ruta funciona pero faltan productos, revisa los datos de la página. Cambiar el nombre del record Producto no resuelve ninguno de los dos primeros problemas.
+
+### Incidente C — Tres tarjetas, pero las tres contienen Cuaderno (P3.3)
+
+Tras sustituir la lista por TarjetaProducto, el alumno ve tres artículos. Sin embargo, los tres tienen el mismo nombre y referencia. Este escenario distingue un contrato válido de un valor **semánticamente equivocado** transmitido por el padre.
+
+**Reproducción:** utiliza la carpeta 3.3 con las tarjetas activadas y la lista anterior desactivada. Comprueba primero que cada tarjeta recibe un Id distinto. Cambia temporalmente la expresión `Producto="producto"` del padre por `Producto="productos[0]"`. Compila y observa la pantalla: hay tres instancias de componente, pero todas representan el primer objeto de la colección.
+
+**Inspección:** localiza en el navegador el atributo `data-producto-id` de cada tarjeta. Si todos contienen el primer identificador, no basta afirmar que el bucle funciona porque se ven tres tarjetas. El bucle se ejecuta, pero transmite un valor equivocado al hijo en cada iteración.
+
+**Corrección:** restablece `Producto="producto"`. La tarjeta declara una propiedad `[Parameter]` que recibe lo que el padre le proporciona; no puede adivinar qué objeto debería haber recibido. Comprueba de nuevo nombres, precios e identificadores. La prueba funcional necesita verificar cantidad **e identidad**, no únicamente cantidad de HTML generado.
+
+### Incidente D — El botón Añadir no compila después de activarlo (P3.4)
+
+Un alumno descomenta la línea `<button id="agregar" @onclick="Agregar">` y ejecuta `dotnet build`. Aparece un error relativo al método de evento o al campo `nuevoNombre`. Este caso enseña que los pasos numerados tienen dependencias de código, no solo fragmentos visuales.
+
+**Preparación:** abre un estado inicial limpio de la carpeta 3.4. Localiza tres grupos marcados: `PASO 3.4.2`, `PASO 3.4.3` y `PASO 3.4.4`. Cada uno incluye elementos Razor y miembros C#. Debes activar cada grupo de forma completa antes de comprobarlo, sin copiar métodos de proyectos posteriores.
+
+**Secuencia correcta:** activa primero el botón Seleccionar y el método `Seleccionar(int)`. Compila y observa su efecto. Activa después el input `@bind="nuevoNombre"` y el campo C# correspondiente. Vuelve a compilar. Finalmente activa el botón Añadir y **todo** su bloque C#, incluido `siguienteId` y `Agregar()`. El método utiliza ambos datos, por lo que no puede compilar correctamente si alguno falta.
+
+**Prueba visible:** escribe Regla y pulsa Añadir. Debe aparecer una cuarta tarjeta. Prueba una entrada vacía: no se incorpora otro objeto. El resultado no requiere una acción HTTP POST ni un DbContext. Si el botón sigue sin responder pese a compilar, comprueba modo interactivo, enlace de datos y manejador real, distinguiendo sus responsabilidades.
+
+### Incidente E — La cuarta tarjeta desaparece después de recargar (P3.4)
+
+En 3.4, un alumno añade Regla y cuenta cuatro artículos. Recarga por completo y vuelve a encontrar solo tres. Lo interpreta como un fallo de persistencia. La comparación con M02 permite demostrar por qué ese criterio no es apropiado para el estado local de esta práctica.
+
+**Observación:** abre el método `Agregar` y busca una llamada a `productos.Add`. Después busca una operación de almacenamiento persistente, como `SaveChangesAsync` o un servicio que comunique el cambio a una API. El proyecto no contiene esa infraestructura, porque todavía estamos aprendiendo eventos y estado del componente.
+
+**Experimento:** selecciona Lápiz, añade Regla y observa que ambos cambios se reflejan. Recarga la página para que se cree una nueva instancia. Los campos vuelven a sus valores iniciales. No es evidencia de que `@onclick` estuviera roto; el manejador ya produjo el cambio requerido durante la sesión.
+
+**Explicación causal:** en M02 el resultado de un POST podía almacenarse en LocalDB y comprobarse después de reiniciar la aplicación. En P3.4 la lista existe dentro de una instancia interactiva. Su criterio de éxito es la actualización visible en esa instancia, no una promesa de persistencia que no se ha implementado. No utilices una lista estática global para ocultar la diferencia.
+
+### Incidente F — La activación de callbacks produce tarjetas duplicadas (P3.5)
+
+La página P3.5 entrega tres variantes de etiqueta `TarjetaProducto`: sin callback, con selección y con selección y eliminación. Si activas una nueva variante pero conservas la línea anterior, cada vuelta del `foreach` representa dos tarjetas, aunque la colección C# siga teniendo tres productos.
+
+**Reproducción:** sobre una copia del proyecto 3.5, deja activa la variante inicial y activa además la variante con `AlSeleccionar`. Comprueba cuántos artículos HTML aparecen. El error se reproduce sin modificar la lista ni el modelo. No lo corrijas borrando productos del campo `productos`: eso ocultaría la causa y cambiaría los datos que otros pasos esperan.
+
+**Corrección:** mantén una sola variante activa dentro del `foreach`. Comprueba que el hijo declara los parámetros que esa variante utiliza y que el padre dispone de los métodos receptores. Ahora pulsa Seleccionar sobre Lápiz y verifica el texto del padre. Si continúas con el reto, sustituye otra vez la etiqueta por la variante con `AlQuitar` y comprueba que desaparece un solo producto.
+
+**Explicación causal:** duplicar instancias de componente es un problema de composición, no una consecuencia automática de EventCallback. El callback transmite intenciones; el número de tarjetas depende de las etiquetas activas dentro del bucle.
+
+### Incidente G — Se quitó la tarjeta, pero continúa seleccionada (P3.5)
+
+El reto de eliminación produce tres cambios relacionados: el producto desaparece, el total disminuye y el texto de selección vuelve a «ninguno». Si falta el último, el callback puede haber funcionado aunque el estado de la interfaz quede incoherente.
+
+**Experimento:** activa el reto y selecciona Lápiz. En `Quitar(int id)` comenta temporalmente solo `seleccion = "ninguno"`. Pulsa Quitar. La tarjeta puede desaparecer y el total reducirse, mientras la cabecera sigue mencionando el producto eliminado. El problema no está necesariamente en `AlQuitar.InvokeAsync`: el padre recibió el Id y eliminó el objeto.
+
+**Corrección:** restaura la asignación que limpia la selección y repite. El estado visible debe resultar coherente. Esta prueba enseña a separar **comunicación correcta entre componentes** de **reglas correctas de actualización del estado**. El componente hijo no debería acceder por su cuenta al campo de selección del padre; simplemente comunica la intención de quitar un producto.
+
+**Transferencia:** en una aplicación mayor, el padre podría solicitar confirmación antes de quitar. El hijo continuaría enviando un Id. No es necesario incorporar esa funcionalidad en M03 para apreciar la ventaja de un contrato de callback pequeño y explícito.
+
+### Incidente H — El servicio devuelve productos, pero no se dibujan (P3.6)
+
+El componente de P3.6 obtiene tres objetos mediante `Catalogo.ObtenerAsync()` y los asigna a `productos`. Sin embargo, el marcado requiere además que `cargando` sea falso. Es posible que existan datos correctos y que la representación todavía no esté habilitada por el propio estado de presentación.
+
+**Reproducción:** activa `OnInitializedAsync` y comprueba la carga normal. Después comenta temporalmente `cargando = false`. El servicio puede completar su tarea, pero el bloque `@if (!cargando && productos.Count > 0)` no representa tarjetas. No se trata de un fallo de CSS ni de una API remota: la condición está esperando una bandera que nunca cambia.
+
+**Corrección:** restaura la asignación y comprueba que las tarjetas aparecen. Activa ahora el reto de lista vacía y cambia el retorno del servicio por `Array.Empty<Producto>()`. El resultado correcto es distinto: la carga termina y la pantalla muestra «No hay productos para mostrar» porque no existen elementos. No debe confundirse con esperar indefinidamente.
+
+**Explicación causal:** la secuencia completa es registro del servicio, inyección, inicialización, espera asíncrona, asignación de la lista, actualización de `cargando` y representación. La ausencia de tarjetas puede indicar fallos diferentes según cuál de esos pasos no se haya completado. En M04 añadiremos fallos HTTP, pero todavía no son una causa posible del servicio local de P3.6.
+
+### Recuperación del estado de trabajo
+
+Tras cada experimento, revierte únicamente el cambio utilizado para provocarlo. Si tienes dudas, recupera el archivo de la carpeta de la práctica que estás realizando, no el de otro punto. El anexo de archivos canónicos de este mismo cuaderno permite comparar el código con el estado inicial versionado.
+
+Al explicar un incidente, escribe tres elementos: **síntoma observado**, **hipótesis sobre la responsabilidad que falla** y **prueba que distingue esa hipótesis de otras**. Esta secuencia ayuda más que modificar varios archivos a la vez. El objetivo es que el alumno pueda razonar sobre su propia aplicación y no dependa de reconstruir la solución completa cada vez que un botón o una página no se comporta como espera.
+
 ## Anexo práctico — Archivos canónicos de cada estado inicial
 
 Este anexo reproduce íntegramente los archivos específicos que intervienen en las transiciones del módulo, extraídos de la misma rama del proyecto. No sustituye las instrucciones anteriores: sirve para consultar el **estado inicial reproducible**, recuperar un bloque comentado o comparar tu solución con el archivo entregado. Los archivos comunes que no cambian entre los seis estados se omiten aquí para evitar repetir boilerplate. Cada fragmento conserva su ruta exacta, y los cambios posteriores se efectúan siguiendo los pasos 3.1–3.6.
