@@ -249,6 +249,38 @@ Esta actividad no añade acciones MVC ni obliga a cambiar el proyecto. Sirve par
 **Si algo falla.** Antes de repetir todo el ejercicio, comprueba que el bloque 2.1.3 está activo, que has guardado el archivo y que la aplicación se ha recompilado. Usa un único puerto de Kestrel para evitar revisar respuestas antiguas de otro proceso. Un texto que aparece en una vista de confirmación no basta, por sí solo, para afirmar que el binder recibió todos los valores previstos; comprueba también los campos y el tipo del modelo. Consulta la teoría 2.1, apartado «Profundización aplicada: leer el contrato HTTP».
 
 
+
+## Resolución guiada P2.1 — Tres incidencias parecidas que requieren soluciones distintas
+
+La siguiente secuencia se realiza sobre el estado posterior a activar `PASO 2.1.3`. No cambia el proyecto ni constituye una parte adicional obligatoria de los primeros cuarenta minutos de prácticas. Su propósito es enseñar a diagnosticar una aplicación que no se comporta como esperábamos, partiendo de observaciones reproducibles en el navegador.
+
+### Incidencia A: el botón aparece, pero el servidor no acepta el envío
+
+Imagina que acabas de abrir `/Productos/Crear`, el formulario se representa correctamente y puedes escribir un nombre. Al pulsar Enviar aparece un error de método no permitido. Antes de cambiar una línea, identifica qué sabemos con certeza: el servidor ha sido capaz de devolver la vista mediante GET, de modo que al menos ese endpoint y el renderizado funcionan. No sabemos todavía si existe una acción que admita POST para la misma ruta. Ve a `Controllers/ProductosController.cs`, localiza las dos variantes de `Crear` y comprueba que la marcada `[HttpPost]` está activa. Si sigue encerrada entre las marcas del paso 2.1.3, actívala exactamente como indica el cuaderno, recompila y repite el envío.
+
+No intentes arreglar un 405 cambiando el precio o reduciendo el nombre del producto. El error no significa que `ProductoFormulario` tenga valores inválidos; significa que no se ha seleccionado correctamente un endpoint para la combinación solicitada de ruta y verbo. **Comprobación positiva:** con el POST activo, los datos válidos y el token legítimo deben llegar a la vista de confirmación. **Comprobación negativa:** desactivar otra vez la acción POST debe permitir reproducir el estado inicial, sin necesidad de eliminar proyectos o crear controladores adicionales. Al terminar, deja la acción activa.
+
+### Incidencia B: el endpoint POST existe, pero un cliente fabricado recibe 400
+
+Ahora suponemos que el envío normal del navegador sí funciona. Abre una terminal y reproduce el POST sin token que ya se estudió en 2.1.4. La solicitud contiene valores, pero no acredita que procedan del formulario generado en la sesión correcta. El rechazo debe producirse antes de que la acción permita una respuesta de confirmación. El objetivo de esta prueba no es conseguir que cualquier herramienta mande datos a toda costa: es demostrar que la protección del endpoint discrimina entre dos solicitudes que pueden llevar un nombre y un precio idénticos.
+
+Si una persona propone quitar `[ValidateAntiForgeryToken]` porque «así deja de fallar», analiza la consecuencia: estaría eliminando precisamente el mecanismo que el ejercicio trata de observar. Lo correcto es mantener la protección y realizar el contraste controlado. La respuesta esperada es diferente para las dos peticiones: el navegador con token obtiene la confirmación; la petición externa sin token se rechaza. Describe esta diferencia en términos de confianza de la solicitud, no de reglas de negocio.
+
+### Incidencia C: se ve el nombre en el formulario, pero la confirmación no lo representa
+
+Con el formulario normal abierto, inspecciona el HTML del campo Nombre y verifica que contiene el atributo `name` que el binder espera. En M01 ya utilizaste expresiones Razor para representar propiedades; aquí necesitas además que el **formulario envíe** valores bajo nombres acordados. Observa la solicitud del navegador y compara el par enviado con la propiedad del modelo. Si el nombre no viaja o tiene una clave diferente, la acción no puede obtenerlo automáticamente en la propiedad prevista, aunque visualmente el usuario haya escrito texto.
+
+En este escenario, no modifiques primero la clase `Producto` ni la semilla del catálogo: todavía no hay ninguna operación persistente que pueda explicar el problema. Comprueba por este orden el formulario renderizado, el cuerpo enviado y los valores del objeto recibido por la acción. El diagnóstico estará completo cuando seas capaz de señalar el elemento concreto donde se pierde la correspondencia.
+
+### Hoja de interpretación para autoevaluación
+
+Después de cada caso, escribe una respuesta de dos o tres frases que identifique: qué petición se envió, qué componente decidió el resultado y qué archivo permitiría investigar la causa. No basta responder «hay un problema en el formulario». Una explicación satisfactoria de A nombra la selección por método HTTP; una explicación de B identifica la protección antiforgery; y una explicación de C relaciona el atributo `name` con el model binding. Si todas tus explicaciones proponen cambiar el mismo archivo, probablemente estás confundiendo capas.
+
+Como último contraste, vuelve al listado de productos y comprueba que ninguno de los nombres utilizados en estas pruebas se convirtió en una nueva entidad. No estamos verificando EF Core todavía; estamos delimitando el contrato de entrada. Precisamente esa claridad permitirá comprender en 2.4 qué cambia cuando el controlador ejecuta una operación de almacenamiento real.
+
+**Extensión opcional de documentación.** Anota en tu cuaderno una pequeña traza textual de un envío satisfactorio: «GET del formulario → HTML con nombres de campos y token → POST legítimo → binder → acción → vista de confirmación → HTML devuelto». Bajo cada flecha, coloca una evidencia obtenida de la vista o de la pestaña Red. Esta representación muestra causalidad y será reutilizable cuando analicemos la redirección después de guardar productos.
+
+
 # P2.2. Tag Helpers: construir formularios y enlaces sin duplicar cadenas de rutas
 
 ## Qué vamos a conseguir y cómo se relaciona con P2.1
@@ -471,6 +503,42 @@ Trabaja sobre `PROYECTO/2.2/CursoWeb.Mvc` tras completar los pasos 2.2.1 a 2.2.5
 **Resultado esperado.** Tu descripción debería relacionar un fragmento Razor con el HTML resultante, el dato de modelo utilizado y la solicitud o navegación observable. No basta una lista de nombres de helpers. Si la pantalla muestra atributos `asp-for` o `asp-route-id` literalmente, revisa `_ViewImports.cshtml` y la configuración del proyecto; si la navegación genera una URL equivocada, inspecciona el destino y el Id recibido, no el estilo CSS.
 
 **Transferencia a P2.3.** En el punto siguiente veremos que los metadatos de validación pueden influir en el marcado de los campos, pero el servidor sigue siendo el responsable de decidir si acepta la operación. Esa relación se entenderá mejor porque ahora sabes diferenciar el código que escribió el desarrollador del HTML que realmente entrega ASP.NET Core.
+
+
+
+## Resolución guiada P2.2 — Investigar una interfaz después de convertirla a Tag Helpers
+
+El proyecto del capítulo 2.2 permite comprobar que un formulario escrito con atributos de Tag Helpers sigue respondiendo al mismo contrato MVC. Esta propuesta de profundización evita añadir código nuevo: vuelve a utilizar los archivos que ya has trabajado en los pasos 2.2.2 a 2.2.5, la vista parcial del ejercicio autónomo y el reto del listado principal.
+
+### Incidencia A: un atributo de Razor aparece sin transformar en el navegador
+
+Supongamos que inspeccionas el HTML recibido y encuentras una etiqueta cuyo atributo todavía se llama `asp-for` o `asp-action`. No es el resultado que se espera cuando el Tag Helper correspondiente se aplica. Abre `Views/_ViewImports.cshtml` y confirma que el proyecto habilita los Tag Helpers de MVC. Después comprueba que estás viendo la respuesta del proceso actualizado y no el código fuente `.cshtml` abierto directamente como archivo local. Un navegador no sabe interpretar los atributos `asp-*` por sí mismo; necesita el HTML producido por el servidor ASP.NET Core.
+
+En tu explicación, separa dos causas que suelen mezclarse: una cosa es que Razor no haya aplicado un Tag Helper y otra que lo haya aplicado pero haya generado un destino incorrecto. En el primer caso inspeccionamos importación y configuración; en el segundo, la acción, el controlador y las convenciones de routing. Ambos síntomas pueden afectar a un formulario, pero exigen comprobaciones diferentes.
+
+### Incidencia B: el formulario sigue funcionando, pero su botón de regreso apunta a otra ubicación
+
+Revisa la versión del enlace creada con `asp-controller` y `asp-action`. Abre el resultado HTML para obtener el destino efectivo. Haz clic y comprueba si regresaste al catálogo MVC esperado. A continuación, utiliza la vista de detalle y regresa de nuevo al listado. Este pequeño recorrido muestra que generar URLs a partir de nombres de acciones reduce la cantidad de rutas literales que escribimos, sin eliminar la necesidad de comprobar la navegación resultante.
+
+Piensa qué cambiaría si el catálogo se publicase bajo una ruta distinta. No hace falta implementar ese cambio para contestar: con un enlace literal habría que localizar las cadenas afectadas; con un enlace construido desde acciones dependeríamos de que esas acciones y rutas siguieran registradas correctamente. Una solución que evita duplicar cadenas puede ser más mantenible, pero no valida automáticamente un nombre mal escrito.
+
+### Incidencia C: todas las tarjetas muestran un texto distinto, pero sus enlaces llevan a la misma ficha
+
+La vista parcial `_TarjetaProducto.cshtml` recibe un producto. Abre su código y explica de dónde procede `Model.Id` cuando un listado llama a esa parcial varias veces. Después inspecciona los enlaces renderizados en dos tarjetas distintas y compara sus direcciones. Si el identificador fuera constante, la interfaz estaría mostrando datos distintos con un destino común. El problema tendría relación con el valor utilizado en la vista parcial, no con que el navegador «no entienda Tag Helpers».
+
+En el reto 2.2 también activaste enlaces en `Views/Productos/Index.cshtml`. El mismo criterio permite comprobarlos: cada iteración necesita utilizar el Id del producto que representa esa fila. Contrasta un enlace de tarjeta con otro del listado. Deben conducir a la misma ficha si representan el mismo elemento; deben conducir a fichas distintas cuando los Id son distintos. Esta comparación es una prueba conceptual de reutilización, no una nueva implementación de la operación Detalle.
+
+### Incidencia D: la pantalla tiene un campo nuevo, pero el dato no llega al servidor
+
+Imagina un campo visible añadido manualmente con un nombre que no pertenece a `ProductoFormulario`. El navegador puede enviarlo como texto, pero eso no crea por sí solo una propiedad C# ni modifica el contrato de una acción. Lo importante es que la expresión `asp-for` se refiere a una propiedad del modelo de la vista; su utilidad procede de declarar explícitamente el vínculo. No añadas un campo extra en esta práctica: simplemente observa el contrato ya existente y explica por qué no podemos asumir que cualquier entrada se convertirá en una propiedad del objeto de destino.
+
+Conecta esta conclusión con la validación del capítulo siguiente. Los Tag Helpers facilitan la escritura del marcado y pueden generar metadatos a partir del modelo, pero no son una alternativa a comprobar el contenido de una solicitud. Un formulario que luce profesional y utiliza Tag Helpers puede seguir necesitando reglas de longitud, rango y obligatoriedad.
+
+### Tabla de decisiones a completar
+
+Prepara cuatro filas en tu cuaderno: formulario sin transformación, URL errónea, identificador de tarjeta incorrecto y campo sin propiedad equivalente. Para cada una, anota qué archivo inspeccionarías primero, qué mirarías en HTML y qué debería mantenerse intacto. Una respuesta razonable relacionará las incidencias con `_ViewImports.cshtml`, las expresiones de enlaces, el contexto de la parcial y el contrato de entrada respectivamente.
+
+Al terminar, repite el POST normal de creación. Debe seguir presentando los valores recibidos; la conversión a Tag Helpers no ha introducido persistencia. Este control final evita otro error de aprendizaje frecuente: creer que sustituir una etiqueta HTML por su variante tipada significa haber cambiado la arquitectura de la aplicación.
 
 
 # P2.3. Validar los datos del formulario y representar sus errores
