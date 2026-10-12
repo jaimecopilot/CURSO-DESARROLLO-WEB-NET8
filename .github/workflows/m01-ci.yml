@@ -2,7 +2,7 @@ name: M01 - E2E puntos 1.1 a 1.5
 
 on:
   push:
-    branches: [desarrollo/m01-mvc]
+    branches: [desarrollo/m01-mvc, revision-didactica/m01]
     paths:
       - "M01_MVC/**"
       - ".github/workflows/m01-ci.yml"
