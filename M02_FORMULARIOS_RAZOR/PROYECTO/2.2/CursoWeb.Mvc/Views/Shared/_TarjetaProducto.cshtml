@@ -4,6 +4,12 @@
 <article class="tarjeta-producto" data-producto-id="@Model.Id">
     <h3>@Model.Nombre</h3>
     <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
+    @* APLICACION 2.2.6 — ESCRIBIR:
+       Reemplaza el enlace literal por un Anchor Tag Helper propio que utilice
+       asp-controller="Productos", asp-action="Detalle" y asp-route-id="@Model.Id".
+       Mantén el texto «Ver detalle de @Model.Nombre» y verifica listado y ficha.
+       No se entrega aquí la solución activa.
+    *@
     <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
 
     @* RETO 1.5 (inicio)
