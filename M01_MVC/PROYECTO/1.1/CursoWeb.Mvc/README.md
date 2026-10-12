@@ -22,20 +22,4 @@ Abrir http://localhost:5091. Detener con Ctrl+C.
 - Guardar y actualizar el navegador. Ambos pasos se pueden activar a la vez.
 - **RETO 1.1:** en `Controllers/HomeController.cs` descomentar la asignación `X-Curso-Reto`. En `Views/Home/Index.cshtml` retirar los delimitadores del comentario `RETO 1.1` para hacer visible el párrafo `reto-1-1`. El reto dispone de código completo y explicación en P1.1, apartado G.
 
-Las explicaciones y el recorrido completo se encuentran en la sección 1.1 de ../../../PRACTICAS/M01_PRACTICAS.md (subir tres niveles desde este directorio).
-
-## Verificación automatizada
-
-Desde la raíz del repositorio:
-
-~~~bash
-bash M01_MVC/TESTS/1.1_e2e.sh
-~~~
-
-El script compila y ejecuta HTTP real sobre Kestrel; verifica la vista, el layout, códigos 200 y 404 y los fragmentos y el reto activados en una copia temporal del proyecto. Requiere .NET SDK 8, Bash, Python 3 y curl. GitHub Actions permite ejecutar la prueba en una máquina con .NET 8.
-
-## Laboratorios ampliados y correspondencia documental
-
-La versión ampliada de [P1.1](../../../PRACTICAS/M01_PRACTICAS.md) incluye recorridos adicionales de diagnóstico y consolidación basados en **este mismo proyecto**. Son actividades de lectura, comprobación HTTP y activación de los bloques ya documentados más arriba; no constituyen un segundo conjunto de soluciones ni requieren crear otro proyecto.
-
-**Correspondencia verificable:** P1.1 del Markdown → código de esta carpeta → `M01_MVC/TESTS/1.1_e2e.sh`. Las explicaciones detalladas y los enunciados viven solo en el MD de prácticas; el PDF se genera de esa fuente, sin editarlo manualmente.
+Las explicaciones y el recorrido completo se encuentran en la sección 1.1 de ../../../PRACTICAS/M01_PRACTICAS.md .
