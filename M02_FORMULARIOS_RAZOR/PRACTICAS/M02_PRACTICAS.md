@@ -844,6 +844,42 @@ Conserva el estado de `PROYECTO/2.3/CursoWeb.Mvc` después de activar las anotac
 **Consolidación:** después de todas las pruebas, vuelve a `/Productos` y comprueba que sigue apareciendo el catálogo fijo. Habremos demostrado la separación entre recibir, convertir y validar, pero aún no la escritura persistente. La teoría 2.3 describe causalmente este mismo recorrido en su apartado de profundización aplicada.
 
 
+
+## Resolución guiada P2.3 — Una investigación completa de los mensajes de validación
+
+Esta práctica de transferencia comienza desde el estado validado de `PROYECTO/2.3/CursoWeb.Mvc`, después de activar `Required`, `StringLength` y `Range`, y después de estudiar `ModelState`. No cambia la definición del formulario ni introduce clases adicionales: utiliza deliberadamente la implementación ya preparada para que puedas concentrarte en comprender la causa de cada resultado.
+
+### Una operación aparentemente idéntica produce dos mensajes distintos
+
+Dos personas comunican que «el precio no se acepta». La primera ha dejado el campo vacío; la segunda ha escrito cero. Aunque ambas pueden ver el formulario de nuevo, no han enviado exactamente la misma información. En el primer caso falta un valor significativo para una propiedad que se ha declarado obligatoria; en el segundo existe un valor numérico que no supera el mínimo de negocio. Abre `Models/ProductoFormulario.cs` y busca las reglas correspondientes a `Precio`. Señala qué anotación expresa la obligatoriedad y cuál expresa el intervalo aceptable.
+
+Prueba ambos valores sin modificar las reglas. Si la validación cliente bloquea el envío, observa el modo de deshabilitar JavaScript ya explicado en 2.3.5 para provocar la comprobación de servidor. La respuesta esperada es una vista que conserva los datos del usuario y presenta el mensaje correspondiente. No concluyas «no funciona el formulario» por el mero hecho de recibir otra vez HTML: en este punto, la devolución de la vista con errores es precisamente el contrato correcto.
+
+### El texto no convertible es distinto del número fuera de rango
+
+En el laboratorio se utilizaron valores enteros sencillos para no introducir diferencias de cultura. Ahora considera un cliente que remite literalmente `Precio=abc`. El dato enviado no se puede interpretar como `decimal?`, por lo que el proceso de enlace de modelos debe comunicar un problema antes de aplicar con normalidad la regla de intervalo sobre un número válido. Esta observación importa cuando un usuario comunica un mensaje distinto del que esperamos de `Range`.
+
+Compara la petición HTTP que lleva `Precio=abc` con otra que lleva `Precio=0`. Ambas deben rechazarse, pero no por la misma razón. Para la primera revisamos el binder y el tipo de la propiedad; para la segunda revisamos el requisito de negocio. Si una persona propone aumentar el máximo del `Range` para permitir letras, explica por qué no puede resolver una conversión de tipos. Si otra propone sustituir `decimal?` por `string` y eliminar validaciones, explica qué contrato estaríamos debilitando.
+
+### El formulario conserva lo escrito incluso después de un error
+
+El paso 2.3.4 explica que, cuando la entrada es inválida, la acción devuelve la vista con el objeto de entrada. Es una decisión pedagógica importante: queremos que el usuario pueda corregir solo lo incorrecto, no volver a escribir todos los campos. Introduce un nombre aceptable y un precio inválido, observa el error de precio y comprueba que el nombre sigue en el campo. Después introduce un nombre inválido y un precio aceptable; comprueba el comportamiento inverso.
+
+No confundas «valor conservado para corregirlo» con «valor guardado». El primero está relacionado con el estado de la solicitud y el modelo que vuelve a la vista. El segundo exigiría una operación persistente que todavía no existe en P2.3. Recuerda que en la fase siguiente del módulo utilizaremos esta misma experiencia para asegurarnos de que la base de datos no cambia cuando `ModelState.IsValid` es falso.
+
+### Un error de validación que no se ve no es necesariamente un error que no existe
+
+La vista utiliza elementos de visualización para errores del modelo y de campos concretos. Examina la posición de `asp-validation-summary` y los `span` con `asp-validation-for`. Si el error pertenece a `Nombre`, la zona asociada a esa propiedad es su representación natural. Un resumen configurado como `ModelOnly` no tiene por qué mostrar todos los mensajes de propiedades. Esta distinción ayuda a interpretar capturas de pantalla de una aplicación: no es suficiente que el HTML contenga un resumen vacío para concluir que el servidor ha aceptado los datos.
+
+Verifica también que el formulario contiene los atributos generados para los campos. Esa conexión permite que los scripts de validación cliente ofrezcan una respuesta inmediata, pero la comprobación en servidor sigue siendo necesaria. Un navegador puede tener JavaScript desactivado, una petición puede enviarse desde una herramienta de pruebas o los datos pueden manipularse antes del POST. No se debe organizar la persistencia sobre la suposición de que todo cliente es honesto.
+
+### Cómo redactar un diagnóstico útil para otra persona
+
+Prepara cuatro notas, una por causa: ausencia de nombre, nombre de longitud incorrecta, precio no convertible y POST sin token. Cada nota debe incluir el valor concreto que se envió, el resultado observado y el archivo donde investigarías el comportamiento. En la primera y la segunda citarás DataAnnotations; en la tercera hablarás del binder; en la cuarta de la protección antiforgery. La respuesta debe permitir a otro alumno reproducir la situación sin que tú estés delante.
+
+Finalmente envía una entrada completamente válida y comprueba el mensaje positivo. Después abre el listado: los datos de la confirmación no deben haberse añadido al catálogo. Esta última verificación prepara el paso siguiente: en P2.4, el mismo control de `ModelState` protegerá un INSERT real. La continuidad no está en repetir el mismo mensaje en dos documentos, sino en comprobar qué efecto nuevo se añade al aceptar un formulario válido.
+
+
 # P2.4. Crear, listar, editar y eliminar productos persistentes
 
 ## Situación inicial, objetivos y preparación del laboratorio
@@ -1210,6 +1246,48 @@ Este recorrido se realiza **después** de los pasos 2.4.3, 2.4.4 y 2.4.5; exige 
 **Diagnóstico de transferencia.** Si un alumno informa que la edición «ha funcionado» porque vio una pantalla sin error, plantea tres preguntas: ¿se redirigió a la ficha del mismo Id?, ¿muestra el nuevo valor tras una consulta?, ¿se conserva después de reiniciar? Si el alumno informa que el borrado «ha funcionado» porque desapareció un botón, plantea otras tres: ¿hubo un POST con token?, ¿el detalle devuelve 404?, ¿continúa ausente tras reiniciar? Las respuestas transforman una impresión visual en evidencia funcional comprensible.
 
 **Límite deliberado.** No usamos este ejercicio para enseñar concurrencia avanzada, migraciones de base de datos o administración de SQL Server. Su profundidad procede de reconstruir con exactitud el ciclo que ya existe, observar los estados y comprender las razones de cada transición. Consulta la profundización teórica 2.4 para relacionar formulario, modelo de entrada, entidad y representación HTML.
+
+
+
+## Resolución guiada P2.4 — Diagnóstico de persistencia y reconstrucción de evidencias
+
+A diferencia de los capítulos anteriores, ahora las operaciones generan efectos en la base de datos. Esta profundización no obliga a instalar ninguna herramienta adicional ni a crear nuevas clases. Utiliza las acciones, formularios y vistas que ya están en `PROYECTO/2.4/CursoWeb.Mvc` una vez activados los bloques 2.4.3, 2.4.4 y 2.4.5. El objetivo es consolidar una metodología de diagnóstico que un alumno pueda aplicar al salir del aula.
+
+### Incidencia A: «he creado un producto, pero no sé dónde está»
+
+Comienza desde el formulario `/Productos/Crear`. Introduce un nombre distintivo que no aparezca en el catálogo y un precio dentro del rango permitido. Después de enviar, observa la dirección que muestra el navegador. La implementación del ejercicio redirige al detalle del producto recién creado; el identificador no se conoce de antemano. Anota ese Id, vuelve al listado y busca el nombre. Abre la ficha desde allí y comprueba que el Id coincide.
+
+Si el POST devuelve una página de formulario con errores, la creación no se ha completado: lee los mensajes de `ModelState` y corrige los datos antes de atribuir el comportamiento a SQL Server. Si el formulario aparentemente se acepta pero no se produce la redirección, inspecciona la acción POST y comprueba que se ejecuta `SaveChangesAsync` antes de construir la respuesta de navegación. Si la redirección existe pero el detalle devuelve 404, revisa qué base se utilizó y qué Id se está enviando a la acción Detalle.
+
+Un diagnóstico profesional no debe afirmar «se guardó» únicamente porque desapareció la pantalla de edición. Necesitamos una consulta posterior de la misma entidad. La ruta de detalle, su contenido y una repetición de la consulta constituyen la evidencia observable que buscamos.
+
+### Incidencia B: «después de editar veo el dato antiguo»
+
+Abre la vista Editar del Id anterior. Cambia solo el precio y envía el formulario. El controlador debería recuperar la entidad por su identificador y aplicar los nuevos valores a esa entidad; no debe crear otra fila con un nombre semejante. Si al llegar al detalle aún aparece el precio anterior, comprueba qué valor envió el navegador y qué Id se utilizó en la ruta POST. Revisa después el orden de las instrucciones que asignan propiedades y ejecutan `SaveChangesAsync`.
+
+No empieces por eliminar la base ni por cambiar el contexto EF Core. Una parte importante de las incidencias de edición procede de los identificadores y de la respuesta que se está consultando. Por ejemplo, una URL que apunta a otro Id puede mostrar un precio correcto para otro producto, pero eso no valida la operación que pretendías. El enlace construido desde el listado es una pista concreta para relacionar pantalla y entidad.
+
+Como control adicional, vuelve a abrir la edición y escribe un nombre de un solo carácter. Comprueba que se muestra el error, que puedes corregirlo y que la base mantiene el nombre anterior. Esta operación negativa no debería generar una nueva fila ni sobreescribir datos. Explica por qué devolver la vista con `ModelState` inválido resulta preferible a guardar y después intentar revertir.
+
+### Incidencia C: «eliminar oculta el producto, pero la fila sigue existiendo»
+
+La eliminación del ejercicio dispone de dos pasos distinguibles. Primero se abre la confirmación mediante GET. En ese momento la entidad debe seguir disponible, y la vista solamente pregunta si deseas continuar. Después, al enviar el POST protegido, la acción elimina la fila y redirige. Para investigar un resultado dudoso, separa explícitamente ambas peticiones y no infieras que un GET ha producido la escritura.
+
+Antes de confirmar, guarda la URL del detalle. Tras el POST, comprueba que la consulta a esa URL ya no encuentra la entidad. Si devuelve 200 con el mismo producto, necesitas averiguar si se ejecutó realmente la acción POST, si se incluyó el token antiforgery, si el Id era el correcto y si se llamó a `SaveChangesAsync`. Ocultar un enlace en el HTML no equivale a borrar un registro. Si la eliminación se confirma correctamente, un nuevo GET de detalle debería informar de la ausencia mediante la respuesta adecuada.
+
+### Incidencia D: «los productos desaparecen al reiniciar»
+
+LocalDB usa un nombre de instancia y una base de datos identificados mediante cadena de conexión. Si ejecutamos Kestrel desde una consola con una variable de entorno, pero abrimos después la aplicación desde Visual Studio sin esa variable, es posible utilizar una conexión diferente. Antes de concluir que la persistencia se ha perdido, compara los valores efectivos de configuración en ambas formas de arranque. El laboratorio propone una base aislada precisamente para que los experimentos del curso no alteren datos ajenos.
+
+Recuerda también la semilla inicial. `EnsureCreated` prepara el esquema si es necesario, pero la lógica del proyecto no está pensada para borrar y volver a insertar todos los registros cada vez que se inicia la aplicación. Que aparezcan los tres productos originales en una base nueva no significa que un registro creado anteriormente deba reaparecer después de haberlo eliminado de forma correcta. Los cambios válidos deberían mantenerse al reiniciar con la misma cadena; los cambios rechazados por validación no deberían aparecer nunca.
+
+### Construir una pequeña historia verificable
+
+Para consolidar, redacta una historia de un único producto utilizando su Id real: cuándo se creó, qué valor tenía inicialmente, qué dato se editó, qué intento inválido se rechazó, cuándo se borró y qué devolvió su URL tras reiniciar. Adjunta a cada etapa un comportamiento observado en navegador: dirección, texto de pantalla o código HTTP cuando lo hayas comprobado. Este documento personal no se guarda en el repositorio y no requiere crear otra aplicación.
+
+La respuesta excelente no es una narración genérica de «crear, leer, actualizar y eliminar». Debe indicar **qué solicitud produjo cada cambio** y **qué lectura posterior confirmó la nueva situación**. Esa diferencia convierte una sucesión de clics en una prueba comprensible de persistencia. En un proyecto profesional podrías automatizarla, pero para este nivel introductorio basta con comprender y reproducir la secuencia desde Visual Studio y el navegador.
+
+Si tras todos los pasos el catálogo funciona, no extrapoles que la aplicación ya posee autorización de usuarios, control de concurrencia o una estrategia de migraciones. Esas capas tienen objetivos propios. Aquí habrás demostrado correctamente la integración de MVC, validación y EF Core bajo unas condiciones de laboratorio explícitas.
 
 
 # P2.5. Comparar MVC y Razor Pages dentro de la misma aplicación
