@@ -1099,6 +1099,139 @@ Describe qué archivo revisas primero ante las siguientes incidencias: una pági
 Si todas tus respuestas consisten en «cambiar Program.cs» o «reconstruir la aplicación», todavía no estás usando la separación de responsabilidades que hemos practicado. El resultado formativo de M03 no es la cantidad de componentes escritos, sino la capacidad de comprender cómo cooperan para construir una interfaz interactiva reproducible.
 
 
+## Estudio aplicado I — Seguir una página Blazor de extremo a extremo
+
+Para comprender un framework de interfaz es útil analizar una petición real sin saltar directamente al fragmento más vistoso. Tomemos `/productos`, la dirección de la aplicación B que aparece desde P3.2. En el laboratorio, el navegador solicita esa ruta al servidor ASP.NET Core. El proyecto está configurado en `Program.cs` para mapear componentes Razor. El router puede localizar `Productos.razor` porque declara `@page "/productos"`. La página se representa dentro del layout y utiliza el modelo de datos que corresponde al estado de práctica. Esta cadena explica la aparición inicial del catálogo sin atribuir al navegador capacidades que realmente pertenecen al servidor.
+
+### Primera frontera: HTTP y el endpoint de componentes
+
+En MVC, una URL podía seleccionar una acción de un controlador que devolvía `View()`. En Blazor Web App, el endpoint de componentes permite atender la ruta cuya página declara `@page`. No es necesario que el alumno cree una acción `ProductosController.Index` para llegar a `Productos.razor`. El hecho de que ambos sistemas usen ASP.NET Core permite reutilizar conocimientos del host, pero no convierte los componentes en acciones MVC.
+
+La diferencia se aprecia al diagnosticar una dirección no encontrada. Si solicitamos `/productos-inexistentes`, el router no tiene una página registrada con ese nombre. El contenido de `NotFound` ofrece una salida. Cambiar el precio de Cuaderno en `Producto.cs` no solucionará el fallo, porque se produce antes de representar la colección. Este ejemplo ayuda a distinguir **selección de endpoint** de **obtención y representación de datos**.
+
+### Segunda frontera: el árbol de componentes
+
+Una vez identificada `Productos.razor`, el sistema representa un árbol: la estructura inicial de `App.razor`, la selección de página de `Routes.razor`, el layout común y el componente específico. Desde P3.3, también incluye varias instancias de `TarjetaProducto`. Cada nivel tiene responsabilidades distintas. El componente raíz proporciona el documento y los recursos; el router selecciona; el layout organiza la navegación; la página posee la lista; la tarjeta representa un producto.
+
+Esta organización permite razonar sobre un error sin rehacer toda la aplicación. Si el menú no muestra Productos, revisamos `MainLayout.razor`. Si la ruta no existe, revisamos `@page` y el router. Si los nombres aparecen cambiados, revisamos la colección y el parámetro. Si todos los artículos comparten un Id, revisamos el valor que el padre pasa al hijo. Si el estilo falta, comprobamos la hoja `wwwroot/app.css`. Cada síntoma pertenece potencialmente a un nivel diferente del árbol.
+
+### Tercera frontera: datos C# y representación HTML
+
+En la versión de P3.3 la lista está escrita directamente en el componente y cada iteración de `@foreach` produce una tarjeta. La expresión `@Producto.Nombre` del hijo no crea automáticamente otro objeto: lee una propiedad del objeto recibido. Tampoco el atributo HTML `data-producto-id` realiza un enlace de datos por sí mismo; sirve como representación visible de una identidad que ya pertenecía al modelo.
+
+Por ello, al inspeccionar el HTML, el alumno puede encontrar tres artículos que contienen texto y valores, mientras que en el archivo Razor observa un único bloque `TarjetaProducto` dentro de un bucle. El modelo de componentes convierte una descripción repetible en varias instancias de representación. La utilidad principal no está en escribir menos líneas por sí mismo, sino en conservar un contrato único que permita modificar el marcado de todas las tarjetas.
+
+### Cuarta frontera: interacción y estado
+
+En P3.4 aparece un botón que cambia `seleccion`. A diferencia de la carga inicial del documento, este evento puede actualizar una pequeña parte de la interfaz sin navegar a otra URL. La representación depende del campo del componente y del proceso de actualización que coordina Blazor. Una nueva ruta no es necesaria para que aparezca «Seleccionado: Lápiz»; esa frase procede del estado local modificado por `Seleccionar(int)`.
+
+No debemos convertir esta característica en una generalización excesiva. Un componente interactivo puede navegar, llamar a servicios y provocar solicitudes HTTP cuando su función lo requiere. En nuestro ejercicio concreto, la selección no necesita esas operaciones. Aprendemos a elegir el mecanismo más simple que explique el comportamiento deseado.
+
+### Quinta frontera: componente hijo y notificación
+
+P3.5 mueve el botón a TarjetaProducto. La tarjeta ahora conoce su propia intención de seleccionar, pero no es dueña del campo `seleccion` del padre. Utiliza `EventCallback<int>` para comunicar el Id. La selección aparece después de que el padre reciba la notificación y modifique su estado. Este diseño delimita una frontera dentro del árbol de componentes, tan relevante como la frontera HTTP inicial.
+
+El alumno puede seguir el evento con puntos de interrupción: método del hijo, `InvokeAsync`, método del padre, asignación del campo y nueva representación. La presencia de un callback tipado hace visible esa relación. No debe confundirse con un servidor de mensajes general ni con una API REST entre dos componentes del mismo árbol.
+
+### Sexta frontera: adquisición asíncrona
+
+En P3.6 los datos dejan de crearse dentro del componente y proceden de `IProductosMemoriaService`. La página solicita el servicio a través de `@inject` y espera el resultado en `OnInitializedAsync`. La frontera ya no es un dato constante local, sino una dependencia proporcionada por el contenedor. Esta evolución prepara M04, donde ese servicio puede relacionarse con una API remota.
+
+En el estado actual, el servicio sigue siendo controlado y local. Eso permite concentrarse en la transición de carga sin confundir fallos de red, HTTP o JSON con el funcionamiento de componentes. El marcado distingue «esperando», «completado con datos» y «completado sin datos» si se activa el reto correspondiente. Cada estado es una parte de la interfaz y necesita una representación comprensible.
+
+### Qué aprende el alumno al reconstruir el recorrido
+
+La cadena completa no es «Blazor hace todo». Es «ASP.NET Core sirve un endpoint de componentes; el router identifica la página; el layout la compone; la página obtiene o construye datos; los hijos reciben parámetros; los eventos modifican estado; el framework vuelve a representar lo necesario». Esta explicación proporciona una base para investigar comportamientos inesperados sin recurrir a modificaciones arbitrarias.
+
+Una buena autoevaluación consiste en señalar un archivo para cada eslabón y justificar qué ocurriría si esa pieza estuviera ausente o mal configurada. Si falta una ruta, fallará la selección del componente; si falta un parámetro, la tarjeta no recibirá su contrato; si falta un callback, el hijo no podrá notificar al padre; si falta el registro del servicio, la inyección puede fallar; si falta el modo interactivo, el botón no ejecutará el evento que esperamos. Son causas distintas con síntomas que se pueden observar por separado.
+
+## Estudio aplicado II — Elegir una estructura para cada necesidad
+
+Una formación profesional no debería presentar MVC, Razor Pages y Blazor como tres nombres intercambiables o como versiones sucesivas de una misma tecnología. Son formas de organizar la aplicación y su interfaz con diferencias reales. Hemos elegido la aplicación MVC A para formularios y persistencia, y la aplicación Blazor B para componentes interactivos. Esta elección tiene una razón didáctica que también puede informar decisiones profesionales.
+
+### Una página de consulta con navegación tradicional
+
+Imagina una página de catálogo que muestra información principalmente de lectura, con enlaces a detalle y cambios ocasionales mediante formularios. MVC puede ser un enfoque razonable: el controlador recibe la solicitud, obtiene el modelo y elige una vista. Razor Pages también puede ser adecuado si la funcionalidad se organiza naturalmente alrededor de pantallas relativamente autónomas con handlers GET y POST. No necesitamos un circuito Interactive Server para cada simple enlace.
+
+Eso no significa que las soluciones tradicionales sean «estáticas» en sentido de datos. MVC puede generar información actualizada en cada petición y Razor Pages puede validar formularios y utilizar EF Core. Debemos distinguir entre contenido que cambia **entre solicitudes** y una experiencia de componente que reacciona a eventos **dentro de una sesión interactiva**.
+
+### Una interfaz que depende de numerosos estados visuales
+
+Imagina ahora una pantalla que necesita seleccionar productos, activar filtros, editar campos y actualizar inmediatamente partes de la representación. Una aplicación basada en componentes puede permitir expresar esas relaciones directamente en C#, con parámetros, estado y eventos. Blazor ofrece herramientas para construir esa experiencia. El valor no está en que un clic sea técnicamente imposible con MVC, sino en que el diseño y la composición de eventos pueden resultar más naturales en un modelo interactivo.
+
+No podemos evaluar este diseño atendiendo solo a la cantidad de líneas. Interactive Server también implica dependencia de conexión, circuitos y recursos de servidor. Es posible que una interfaz muy pequeña no necesite esa complejidad. La decisión debe considerar el comportamiento de usuario, las restricciones del entorno, las capacidades del equipo y los requisitos de operación.
+
+### La relación con la infraestructura
+
+En M01 y M02 construimos una aplicación MVC que, para el CRUD persistente, utiliza LocalDB. En M03 la aplicación B funciona sin base de datos ni API, porque el objetivo es dominar componentes. La ausencia de almacenamiento no hace que Blazor sea incompatible con EF Core; solo significa que hemos decidido no mezclar conceptos antes de tiempo.
+
+En M04 añadiremos comunicación HTTP a B. Esto permitirá observar que la interfaz interactiva y el backend pueden estar separados. En M05 la consolidación final recaerá en B, mientras que las demostraciones introductorias de despliegue utilizarán la aplicación MVC A para evitar infraestructura innecesaria. El diseño del curso responde a una progresión de aprendizaje, no a una regla según la cual cada tecnología solo pueda realizar las tareas que hacemos en ella.
+
+### Un caso en el que Razor Pages sigue siendo razonable
+
+Una pantalla administrativa pequeña que presenta un formulario y procesa un POST podría utilizar Razor Pages de manera clara. El `PageModel` concentra los handlers y la vista muestra los valores y errores. Si el usuario realiza unos pocos envíos de formulario, ese diseño puede ser simple y mantenible. No debemos introducir por obligación un árbol de componentes con estado interactivo si no aporta al requisito.
+
+En P2.5 hicimos una demostración breve de esta opción. No construimos un segundo CRUD ni otra aplicación. Esa decisión preservó el tiempo para aprender Blazor en la jornada siguiente y muestra que una formación bien diseñada puede enseñar varias alternativas sin afirmar que todas necesitan la misma profundidad.
+
+### Un caso en el que la reutilización es especialmente valiosa
+
+Si la pantalla de productos aparece en varias secciones, un componente TarjetaProducto ayuda a conservar un contrato de representación uniforme. Si cambia el modo de mostrar el precio, la tarjeta se modifica una vez. Si cambia el origen de datos, la tarjeta puede mantenerse igual siempre que reciba un objeto compatible. Si necesita informar de un clic al padre, dispone de un callback explícito.
+
+En una vista MVC también podemos usar parciales y componentes de vista, pero sus mecanismos se integran con el ciclo de renderizado del servidor. La comparación relevante no es que uno «permita reutilizar» y otro no, sino cómo se combinan reutilización, navegación e interacción en cada arquitectura.
+
+### Un caso en el que el estado local no es suficiente
+
+Imagina que el alumno añade Regla en P3.4 y, después de recargar, espera que el producto aparezca en otro ordenador. Nuestro componente no puede cumplir ese requisito, porque solo modifica una lista local de instancia. No deberíamos «arreglar» el problema con una variable `static` global que comparta datos accidentalmente entre usuarios. Necesitaríamos diseñar un origen de datos adecuado, una API o un almacenamiento persistente según el requisito real.
+
+La conclusión es que un estado útil para la interfaz no siempre coincide con el estado de negocio que debe persistir. Comprender esa diferencia será esencial en M04 y M05. M03 enseña el flujo de componentes; no promete permanencia de todos los cambios.
+
+### Una plantilla de decisión razonada
+
+Al elegir entre MVC, Razor Pages y Blazor, formula cuatro preguntas. ¿Cuál es la experiencia de interacción requerida? ¿Qué partes se pueden reutilizar? ¿Dónde deben residir el estado y los datos? ¿Qué dependencias operativas podemos aceptar? En el curso, esas respuestas están controladas para facilitar aprendizaje: A tiene formularios y persistencia; B tiene eventos y componentes; una API pequeña se suministra cuando corresponda.
+
+La elección de una tecnología no debe justificarse porque sea «más moderna». Una justificación sólida relaciona capacidades con requisitos concretos y reconoce también sus costes. Ese criterio es tan importante como saber escribir una directiva Razor.
+
+## Estudio aplicado III — Calidad de los componentes sin complejidad innecesaria
+
+La calidad de una interfaz no se limita a que compile y muestre tarjetas bonitas. Un componente debería expresar una responsabilidad clara, presentar datos correctos, reaccionar de forma predecible y permitir comprender un estado de error o una ausencia de contenido. M03 ofrece ejemplos pequeños que ayudan a formar este criterio sin desarrollar una arquitectura empresarial.
+
+### Contratos de entrada claros
+
+TarjetaProducto recibe un objeto de tipo `Producto`. El parámetro se declara públicamente y su uso aparece en el mismo archivo. Esta visibilidad ayuda a comprender de dónde proceden los datos. Un componente que dependiera de muchas variables globales ocultas sería más difícil de reutilizar y verificar. No estamos obligados a usar siempre un único objeto, pero conviene que cada parámetro forme parte de un contrato comprensible.
+
+También es importante respetar qué información es realmente necesaria. La tarjeta no necesita una cadena de conexión de SQL Server, una instancia de DbContext ni la URL de una API para dibujar un nombre y un precio. Introducir dependencias que no responden a su responsabilidad complicaría el componente y su utilización posterior.
+
+### Estados visibles y lenguaje comprensible
+
+En P3.6 la página puede mostrar «Cargando productos...» y «Lista preparada». Estos textos explican al usuario en qué situación se encuentra. El reto añade un mensaje para lista vacía. Una interfaz que solo desaparece mientras espera obliga al usuario a adivinar si la operación continúa, terminó sin datos o ha fallado.
+
+El texto de estado forma parte de la experiencia, no es un log de desarrollo. En aplicaciones reales necesitaremos considerar accesibilidad, mensajes de error y recuperación, pero el principio ya puede verse en un ejemplo pequeño: distintos estados del componente merecen representaciones distinguibles. No es necesario construir un sistema completo de notificaciones para comprobarlo.
+
+### Pruebas positivas y negativas
+
+El contador de P3.1 necesita una prueba real de clic; descargar HTML no basta. El catálogo de P3.2 necesita comprobar la ruta y el número de filas. TarjetaProducto de P3.3 necesita comprobar identidades y contenidos diferentes. P3.4 necesita aceptar una entrada válida y rechazar otra vacía sin añadir producto. P3.5 necesita comprobar la notificación y el efecto sobre el padre. P3.6 necesita mostrar carga completada y lista vacía. Estos criterios son específicos de cada responsabilidad.
+
+Una prueba que solo verifica que existen archivos o cadenas en el repositorio puede ser útil para detectar problemas estructurales, pero no demuestra que un usuario pueda completar la interacción. Por eso el material práctico insiste en abrir las páginas y observar sus cambios en un navegador. El propósito no es convertir al alumnado en especialista en automatización de pruebas, sino enseñar a distinguir una expectativa funcional de una afirmación no comprobada.
+
+### Diagnósticos que no destruyen el estado conocido
+
+Los proyectos del curso conservan bloques de activación y estados iniciales conocidos. Esto permite reproducir las transiciones sin hacer cambios irreversibles. Por ejemplo, si un evento deja de funcionar después de activar un botón, podemos comprobar su método y la directiva de renderizado. Si la lista aparece duplicada, podemos revisar las variantes de componentes activas. Si la carga no termina, podemos revisar la bandera `cargando`.
+
+Un diagnóstico disciplinado no consiste en borrar el proyecto y volver a generarlo cada vez que aparece un síntoma. Primero identifica la última transición realizada, el archivo cambiado y el resultado observado. Después comprueba la causa que esa transición podría haber introducido. Este método sirve para proyectos de aprendizaje y también para aplicaciones profesionales.
+
+### Accesibilidad y semántica sin convertirla en otro módulo
+
+Los ejemplos utilizan encabezados, botones y etiquetas HTML reconocibles. Un botón real comunica una acción, mientras un enlace comunica navegación. Elegir elementos semánticos apropiados ayuda tanto a la accesibilidad como a la comprensión del código. No es necesario desarrollar aquí un curso completo de accesibilidad web, pero sí podemos evitar patrones confusos como usar un enlace vacío para simular una acción que no navega.
+
+El componente `TarjetaProducto` utiliza un artículo con encabezado y contenido. La página dispone de un título principal. El layout ofrece navegación común. Los mensajes de carga aparecen como texto. Son decisiones sencillas que producen una interfaz más comprensible y facilitan las pruebas de navegador, además de su utilidad para el usuario.
+
+### Cierre didáctico
+
+Una formación de Blazor para quienes ya conocen C# debe invertir tiempo en explicar el modelo de componentes, no en repetir cada sintaxis del lenguaje. El alumno puede leer una lambda o un record, pero necesita entender cómo esa expresión se relaciona con una ruta, un parámetro o un evento. La calidad del material depende de la continuidad entre esas ideas y de que exista un proyecto real que permita observarlas.
+
+Al finalizar, el alumno debería poder defender por qué P3.6 usa un servicio en memoria, por qué P3.5 usa un callback y por qué P3.1 compara dos modos de renderizado. Las tres respuestas deben referirse a responsabilidades y comportamientos concretos. Esta capacidad de explicación es más valiosa que memorizar un conjunto de etiquetas y constituye la preparación necesaria para integrar APIs y seguridad básica en M04.
+
+
 ## Bibliografía y documentación de referencia del módulo
 
 Los ejemplos se han diseñado para **ASP.NET Core 8**, con la terminología de Blazor Web App e Interactive Server propia de esa versión. La documentación actual de Microsoft puede presentar otras versiones seleccionadas por defecto; al consultar un enlace debe mantenerse el parámetro `view=aspnetcore-8.0` para no mezclar fragmentos de versiones distintas.
