@@ -1,0 +1,46 @@
+name: M02 - Pruebas de estados intermedios
+on:
+  workflow_dispatch:
+  push:
+    branches: [desarrollo/m02-sobre-m01-aprobado]
+    paths:
+      - "M02_FORMULARIOS_RAZOR/TESTS/**"
+      - "M02_FORMULARIOS_RAZOR/PROYECTO/**"
+      - ".github/workflows/m02-verificacion.yml"
+permissions:
+  contents: read
+jobs:
+  formularios-sin-base:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: P2.1 - GET, POST, antiforgery y reto
+        shell: bash
+        run: bash M02_FORMULARIOS_RAZOR/TESTS/2.1_e2e.sh
+      - name: P2.2 - Tag Helpers y enlace a acciones
+        shell: bash
+        run: bash M02_FORMULARIOS_RAZOR/TESTS/2.2_e2e.sh
+      - name: P2.3 - ModelState, validación y reto
+        shell: bash
+        run: bash M02_FORMULARIOS_RAZOR/TESTS/2.3_e2e.sh
+  razor-pages-localdb:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Confirmar instancia LocalDB
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          Get-Command sqllocaldb -ErrorAction Stop
+          sqllocaldb info
+      - name: P2.5 - evolución de handlers y navegación HTTP
+        shell: pwsh
+        run: ./M02_FORMULARIOS_RAZOR/TESTS/2.5_e2e.ps1
