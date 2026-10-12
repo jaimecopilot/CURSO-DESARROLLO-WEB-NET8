@@ -27,6 +27,12 @@ else
     {
         <li data-id="@producto.Id">
             @producto.Nombre — @producto.Precio.ToString("0.00") €
+            @* RETO 2.2 — Sustituye el enlace siguiente por esta alternativa
+               y comprueba que sigue generando tres rutas de detalle distintas:
+               <a class="enlace-detalle" asp-controller="Productos"
+                  asp-action="Detalle" asp-route-id="@producto.Id">Ver detalle</a>
+               Al activarlo, RETIRA el enlace literal que está justo debajo.
+            *@
             <a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
         </li>
     }
