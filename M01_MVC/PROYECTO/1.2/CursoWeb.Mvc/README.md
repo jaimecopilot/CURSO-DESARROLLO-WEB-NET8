@@ -29,15 +29,3 @@ dotnet run --no-launch-profile --urls http://localhost:5091
 Detener y volver a ejecutar para observar los cambios de cada estado.
 
 La práctica completa está en `../../../PRACTICAS/M01_PRACTICAS.md`, sección P1.2.
-
-## Comprobación automatizada
-
-Desde la raíz del repositorio: `bash M01_MVC/TESTS/1.2_e2e.sh`.
-
-Se comprueban por separado el estado inicial, la entrega de modelo, la presentación de productos, la navegación y el reto, con compilación y peticiones HTTP reales. Las variantes se realizan en copias temporales del proyecto para no alterar el material del alumno.
-
-## Laboratorios ampliados y correspondencia documental
-
-La versión ampliada de [P1.2](../../../PRACTICAS/M01_PRACTICAS.md) incluye recorridos adicionales de diagnóstico y consolidación basados en **este mismo proyecto**. Son actividades de lectura, comprobación HTTP y activación de los bloques ya documentados más arriba; no constituyen un segundo conjunto de soluciones ni requieren crear otro proyecto.
-
-**Correspondencia verificable:** P1.2 del Markdown → código de esta carpeta → `M01_MVC/TESTS/1.2_e2e.sh`. Las explicaciones detalladas y los enunciados viven solo en el MD de prácticas; el PDF se genera de esa fuente, sin editarlo manualmente.
