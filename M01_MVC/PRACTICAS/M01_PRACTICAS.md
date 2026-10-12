@@ -1325,7 +1325,7 @@ Abre el proyecto `PROYECTO/1.3/CursoWeb.Mvc` y localiza físicamente estos dos e
 
 Observa en `Program.cs` la llamada `app.UseStaticFiles();`. No se trata de una acción del controlador, sino de un middleware que puede atender solicitudes de recursos físicos publicados. Por eso no existe una acción `GuiaPublica()` y aun así el archivo responde HTTP 200.
 
-Antes de mover nada, arranca el proyecto y pide `http://localhost:5093/recursos/ejercicio-publicacion.txt` (si utilizas otro puerto, sustitúyelo por el que realmente muestre la consola). Como el nuevo recurso todavía no está bajo `wwwroot`, debe devolver 404. Después solicita `/DOCUMENTACION/ejercicio-publicacion.txt`: tampoco debería ser público. **La existencia de un archivo en una carpeta de proyecto no implica que ASP.NET Core lo sirva por HTTP.**
+Antes de mover nada, arranca el proyecto y pide `http://localhost:5091/recursos/ejercicio-publicacion.txt` (si utilizas otro puerto, sustitúyelo por el que realmente muestre la consola). Como el nuevo recurso todavía no está bajo `wwwroot`, debe devolver 404. Después solicita `/DOCUMENTACION/ejercicio-publicacion.txt`: tampoco debería ser público. **La existencia de un archivo en una carpeta de proyecto no implica que ASP.NET Core lo sirva por HTTP.**
 
 ### B — Publicar una copia deliberadamente
 
