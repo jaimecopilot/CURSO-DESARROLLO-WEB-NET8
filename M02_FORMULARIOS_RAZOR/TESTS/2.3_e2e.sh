@@ -16,7 +16,7 @@ trap cleanup EXIT
 start() {
   local dir="$1" label="$2" ready=0
   dotnet build "$dir/CursoWeb.Mvc.csproj" -c Release --nologo
-  (cd "$dir" && dotnet bin/Release/net8.0/CursoWeb.Mvc.dll --urls "$BASE") >"$TMP/$label.log" 2>&1 &
+  (cd "$dir" && exec dotnet bin/Release/net8.0/CursoWeb.Mvc.dll --urls "$BASE") >"$TMP/$label.log" 2>&1 &
   PID=$!
   for i in {1..45}; do
     if curl -fsS -o /dev/null "$BASE/Productos/Crear" 2>/dev/null; then ready=1; break; fi
@@ -110,7 +110,7 @@ assert_html precio_inconvertible "Crear producto"
 [[ "$(post validado entrada_correcta Rotulador 7)" == 200 ]]
 assert_html entrada_correcta "Datos recibidos del formulario"
 curl -fsS "$BASE/Productos" >"$TMP/catalogo.html"
-for x in Cuaderno Lápiz Carpeta; do grep -Fq "$x" "$TMP/catalogo.html"; done
+for x in Cuaderno Lápiz Carpeta; do python3 -c 'import html,pathlib,sys; assert sys.argv[2] in html.unescape(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))' "$TMP/catalogo.html" "$x"; done
 ! grep -Fq "Rotulador" "$TMP/catalogo.html"
 stop
 
