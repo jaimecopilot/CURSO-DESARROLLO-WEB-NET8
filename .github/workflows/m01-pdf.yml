@@ -3,7 +3,7 @@ name: M01 - Generar y verificar los dos PDF
 on:
   workflow_dispatch:
   push:
-    branches: [desarrollo/m01-mvc]
+    branches: [desarrollo/m01-mvc, revision-didactica/m01]
     paths:
       - "M01_MVC/TEORIA/M01_TEORIA.md"
       - "M01_MVC/PRACTICAS/M01_PRACTICAS.md"
@@ -35,6 +35,8 @@ jobs:
           dot -V
       - name: Auditar correspondencia de prácticas con los proyectos
         run: python M01_MVC/DOCS/auditar_trazabilidad_practicas.py
+      - name: Verificar progresión y correspondencias semánticas
+        run: python M01_MVC/DOCS/auditar_progresion_didactica.py
       - name: Auditar capítulos, retos, código y pruebas
         run: python M01_MVC/DOCS/validar_m01.py
       - name: Convertir diagramas y generar los PDF desde Markdown canónico
