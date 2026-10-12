@@ -54,8 +54,17 @@ def divide_md(content):
 def visible_markdown(md_text):
     # Mermaid es un gráfico, no texto literal en el documento final.
     non_diagram=re.sub(r"(?ms)^~~~mermaid\s*\n.*?^~~~\s*$", "", md_text)
+    # La edición PDF muestra enlaces bibliográficos con rótulos breves
+    # ("Consultar fuente"), pero mantiene íntegra la URL como enlace PDF
+    # y también en la fuente Markdown canónica adjunta byte por byte.
+    # Para comparar texto *visible*, aplicar la misma representación.
+    bibliography=re.sub(
+        r"(?m)^(-\\s+[^\\n]*?:\\s*)(https?://[^\\s<>]+)",
+        lambda m: m.group(1) + "[Consultar fuente](" + m.group(2) + ")",
+        non_diagram,
+    )
     parser=MarkdownIt("commonmark",{"html":True}).enable("table")
-    html=parser.render(non_diagram)
+    html=parser.render(bibliography)
     soup=BeautifulSoup(html,"html.parser")
     return soup.get_text(" ",strip=True)
 
