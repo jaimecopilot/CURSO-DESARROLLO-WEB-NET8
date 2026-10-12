@@ -17,7 +17,7 @@ public sealed class ProductoFormulario
     // PASO 2.3.2 (ACTIVAR): descomenta ambas reglas del precio.
     // decimal? diferencia un campo ausente de un valor numérico real.
     // [Required(ErrorMessage = "Indica el precio.")]
-    // [Range(typeof(decimal), "0.01", "9999.99", ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
+    // [Range(typeof(decimal), "0.01", "9999.99", ParseLimitsInInvariantCulture = true, ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
     public decimal? Precio { get; set; }
 
     // APLICACION 2.3.6 (ESCRIBIR): prueba una etiqueta Display(Name = "Nombre del producto")
