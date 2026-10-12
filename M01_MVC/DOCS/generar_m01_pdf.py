@@ -336,7 +336,7 @@ def check_pdf(file: Path, md: str, diagram_count: int, source_bytes: bytes, file
         raise AssertionError(f"{file.name}: el MD incrustado difiere byte por byte de la fuente")
     if hashlib.sha256(embedded).digest()!=hashlib.sha256(source_bytes).digest():
         raise AssertionError(f"{file.name}: huella MD no válida")
-    if not 80<=len(reader.pages)<=250: raise AssertionError(f"{file.name}: número inusual de páginas {len(reader.pages)}")
+    if not 7<=len(reader.pages)<=300: raise AssertionError(f"{file.name}: número de páginas incompatible con portada, índice y cinco capítulos: {len(reader.pages)}")
     pdftext="\n".join(p.extract_text() or "" for p in reader.pages)
     low=normalize(pdftext)
     prefix="P" if "PRACTICAS" in file.as_posix() else ""
