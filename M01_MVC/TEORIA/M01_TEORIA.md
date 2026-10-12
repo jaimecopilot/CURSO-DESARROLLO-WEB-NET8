@@ -7,6 +7,12 @@
 
 **AUTOR: JAIME GALLO**
 
+## Orientación de lectura y aprendizaje
+
+Este manual es una **referencia de estudio**, no un guion para leer íntegramente en las dos horas de teoría previstas para M01. El recorrido esencial sigue cinco ideas: petición y respuesta HTTP (1.1), separación de responsabilidades MVC (1.2), ubicación y arranque de sus piezas (1.3), selección de acciones y resultados (1.4), y composición de HTML con Razor (1.5).
+
+En clase, cada idea se presenta con **un problema concreto y el fragmento mínimo que lo resuelve**; a continuación se comprueba en la práctica correspondiente. Las comparaciones extensas, diagnósticos alternativos y variantes de código sirven para profundizar después, sin convertirse en requisitos de la jornada. El alumno habrá aprendido cuando pueda predecir qué acción se ejecuta, qué objeto recibe la vista y qué HTML se entrega al navegador; memorizar todas las tablas no es el objetivo.
+
 ### Índice del módulo
 
 - **1.1. Introducción al desarrollo web con ASP.NET Core**
