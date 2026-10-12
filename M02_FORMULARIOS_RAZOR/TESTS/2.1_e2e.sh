@@ -16,7 +16,7 @@ trap cleanup EXIT
 start_app() {
   local dir="$1" label="$2"
   dotnet build "$dir/CursoWeb.Mvc.csproj" -c Release --nologo
-  (cd "$dir" && dotnet bin/Release/net8.0/CursoWeb.Mvc.dll --urls "$BASE" >"$TMP/$label.log" 2>&1) &
+  (cd "$dir" && exec dotnet bin/Release/net8.0/CursoWeb.Mvc.dll --urls "$BASE" >"$TMP/$label.log" 2>&1) &
   PID=$!
   for i in {1..60}; do
     if curl -fsS -o /dev/null "$BASE/Productos/Crear" 2>/dev/null; then
@@ -98,7 +98,7 @@ grep -Fq "Rotulador" "$TMP/confirmacion.html"
 grep -Fq "precio-recibido" "$TMP/confirmacion.html"
 grep -Fq "7" "$TMP/confirmacion.html"
 curl -fsS "$BASE/Productos" >"$TMP/catalogo.html"
-for producto in Cuaderno Lápiz Carpeta; do grep -Fq "$producto" "$TMP/catalogo.html"; done
+for producto in Cuaderno Lápiz Carpeta; do python3 -c 'import html,pathlib,sys; assert sys.argv[2] in html.unescape(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))' "$TMP/catalogo.html" "$producto"; done
 ! grep -Fq "Rotulador" "$TMP/catalogo.html"
 stop_app
 
