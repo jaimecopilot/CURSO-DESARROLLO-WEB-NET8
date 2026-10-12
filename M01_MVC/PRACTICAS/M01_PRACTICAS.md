@@ -1936,6 +1936,63 @@ Reiniciar la aplicación y abrir `http://localhost:5091/Productos`. Debe aparece
 
 **Por qué activamos el enlace al final:** antes de crear `Detalle(int id)`, el enlace conduciría a una dirección sin acción válida. Ahora se ha comprobado antes el endpoint y después la navegación.
 
+## Aplicación autónoma P1.4 — diseñar una búsqueda por nombre y reutilizar una vista
+
+Los pasos guiados ya enseñan a mostrar un detalle por identificador, responder 400 cuando el identificador no es aceptable y devolver 404 si el producto no existe. También has utilizado una ruta por atributos y has generado enlaces desde el catálogo. Ahora queremos resolver una necesidad que no estaba implementada: **abrir la ficha de un producto escribiendo su nombre en una URL**, sin duplicar la vista y sin convertir el controlador en una API diferente.
+
+### A — Especificar el comportamiento antes de programar
+
+Trabajaremos sobre `PROYECTO/1.4/CursoWeb.Mvc/Controllers/ProductosController.cs`, después de activar los pasos 1.4.2–1.4.5. Propón una acción `BuscarPorNombre(string nombre)` accesible mediante una ruta absoluta por atributos:
+
+~~~csharp
+[HttpGet("/catalogo/buscar/{nombre}")]
+~~~
+
+La URL `/catalogo/buscar/Cuaderno` debe localizar el producto de nombre Cuaderno y **reutilizar la vista `Detalle.cshtml`** para generar su HTML. `/catalogo/buscar/NoExiste` debe devolver 404, porque la ruta es válida pero ningún producto cumple el criterio. La búsqueda debe ignorar la diferencia entre mayúsculas y minúsculas; por ejemplo, `/catalogo/buscar/cuaderno` también debe mostrar la ficha de Cuaderno.
+
+Compara esta ruta con `/catalogo/ficha/{id:int}`. En esta segunda forma, `{id:int}` limita el formato aceptado por el enrutamiento; en la búsqueda nueva, el segmento es una cadena y por eso se enlaza a un parámetro `string`. La coincidencia sintáctica de la ruta **no garantiza que exista el producto**; esa decisión la toma el método.
+
+### B — Identificar las piezas que ya existen
+
+La función privada `ObtenerProductosEjemplo()` devuelve la colección del catálogo. La acción `Detalle(int id)` usa `FirstOrDefault` para encontrar un elemento y devuelve `NotFound()` cuando no hay coincidencia. `Ficha(int id)` demuestra que se puede ejecutar una acción distinta y reutilizar `Views/Productos/Detalle.cshtml` mediante `View("Detalle", producto)`.
+
+Reutiliza esos conocimientos, pero escribe tú mismo la nueva acción en el lugar marcado `APLICACION 1.4`, antes del reto JSON. No modifiques `Producto`, no escribas una nueva plantilla Razor, no inventes identificadores nuevos y no añadas propiedades a la lista de productos. La nueva búsqueda debe trabajar sobre los datos existentes.
+
+Para comparar nombres sin depender de mayúsculas, puedes utilizar `string.Equals(p.Nombre, nombre, StringComparison.OrdinalIgnoreCase)` como predicado de `FirstOrDefault`. No es necesario aprender una API de búsqueda nueva; esta comparación pertenece al conocimiento de C# que ya tienes.
+
+### C — Construir y comprobar la acción
+
+Escribe un método público `IActionResult BuscarPorNombre(string nombre)`, decorado con el atributo de ruta anterior. Dentro del método, obtiene la colección y busca un elemento cuyo nombre coincida. Si no lo encuentra, devuelve `NotFound()`; de lo contrario, devuelve `View("Detalle", producto)`.
+
+Comprueba antes de ejecutar que el método no modifica el catálogo y que no está dentro del comentario de otro ejercicio. Si recibe una coincidencia, debe enviar **un objeto `Producto`**, no la lista completa, porque la vista de detalle declara `@model CursoWeb.Mvc.Models.Producto`.
+
+Ejecuta las siguientes pruebas:
+
+| Solicitud | Resultado esperado |
+|---|---|
+| `GET /catalogo/buscar/Cuaderno` | 200 HTML y nombre Cuaderno en la ficha |
+| `GET /catalogo/buscar/cuaderno` | 200 HTML y la misma ficha |
+| `GET /catalogo/buscar/NoExiste` | 404 |
+| `GET /Productos/Detalle/2` | Sigue devolviendo HTML con el producto Lápiz |
+| `GET /catalogo/ficha/2` | Sigue mostrando la misma ficha, por otra acción |
+| `GET /Productos` | Continúa mostrando el catálogo |
+
+Antes de probar la primera URL, predice si MVC intenta buscar un archivo físico llamado `Cuaderno` o si el middleware de routing selecciona una acción. La URL no corresponde a un archivo del sistema: el atributo define cómo se interpretan sus segmentos.
+
+### D — Diagnosticar fallos sin introducir soluciones falsas
+
+Si la ruta responde 404 tanto para Cuaderno como para NoExiste, comprueba que el método está compilado, que la ruta usa la barra inicial y que ejecutas el proyecto 1.4. Si solo la primera URL falla, examina el predicado de comparación y la lista devuelta por `ObtenerProductosEjemplo()`. Si aparece un error de tipo de modelo al representar la vista, comprueba que envías un solo `Producto` a `View("Detalle", producto)` y no una lista.
+
+Si se muestra Cuaderno pero falla cuaderno, la comparación distingue mayúsculas; revisa `StringComparison.OrdinalIgnoreCase`. No añadas un segundo producto para corregir ese error. Si la respuesta resulta ser JSON, comprueba que no has reutilizado el `Ok(...)` del reto 1.4: el resultado de esta aplicación debe ser la misma página HTML de detalle.
+
+### E — Interpretar y enlazar con la teoría
+
+Has utilizado un parámetro `string`, una búsqueda en memoria, una ruta declarada mediante atributos, un resultado HTTP 404 para un dato inexistente y un resultado `View` para el dato encontrado. El código de presentación no cambió. Eso demuestra que el enrutamiento selecciona **la acción**, mientras el controlador selecciona **el resultado** y la vista decide **cómo representar el modelo**.
+
+**Preguntas de cierre:** ¿Qué cambia si sustituimos `{nombre}` por `{id:int}` sin cambiar la firma del método? ¿Por qué una ruta puede ser válida y devolver 404? ¿Por qué no conviene duplicar `Detalle.cshtml`? ¿Dónde debería situarse una búsqueda de base de datos real y por qué no la añadimos en M01? ¿Qué comprobación garantiza que el catálogo sigue funcionando al introducir una nueva acción?
+
+**Resultado final:** una ruta y una acción escritas por el alumno y observadas en ejecución, sin duplicar vistas y manteniendo las rutas anteriores. La actividad no sustituye al reto JSON: el reto compara formatos de respuesta, mientras esta aplicación profundiza en rutas y reutilización.
+
 ## Reto: aplicación de los pasos
 
 **Reto 1.4 — Una acción MVC que devuelve un resultado JSON.**
@@ -2247,6 +2304,28 @@ Esta comprobación también permite detectar si un cambio rompe funcionalidades 
 **Si una acción devuelve 200 pero el contenido es incorrecto**, no consideres la prueba superada solamente por el código de estado. Comprueba qué producto se representó y qué formato devolvió el servidor.
 
 Cada incidencia permite asociar un síntoma con una responsabilidad. Esta habilidad resulta más valiosa que memorizar de forma aislada los nombres de todos los métodos de `Controller`.
+
+### Solución razonada de la aplicación autónoma P1.4
+
+Contrasta tu implementación con una alternativa que utiliza los recursos ya disponibles en el controlador. El método se escribe **fuera de los bloques comentados** del resto de pasos:
+
+~~~csharp
+[HttpGet("/catalogo/buscar/{nombre}")]
+public IActionResult BuscarPorNombre(string nombre)
+{
+    var producto = ObtenerProductosEjemplo().FirstOrDefault(
+        p => string.Equals(p.Nombre, nombre, StringComparison.OrdinalIgnoreCase));
+
+    if (producto is null)
+    {
+        return NotFound();
+    }
+
+    return View("Detalle", producto);
+}
+~~~
+
+La ruta acepta un nombre como segmento y MVC lo enlaza al argumento del método. La comparación se hace dentro de la acción sobre los objetos existentes; una coincidencia produce HTML a través de la vista ya disponible. No hay nueva consulta a base de datos, cambio de modelo ni duplicación de código de presentación. **La solución no está activada en el proyecto inicial**: el comentario `APLICACION 1.4` invita a que cada estudiante la construya.
 
 ## Resultado y continuidad
 
