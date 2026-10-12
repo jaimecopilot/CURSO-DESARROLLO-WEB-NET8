@@ -109,6 +109,7 @@ function Check-Redirect([hashtable]$response,[string]$operation) {
 try {
     Assert ([bool](Get-Command sqllocaldb -ErrorAction SilentlyContinue)) "La prueba requiere LocalDB en Windows."
     & sqllocaldb start MSSQLLocalDB | Out-Host
+    New-Item -ItemType Directory -Path $tmp -Force | Out-Null
     Copy-Item -Path $source -Destination $project -Recurse
     foreach($name in @("bin","obj")) {
         $folder=Join-Path $project $name
@@ -124,7 +125,7 @@ try {
     Assert ($detail.Code -eq 200) "No existe detalle 2 en base recién sembrada."
     Assert ((Get-Page "/Productos/Detalle/999999").Code -eq 404) "Id ausente no devuelve 404."
     $early=Send-Post "/Productos/Crear" @{ Nombre="Rotulador"; Precio="7" }
-    Assert ($early.Code -eq 400) "Sin token se debería rechazar la solicitud incluso antes de habilitar el POST."
+    Assert ($early.Code -eq 405) "Sin acción POST activa el método se rechaza con 405."
     Stop-App
 
     # 2.4.3: creación activable y protección de entradas inválidas.
