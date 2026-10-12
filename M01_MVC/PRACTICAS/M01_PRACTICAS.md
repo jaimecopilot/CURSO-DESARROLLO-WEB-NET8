@@ -330,52 +330,6 @@ Accede a `http://localhost:5091/`. Debes ver el texto «El servidor genera el HT
 
 **Resultado esperado:** distinguir, señalando el archivo y la línea concreta, un cambio de cabeceras (controlador) de un cambio de representación (vista). El reto tiene una solución guiada y comprobable; no implica nuevos conceptos fuera de 1.1.
 
-**Resolver el reto con dos comprobaciones independientes.**
-
-El reto 1.1 ya está desarrollado en el apartado G. Aquí ampliamos la comprobación para que su resultado no dependa únicamente de observar un mensaje visible.
-
-**Código de la cabecera del reto.**
-
-En `HomeController.cs` permanece comentada esta instrucción:
-
-~~~csharp
-// Response.Headers["X-Curso-Reto"] = "HTTP-y-HTML";
-~~~
-
-Retira el prefijo `//` para activarla. Al ejecutarse la acción Home, la respuesta del documento contendrá la cabecera `X-Curso-Reto`.
-
-**Código de la vista del reto.**
-
-En `Views/Home/Index.cshtml` encontramos:
-
-~~~cshtml
-@* RETO 1.1 (inicio)
-<p id="reto-1-1">El servidor genera el HTML y envía las cabeceras HTTP por separado.</p>
-RETO 1.1 (fin) *@
-~~~
-
-Retira las dos líneas de comentario Razor y conserva el párrafo. El atributo `id` ayuda a encontrar el elemento en el HTML.
-
-**Tres solicitudes para comprobar el comportamiento.**
-
-Con ambos fragmentos activos, ejecuta:
-
-~~~bash
-curl -i http://localhost:5091/
-curl -i http://localhost:5091/Home/Index
-curl -i http://localhost:5091/css/site.css
-~~~
-
-Las dos primeras solicitudes llegan a la misma acción y deben incorporar el resultado del reto. La tercera accede al recurso CSS y no debe incorporar la cabecera añadida dentro de Home.
-
-En las respuestas HTML, busca el párrafo `reto-1-1`. No debería encontrarse en el contenido de la hoja CSS, porque no estamos sirviendo una vista Razor mediante esa solicitud.
-
-**Explicación de cierre.**
-
-Una solución completa del reto debe identificar **dos cambios distintos**. El primero corresponde al controlador y modifica una cabecera. El segundo corresponde a la vista y modifica el HTML. Ambos forman parte de la misma respuesta del documento, pero no son el mismo tipo de información.
-
-El criterio de finalización no es simplemente «todo funciona»: debes poder explicar por qué esos cambios son independientes y por qué no afectan de la misma manera a los recursos estáticos.
-
 ## Comprobaciones funcionales y casos de diagnóstico
 
 **Ejecución completa y resultados esperados.**
@@ -647,7 +601,7 @@ var productos = new List<Producto>
 };
 ~~~
 
-El controlador crea tres instancias. No se conecta a SQLite ni utiliza EF Core. Ese hecho debe quedar claro desde el principio, porque el ejercicio está dedicado a seguir el flujo entre componentes MVC y no a enseñar persistencia.
+El controlador crea tres instancias. No se conecta a ninguna base de datos ni utiliza EF Core. Ese hecho debe quedar claro desde el principio, porque el ejercicio está dedicado a seguir el flujo entre componentes MVC y no a enseñar persistencia.
 
 En `Views/Productos/Index.cshtml` identifica la declaración:
 
@@ -889,30 +843,6 @@ Abre `http://localhost:5091/Productos`. Debes obtener **Bloc, Lápiz y Carpeta**
 **¿Por qué el cambio se pierde si se revierte el código o se reinicia sin recompilarlo?** Los datos del catálogo son creados en memoria por el método; no son registros de una base de datos. La persistencia se introducirá en el día 2.
 
 **Conclusión del reto:** se han utilizado **dos variantes de código ya presentes** en el proyecto; se ha ejecutado el nuevo estado sin inventar piezas ausentes y se ha demostrado la separación entre suministro de datos y representación.
-
-**Resolver el reto con una evidencia más estricta.**
-
-El reto 1.2 pide sustituir **Cuaderno** por **Bloc** sin cambiar el archivo Razor de la vista. El fragmento preparado en el controlador conserva las dos variantes para que puedas alternarlas:
-
-~~~csharp
-new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
-// RETO 1.2 — Comentar la línea de Cuaderno y descomentar la siguiente:
-// new() { Id = 1, Nombre = "Bloc", Precio = 4.50m },
-~~~
-
-Comenta la primera declaración y descomenta la segunda. No actives ambas a la vez, porque el objetivo no es añadir un producto sino reemplazar el nombre de uno existente. Deben seguir existiendo tres registros.
-
-Después de compilar y reiniciar, examina `/Productos`. Busca Bloc y confirma que el contador sigue mostrando tres. Comprueba también que Lápiz y Carpeta conservan su nombre y precio. Este último paso evita una falsa solución que cambie el nombre pero también altere accidentalmente el resto del catálogo.
-
-### Comprobación detallada de la solución
-
-En las herramientas de desarrollo revisa el HTML de la lista. El elemento con `data-id="1"` debe contener Bloc. Los elementos `data-id="2"` y `data-id="3"` deben conservar Lápiz y Carpeta.
-
-No modifiques el bloque `@foreach` para escribir literalmente Bloc. Una solución así produciría un resultado visual parecido, pero incumpliría el objetivo de la práctica: comprobar que la vista representa el valor recibido desde el modelo.
-
-**Pregunta de razonamiento:** ¿qué ocurriría si cambiáramos el valor en la vista pero dejáramos los datos originales en el controlador? Habríamos introducido una discrepancia entre el modelo y su representación. Cuando otra pantalla consumiera el mismo modelo, podría seguir mostrando Cuaderno. Por eso conviene que la vista consulte el dato en lugar de inventarlo.
-
-Tras activar el reto, vuelve a cargar el catálogo, comprueba que se muestran tres productos y explica por qué la vista no ha necesitado cambios.
 
 ## Comprobaciones funcionales y casos de diagnóstico
 
@@ -1962,53 +1892,6 @@ El ejemplo muestra los elementos relevantes de la respuesta, no necesariamente t
 **¿Dónde está el código del reto?** En este documento y en `PROYECTO/1.4/CursoWeb.Mvc/Controllers/ProductosController.cs`, delimitado por `RETO 1.4`. No se crea una solución ajena al proyecto; el alumno activa la variante incluida.
 
 **¿Cómo comprobar el reto?** Ejecuta la aplicación con el bloque del reto activado y compara las respuestas de las URL indicadas.
-
-**Ejecutar el reto JSON como consumidor.**
-
-El código del reto está preparado en `ProductosController.cs`:
-
-~~~csharp
-/* RETO 1.4 INICIO
-[HttpGet("/catalogo/resumen/{id:int}")]
-public IActionResult Resumen(int id)
-{
-    var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
-    if (producto is null)
-    {
-        return NotFound();
-    }
-
-    return Ok(new { producto.Id, producto.Nombre });
-}
-RETO 1.4 FIN */
-~~~
-
-Retira las dos líneas delimitadoras. Compila, inicia y solicita:
-
-~~~bash
-curl -i http://localhost:5091/catalogo/resumen/2
-~~~
-
-Debe aparecer una respuesta 200 y un cuerpo JSON con las propiedades `id` y `nombre`. El valor de nombre será Lápiz. Comprueba que el tipo de contenido indica JSON.
-
-Después prueba:
-
-~~~bash
-curl -i http://localhost:5091/catalogo/resumen/99
-curl -i http://localhost:5091/catalogo/resumen/no-numero
-~~~
-
-Ambos casos devuelven 404, pero el primero ejecuta el método y no encuentra un producto; el segundo no cumple la plantilla de ruta con la restricción de entero.
-
-**Justificar por qué no existe Resumen.cshtml.**
-
-La acción devuelve `Ok(new {...})`, no `View(...)`. Por tanto, no necesitamos una plantilla Razor adicional para generar JSON. La respuesta es un resultado HTTP que serializa datos.
-
-**Comprobar una regresión mientras el reto está activo.**
-
-Vuelve a abrir `/Productos` y `/Productos/Detalle/2`. El listado y la ficha deben seguir funcionando, pues el reto ha añadido un endpoint sin sustituir las acciones anteriores.
-
-La prueba automatizada del capítulo realiza esta misma idea de manera repetible: activa cada bloque, arranca Kestrel y comprueba las respuestas nuevas y las anteriores.
 
 ## Comprobaciones funcionales y casos de diagnóstico
 
