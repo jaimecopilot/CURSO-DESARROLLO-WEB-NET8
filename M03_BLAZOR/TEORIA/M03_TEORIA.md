@@ -818,6 +818,35 @@ Si la selección visual cambia pero el campo de edición no se rellena, comprueb
 Estas preguntas preparan una destreza transferible: un editor de componentes no se verifica únicamente comprobando que su código compila. Debe conservar una identidad, aplicar el cambio correcto, rechazar una entrada inválida y producir una representación coherente. P3.4.5 permite observar esas propiedades con muy pocos conceptos nuevos.
 
 
+## Un catálogo consultable: datos originales y estado derivado
+
+Una aplicación interactiva necesita distinguir **qué información posee** de **qué parte de esa información presenta en un momento determinado**. En el proyecto P3.4, la lista productos contiene tres objetos con un Id, un nombre y un precio. Buscar por nombre y limitar el precio no debería eliminar ninguno de ellos. Son criterios de consulta: producen una vista de la colección, no una nueva realidad de negocio.
+
+El reto 3.4.6 utiliza tres variables de estado —busqueda, precioMaximo y ordenAscendente— y una propiedad calculada ProductosVisibles. Esta propiedad construye una consulta LINQ a partir de los objetos existentes. El uso de OrderBy y OrderByDescending determina el sentido de la ordenación; ThenBy sobre Id permite mantener un resultado definido cuando varios artículos cuestan lo mismo. La condición Where combina los dos filtros con una conjunción lógica: el producto aparece solo si satisface tanto el criterio textual como el numérico, salvo que alguno no esté definido.
+
+Este esquema evita un error de diseño frecuente: quitar elementos de productos para simular un filtro. Si se empleara RemoveAll, al borrar el texto de búsqueda no reaparecerían los objetos ocultados; habrían desaparecido de la fuente. En cambio, la propiedad calculada puede producir un subconjunto distinto cada vez que cambia el estado sin modificar la colección. La frase de resumen «Mostrando 1 de 3 productos» expresa exactamente esta separación: uno es el resultado visible y tres siguen siendo los objetos de origen.
+
+### La relación entre @bind y el momento de actualizar
+
+El input de búsqueda utiliza una combinación importante:
+
+~~~razor
+<input id="buscar" @bind="busqueda" @bind:event="oninput" />
+~~~
+
+El evento oninput permite reaccionar conforme cambia el contenido del campo. No estamos consultando manualmente el elemento HTML desde JavaScript; se actualiza una variable del componente que interviene en la representación. El segundo campo usa un enlace numérico a decimal? sin fijar oninput; en el ejercicio, el usuario abandona ese control para confirmar el cambio. Por tanto, dos campos enlazados con @bind pueden dar una impresión de inmediatez diferente porque no utilizan el mismo evento.
+
+El valor null del precio máximo significa «sin límite», mientras que un número establece el umbral permitido. Es preferible a inventar un precio máximo extremo para representar la ausencia de condición. En la búsqueda textual, el vacío cumple una función análoga. La propiedad calculada puede evaluarse tanto cuando los criterios están definidos como cuando se han borrado.
+
+### Edición y consulta forman un caso de integración
+
+Al realizar el paso 3.4.5, GuardarCambio sustituye un record por otro con la misma identidad y precio, cambiando únicamente el nombre. Esa operación **sí modifica** la lista fuente. Si después se filtra por una palabra del nuevo nombre, la consulta encuentra el valor actualizado. Si se ordena de nuevo, el Id continúa identificando al mismo producto, aunque la posición visual haya cambiado.
+
+De aquí surge una regla aplicable a interfaces mayores: **la posición de una tarjeta no es la identidad del objeto**. La ordenación y los filtros pueden mover una tarjeta a otra posición o excluirla temporalmente. El código del botón Seleccionar debe transmitir el Id, no el índice de la iteración visible. Así se mantiene coherente la edición cuando el usuario cambia de criterio.
+
+El módulo no enseña todavía almacenamiento persistente ni búsquedas paginadas en servidor. Ese límite es intencionado. Antes de llevar la consulta a una API, el alumno debe demostrar que comprende cuáles son los datos originales, cuáles son los criterios de visualización y por qué un cambio de estado provoca una nueva representación de los componentes.
+
+
 # 3.5. Comunicación padre–hijo: parámetros y EventCallback
 
 ## Cuando el botón está dentro del hijo, pero el dato pertenece al padre
@@ -1002,6 +1031,23 @@ Por eso el reto incluye `seleccion = "ninguno"`. La solución expresa una peque�
 Cuando consumamos una API, un botón de tarjeta podría notificar un Id al padre y el padre podría llamar a un servicio HTTP. Pero no es necesario que el componente conozca el protocolo de comunicación para seguir siendo reutilizable. Esta separación evita trasladar los detalles de transporte a cada botón de cada tarjeta.
 
 El objetivo de P3.5 termina antes de esa frontera: el alumno debe demostrar un callback real, seleccionar y quitar elementos, y explicar qué parte del estado cambió. Una descripción que solo diga «el botón manda un evento» resulta insuficiente si no identifica el Id, el método receptor y el efecto visible en la lista.
+
+
+## Recuperar una eliminación sin trasladar la responsabilidad al hijo
+
+EventCallback permite que un componente hijo notifique al padre una intención. Su mayor utilidad aparece cuando cambia la política del padre pero el contrato del hijo sigue siendo el mismo. El botón Quitar de TarjetaProducto comunica un Id; no conoce la lista completa, la posición del objeto ni la necesidad de permitir deshacer.
+
+El reto 3.5.5 exige recuperar un elemento y su posición original. Para hacerlo, el padre conserva una tupla anulable que agrupa el producto retirado con el índice que ocupaba:
+
+~~~csharp
+private (Producto Producto, int Indice)? eliminacionPendiente;
+~~~
+
+Antes de llamar a RemoveAt, la página registra el objeto y su índice. Al recuperar, vuelve a insertarlo en la posición conservada, comprueba que no exista ya el mismo Id y deja a null el registro pendiente. De este modo, el usuario no puede ejecutar dos veces la misma recuperación y obtener tarjetas duplicadas. El botón de deshacer se deshabilita cuando no hay nada pendiente; el propio método de recuperación también comprueba ese estado para proteger su ejecución.
+
+La tarjeta no necesita modificarse. Únicamente se cambia el método al que el padre vincula AlQuitar: en lugar de Quitar, utiliza QuitarConDeshacer. Esta es una consecuencia concreta de diseñar el callback como comunicación de una **intención** y no como una implementación fija de la operación.
+
+La solución tiene un límite declarado: solo recuerda la última eliminación. Si se retiran dos productos consecutivos, la segunda operación reemplaza la información pendiente de la primera. Un historial completo necesitaría una estructura y reglas diferentes, pero no añade valor imprescindible al alcance de esta sesión. Lo que sí debe comprobarse es que quitar Lápiz y recuperarlo mantiene el orden Cuaderno–Lápiz–Carpeta, el Id 2 y el funcionamiento del botón Seleccionar.
 
 
 # 3.6. OnInitializedAsync y ciclo de vida esencial de un componente
@@ -1207,6 +1253,33 @@ No hemos conectado todavía todos esos mecanismos en un CRUD remoto completo; ha
 Describe qué archivo revisas primero ante las siguientes incidencias: una página devuelve 404; una tarjeta muestra un precio incorrecto; un botón no desencadena ningún evento; un hijo emite un Id distinto del esperado; la colección de productos se carga pero nunca se representa; la pantalla informa de lista vacía después de una carga correcta. Las respuestas deberían relacionar síntomas con routing, parámetro recibido, renderizado interactivo, EventCallback, bandera de carga y estado vacío respectivamente.
 
 Si todas tus respuestas consisten en «cambiar Program.cs» o «reconstruir la aplicación», todavía no estás usando la separación de responsabilidades que hemos practicado. El resultado formativo de M03 no es la cantidad de componentes escritos, sino la capacidad de comprender cómo cooperan para construir una interfaz interactiva reproducible.
+
+
+## Una carga asíncrona también puede fallar y volver a intentarse
+
+Con OnInitializedAsync hemos aprendido a cargar una lista desde un servicio en memoria. Sin embargo, un método asíncrono no garantiza que la operación finalice correctamente. El reto 3.6.7 incorpora un fallo controlado que permite observar los tres estados relevantes del componente: operación en curso, resultado satisfactorio y error. En la práctica anterior ya distinguíamos además un resultado satisfactorio vacío, que **no es lo mismo que una excepción**.
+
+La operación adicional del servicio, ObtenerConErrorAsync(bool simularError), espera un intervalo breve y lanza InvalidOperationException si el indicador es verdadero. En caso contrario llama a ObtenerAsync. Esta simulación tiene una virtud didáctica: permite repetir exactamente el mismo error sin depender de fallos de red, credenciales, una API o una base de datos.
+
+### Centralizar la operación de cargar y recargar
+
+Al añadir un botón «Recargar catálogo», sería un error copiar todo el código de obtención en su evento y mantener otra versión independiente en OnInitializedAsync. La evolución sustituye la inicialización original por:
+
+~~~csharp
+protected override Task OnInitializedAsync() => RecargarAsync();
+~~~
+
+El método RecargarAsync sirve tanto para el primer acceso como para el reintento del usuario. Antes de esperar al servicio, establece cargando en true, borra un mensaje de error anterior y vacía la colección que se representará. Así el usuario no ve tarjetas de una ejecución anterior como si fueran el resultado del nuevo intento.
+
+La llamada al servicio se encuentra en try. Un retorno correcto asigna los productos y el texto «Lista preparada». El catch específico transforma la excepción conocida del ejercicio en un mensaje legible y en «Carga fallida». La bandera cargando vuelve a false en finally, con independencia del camino. Ese detalle evita que el botón, deshabilitado mientras se carga, permanezca bloqueado después de un error.
+
+### Cuatro síntomas y sus causas diferentes
+
+Una lista vacía después de una llamada correcta requiere una representación de «sin productos». Un error controlado requiere un mensaje que informe de que no se pudo cargar el catálogo. Un mensaje de error que persiste tras recuperar los datos suele indicar que no se limpió errorCarga al comenzar el reintento. Una compilación que denuncia dos definiciones de OnInitializedAsync revela que el alumno **añadió** el método nuevo sin sustituir el anterior.
+
+También conviene distinguir un fallo de contrato de un fallo de representación. Si la página intenta invocar ObtenerConErrorAsync y la interfaz no lo declara, el programa no compila: la solución pasa por activar la declaración correspondiente en IProductosMemoriaService y la implementación en ProductosMemoriaService. Si el servicio sí devuelve datos pero cargando no cambia, el problema aparece en la condición Razor que decide si se dibujan tarjetas.
+
+Esta ampliación sigue dentro de Blazor Interactive Server y usa un servicio local. Su función es que el alumno aprenda a mantener estados de interfaz coherentes y a razonar sobre el ciclo de vida antes de introducir llamadas HTTP reales en el módulo siguiente.
 
 
 ## Estudio aplicado I — Seguir una página Blazor de extremo a extremo
