@@ -254,6 +254,8 @@ def document_html(markdown: str, title: str, kind: str) -> str:
     kind_label=metadata_from_markdown(markdown,"TIPO")
     if kind_label!=("TEORÍA" if kind=="TEORIA" else "PRÁCTICAS"):
         raise ValueError(f"TIPO de documento distinto a su carpeta: {kind_label}")
+    # El auditor de fidelidad compara el rótulo visible, no los tokens de la URL
+    # almacenada como hipervínculo y conservada en el MD canónico adjunto.
     # Las referencias bibliográficas se mantienen literales y se convierten
     # a hipervínculos PDF; no se modifican ni resumen las fuentes Markdown.
     markdown_html = re.sub(r"(?m)^(-\s+[^\n]*?:\s*)(https?://[^\s<>]+)", lambda m: m.group(1) + "[Consultar fuente](" + m.group(2) + ")", markdown)
