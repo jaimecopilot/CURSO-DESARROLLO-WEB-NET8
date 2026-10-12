@@ -632,7 +632,7 @@ Al terminar la práctica, el alumno debería poder describir la aplicación sin 
 
 Por ejemplo: «En `PROYECTO/1.1/CursoWeb.Mvc`, iniciando la aplicación con `dotnet run --no-launch-profile --urls http://localhost:5091`, la dirección `/` devuelve 200 y representa la vista `Home/Index`. Al activar la línea `X-Curso-Paso` en `HomeController`, esa cabecera aparece en la respuesta del documento principal, pero no en la solicitud del CSS».
 
-Esta explicación relaciona código, configuración y observación. También resulta valiosa cuando otra persona tiene que reproducir el ejercicio o cuando se está preparando un test de integración.
+Esta explicación relaciona código, configuración y observación. También permite que otra persona reproduzca el ejercicio y llegue a la misma observación.
 
 Una afirmación como «lo probé y funciona» es mucho menos útil, porque no deja claro qué funcionalidad se verificó ni cuáles fueron las condiciones de la ejecución.
 
@@ -1048,7 +1048,7 @@ Los tres estados siguientes pueden producir una pantalla sin filas visibles, per
 
 **Situación C: se entregó una lista vacía.** No es el estado que ejecutamos con nuestros datos fijos, pero podemos razonarlo a partir del contrato: `Model` no sería `null`, `Model.Count` sería cero y un `foreach` sobre esa lista no produciría filas. En una aplicación real convendría presentar un mensaje específico de catálogo vacío. Una colección vacía y la ausencia de colección no son necesariamente lo mismo.
 
-Estos escenarios revelan por qué las comprobaciones deben observar más de un elemento. Un test que verifica únicamente HTTP 200 no detecta si la lista está correctamente representada. Un test que busca un nombre escrito literalmente en la vista podría pasar incluso si el controlador nunca entregó un modelo. Una comprobación útil debe vincular datos y presentación.
+Estos escenarios revelan por qué las comprobaciones deben observar más de un elemento. Comprobar únicamente HTTP 200 no permite saber si la lista está bien representada. Encontrar un nombre escrito literalmente en la vista tampoco demuestra que el controlador haya entregado correctamente el modelo. Una comprobación útil debe vincular datos y presentación.
 
 **Los errores de tipado también son distintos.**
 
@@ -1068,7 +1068,7 @@ Después de habilitar el enlace del layout, el navegador dispone de una vía de 
 
 Finalmente, al sustituir Cuaderno por Bloc, el contador permanece en tres y el formato HTML de los elementos sigue siendo el mismo. Lo que cambia es el valor de un modelo. La vista continúa consumiendo `producto.Nombre`, que es exactamente lo que debería suceder.
 
-Podemos relacionar estas observaciones con comprobaciones automáticas:
+Podemos resumir estas observaciones mediante casos concretos que puedes comprobar en el navegador:
 
 | Modificación | Evidencia positiva | Regresión que no debe producirse |
 |---|---|---|
@@ -1078,7 +1078,7 @@ Podemos relacionar estas observaciones con comprobaciones automáticas:
 | Sustituir un nombre | Aparece Bloc en lugar de Cuaderno | Los otros dos productos y el contador permanecen |
 | No tocar la ruta | `/Productos` sigue respondiendo 200 | No se necesita una ruta adicional para cambiar la vista |
 
-La prueba automatizada del punto 1.2 reconstruye estos estados sobre copias temporales. El objetivo del alumno es entender la causa de cada comprobación; el hecho de que una prueba dé verde no es por sí solo evidencia de comprensión conceptual.
+Al contrastar esos resultados, explica por qué cambia la página en cada estado. Obtener el resultado esperado sin comprender qué responsabilidad cumple cada archivo no es suficiente.
 
 **Conexión con los próximos capítulos sin adelantar sus contenidos.**
 
@@ -1116,7 +1116,7 @@ En nuestro proyecto encontramos:
 
 La primera línea selecciona `Microsoft.NET.Sdk.Web`, que aporta la configuración y las referencias del framework web necesarias para compilar una aplicación ASP.NET Core. `TargetFramework` fija el destino `net8.0`. `Nullable` habilita las anotaciones de nulabilidad, relevantes cuando una vista pueda recibir un modelo nulo; `ImplicitUsings` permite utilizar espacios de nombres comunes sin repetir siempre `using`.
 
-El proyecto de este capítulo no necesita ningún paquete externo adicional para enseñar la estructura. En M02 añadiremos las dependencias de EF Core y SQLite cuando sean pertinentes. Adelantar esas dependencias aquí entorpecería el objetivo didáctico.
+El proyecto de este capítulo no necesita ningún paquete externo adicional para enseñar la estructura. En M02 añadiremos EF Core 8 con SQL Server Express LocalDB cuando sea necesario guardar productos. Adelantar esas dependencias aquí entorpecería el objetivo didáctico.
 
 El archivo `.csproj` **no es la aplicación ejecutándose**: describe cómo construirla. El arranque real está en `Program.cs` y se ejecuta cuando iniciamos el proyecto. La compilación puede producir `bin/` y `obj/`, carpetas generadas que no deben confundirse con los archivos fuente y que se excluyen de Git.
 
@@ -1466,7 +1466,7 @@ La práctica termina con una comprobación sencilla pero reveladora: habilitar e
 
 El primero debe responder HTTP 200 y el segundo 404 en nuestro proyecto. Más interesante aún, el primero ya era accesible **antes** de habilitar su enlace de navegación. Esta observación muestra que la accesibilidad de un recurso depende de la configuración de publicación, no de que exista un enlace visible en pantalla.
 
-El código completo, las instrucciones para activar el enlace, los resultados esperados y las pruebas automáticas de ambas respuestas están en `P1.3`. El reto no requiere conocimientos de seguridad avanzados ni recursos externos.
+El código y las instrucciones para activar el enlace y observar ambas respuestas están en `P1.3`. El reto no requiere conocimientos de seguridad avanzados ni recursos externos.
 
 **Una lectura rigurosa de la raíz web.**
 
@@ -1968,7 +1968,7 @@ Es posible escribir código equivalente con otros estilos, pero esta estructura 
 
 Para el caso de `id=0`, el método debe terminar en `BadRequest`. Para `id=99`, el identificador no es rechazado por el primer `if`, pero la búsqueda devuelve `null` y se utiliza `NotFound`. Para `id=2`, el código supera ambas comprobaciones y crea un resultado de vista.
 
-Estas tres rutas de ejecución cubren las decisiones esenciales del método sin exigir conocimientos avanzados de testing. Son además situaciones independientes: cambiar la comprobación de cero no debería hacer desaparecer el producto de id 2.
+Estas tres rutas de ejecución cubren las decisiones esenciales del método sin introducir técnicas de pruebas ajenas al objetivo de este módulo. Son además situaciones independientes: cambiar la comprobación de cero no debería hacer desaparecer el producto de id 2.
 
 Al introducir cada identificador en la URL, se observa el recorrido completo: la ruta selecciona la acción, la acción decide el resultado y el servidor devuelve el estado HTTP correspondiente.
 
@@ -2186,7 +2186,7 @@ Esa diferencia de contenido también debe verificarse. Una respuesta JSON con do
 
 **El formato de salida como parte de un contrato.**
 
-Un cliente que espera JSON no debería recibir HTML sin que esa diferencia se considere relevante. Aunque ambos cuerpos puedan contener el nombre «Lápiz», sus formatos y significados son distintos. Por eso el test del reto comprueba tanto el estado 200 como el tipo de contenido JSON y las propiedades del objeto.
+Un cliente que espera JSON no debería recibir HTML sin que esa diferencia se considere relevante. Aunque ambos cuerpos puedan contener el nombre «Lápiz», sus formatos y significados son distintos. Por eso, al resolver el reto, comprueba tanto el estado 200 como el tipo de contenido JSON y las propiedades del objeto.
 
 Del mismo modo, una solicitud de Estado no exige un layout HTML completo. El resultado de texto no tiene que incluir navegación ni hojas de estilo. Pretender que todas las respuestas de un controlador sean visualmente idénticas equivaldría a ignorar la flexibilidad de `IActionResult`.
 
@@ -2228,7 +2228,7 @@ Al mismo tiempo, la URL generada no es un dato de dominio del producto: es parte
 
 Durante la práctica mantenemos el enlace comentado hasta comprobar que `Detalle(int id)` funciona. Un enlace podría estar bien construido visualmente y conducir a una dirección que devuelve 404, porque todavía no existe el endpoint. El hecho de que el HTML contenga un `href` no garantiza que el servidor atienda esa ruta.
 
-Este detalle enseña la importancia de comprobar la funcionalidad extremo a extremo. Un test de la vista podría confirmar que se generó una etiqueta `<a>`, pero otro test debe comprobar que su destino responde de manera correcta.
+Este detalle enseña la importancia de comprobar la funcionalidad extremo a extremo. Comprueba primero que se ha generado la etiqueta `<a>` y después que su destino responde correctamente al navegar hasta él.
 
 **Reutilización de datos y coherencia entre acciones.**
 
@@ -2334,7 +2334,7 @@ El proyecto del capítulo conserva la funcionalidad de las prácticas anteriores
 
 Esto permite enseñar el desarrollo incremental con un criterio verificable: **la nueva capacidad aparece y las anteriores permanecen operativas**. Cuando activamos el reto, además de comprobar JSON 200, debemos confirmar que `/Productos` continúa mostrando sus tres elementos y que `/Productos/Detalle/2` sigue ofreciendo HTML.
 
-La práctica incluye una ejecución automatizada de seis estados mediante copias temporales. No requiere que el alumno ejecute continuamente el test durante todas las explicaciones, pero sí permite demostrar de forma objetiva que los bloques propuestos no son pseudocódigo inconexo y que las rutas publicadas funcionan.
+Cada estado del ejercicio se puede construir y observar desde su punto de partida. El estudiante comprobará tanto la nueva capacidad como la continuidad de las rutas anteriores.
 
 Con estos conceptos, el punto 1.5 podrá centrarse en enriquecer la presentación Razor sin volver a explicar desde cero cómo se obtiene el producto ni cómo se selecciona una acción.
 
@@ -2814,7 +2814,7 @@ El alumno debe evitar una solución frágil que identifique cada tarjeta solo po
 
 **Representación visual frente a corrección funcional.**
 
-Que el HTML contenga tres elementos `article` no demuestra por sí solo que estén bien distribuidos en la pantalla o que el contraste de colores sea adecuado. Las pruebas HTTP automatizadas confirman la estructura y los datos, pero una inspección visual en un navegador permite evaluar su disposición.
+Que el HTML contenga tres elementos `article` no demuestra por sí solo que estén bien distribuidos en la pantalla o que el contraste de colores sea adecuado. Inspeccionar el HTML permite comprobar su estructura y sus datos, mientras que abrirlo en un navegador permite evaluar su disposición visual.
 
 También ocurre lo contrario: tres tarjetas pueden parecer correctas a simple vista y esconder enlaces de detalle incorrectos. Por eso combinamos observación visual con comprobaciones de URLs, modelos y contenido HTML.
 
@@ -2920,7 +2920,7 @@ Cuando activamos la condición de catálogo completo, los tres enlaces de detall
 
 Finalmente, el reto necesita verificar tanto casos positivos como negativos. Encontrar la etiqueta de precio económico una vez no basta: también hay que asegurarse de que no aparece en las tarjetas de Cuaderno y Carpeta. Este tipo de comprobación enseña a razonar sobre todas las ramas de una condición.
 
-Las pruebas automáticas funcionan sobre Kestrel y comprueban HTML y códigos HTTP. No simulan todo el comportamiento de un navegador gráfico, pero proporcionan evidencia de que las vistas y los Tag Helpers producen los fragmentos previstos.
+Para comprobar el resultado, observa los fragmentos HTML y los códigos HTTP con las herramientas del navegador. Después examina visualmente la página: una respuesta correcta también debe presentar los elementos en el lugar esperado.
 
 **Una lectura integrada del resultado de M01.**
 
