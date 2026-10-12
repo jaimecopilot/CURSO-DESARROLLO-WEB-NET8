@@ -8,7 +8,7 @@ Estas condiciones soportan una formación presencial de cinco jornadas y **deben
 
 - Windows 10/11 o entorno compatible para desarrollar y ejecutar .NET 8. Para la práctica IIS se necesita un **host Windows** con IIS configurado; no se da por hecho que otros sistemas puedan ejecutar IIS.
 - **SDK de .NET 8**, además de runtime ASP.NET Core 8. Comprobar con `dotnet --list-sdks`, `dotnet --list-runtimes` y `dotnet --info`.
-- Visual Studio con carga de trabajo **Desarrollo de ASP.NET y web** y compatibilidad con .NET 8, o VS Code y CLI .NET 8 para ejercicios genéricos. La guía detallada utilizará rutas de Visual Studio y comandos dotnet equivalentes cuando sea posible.
+- Visual Studio Community con carga de trabajo **Desarrollo de ASP.NET y web** y compatibilidad con .NET 8. Para M02, confirmar también el componente **SQL Server Express LocalDB** en el Instalador de Visual Studio; si no está instalado, añadirlo individualmente o mediante la carga de trabajo de almacenamiento y procesamiento de datos. Se ofrecen comandos `dotnet` equivalentes cuando corresponda.
 - Navegador moderno con herramientas de desarrollo; posibilidad de abrir localhost y varios puertos simultáneos.
 - Restauración NuGet previa: conexión a fuentes oficiales en preparación; caché lista si el laboratorio tiene red limitada.
 - Permisos locales suficientes para crear/editar carpetas, ejecutar procesos y acceder a puertos de laboratorio.
@@ -21,7 +21,7 @@ Referencia oficial: https://dotnet.microsoft.com/es-es/platform/support/policy
 
 ## 2. Dependencias de los proyectos del curso
 
-**Aplicación MVC A:** ASP.NET Core MVC net8.0, C#, EF Core 8 y proveedor SQLite cuando el capítulo 2.4 introduce persistencia. En M01 se utilizan productos precargados sin EF; el alumno no debe configurar SQLite hasta que corresponda.
+**Aplicación MVC A:** ASP.NET Core MVC net8.0, C#, EF Core 8 y proveedor `Microsoft.EntityFrameworkCore.SqlServer` (versión 8.x) con **SQL Server Express LocalDB** cuando P2.4 introduce persistencia. En M01 se utilizan productos en memoria sin base de datos. LocalDB requiere Windows y se utiliza bajo la cuenta interactiva del alumno. La cadena de conexión de laboratorio será `Server=(localdb)\\MSSQLLocalDB;Database=CursoWebProductos;Trusted_Connection=True;TrustServerCertificate=True;` en JSON (barra de instancia escapada).
 
 **Aplicación Blazor B:** Blazor Web App net8.0, modo principal Interactive Server. No se crea una WebAssembly standalone. En M03 los datos proceden de un servicio en memoria; en M04 se sustituye/añade acceso mediante HttpClient al API auxiliar.
 
@@ -29,7 +29,7 @@ Referencia oficial: https://dotnet.microsoft.com/es-es/platform/support/policy
 
 **Demostración de seguridad:** ejemplo local incluido y preconfigurado con identidad de demostración; sin depender de servicios externos de identidad. Contará con instrucciones completas y advertencia clara sobre el carácter didáctico. Su implementación concreta se verificará antes de entregar P4.4.
 
-**Pruebas de navegador:** automatización E2E interna del repositorio sobre HTTP local; las herramientas de test no son una nueva unidad del temario. Los procedimientos deben poder ejecutarse sobre la versión que indique la práctica.
+**Comprobaciones en navegador:** cada práctica indica qué URL abrir, qué datos introducir y qué resultado debe observarse.
 
 ## 3. Puertos de referencia del laboratorio
 
@@ -74,16 +74,12 @@ Referencias: https://learn.microsoft.com/en-us/dotnet/core/docker/ y https://lea
 
 Comprobar antes de comenzar cada jornada:
 - **M01:** plantilla MVC net8.0 restaurada/compilable y navegación local.
-- **M02:** paquete EF Core SQLite disponible y base de datos escribible en entorno de laboratorio.
+- **M02:** instancia `(localdb)\MSSQLLocalDB` disponible en Windows (`sqllocaldb info`), Visual Studio capaz de conectarse a ella y paquete EF Core 8 para SQL Server disponible. El alumno debe poder crear y modificar su base de datos `CursoWebProductos` sin permisos administrativos.
 - **M03:** plantilla Blazor Web App net8.0 con Interactive Server, comprobando que un @onclick responde realmente.
 - **M04:** API incluida accesible por HTTP; Blazor tiene su URL configurada; demostración local de autenticación funcional.
 - **M05:** `dotnet publish` produce archivos ejecutables; IIS/Hosting Bundle funciona; Docker hace build y ejecuta con mapeo a 8080.
-- Los tests E2E y compilaciones deben corresponder exactamente a los pasos documentados; disponer del resultado/log real, no de una suposición.
+- Abrir y comprobar los proyectos en el puesto donde se impartirán; atender a los resultados visibles antes de iniciar las actividades.
 
 ## 7. Límites de seguridad de los ejemplos
 
 Usar datos ficticios, puertos locales y credenciales de demostración exclusivamente. No reutilizar la configuración didáctica de autenticación o HTTP en producción; no exponer servicios de laboratorio públicamente sin configuración de seguridad adecuada. El curso muestra fundamentos, no un diseño de operación segura en producción.
-
-## 8. Limitación del entorno de redacción
-
-La preparación documental puede realizarse sin .NET ni Docker instalados en el equipo que genera los contenidos. Esa preparación **no es evidencia de compilación o E2E**. Los pasos se declararán probados únicamente cuando se ejecuten efectivamente en un entorno con los SDK, sistemas y servicios correspondientes; los pendientes se registrarán en documentos internos.
