@@ -107,7 +107,7 @@ def verify(target,md,kind,raw):
                 match=re.match(r"^(?:P)?3\.([1-6])\.",rendered_line)
                 if match and max(span["size"] for span in spans)>=16:
                     chapters.setdefault(int(match.group(1)),i+1)
-    assert list(chapters)==[1,2,3,4,5],f"{kind}: falta o está desordenado algún capítulo {chapters}"
+    assert list(chapters)==[1,2,3,4,5,6],f"{kind}: falta o está desordenado algún capítulo {chapters}"
     # Comparación de contenido VISIBLE. No confundir la fuente MD adjunta
     # con que todo su texto haya quedado realmente maquetado en el PDF.
     md_without_mermaid=re.sub(r"(?ms)^~~~mermaid\s*\n.*?^~~~\s*$","",md)
