@@ -14,6 +14,8 @@ else
 {
     <p id="numero-productos">El controlador ha enviado <strong>@Model.Count</strong> productos.</p>
 
+    @* APLICACION 1.2.4: escribe aquí una condición @if (Model.Count > 0) y muestra el Nombre del primer producto dentro de un <p id="primer-producto">. No modifiques el controlador ni sustituyas el modelo por texto fijo. *@
+
     @* PASO 1.2.4 (inicio)
     <ul id="listado-productos">
     @foreach (var producto in Model)
