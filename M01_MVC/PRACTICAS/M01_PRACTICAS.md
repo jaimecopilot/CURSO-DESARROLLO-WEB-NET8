@@ -809,6 +809,47 @@ Con la página Productos cargada, reproduce el recorrido usando los archivos del
 
 **Resultado esperado:** debes poder identificar el archivo que interviene en cada una de estas etapas. No es suficiente decir «lo hace MVC»: hay que diferenciar qué pieza hace qué trabajo.
 
+## Aplicación autónoma P1.2 — el primer producto sin duplicar sus datos
+
+Los pasos 1.2.3 y 1.2.4 construyen un catálogo en memoria y lo representan mediante una vista. Ahora resolverás una necesidad nueva, **escribiendo tu propio código**: mostrar el nombre del primer producto por encima del listado, sin cambiar el controlador, repetir datos ni añadir una ruta.
+
+### Analizar antes de modificar
+
+Abre `PROYECTO/1.2/CursoWeb.Mvc/Controllers/ProductosController.cs` y localiza la lista construida en el paso 1.2.3. Comprueba que la acción entrega esa lista con `View(productos)`. En `Views/Productos/Index.cshtml`, identifica el tipo `@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?`, el caso `Model is null` y el bloque `else` donde ya se consulta `Model.Count`.
+
+Piensa en tres situaciones: modelo nulo, lista vacía y lista con tres productos. Son tres estados diferentes. La colección vacía tiene `Count == 0`, por lo que no se debe acceder a `Model[0]` sin comprobar antes que existe el elemento. La expresión de acceso también debe resolverse en el servidor, sin escribir el nombre Cuaderno como literal HTML.
+
+### Escribir la nueva presentación
+
+Justo después del párrafo `numero-productos` encontrarás un comentario que comienza por `APLICACION 1.2.4`. Sustituye **ese comentario, no el bloque que representa el listado**, por una condición Razor creada por ti:
+
+1. Solo muestra el mensaje si `Model.Count > 0`.
+2. En ese caso, genera un párrafo `<p>` con `id="primer-producto"`.
+3. Escribe una frase que incluya `Model[0].Nombre` como expresión Razor. No copies los nombres de la lista en el HTML.
+4. Conserva el contador, el `foreach` del paso 1.2.4 y la comprobación `Model is null`.
+
+La pregunta es **por qué esta modificación debe realizarse en la vista** y no en el controlador: los datos ya existen y solo ha cambiado la forma de representarlos.
+
+### Ejecutar y comparar
+
+Reconstruye y arranca `PROYECTO/1.2/CursoWeb.Mvc`. Abre `/Productos` y verifica que la respuesta HTTP es 200, aparecen tres elementos y tu frase incluye **Cuaderno**. En F12 → Red, examina el HTML devuelto: debe aparecer el identificador `primer-producto` y no la expresión fuente `@Model[0].Nombre`.
+
+Ahora activa el reto del capítulo: sustituye Cuaderno por Bloc en el **modelo preparado por el controlador**, sin añadir un cuarto producto. Tu frase debe mostrar automáticamente Bloc, igual que el listado. No tienes que volver a editar la vista. Si solo cambia una de las dos apariciones, probablemente has escrito un nombre como texto fijo o has modificado otro archivo.
+
+Comprueba además que `/` sigue funcionando y que `/Productos` mantiene sus tres productos. Una mejora de presentación no debe eliminar la navegación ni modificar la creación de datos.
+
+### Diagnóstico guiado
+
+Si falla la compilación, revisa las llaves, la sintaxis `@if` y la ubicación dentro de `else`. Si compila pero el mensaje no aparece, revisa que el comentario de aplicación haya sido sustituido, que tengas tres elementos y que estés ejecutando el proyecto `1.2`, no una copia anterior. Si el párrafo muestra Cuaderno después de modificar el modelo a Bloc, comprueba qué expresión está dentro del párrafo: una cadena constante no sigue la evolución de los datos.
+
+La actividad tiene una explicación importante: **una vista puede tomar decisiones de presentación sin hacerse responsable de crear los datos**. También permite comprender por qué el caso de modelo nulo debe tratarse antes de acceder a la colección.
+
+### Preguntas para razonar la solución
+
+¿Qué archivo cambia al mostrar una frase adicional y por qué? ¿Dónde se creó el objeto del que sale el nombre? ¿Por qué no debemos suponer que `Model[0]` existe solo porque `Model` no es nulo? ¿Qué demuestra que Bloc aparezca en dos partes de la página sin modificar ambas? ¿Qué responsabilidad perderíamos de vista si el controlador devolviera el HTML mediante una cadena?
+
+**Resultado esperado:** el alumno crea una condición y un párrafo Razor propios, comprueba los casos relevantes e identifica exactamente qué dato llega desde el modelo. Esta actividad es una preparación para P1.5, no un anticipo de formularios, EF Core ni otros componentes.
+
 ## Reto: aplicación de los pasos
 
 **Consolidación y reto 1.2 — modificar los datos sin reescribir la vista.**
@@ -952,6 +993,19 @@ Comprueba que sigues utilizando la ruta convencional y que ambas direcciones sel
 **La página de inicio ha cambiado inesperadamente.**
 
 El objetivo de 1.2 no es modificar la portada del punto 1.1. Si desaparece, revisa si has editado `HomeController` o el archivo `Views/Home/Index.cshtml` por error, o si has abierto otra versión del proyecto.
+
+### Solución de referencia de la aplicación autónoma P1.2
+
+Consulta este ejemplo solo después de completar tu intento. Dentro del `else` de `Model is null`, el comentario `APLICACION 1.2.4` puede sustituirse por:
+
+~~~cshtml
+@if (Model.Count > 0)
+{
+    <p id="primer-producto">El primer producto del catálogo es @Model[0].Nombre.</p>
+}
+~~~
+
+La condición evita acceder al primer elemento cuando la lista está vacía. No duplica la lista ni requiere modificar `Producto` o `ProductosController`. El código del proyecto contiene únicamente la indicación inicial para que el alumno escriba su propia solución.
 
 ## Resultado y continuidad
 
