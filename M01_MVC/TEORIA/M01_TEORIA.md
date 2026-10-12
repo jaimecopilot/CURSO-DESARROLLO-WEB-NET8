@@ -2845,6 +2845,24 @@ La ventaja no es únicamente escribir menos líneas. Al existir **una sola imple
 
 El prefijo de guion bajo es una convención habitual de archivos de infraestructura o fragmentos Razor. No convierte la parcial en una acción privada de controlador ni proporciona por sí solo mecanismos de seguridad. La diferencia relevante es que se procesa como fragmento dentro de otra vista.
 
+**Un paso adicional: Anchor Tag Helper y la relación entre vistas y routing.**
+
+Una vez que hemos construido una tarjeta reutilizable, surge otra cuestión de mantenimiento: ¿debe la tarjeta ensamblar siempre manualmente la URL del producto? En el proyecto inicial el enlace se escribe con un `href` que incorpora `@Model.Id`. Es sencillo y suficiente para el primer ejercicio, pero ASP.NET Core MVC también ofrece el *Anchor Tag Helper*, que puede generar la URL a partir del controlador, la acción y el valor del parámetro de ruta.
+
+Podemos describir esa intención directamente en el HTML fuente de la tarjeta:
+
+~~~cshtml
+<a asp-controller="Productos"
+   asp-action="Detalle"
+   asp-route-id="@Model.Id">Ver detalle de @Model.Nombre</a>
+~~~
+
+Cuando la aplicación representa la vista y el Tag Helper está habilitado mediante `@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers`, el servidor procesa los atributos `asp-controller`, `asp-action` y `asp-route-id`. El resultado enviado al navegador contiene un enlace HTML ordinario con `href`; esos atributos especiales no son un protocolo de navegación que tenga que entender el navegador.
+
+Este ejemplo enlaza dos conocimientos previos. Primero, **la parcial recibe un solo `Producto`**: por tanto, `Model.Id` se evalúa según el elemento actual y no necesita repetir valores como 1 o 2. Segundo, **las rutas seleccionan acciones**: el enlace generado conducirá a una nueva solicitud `GET`, que MVC encaminará hacia el controlador y la acción indicados. No hay acceso a datos dentro del Tag Helper ni se ejecuta `Detalle` cuando se genera el enlace; eso sucederá cuando alguien lo siga.
+
+La versión inicial de la parcial mantiene un `href` convencional para que el alumno pueda observar la transición entre ambas formas. En la integración final de P1.5 se le pide sustituirlo, comprobar el HTML resultante y razonar por qué el catálogo y la ficha siguen utilizando un único bloque de presentación. Esta introducción no pretende adelantar la configuración de formularios del M02; solamente muestra que el framework puede relacionar la navegación con las acciones MVC a partir de atributos declarativos.
+
 **El Partial Tag Helper: qué significa cada atributo.**
 
 La invocación:
