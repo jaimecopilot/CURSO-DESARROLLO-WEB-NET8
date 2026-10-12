@@ -589,6 +589,51 @@ La expresión `with` conserva las otras propiedades del record original. No util
 
 **Conclusión pedagógica:** P3.4.5 combina las ideas anteriores para mostrar un caso distinto de interacción real. Puedes conservar el Id, modificar un nombre, rechazar un cambio inválido y observar una representación coherente sin incorporar ninguna tecnología de M04. La teoría 3.4, apartado «Un editor real en memoria», explica por qué este resultado es diferente de un CRUD persistente.
 
+### 3.4.6. Reto integrador — Catálogo consultable con filtros combinados y ordenación
+
+**Situación de trabajo.** La tienda que utiliza este catálogo quiere poder localizar un producto sin perder de vista qué artículos tiene realmente almacenados en la sesión. El encargado necesita buscar por parte del nombre, limitar el precio y cambiar el orden. No quiere que los filtros eliminen productos ni que la edición del paso anterior deje de funcionar. Resolverás este encargo **en el mismo componente Productos.razor de P3.4**, sin añadir una API, una base de datos ni un segundo listado independiente.
+
+**Resultado que debes conseguir:** al abrir la página aparecen tres tarjetas, ordenadas inicialmente de menor a mayor precio. Puedes invertir ese orden, escribir una parte del nombre para filtrar mientras tecleas y aplicar un precio máximo. El resumen visible indica cuántos elementos se muestran respecto al total existente. Tras borrar los criterios, los tres productos reaparecen. El botón de edición de 3.4.5 sigue conservando los Id.
+
+**Preparación.** Completa y comprueba 3.4.2–3.4.5 antes de este ejercicio. En el archivo M03_BLAZOR/PROYECTO/3.4/CursoWeb.Blazor/Components/Pages/Productos.razor hay un bloque C# comentado con las marcas RETO INTEGRADOR 3.4.6 INICIO y FIN, cuatro elementos Razor comentados cerca del principio y una variante de la expresión foreach. No inventes nombres diferentes: las piezas están preparadas para activarse conjuntamente.
+
+**Paso 1 — Anticipar el resultado sobre datos concretos.** Sin modificar nada, escribe qué orden esperas obtener al clasificar por precio ascendente los tres productos originales: Cuaderno vale 4,50 €, Lápiz 1,20 € y Carpeta 3,75 €. Después escribe el orden descendente. Esta predicción es importante porque, si más adelante la pantalla muestra otro orden, podrás distinguir un error en la consulta de un error de representación. El orden ascendente esperado es Lápiz, Carpeta y Cuaderno; el descendente es Cuaderno, Carpeta y Lápiz.
+
+**Paso 2 — Activar la proyección de consulta.** En el bloque RETO INTEGRADOR 3.4.6 retira los dos delimitadores del comentario C#. El código contiene tres variables y una propiedad calculada:
+
+~~~csharp
+private string busqueda = string.Empty;
+private decimal? precioMaximo;
+private bool ordenAscendente = true;
+~~~
+
+La propiedad ProductosVisibles ordena por Precio, usa Id como segundo criterio estable y después filtra con Where. En el predicado, la condición de nombre permite que una búsqueda vacía no restrinja la lista; la condición numérica solo se aplica cuando precioMaximo tiene un valor. Lee el predicado completo antes de compilar. ¿Por qué un filtro vacío no debe dejar la pantalla sin productos?
+
+**Paso 3 — Mostrar los controles de la consulta.** Descomenta **cada una** de las cuatro líneas Razor con el comentario RETO INTEGRADOR 3.4.6: el campo id="buscar" enlazado a busqueda con evento oninput; el campo id="precio-maximo" enlazado a precioMaximo; el botón id="alternar-orden" que invoca AlternarOrden; y el párrafo id="resumen-filtrado" con el número visible y el número total. No copies los controles por segunda vez; activa los que ya están escritos.
+
+**Paso 4 — Conectar consulta y representación.** Localiza la instrucción activa del bucle de tarjetas:
+
+~~~razor
+@foreach (var producto in productos)
+~~~
+
+Cambia **solo esa expresión** por:
+
+~~~razor
+@foreach (var producto in ProductosVisibles)
+~~~
+
+Conserva intactos el artículo, su atributo data-producto-id, el precio y el botón Seleccionar. El archivo incluye una variante comentada a modo de pista: no debes dejar dos bucles activos. La colección productos sigue existiendo y se utiliza como fuente de datos; lo único que cambia es qué secuencia se recorre al dibujar las tarjetas.
+
+**Paso 5 — Comprobar el encargo en el navegador.** Guarda y compila el proyecto de 3.4. Visita la ruta /productos. Deberías leer «Mostrando 3 de 3 productos» y observar primero Lápiz. Pulsa «Invertir orden por precio»: ahora la primera tarjeta debe ser Cuaderno, pero los precios y los Id siguen iguales. Escribe «láp» en la búsqueda; el contador debe pasar a 1 de 3 y solo queda Lápiz, aunque no hayas cambiado la colección. Escribe 1 como precio máximo y abandona el campo: no debe aparecer ninguna tarjeta, porque 1,20 es mayor que 1. Sustituye el máximo por 2 y abandona el campo: Lápiz reaparece. Borra la búsqueda: sigue siendo visible solo Lápiz, esta vez por el criterio de precio. Borra también el límite: reaparecen los tres artículos.
+
+**Paso 6 — Relacionar filtros y editor.** Selecciona Lápiz, comprueba que el editor del paso 3.4.5 recibe su nombre, escribe «Lápiz rojo» y guarda. Ahora utiliza la búsqueda «rojo»: el producto editado debe aparecer sin necesidad de volver a crear la lista. Anota cuál es su Id antes y después de editar. Si cambió, has construido un alta en lugar de una edición. Si no se encuentra con el nuevo nombre, revisa si ProductosVisibles lee la colección original o alguna copia que hayas mantenido por accidente.
+
+**Comportamientos incorrectos que debes saber diagnosticar.** Si al borrar la búsqueda siguen faltando productos, comprueba que no ejecutaste RemoveAll o una asignación destructiva para filtrar. Si el nombre se filtra solo al salir del input, revisa la presencia de @bind:event="oninput". Si el precio parece no cambiar hasta que sales del control, recuerda que en este campo hemos utilizado el evento por defecto. Si los filtros muestran correctamente el contador pero no las tarjetas, comprueba qué expresión recorre realmente el foreach. Si seleccionar o guardar deja de funcionar tras ordenar, confirma que el botón pasa producto.Id y no la posición de la tarjeta.
+
+**Cierre razonado.** Explica en un párrafo por qué ordenar y filtrar no deberían modificar el contenido de la colección; contrástalo con la edición de nombre, que sí sustituye un elemento. Distingue el total de objetos en memoria del subconjunto visible y describe qué se reinicia al recargar completamente la página. Este reto prepara la separación entre datos y criterios de presentación que reutilizaremos cuando el origen se convierta en una API.
+
+
 ### Reto 3.4 — Limpiar la selección sin alterar el catálogo
 
 El proyecto contiene un botón y un método comentados bajo la marca `RETO 3.4`. Su objetivo es practicar que un mismo estado puede cambiar por otra acción distinta de Seleccionar.
@@ -787,6 +832,51 @@ Compila y ejecuta. Selecciona Lápiz y comprueba que el padre refleja su nombre.
 
 **Solución razonada:** la tarjeta comunica únicamente una intención y el Id del producto. El padre es dueño de la lista, por lo que decide cómo aplicar `RemoveAll`. Esta solución es coherente con el flujo de datos padre→hijo mediante `[Parameter]` y la notificación hijo→padre mediante `EventCallback<int>`. La teoría 3.5 contiene la explicación de ambos contratos.
 
+### 3.5.5. Reto integrador — Quitar y deshacer sin perder la posición original
+
+**Encargo.** El usuario puede retirar una tarjeta del catálogo por error. Añade una acción que permita **deshacer la última eliminación** y recuperar exactamente el objeto retirado, en la misma posición en la que aparecía. La tarjeta seguirá emitiendo un EventCallback con el Id y será el padre quien decida qué guardar, borrar o recuperar. El ejercicio no consiste en añadir otra colección al hijo ni en implementar un historial ilimitado de operaciones.
+
+**Preparación.** Termina el paso 3.5.2 y el reto de eliminación de 3.5. Deben funcionar el botón Seleccionar y el botón Quitar de cada tarjeta; el elemento padre debe mostrar tres productos y un contador. Comprueba que solo hay una etiqueta TarjetaProducto activa en cada iteración del foreach, con los parámetros Producto, AlSeleccionar y AlQuitar.
+
+**Paso 1 — Definir qué información se pierde al quitar.** Comienza con Cuaderno, Lápiz y Carpeta. Si pulsas Quitar en Lápiz, no basta con recordar el nombre «Lápiz»: queremos recuperar su Id 2, su precio de 1,20 € y su posición intermedia. Escribe por qué no resolvería el problema limitarse a aumentar el contador o ejecutar productos.Add. Este último método insertaría al final, por lo que no restituiría necesariamente el orden que había antes de quitar.
+
+**Paso 2 — Activar el bloque del padre.** En Components/Pages/Productos.razor localiza las marcas RETO INTEGRADOR 3.5.5 INICIO y FIN y retira únicamente las líneas delimitadoras del comentario C#. El bloque introduce:
+
+~~~csharp
+private (Producto Producto, int Indice)? eliminacionPendiente;
+~~~
+
+También incluye TextoDeshacer, QuitarConDeshacer(int id) y DeshacerEliminacion(). El primer método busca el índice mediante FindIndex, guarda en eliminacionPendiente la pareja producto/posición, retira el objeto de la lista y limpia el texto de selección. El segundo comprueba que existe una eliminación pendiente, reintroduce el producto en la posición guardada y anula el registro para que no se pueda deshacer dos veces. No cambies la declaración de EventCallback<int> del hijo.
+
+**Paso 3 — Redirigir una intención, no alterar el contrato del hijo.** Dentro del foreach encontrarás la variante de la tarjeta que activaste en el reto anterior:
+
+~~~razor
+<TarjetaProducto Producto="producto"
+                AlSeleccionar="Seleccionar"
+                AlQuitar="Quitar" />
+~~~
+
+Sustituye exclusivamente el valor de AlQuitar por QuitarConDeshacer:
+
+~~~razor
+<TarjetaProducto Producto="producto"
+                AlSeleccionar="Seleccionar"
+                AlQuitar="QuitarConDeshacer" />
+~~~
+
+Conserva el parámetro AlSeleccionar y mantén una sola tarjeta por vuelta del bucle. Observa que Components/TarjetaProducto.razor no necesita saber si el padre está guardando un historial, un único registro o ningún registro: su función continúa siendo notificar el Id.
+
+**Paso 4 — Activar la interfaz de recuperación.** En la página padre descomenta los dos elementos Razor del reto: el botón id="deshacer", que llama a DeshacerEliminacion y está deshabilitado cuando eliminacionPendiente es null, y el párrafo id="estado-deshacer" que muestra TextoDeshacer. El texto permite saber **qué producto se podría recuperar**, no únicamente que existe alguna operación pendiente. Si el compilador no encuentra uno de esos miembros, comprueba que el bloque C# también esté activo.
+
+**Paso 5 — Recorrer un caso completo con un estado esperado.** Al entrar, el botón «Deshacer última eliminación» debe estar deshabilitado y el texto debe indicar que no hay eliminación pendiente. Pulsa Quitar en Lápiz. Ahora el contador debe ser 2, las tarjetas visibles serán Cuaderno y Carpeta, el botón de recuperación quedará habilitado y el texto pendiente identificará Lápiz. Púlsalo una vez. Deben reaparecer las tres tarjetas en este orden: Cuaderno, Lápiz, Carpeta. Verifica que Lápiz conserva el Id 2 seleccionándolo: el padre debe mostrar «Seleccionado: Lápiz». El botón Deshacer vuelve a quedar deshabilitado.
+
+**Paso 6 — Explorar los límites de esta solución.** Quita primero Cuaderno y después Carpeta antes de utilizar Deshacer. Predice qué ocurrirá: solo se conserva la eliminación más reciente. Después del deshacer quedarán recuperados los datos de Carpeta, pero no los de Cuaderno. Esto es deliberado y demuestra el alcance de **una única eliminación pendiente**, no de una pila de deshacer. Para recuperar el ejercicio inicial, vuelve a cargar /productos y empieza con tres productos. No prometas al usuario del caso un historial ilimitado que no has programado.
+
+**Diagnóstico de tres fallos plausibles.** Si tras deshacer Lápiz aparece al final, comprueba que no sustituiste Insert por Add. Si aparece duplicado, revisa la comprobación de Id antes de insertar y que no dejaste dos handlers conectados. Si el botón de recuperación nunca se habilita, revisa el método asociado a AlQuitar: tal vez sigues llamando al antiguo Quitar, que borra sin rellenar eliminacionPendiente. Aclara cuál es la diferencia entre desactivar el botón por estado y proteger el método con un retorno temprano.
+
+**Pregunta de diseño.** ¿Por qué mantenemos la tupla en Productos.razor y no en TarjetaProducto.razor? Responde describiendo qué componente es propietario de la colección, quién conoce la posición de cada artículo y quién puede reconstruir el orden. Esta explicación es tan importante como la ejecución del caso: demuestra que utilizas los parámetros y EventCallback para respetar una responsabilidad, no solo para pasar una función entre archivos.
+
+
 ### Diagnóstico y consolidación
 
 Si al activar el reto el proyecto falla, revisa que el parámetro `AlQuitar` exista en el hijo y que el método `Quitar` exista en el padre. Si se elimina otro elemento, revisa qué Id envía la tarjeta y qué predicado emplea `RemoveAll`. Si un botón de selección no cambia el texto, sigue la cadena `NotificarSeleccion` → `InvokeAsync` → `Seleccionar`. Si se dibujan seis tarjetas, desactiva las variantes de componente que dejaste duplicadas.
@@ -967,6 +1057,45 @@ return Array.Empty<Producto>();
 **Importante:** reemplaza la instrucción `return` original, no añadas otra después de ella. Compila, abre `/productos` y observa que la carga termina con «Lista preparada» y el mensaje «No hay productos para mostrar», sin tarjetas. Esto no es un error de HTTP ni una excepción: el servicio ha devuelto una colección vacía válida.
 
 **Resultado positivo complementario:** restaura la lista original del servicio y recarga. Deben volver a mostrarse tres tarjetas y el mensaje de lista vacía no debe aparecer. La solución es una condición Razor dependiente de `cargando` y del número de elementos; no se necesita una API ni un nuevo componente.
+
+### 3.6.7. Reto integrador — Simular un error de carga y recuperar el catálogo
+
+**Encargo.** El catálogo ya obtiene sus productos de forma asíncrona desde un servicio en memoria. Amplía el ejercicio para que el usuario pueda simular un fallo, reconocer que la carga no terminó correctamente y **reintentar** hasta recuperar las tarjetas. Hay que conseguirlo con el servicio local existente; todavía no se utilizarán HttpClient, Web API, SQL ni persistencia.
+
+**Estado de partida.** Trabaja en M03_BLAZOR/PROYECTO/3.6/CursoWeb.Blazor con los pasos de carga de P3.6 ya realizados. Al abrir /productos aparecen «Lista preparada» y tres tarjetas. Guarda una copia de este estado o utiliza la carpeta original limpia si has modificado el servicio para ensayar el resultado vacío. Un servicio que devuelve intencionadamente cero productos haría menos clara la comprobación de la recuperación tras error.
+
+**Paso 1 — Identificar el recorrido completo.** Abre Services/IProductosMemoriaService.cs, Services/ProductosMemoriaService.cs y Components/Pages/Productos.razor. En los tres existe un bloque RETO INTEGRADOR 3.6.7 INICIO / FIN. El contrato anuncia una nueva operación asíncrona; la clase del servicio la implementa; el componente solicita esa operación y transforma el resultado en mensajes y tarjetas. No basta con activar solo el último archivo: la interfaz y la implementación forman parte de la misma compilación.
+
+**Paso 2 — Activar el contrato y la implementación.** En IProductosMemoriaService.cs retira los delimitadores del bloque indicado para que declare:
+
+~~~csharp
+Task<IReadOnlyList<Producto>> ObtenerConErrorAsync(bool simularError);
+~~~
+
+En ProductosMemoriaService.cs activa el método homónimo. El método espera brevemente, lanza InvalidOperationException cuando simularError es true y, cuando es false, obtiene el catálogo habitual mediante ObtenerAsync(). Antes de continuar, justifica el parámetro booleano: permite reproducir el error a voluntad y comprobar tanto el comportamiento fallido como el correcto sin hacer depender la práctica de un servidor remoto.
+
+**Paso 3 — Sustituir el método inicial, no duplicarlo.** En la página Productos.razor activa el bloque C# del reto 3.6.7. Dentro encontrarás la nueva definición:
+
+~~~csharp
+protected override Task OnInitializedAsync() => RecargarAsync();
+~~~
+
+Este método **reemplaza** al OnInitializedAsync que activaste en PASO 3.6.2. Elimina del archivo la definición anterior (puedes mantener las instrucciones históricas como comentarios si no duplican código activo). Si dejas dos métodos con la misma firma, el proyecto no compilará. El nuevo OnInitializedAsync llama a RecargarAsync para que la carga inicial y la carga solicitada con el botón compartan la misma lógica.
+
+**Paso 4 — Leer la lógica de recuperación.** El método RecargarAsync establece cargando = true, limpia errorCarga, muestra «Cargando productos...» y deja una colección vacía mientras realiza la nueva petición al servicio. Dentro de try espera ObtenerConErrorAsync(simularError). Con éxito, asigna productos y cambia el estado a «Lista preparada». En catch (InvalidOperationException), genera un texto comprensible y cambia el estado a «Carga fallida». Finalmente, el bloque finally asigna cargando = false. ¿Qué sucedería si el método dejase la bandera en true después de capturar la excepción? Razona la respuesta mirando las condiciones Razor y el atributo disabled del botón.
+
+**Paso 5 — Activar los controles del navegador.** Descomenta las tres líneas Razor preparadas junto a la lista: la casilla id="simular-error" enlazada a simularError; el botón id="recargar-productos" que ejecuta RecargarAsync y se deshabilita durante una carga; y el párrafo condicional id="error-carga" con role="alert". Esta última condición solo representa el mensaje cuando errorCarga no está vacío. Conserva también el texto existente id="estado-carga"; son elementos diferentes, uno indica el estado general y el otro explica un error concreto.
+
+**Paso 6 — Ensayo de éxito y fallo.** Compila y abre /productos sin marcar la casilla. Espera a que aparezcan «Lista preparada» y tres tarjetas. Marca «Simular fallo», pulsa «Recargar catálogo» y espera a leer «Carga fallida». Debe verse «No se pudo cargar el catálogo de demostración.» y no deben aparecer tarjetas antiguas como si correspondieran a este nuevo intento. Comprueba que el botón vuelve a estar disponible: la excepción no debe dejar la interfaz atrapada en estado de carga.
+
+**Paso 7 — Recuperación sin reiniciar el sitio.** Desmarca «Simular fallo», pulsa de nuevo «Recargar catálogo» y espera el resultado. El texto deberá volver a «Lista preparada», el mensaje de error desaparecerá y se mostrarán tres tarjetas. Esta recuperación ocurre en **el mismo componente**, después de un fallo conocido. No ha sido necesario editar datos, reiniciar dotnet ni ejecutar una API externa.
+
+**Paso 8 — Diferenciar tres síntomas.** Repite el razonamiento con tres situaciones: (a) servicio correcto con tres elementos; (b) servicio correcto con lista vacía, como en el reto 3.6 anterior; (c) servicio que lanza la excepción simulada. En el caso (b) se terminó correctamente, por lo que corresponde un mensaje de vacío, no el mensaje de fallo. En el caso (c) la llamada no produjo una lista válida y se entra en catch. Explica por qué una bandera cargando no es suficiente para describir los tres resultados.
+
+**Incidencias que debes poder solucionar.** Una declaración duplicada de OnInitializedAsync revela que no sustituiste el método previo. Un error «no contiene una definición para ObtenerConErrorAsync» obliga a revisar el contrato y la implementación. Un mensaje de fallo que permanece después del éxito obliga a revisar dónde se restablece errorCarga. Una pantalla sin tarjetas durante toda la ejecución exige comprobar si cargando pasa a false o si la llamada nunca termina. No soluciones estos síntomas añadiendo código JavaScript: la información relevante está en el ciclo de vida, el estado y el contrato de servicio.
+
+**Conclusión.** Resume con tus palabras cuál es la responsabilidad de la página y cuál la del servicio. Identifica dónde sucede la espera, dónde se decide mostrar el mensaje de error y qué hace posible volver a intentarlo. Al terminar, el componente sabe recuperar una carga controlada; en M04 podrá aprender a usar una API real sin confundir un fallo de red con la mecánica elemental del estado de Blazor.
+
 
 ### Cierre y transferencia a M04
 
