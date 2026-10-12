@@ -13,7 +13,7 @@ El **recorrido esencial** de cada práctica está formado por sus pasos numerado
 
 Los apartados **«Profundización aplicada» son ampliaciones opcionales**, apropiadas para alumnado que avanza más rápido o para trabajo posterior. **No forman parte del itinerario obligatorio de las seis horas**; algunos anticipan cambios de otros pasos y deben abordarse solo cuando esos pasos ya estén comprendidos. Las preguntas y los retos deben intentarse primero sin leer la solución, aunque el código de apoyo permanezca disponible y comentado en el proyecto.
 
-**Orientación del módulo:** 120 minutos de explicación, 210 minutos de trabajo guiado y 30 minutos de resolución de dudas. No es necesario leer en voz alta todos los ejemplos ni ejecutar todas las variantes para completar el recorrido esencial. La evidencia del aprendizaje consiste en modificar, observar y explicar la aplicación, no en superar controles internos.
+**Orientación del módulo:** 120 minutos de explicación, 210 minutos de trabajo guiado y 30 minutos de resolución de dudas. No es necesario leer en voz alta todos los ejemplos ni ejecutar todas las variantes para completar el recorrido esencial. El aprendizaje se demuestra al modificar, observar y explicar la aplicación.
 
 ### Índice del módulo
 
@@ -52,7 +52,7 @@ dotnet --list-sdks
 En una carpeta de trabajo elegida por el alumno:
 
 ~~~bash
-git clone --branch desarrollo/m01-mvc https://github.com/jaimecopilot/CURSO-DESARROLLO-WEB-NET8.git
+git clone --branch revision-didactica/m01 https://github.com/jaimecopilot/CURSO-DESARROLLO-WEB-NET8.git
 cd CURSO-DESARROLLO-WEB-NET8
 ~~~
 
@@ -192,63 +192,6 @@ curl -i http://localhost:5091/
 
 En Windows PowerShell también puede utilizarse `curl.exe -i http://localhost:5091/`. La salida debe mostrar una línea de estado `200 OK`, cabeceras y HTML. Las cabeceras concretas pueden variar según sistema y servidor; no se exige un orden determinado.
 
-**Profundización aplicada: Reconstruir las pruebas desde el navegador.**
-
-Este laboratorio amplía la observación de la primera página sin cambiar el proyecto ni añadir tecnologías nuevas. Utilizaremos los mismos fragmentos de código comentados del ejercicio y compararemos lo que revela el navegador con lo que muestra una herramienta de línea de comandos.
-
-**Diferenciar el documento principal y los recursos.**
-
-Inicia la aplicación del punto 1.1:
-
-~~~bash
-cd M01_MVC/PROYECTO/1.1/CursoWeb.Mvc
-dotnet build
-dotnet run --no-launch-profile --urls http://localhost:5091
-~~~
-
-Con el servidor ejecutándose, abre una pestaña privada del navegador y visita `http://localhost:5091/`. Abre las herramientas de desarrollo con F12, selecciona la pestaña Red o Network y recarga la página.
-
-Localiza la solicitud del documento principal. Debe corresponder a la raíz `/` y devolver el HTML de `Views/Home/Index.cshtml`. No confundas la solicitud del documento con la hoja de estilos `/css/site.css`. Aunque ambas aparezcan asociadas a la misma página visible, sus cuerpos y tipos de contenido son distintos.
-
-Anota para cada solicitud el método, la URL, el código de estado y el tipo de contenido. No hace falta copiar todas las cabeceras: basta con las que permitan explicar qué recurso se pidió y qué respondió el servidor.
-
-| Observación | Documento principal | Hoja de estilos |
-|---|---|---|
-| Ruta | `/` | `/css/site.css` |
-| Método | GET | GET |
-| Código esperado | 200 | 200 |
-| Contenido esperado | HTML | CSS |
-| ¿Interviene HomeController.Index para crear el cuerpo? | Sí | No, lo sirve el middleware estático |
-
-La última fila debe justificarse leyendo `Program.cs` y `HomeController.cs`. No es suficiente responder que «ambos son archivos de la aplicación»: el documento principal procede de una acción que devuelve una vista y el CSS se sirve como recurso estático.
-
-**Repetir las comprobaciones sin interfaz gráfica.**
-
-Mantén la aplicación en ejecución. Abre una segunda terminal y ejecuta por separado:
-
-~~~bash
-curl -i http://localhost:5091/
-curl -i http://localhost:5091/Home/Index
-curl -i http://localhost:5091/css/site.css
-curl -i http://localhost:5091/ruta-inexistente
-~~~
-
-La opción `-i` incluye las cabeceras HTTP en la salida. La información puede tener distintas cabeceras adicionales según el sistema operativo y la versión del runtime, pero las comprobaciones relevantes son estables para esta práctica: las dos primeras direcciones responden HTML, la tercera CSS y la última 404.
-
-**Primera pregunta:** ¿por qué hay dos direcciones que llevan al mismo contenido HTML? Consulta la ruta convencional `"{controller=Home}/{action=Index}/{id?}"`. Los valores predeterminados explican que la raíz y `/Home/Index` seleccionen la misma acción.
-
-**Segunda pregunta:** ¿por qué el recurso CSS responde 200 aunque no exista un método `SiteCss()` en el controlador? Porque el proyecto registra `UseStaticFiles()` y el archivo está ubicado en la raíz web.
-
-**Tercera pregunta:** ¿la respuesta 404 significa que la aplicación no funciona? No. En este caso significa que la aplicación ha respondido indicando que no se encuentra un endpoint o recurso para la URL solicitada. Las otras direcciones siguen funcionando.
-
-**Cuarta pregunta:** ¿por qué no es correcto declarar que el navegador ha recibido un objeto C#? Porque el controlador ha seleccionado una vista y Razor ha producido HTML antes de enviar la respuesta.
-
-**Documentar una captura de evidencia mínima.**
-
-Conserva en tus apuntes una pequeña tabla con cuatro filas, una por solicitud, y apunta el código de estado y el tipo de contenido observados. No es necesario incorporar capturas de todos los paneles del navegador. El objetivo es que otra persona pueda reproducir el recorrido utilizando exactamente las mismas URLs.
-
-Si alguna solicitud no coincide con lo previsto, identifica primero si el problema afecta al servidor, a la ruta o al cuerpo de la respuesta. Evita modificar varios archivos al mismo tiempo.
-
 ### Paso 1.1.4 — Activar una cabecera HTTP desde la acción
 
 Dejar de ejecutar la aplicación mediante **Ctrl+C** antes de modificar y volver a construir. Abrir `Controllers/HomeController.cs` y localizar:
@@ -283,82 +226,6 @@ También se puede comprobar con `curl -i http://localhost:5091/`.
 **Qué hemos aprendido:** la cabecera se añade desde el controlador a la respuesta HTTP, pero no altera el título ni el texto HTML. Si solo miramos la pantalla, podemos pensar incorrectamente que el cambio no se ha aplicado.
 
 **Comprobación negativa:** la cabecera no tiene por qué aparecer en la petición CSS, porque ese archivo estático no lo sirve la acción `Index()`. La respuesta de la página y la respuesta de la hoja de estilos proceden de solicitudes diferentes.
-
-**Profundización aplicada: Comparar cambios de controlador y cambios de Razor.**
-
-En esta actividad usarás dos bloques ya existentes y comentados en el proyecto. No añadas archivos nuevos. El código aparece aquí para poder comparar exactamente qué se activa en cada estado.
-
-**Estado inicial sin fragmentos activados.**
-
-Abre `Controllers/HomeController.cs` y localiza:
-
-~~~csharp
-// Response.Headers["X-Curso-Paso"] = "1.1.4";
-~~~
-
-Después abre `Views/Home/Index.cshtml` y localiza:
-
-~~~cshtml
-@* PASO 1.1.5 (inicio)
-<section id="marca-paso-1-1-5">
-    <h2>Contenido añadido durante la práctica</h2>
-    <p>El navegador ha recibido una nueva versión de la vista Razor.</p>
-</section>
-PASO 1.1.5 (fin) *@
-~~~
-
-Ambos fragmentos están preparados. El primero está comentado con `//` porque es C#. El segundo utiliza delimitadores Razor `@* ... *@` porque es una plantilla `.cshtml`. Este detalle no es puramente visual: quitar los delimitadores incorrectos puede generar código que no compila o que Razor no representa como esperamos.
-
-Antes de activarlos, comprueba que la cabecera `X-Curso-Paso` no aparece en la respuesta del documento y que tampoco aparece el elemento `id="marca-paso-1-1-5"` en el HTML. Estos dos resultados negativos permiten reconocer luego qué cambió.
-
-**Activar únicamente el controlador.**
-
-Retira las dos barras de comentario de la asignación `Response.Headers`, guarda el archivo, detén y vuelve a ejecutar la aplicación. No actives todavía el bloque Razor.
-
-En otra terminal:
-
-~~~bash
-curl -i http://localhost:5091/
-~~~
-
-Busca la cabecera `X-Curso-Paso: 1.1.4`. A continuación abre el navegador y observa el contenido visible. El encabezado y los párrafos pueden parecer exactamente iguales que en el estado anterior; eso no invalida el resultado porque la modificación está en las cabeceras de la respuesta.
-
-Anota el dato más importante: **la instrucción del controlador se ha ejecutado aunque no se haya añadido ningún elemento HTML**. El alumnado debe poder señalar la línea concreta que explica la cabecera.
-
-Para comprobar el alcance de la modificación, solicita:
-
-~~~bash
-curl -i http://localhost:5091/css/site.css
-~~~
-
-No debes encontrar allí la cabecera personalizada de Home, porque la petición CSS la atiende el middleware estático. Si la encuentras, revisa que no hayas añadido otra instrucción global fuera del ejercicio.
-
-**Activar únicamente la vista.**
-
-Vuelve a comentar la asignación `X-Curso-Paso` y activa ahora el bloque `PASO 1.1.5`, retirando las dos líneas delimitadoras del comentario Razor. Compila y vuelve a ejecutar.
-
-La cabecera de diagnóstico no debería aparecer ya. En cambio, el HTML debe incluir una sección con el identificador `marca-paso-1-1-5` y el mensaje sobre la nueva versión de la vista.
-
-En F12 → Elementos o Inspector busca el `section`. Compara esa estructura con el código del archivo `Index.cshtml`. Después examina la respuesta del documento en la pestaña Red y comprueba que el fragmento forma parte del HTML entregado, no de una modificación realizada por código JavaScript del cliente.
-
-El cambio ha afectado a la representación visual de la página. No ha sido necesario tocar `Program.cs` ni la ruta convencional.
-
-**Activar ambos cambios y explicar la independencia.**
-
-Activa de nuevo la cabecera, conservando también activo el bloque de la vista. Después de compilar y ejecutar, comprueba ambos resultados en la misma respuesta: la cabecera `X-Curso-Paso` en la zona de metadatos y el `section` en el cuerpo HTML.
-
-Si solo aparece uno, no deberías cambiar el otro fragmento a ciegas. Revisa el archivo responsable del elemento ausente y confirma que estás ejecutando la versión correcta del proyecto.
-
-Esta práctica controlada puede representarse como una matriz:
-
-| Estado | Cabecera HTTP | Elemento HTML |
-|---|---|---|
-| Inicial | Ausente | Ausente |
-| Controlador | Presente | Ausente |
-| Vista | Ausente | Presente |
-| Ambos | Presente | Presente |
-
-Para comparar los dos cambios, activa cada bloque por separado y observa las diferencias entre cabeceras y HTML en el navegador.
 
 ### Paso 1.1.5 — Activar un bloque HTML de la vista Razor
 
@@ -1238,7 +1105,7 @@ Conservar el resultado de este capítulo. En `1.3` estudiaremos detalladamente l
 
 **Estado de partida:** proyecto del capítulo **1.3**, que conserva y deja activos los pasos funcionales 1.2.3, 1.2.4 y 1.2.5. La página de productos puede abrirse desde el principio con tres registros. No es necesario repetir el desbloqueo del controlador y la vista del capítulo anterior.
 
-**Duración de aula prevista:** 20 minutos de explicación y 35 minutos de práctica; la extensión de ejemplos y comprobaciones del documento permite repasar o completar observaciones fuera de ese tiempo. Las comprobaciones orientadas a docentes se automatizan para no consumir tiempo lectivo de los alumnos.
+**Duración de aula prevista:** 20 minutos de explicación y 35 minutos de práctica; la extensión de ejemplos y comprobaciones del documento permite repasar o completar observaciones fuera de ese tiempo. En el aula se prioriza identificar los archivos, realizar los cambios indicados y comprobar su efecto.
 
 Necesitamos **SDK .NET 8**, Visual Studio con soporte ASP.NET Core o un editor compatible con C#, navegador web con herramientas de desarrollo y terminal. En este punto no se usa base de datos, API externa ni Docker.
 
@@ -1316,64 +1183,9 @@ Completar verbalmente las siguientes relaciones:
 
 **Por qué esta identificación es útil:** al ampliar una aplicación, la mayor parte de los errores de mantenimiento comienzan por cambiar un archivo que no es responsable del comportamiento. Saber dónde mirar reduce modificaciones innecesarias y favorece la separación MVC.
 
-Comprueba además que `bin/` y `obj/`, cuando aparecen tras compilar, son resultados generados; no forman parte del código del alumno que debe versionarse.
+Comprueba además que `bin/` y `obj/`, cuando aparecen tras compilar, son resultados generados; no forman parte del código fuente que debes editar o versionar.
 
-**Profundización aplicada: Examinar el proyecto antes de modificarlo.**
-
-**Elaborar un mapa funcional de archivos.**
-
-Abre la carpeta `M01_MVC/PROYECTO/1.3/CursoWeb.Mvc` y localiza estos archivos del proyecto:
-
-~~~text
-CursoWeb.Mvc.csproj
-Program.cs
-appsettings.json
-Controllers/HomeController.cs
-Controllers/ProductosController.cs
-Models/Producto.cs
-Views/Productos/Index.cshtml
-Views/Shared/_Layout.cshtml
-Views/_ViewStart.cshtml
-Views/_ViewImports.cshtml
-wwwroot/css/catalogo.css
-wwwroot/recursos/guia-publica.txt
-DOCUMENTACION/nota-interna.txt
-~~~
-
-Sin modificar nada, responde para cada archivo si pertenece principalmente a configuración, arranque, acción de controlador, modelo de datos, presentación Razor, recurso estático o documentación interna. Algunas carpetas pueden intervenir en más de un proceso, pero cada archivo debe tener una responsabilidad principal identificable.
-
-En tus apuntes prepara una tabla de tres columnas: archivo, función y evidencia concreta. Por ejemplo, para `Program.cs` la evidencia puede ser la llamada `builder.Services.AddControllersWithViews()` o `app.MapControllerRoute(...)`. Para la vista de productos, la evidencia puede ser `@model IReadOnlyList<...>`. Evita responder solo «es un archivo importante»: debes asociarlo a una instrucción.
-
-**Leer el archivo de proyecto sin confundirlo con Program.cs.**
-
-Abre `CursoWeb.Mvc.csproj` e identifica:
-
-~~~xml
-<Project Sdk="Microsoft.NET.Sdk.Web">
-  <PropertyGroup>
-    <TargetFramework>net8.0</TargetFramework>
-    <Nullable>enable</Nullable>
-    <ImplicitUsings>enable</ImplicitUsings>
-  </PropertyGroup>
-</Project>
-~~~
-
-**Pregunta 1:** ¿qué framework utiliza el proyecto? `net8.0`. **Pregunta 2:** ¿se ejecuta Kestrel simplemente por abrir este archivo? No; el archivo describe el proyecto que debe construirse. **Pregunta 3:** ¿dónde se organiza el arranque de la aplicación? En `Program.cs`.
-
-Ejecuta:
-
-~~~bash
-dotnet restore
-dotnet build
-~~~
-
-Revisa el resultado de compilación. El proyecto contiene dependencias de la plataforma web, pero no necesita añadir EF Core para completar este apartado. Si falla una operación, distingue primero si se trata de restauración, compilación o ejecución.
-
-**Identificar bin y obj después de compilar.**
-
-Tras construir el proyecto, revisa las carpetas generadas `bin` y `obj`. No es necesario modificar su contenido; de hecho, el objetivo del ejercicio es comprender por qué no deben tratarse como archivos fuente que el alumno tenga que editar.
-
-Compara el estado del árbol antes y después de compilar. Las clases C# y las vistas Razor siguen estando en sus carpetas originales, mientras que el SDK puede haber creado archivos auxiliares y ensamblados. Esta observación ayudará en prácticas posteriores, donde se compilarán varias versiones del mismo proyecto.
+Abre `CursoWeb.Mvc.csproj` e identifica `Sdk="Microsoft.NET.Sdk.Web"` y `<TargetFramework>net8.0</TargetFramework>`. Este archivo describe cómo se construye el proyecto, mientras que `Program.cs` determina cómo se inicia y atiende peticiones.
 
 ### Paso 1.3.2 — Entender Program.cs antes de tocar una página
 
@@ -1453,50 +1265,6 @@ La estructura y los prefijos de fecha o categoría del registro pueden variar; e
 **Resultado esperado:** la aplicación sigue mostrando sus dos páginas anteriores; la instrucción nueva escribe **en el registro de la aplicación**, no en el HTML. Se demuestra así que un ajuste de `appsettings.json` puede leerse durante el arranque sin tocar una vista.
 
 Detener el proceso antes del siguiente paso.
-
-**Profundización aplicada: Relacionar configuración y ejecución.**
-
-**Identificar la sección de configuración.**
-
-Abre `appsettings.json`. Localiza la sección `Curso`:
-
-~~~json
-"Curso": {
-  "Nombre": "Curso MVC de productos",
-  "Edicion": "Laboratorio NET8"
-}
-~~~
-
-No es necesario añadir comentarios JSON ni cambiar el nombre de las propiedades. El proyecto suministrado ya contiene los valores adecuados para observar el acceso a configuración.
-
-En `Program.cs`, encuentra la instrucción de registro del paso 1.3.3:
-
-~~~csharp
-// app.Logger.LogInformation("P1.3 configuracion: {Nombre}", app.Configuration["Curso:Nombre"]);
-~~~
-
-Elimina las dos barras iniciales y deja la instrucción activa. El código accede a una clave jerárquica y utiliza su valor para escribir un mensaje en el log de aplicación.
-
-**Contrastar la consola y el navegador.**
-
-Compila, inicia la aplicación y observa la terminal:
-
-~~~bash
-dotnet build
-dotnet run --no-launch-profile --urls http://localhost:5091
-~~~
-
-Debes localizar el mensaje `P1.3 configuracion: Curso MVC de productos`. A continuación abre `/Productos` en el navegador y verifica que el catálogo continúa mostrando sus tres registros.
-
-**Pregunta:** ¿por qué el texto de `Curso:Nombre` aparece en la consola pero no como un nuevo producto en la lista? Porque el código del ejercicio solo registra ese valor en el host. No hemos modificado la colección del controlador ni la vista para representar la configuración como contenido de página.
-
-Este contraste ayuda a separar los datos de configuración y los datos del modelo `Producto`.
-
-**Comparar la URL de ejecución con los valores del JSON.**
-
-El comando utilizado especifica `http://localhost:5091`. La sección `Curso` no contiene el puerto ni configura el servidor. Si un alumno interpreta que el valor `"Laboratorio NET8"` controla la dirección de escucha, deberá revisar el argumento `--urls` y la función de `appsettings.json` en el ejemplo.
-
-No es necesario investigar todos los proveedores de configuración en esta jornada. El objetivo es demostrar que un valor puede leerse desde una sección JSON sin mezclarlo con el código que obtiene productos.
 
 ### Paso 1.3.4 — Incorporar una hoja CSS sin crear una acción MVC
 
@@ -1740,44 +1508,6 @@ GET /DOCUMENTACION/nota-interna.txt        -> 404, no publicado como estático
 ~~~
 
 **Código del reto:** el proyecto incluye la variante comentada y el Markdown explica su activación; verifica el resultado al ejecutar la aplicación.
-
-**Resolver el reto y comprobar resultados negativos.**
-
-El reto del capítulo consiste en habilitar un enlace al archivo `aviso-laboratorio.txt`, que ya se encuentra en `wwwroot/recursos`.
-
-En `Views/Shared/_Layout.cshtml` se proporciona:
-
-~~~cshtml
-@* RETO 1.3 (inicio)
-<a href="/recursos/aviso-laboratorio.txt">Aviso de laboratorio</a>
-RETO 1.3 (fin) *@
-~~~
-
-Retira las dos líneas de comentario Razor. No es necesario crear un controlador ni modificar `Program.cs`, porque el archivo ya está publicado como recurso estático.
-
-**Comprobar el acceso positivo.**
-
-Reinicia el proyecto, abre `/Productos` y pulsa Aviso de laboratorio. La URL `/recursos/aviso-laboratorio.txt` debe devolver 200 y el texto del recurso.
-
-El hecho de que el enlace esté en el layout significa que puede aparecer tanto en la página inicial como en la página de productos. La ubicación del enlace no altera el contenido del archivo que se sirve.
-
-**Comprobar la ausencia de publicación de otro archivo.**
-
-Solicita `/DOCUMENTACION/nota-interna.txt`. Debe devolver 404. Es una comprobación negativa necesaria: el reto se entiende solamente si distinguimos lo que el middleware publica de lo que no publica.
-
-También prueba una URL inexistente como `/no-existe`. Esta respuesta 404 es otra forma de ausencia, pero no demuestra nada sobre la ubicación de `nota-interna.txt`. Para esa conclusión necesitas conocer la estructura física y la configuración del middleware.
-
-**Resultado del reto documentado.**
-
-Registra tres evidencias:
-
-| Solicitud | Estado | Interpretación |
-|---|---:|---|
-| `GET /Productos` | 200 | MVC representa el catálogo |
-| `GET /recursos/aviso-laboratorio.txt` | 200 | Un archivo de `wwwroot` está disponible |
-| `GET /DOCUMENTACION/nota-interna.txt` | 404 | No está publicado por el middleware actual |
-
-El reto no se resuelve simplemente porque aparece el enlace. Debes poder justificar por qué una ruta devuelve texto público y otra no, y explicar que un enlace HTML visible no establece permisos de acceso.
 
 ## Comprobaciones funcionales y casos de diagnóstico
 
@@ -3467,45 +3197,6 @@ Después visitar `http://localhost:5091/Productos/Detalle/2`: la tarjeta reutili
 
 **Comprobación del alumno:** ejecuta la aplicación con los bloques indicados activados y verifica manualmente las URL y los cambios descritos en este apartado.
 
-
-**Reto de etiqueta económica con comprobaciones positivas y negativas.**
-
-El reto consiste en representar una etiqueta visual únicamente para los productos cuyo precio es inferior a 3 €. El código preparado se encuentra **dentro de la parcial**, no en el controlador:
-
-~~~cshtml
-@* RETO 1.5 (inicio)
-@if (Model.Precio < 3m)
-{
-    <strong class="etiqueta-economico">Precio económico</strong>
-}
-RETO 1.5 (fin) *@
-~~~
-
-Retira las dos líneas delimitadoras del comentario. No cambies los precios del catálogo ni agregues condiciones duplicadas en `Index.cshtml` o `Detalle.cshtml`.
-
-**Comprobar el resultado en el listado.**
-
-Compila y ejecuta. Abre `/Productos` y revisa las tres tarjetas. Solo Lápiz debe mostrar **Precio económico**, ya que su precio es 1,20 €, mientras Cuaderno y Carpeta superan el umbral.
-
-Comprueba que la etiqueta aparece **una sola vez** en el conjunto de tarjetas. Si aparece en todas, revisa la comparación `Model.Precio < 3m` y confirma que no has trasladado el bloque fuera de la parcial.
-
-**Comprobar el resultado en el detalle de Lápiz.**
-
-Abre `/Productos/Detalle/2`. La tarjeta de Lápiz debe mostrar la misma etiqueta, aunque no hayas modificado la vista de detalle. La condición se evalúa dentro de la parcial al recibir el objeto Producto.
-
-Este resultado demuestra la reutilización real: el mismo archivo aporta una regla de presentación coherente a dos vistas diferentes.
-
-**Comprobar los casos que no cumplen el criterio.**
-
-Abre `/Productos/Detalle/1` y observa la tarjeta de Cuaderno. No debe aparecer el texto «Precio económico». Después visita `/Productos/Detalle/3` y comprueba lo mismo para Carpeta.
-
-Un test que solo comprobara la ficha de Lápiz sería insuficiente: una condición incorrecta podría generar el texto para todos los productos. Verificar también los casos negativos confirma que se está aplicando el criterio esperado.
-
-**Explicar por qué no es una regla comercial.**
-
-La condición de precio es una decisión visual de este laboratorio. No modifica el importe del producto, no aplica un descuento ni afecta a la persistencia. El propósito es demostrar que una regla simple de representación puede mantenerse en un solo archivo reutilizable.
-
-En una aplicación real, las reglas que afectan a operaciones económicas o permisos de compra deben tratarse en las capas adecuadas. No deben depender exclusivamente de un texto mostrado por Razor.
 
 ## Comprobaciones funcionales y casos de diagnóstico
 
