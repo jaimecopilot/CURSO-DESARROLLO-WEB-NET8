@@ -66,6 +66,12 @@ Cada reto programable debe poder compilarse y ejecutarse en los estados propuest
 
 **Criterio de cierre de capítulo:** teoría, ejercicios guiados **y retos** explicados en Markdown, código localizado en el proyecto y pruebas realmente ejecutadas; nunca considerar completo un reto si solo figura un enunciado o una respuesta verbal.
 
+## Criterio de extensión y fidelidad documental
+
+La teoría y las prácticas de **cada módulo** deben desarrollarse con una profundidad equivalente a unos **80 folios de PDF por documento**. La referencia aprobada del M01 es de 89 páginas teóricas y 81 prácticas. La extensión no se consigue mediante repeticiones ni relleno: se alcanza con una exposición didáctica coherente, explicaciones causales, ejemplos completos, casos negativos, diagnóstico y ejercicios reproducibles. El punto 2.5 de M02 mantiene un itinerario breve acorde con el temario; no se sobredimensionará para compensar páginas.
+
+El **Markdown es la única fuente canónica**. El PDF de TEORIA debe trasladar íntegramente y en el mismo orden todo el contenido de `Mxx_TEORIA.md`, y el PDF de PRACTICAS debe hacer lo mismo con `Mxx_PRACTICAS.md`. No se permite reescribir, resumir, omitir, interpolar ni añadir contenido durante la conversión; los cambios de maquetación no alteran el texto o el código. Tras generar cada PDF, comprobar fidelidad Markdown→PDF, paginación y **todas las páginas visualmente**. No declarar cerrado el módulo hasta finalizar ambas revisiones.
+
 ## Política editorial
 
 Material docente por módulo: TEORIA/Mxx_TEORIA.md, PRACTICAS/Mxx_PRACTICAS.md y sus dos PDF. Construcción punto a punto: cada capítulo N.N se añade a los documentos acumulativos del módulo. Un capítulo reúne teoría completa, práctica íntegra y un proyecto cuyo código corresponde a los pasos descritos. Generar PDF solo al cerrar los Markdown. No incluir anotaciones internas de edición, auditorías ni informes de CI en el material del alumno.
