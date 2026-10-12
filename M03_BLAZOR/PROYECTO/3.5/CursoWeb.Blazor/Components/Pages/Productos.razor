@@ -1,0 +1,41 @@
+@page "/productos"
+@rendermode InteractiveServer
+<PageTitle>Comunicación</PageTitle>
+<h1>P3.5 | Comunicación padre–hijo</h1>
+<p id="seleccion">Seleccionado: @seleccion</p>
+<div class="tarjetas" id="tarjetas-productos">
+    @foreach (var producto in productos)
+    {
+        @* PASO 3.5.2: al activar AlSeleccionar en la tarjeta,
+           reemplaza esta línea por la variante siguiente. *@
+        <TarjetaProducto Producto="producto" />
+        @* <TarjetaProducto Producto="producto" AlSeleccionar="Seleccionar" /> *@
+        @* RETO 3.5: reemplaza por esta tercera variante al activar AlQuitar: *@
+        @* <TarjetaProducto Producto="producto" AlSeleccionar="Seleccionar" AlQuitar="Quitar" /> *@
+    }
+</div>
+<p id="cantidad">Total: @productos.Count</p>
+@code {
+    private readonly List<Producto> productos =
+    [
+        new(1, "Cuaderno", 4.50m),
+        new(2, "Lápiz", 1.20m),
+        new(3, "Carpeta", 3.75m)
+    ];
+    private string seleccion = "ninguno";
+
+    /* PASO 3.5.2 INICIO
+    private void Seleccionar(int id)
+    {
+        seleccion = productos.First(p => p.Id == id).Nombre;
+    }
+    PASO 3.5.2 FIN */
+
+    /* RETO 3.5 INICIO
+    private void Quitar(int id)
+    {
+        productos.RemoveAll(p => p.Id == id);
+        seleccion = "ninguno";
+    }
+    RETO 3.5 FIN */
+}

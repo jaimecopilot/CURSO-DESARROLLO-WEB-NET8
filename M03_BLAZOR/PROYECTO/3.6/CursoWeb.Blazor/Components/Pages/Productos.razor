@@ -1,0 +1,36 @@
+@page "/productos"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject IProductosMemoriaService Catalogo
+<PageTitle>Carga de productos</PageTitle>
+<h1>P3.6 | OnInitializedAsync</h1>
+<p>El servicio de productos usa datos en memoria y simula una operación asíncrona.</p>
+<p id="estado-carga">@estado</p>
+@if (!cargando && productos.Count > 0)
+{
+    <div class="tarjetas" id="tarjetas-productos">
+        @foreach (var producto in productos)
+        {
+            <TarjetaProducto Producto="producto" />
+        }
+    </div>
+}
+@* RETO 3.6 (ACTIVAR): mostrar un mensaje cuando no existen elementos.
+   La condición no se cumple con los tres productos de ejemplo;
+   prueba el reto retornando una lista vacía desde el servicio. *@
+@* @if (!cargando && productos.Count == 0) { <p id="sin-productos">No hay productos para mostrar.</p> } *@
+
+@code {
+    private IReadOnlyList<Producto> productos = Array.Empty<Producto>();
+    private bool cargando = true;
+    private string estado = "Servicio pendiente de activar";
+
+    /* PASO 3.6.2 INICIO
+    protected override async Task OnInitializedAsync()
+    {
+        estado = "Cargando productos...";
+        productos = await Catalogo.ObtenerAsync();
+        cargando = false;
+        estado = "Lista preparada";
+    }
+    PASO 3.6.2 FIN */
+}

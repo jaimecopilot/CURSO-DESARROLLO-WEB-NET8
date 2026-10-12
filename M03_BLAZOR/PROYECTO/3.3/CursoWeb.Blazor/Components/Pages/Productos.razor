@@ -1,0 +1,30 @@
+@page "/productos"
+@rendermode InteractiveServer
+<PageTitle>Productos</PageTitle>
+<h1>P3.3 | Composición y parámetros</h1>
+<p>Tres productos en memoria. Cada tarjeta es una instancia del mismo componente.</p>
+@* PASO 3.3.2: el siguiente listado ya funciona en el estado inicial. *@
+<ul id="lista-productos">
+    @foreach (var producto in productos)
+    {
+        <li>@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+    }
+</ul>
+@* PASO 3.3.3 (ACTIVAR): comenta el bloque <ul> anterior y quita los
+   delimitadores del bloque siguiente, que pasa cada objeto mediante [Parameter]. *@
+@*
+<div class="tarjetas" id="tarjetas-productos">
+    @foreach (var producto in productos)
+    {
+        <TarjetaProducto Producto="producto" />
+    }
+</div>
+*@
+@code {
+    private readonly List<Producto> productos =
+    [
+        new(1, "Cuaderno", 4.50m),
+        new(2, "Lápiz", 1.20m),
+        new(3, "Carpeta", 3.75m)
+    ];
+}

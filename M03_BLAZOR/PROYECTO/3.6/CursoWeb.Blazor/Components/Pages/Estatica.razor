@@ -1,0 +1,11 @@
+@page "/estatica"
+<PageTitle>SSR estático</PageTitle>
+<h1>P3.1 | Componente con SSR estático</h1>
+<p>El servidor envía HTML. Este ejemplo no declara un modo de renderizado interactivo.</p>
+<p id="contador-estatico">Pulsaciones: @contador</p>
+<button id="boton-estatico" @onclick="Incrementar">Pulsar (sin interacción)</button>
+<p class="mensaje">Aunque el marcado contenga @@onclick, sin renderizado interactivo no se ejecuta el evento C# tras pulsar.</p>
+@code {
+    private int contador;
+    private void Incrementar() => contador++;
+}

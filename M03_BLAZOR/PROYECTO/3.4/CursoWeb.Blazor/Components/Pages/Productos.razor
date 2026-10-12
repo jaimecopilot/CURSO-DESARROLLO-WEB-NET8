@@ -1,0 +1,58 @@
+@page "/productos"
+@rendermode InteractiveServer
+<PageTitle>Eventos</PageTitle>
+<h1>P3.4 | Estado y eventos</h1>
+<p>Los datos existen únicamente durante la sesión interactiva de este componente.</p>
+<p id="seleccion">Seleccionado: @seleccion</p>
+<div class="tarjetas" id="tarjetas-productos">
+    @foreach (var producto in productos)
+    {
+        <article class="tarjeta" data-producto-id="@producto.Id">
+            <strong>@producto.Nombre</strong>
+            <p>@producto.Precio.ToString("0.00") €</p>
+            @* PASO 3.4.2 (ACTIVAR): descomenta este botón al activar Seleccionar. *@
+            @* <button @onclick="() => Seleccionar(producto.Id)">Seleccionar</button> *@
+        </article>
+    }
+</div>
+@* PASO 3.4.3 (ACTIVAR): descomenta el input tras activar el campo nuevoNombre. *@
+@* <label>Nombre nuevo: <input id="nombre-nuevo" @bind="nuevoNombre" /></label> *@
+@* PASO 3.4.4 (ACTIVAR): descomenta el botón tras activar Agregar. *@
+@* <button id="agregar" @onclick="Agregar">Añadir producto</button> *@
+@* RETO 3.4 (ACTIVAR): botón para deshacer la selección. *@
+@* <button id="limpiar" @onclick="Limpiar">Limpiar selección</button> *@
+@code {
+    private readonly List<Producto> productos =
+    [
+        new(1, "Cuaderno", 4.50m),
+        new(2, "Lápiz", 1.20m),
+        new(3, "Carpeta", 3.75m)
+    ];
+    private string seleccion = "ninguno";
+    private int siguienteId = 4;
+
+    /* PASO 3.4.2 INICIO
+    private void Seleccionar(int id)
+    {
+        seleccion = productos.First(p => p.Id == id).Nombre;
+    }
+    PASO 3.4.2 FIN */
+
+    /* PASO 3.4.3 INICIO
+    private string nuevoNombre = string.Empty;
+    PASO 3.4.3 FIN */
+
+    /* PASO 3.4.4 INICIO
+    private void Agregar()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoNombre))
+            return;
+        productos.Add(new Producto(siguienteId++, nuevoNombre.Trim(), 5m));
+        nuevoNombre = string.Empty;
+    }
+    PASO 3.4.4 FIN */
+
+    /* RETO 3.4 INICIO
+    private void Limpiar() => seleccion = "ninguno";
+    RETO 3.4 FIN */
+}
