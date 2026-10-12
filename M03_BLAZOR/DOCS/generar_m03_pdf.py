@@ -15,8 +15,8 @@ from weasyprint import HTML
 from pypdf import PdfReader,PdfWriter
 import fitz
 CSS=(estilo.CSS_TEMPLATE
-     .replace("font-size: 9.8pt; line-height: 1.46","font-size: 12.45pt; line-height: 1.68")
-     .replace("font-size: 8.2pt; line-height: 1.35","font-size: 9.55pt; line-height: 1.56"))
+     .replace("font-size: 9.8pt; line-height: 1.46","font-size: 12.0pt; line-height: 1.66")
+     .replace("font-size: 8.2pt; line-height: 1.35","font-size: 9.35pt; line-height: 1.54"))
 CSS+=estilo.HTML_FORMATTER.get_style_defs(".highlight")
 CSS += "\np { margin: 8pt 0 10.8pt; }\nh2 { margin-top: 19pt; }\n"
 CHAPTER=re.compile(r"^(?:P)?3\.([1-6])\.\s")
@@ -72,7 +72,7 @@ def html_from_md(source,kind):
             .replace("__MD_AUTHOR__",cssq(author)))
     if kind=="PRACTICAS":
         # Evitar que el diagnóstico final quede cortado entre páginas.
-        css+="\nbody {font-size:12.95pt;line-height:1.75;}\np {margin:8.7pt 0 11.4pt;}\nbody > p:last-child {break-inside:avoid;}\n.module-intro {font-size:10pt;line-height:1.38;}\n.module-intro p {margin:4pt 0 6pt;}\n.module-intro h2 {margin-top:9pt;}\n.module-intro ul {margin:4pt 0 5pt;}\n.module-intro li {margin:1pt 0;}\n"
+        css+="\nbody {font-size:12.3pt;line-height:1.71;}\np {margin:8.7pt 0 11.4pt;}\nbody > p:last-child {break-inside:avoid;}\n.module-intro {font-size:10pt;line-height:1.38;}\n.module-intro p {margin:4pt 0 6pt;}\n.module-intro h2 {margin-top:9pt;}\n.module-intro ul {margin:4pt 0 5pt;}\n.module-intro li {margin:1pt 0;}\n"
     return ('<!doctype html><html lang="es"><head><meta charset="utf-8">'
        +'<style>'+css+'</style></head><body>'+rendered+'</body></html>')
 
@@ -87,7 +87,7 @@ def verify(target,md,kind,raw):
     assert reader.metadata.author=="AUTOR: JAIME GALLO"
     pages=len(reader.pages)
     print(f"{kind}: {pages} páginas, {len(md.split())} palabras Markdown.",flush=True)
-    if not 72<=pages<=100:
+    if not 75<=pages<=100:
         print(f"AVISO: {kind} necesita revisar extensión: {pages} páginas.",flush=True)
     doc=fitz.open(target)
     chapters={}
@@ -146,7 +146,7 @@ def create(kind):
 
 def main():
     results=[create("TEORIA"),create("PRACTICAS")]
-    if any(not 72<=r["paginas"]<=100 for r in results):
+    if any(not 75<=r["paginas"]<=100 for r in results):
         raise AssertionError("Los dos PDF deben aproximarse a 80 páginas antes de publicarse.")
     OUT.parent.mkdir(parents=True,exist_ok=True)
     lines=["# M03 — Informe técnico documental","",
