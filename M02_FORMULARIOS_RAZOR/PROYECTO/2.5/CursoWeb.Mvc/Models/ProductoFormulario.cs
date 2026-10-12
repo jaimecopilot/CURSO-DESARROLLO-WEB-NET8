@@ -8,6 +8,6 @@ public sealed class ProductoFormulario
     public string? Nombre { get; set; }
 
     [Required(ErrorMessage = "Indica el precio.")]
-    [Range(typeof(decimal), "0.01", "9999.99", ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
+    [Range(typeof(decimal), "0.01", "9999.99", ParseLimitsInInvariantCulture = true, ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
     public decimal? Precio { get; set; }
 }
