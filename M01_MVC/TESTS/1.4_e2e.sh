@@ -59,7 +59,7 @@ run_scenario() {
         grep -Fxq 'Catalogo MVC disponible' "$TMP/$state-estado.body"
     fi
 
-    if [[ "$state" == "detalle" || "$state" == "atributo" || "$state" == "enlaces" || "$state" == "reto" ]]; then
+    if [[ "$state" == "detalle" || "$state" == "atributo" || "$state" == "enlaces" || "$state" == "aplicacion" || "$state" == "reto" ]]; then
         get "$state" "/Productos/Detalle/2" 200 detalle
         grep -iq '^Content-Type: text/html' "$TMP/$state-detalle.headers"
         grep -Fq 'id="titulo-detalle"' "$TMP/$state-detalle.body"
