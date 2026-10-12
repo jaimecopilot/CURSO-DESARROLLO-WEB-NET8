@@ -35,7 +35,9 @@ Cada punto dispone de código de proyecto trazable paso a paso, con bloques acti
 
 **M01 — Fundamentos de MVC:** ya contiene los cinco apartados (1.1–1.5), teoría, prácticas, retos con código comentado, proyectos escalonados y sus dos PDF derivados de los Markdown. El material incluye comprobaciones prácticas de los resultados esperados en el navegador. Consulta [M01 y sus materiales](M01_MVC/README.md).
 
-**M02–M05:** materiales pendientes de elaboración. Los PDF de los demás módulos se generarán después de cerrar cada par de Markdown, no como ficheros individuales por ejercicio.
+**M02 — Formularios, validación y Razor Pages:** material y proyectos de P2.1–P2.5 desarrollados en la rama de trabajo. Incluye los dos Markdown docentes, sus PDF derivados y las instantáneas de proyectos con bloques de aprendizaje activables. Consulta [M02 y sus materiales](M02_FORMULARIOS_RAZOR/README.md). La aprobación pedagógica de M02 es independiente de su publicación en `main`.
+
+**M03–M05:** módulos pendientes de desarrollo. Los PDF se generarán después de cerrar el contenido canónico de cada módulo, no como ficheros individuales por ejercicio.
 
 **Acceso a los materiales:** consulta el README del módulo y sigue la secuencia de actividades indicada en sus prácticas.
 
