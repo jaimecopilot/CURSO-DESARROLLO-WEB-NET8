@@ -15,7 +15,7 @@ trap cleanup EXIT
 start() {
   local dir="$1" label="$2" ready=0
   dotnet build "$dir/CursoWeb.Mvc.csproj" -c Release --nologo
-  (cd "$dir" && dotnet bin/Release/net8.0/CursoWeb.Mvc.dll --urls "$BASE") >"$TMP/$label.log" 2>&1 &
+  (cd "$dir" && exec dotnet bin/Release/net8.0/CursoWeb.Mvc.dll --urls "$BASE") >"$TMP/$label.log" 2>&1 &
   PID=$!
   for i in {1..40}; do
     if curl -fsS -o /dev/null "$BASE/Productos/Crear" 2>/dev/null; then ready=1; break; fi
@@ -36,7 +36,7 @@ check() {
   curl -fsS -o "$TMP/$state.detalle" "$BASE/Productos/Detalle/2"
   curl -fsS -b "$TMP/$state.cookies" -c "$TMP/$state.cookies" \
       "$BASE/Productos/Crear" >"$TMP/$state.form"
-  for product in Cuaderno Lápiz Carpeta; do grep -Fq "$product" "$TMP/$state.index"; done
+  for product in Cuaderno Lápiz Carpeta; do python3 -c 'import html,pathlib,sys; assert sys.argv[2] in html.unescape(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))' "$TMP/$state.index" "$product"; done
 
   result="$(curl -sS -o "$TMP/$state.nocookie" -w '%{http_code}' \
       --data "Nombre=Rotulador&Precio=7" "$BASE/Productos/Crear")"
