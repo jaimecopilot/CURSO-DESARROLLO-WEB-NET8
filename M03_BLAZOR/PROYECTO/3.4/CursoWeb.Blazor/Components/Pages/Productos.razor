@@ -4,6 +4,15 @@
 <h1>P3.4 | Estado y eventos</h1>
 <p>Los datos existen únicamente durante la sesión interactiva de este componente.</p>
 <p id="seleccion">Seleccionado: @seleccion</p>
+@* RETO INTEGRADOR 3.4.6: activa los tres controles y su lógica C#;
+   el filtro se aplica inmediatamente al escribir y no modifica la colección. *@
+@* <label>Buscar por nombre: <input id="buscar" @bind="busqueda" @bind:event="oninput" /></label> *@
+@* <label>Precio máximo: <input id="precio-maximo" type="number" min="0" step="0.5" @bind="precioMaximo" /></label> *@
+@* <button id="alternar-orden" @onclick="AlternarOrden">Invertir orden por precio</button> *@
+@* <p id="resumen-filtrado">Mostrando @ProductosVisibles.Count() de @productos.Count productos</p> *@
+@* RETO INTEGRADOR 3.4.6: sustituir solamente la expresión foreach
+   original por la variante siguiente, conservando todo el artículo y botones. *@
+@* @foreach (var producto in ProductosVisibles) *@
 <div class="tarjetas" id="tarjetas-productos">
     @foreach (var producto in productos)
     {
@@ -82,6 +91,23 @@
         seleccion = productos[indice].Nombre;
     }
     PASO 3.4.5 FIN */
+
+    /* RETO INTEGRADOR 3.4.6 INICIO
+    private string busqueda = string.Empty;
+    private decimal? precioMaximo;
+    private bool ordenAscendente = true;
+
+    private IEnumerable<Producto> ProductosVisibles =>
+        (ordenAscendente
+            ? productos.OrderBy(p => p.Precio).ThenBy(p => p.Id)
+            : productos.OrderByDescending(p => p.Precio).ThenBy(p => p.Id))
+        .Where(p =>
+            (string.IsNullOrWhiteSpace(busqueda) ||
+             p.Nombre.Contains(busqueda.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+            (precioMaximo is null || p.Precio <= precioMaximo.Value));
+
+    private void AlternarOrden() => ordenAscendente = !ordenAscendente;
+    RETO INTEGRADOR 3.4.6 FIN */
 
     /* RETO 3.4 INICIO
     private void Limpiar() => seleccion = "ninguno";
