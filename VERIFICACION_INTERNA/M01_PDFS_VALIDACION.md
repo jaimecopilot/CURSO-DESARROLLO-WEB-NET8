@@ -7,7 +7,7 @@ Se comprueba la existencia de los cinco capítulos, retos, contenido fundamental
 
 | Archivo | Palabras MD | Caracteres MD | Páginas PDF | Diagramas SVG |
 |---|---:|---:|---:|---:|
-| TEORIA | 35619 | 243302 | 90 | 6 |
+| TEORIA | 35619 | 243302 | 89 | 6 |
 | PRACTICAS | 28866 | 201221 | 81 | 0 |
 
 ## Autor procedente del Markdown

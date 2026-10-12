@@ -4,11 +4,11 @@ Cada PDF procede exclusivamente de su Markdown. Las marcas de formato, tablas y 
 
 | Documento | Punto | Páginas PDF | Palabras MD | Caracteres MD | Palabras PDF | Caracteres PDF | Tokens faltantes |
 |---|---|---|---:|---:|---:|---:|---:|
-| TEORIA | 1.1 | 3-21 | 7728 | 52575 | 7659 | 52992 | 0 |
-| TEORIA | 1.2 | 22-35 | 6010 | 39985 | 5912 | 40596 | 0 |
-| TEORIA | 1.3 | 36-51 | 6405 | 45473 | 6400 | 45626 | 0 |
-| TEORIA | 1.4 | 52-73 | 8628 | 58588 | 8554 | 59358 | 0 |
-| TEORIA | 1.5 | 74-90 | 6635 | 45293 | 6585 | 45015 | 0 |
+| TEORIA | 1.1 | 3-21 | 7728 | 52575 | 7659 | 52770 | 0 |
+| TEORIA | 1.2 | 22-35 | 6010 | 39985 | 5912 | 40372 | 0 |
+| TEORIA | 1.3 | 36-51 | 6405 | 45473 | 6400 | 45307 | 0 |
+| TEORIA | 1.4 | 52-73 | 8628 | 58588 | 8554 | 59051 | 0 |
+| TEORIA | 1.5 | 74-89 | 6635 | 45293 | 6585 | 44707 | 0 |
 | PRACTICAS | 1.1 | 3-15 | 4877 | 33531 | 4838 | 33599 | 0 |
 | PRACTICAS | 1.2 | 16-29 | 4917 | 33715 | 4886 | 33507 | 0 |
 | PRACTICAS | 1.3 | 30-43 | 4985 | 35238 | 4913 | 35358 | 0 |
