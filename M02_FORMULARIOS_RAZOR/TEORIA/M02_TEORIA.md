@@ -14,6 +14,14 @@ La progresión acordada para este módulo abarca cinco puntos: **2.1** formulari
 
 Al finalizar el día, el producto será un catálogo que permita crear, consultar, modificar y eliminar datos persistidos. La aplicación Razor Pages será solamente una demostración alternativa de recepción de información, no otro proyecto empresarial. Seguimos usando **.NET 8** y los conocimientos previos de C#, Web API y Entity Framework Core; no volveremos a impartir esas tecnologías desde el principio.
 
+## Índice del módulo
+
+- 2.1. Formularios HTML, GET, POST, model binding y antiforgery.
+- 2.2. Tag Helpers de formularios, campos y enlaces.
+- 2.3. DataAnnotations, ModelState y validación.
+- 2.4. CRUD persistente con EF Core y LocalDB.
+- 2.5. Comparación de MVC y Razor Pages.
+
 # 2.1. Formularios HTML, GET y POST, model binding y antiforgery
 
 ## El problema que resuelve un formulario
@@ -226,6 +234,24 @@ La teoría y la práctica P2.1 deben estudiarse juntas, pero no es necesario lee
 - Microsoft Learn, Protección antiforgery de solicitudes: https://learn.microsoft.com/aspnet/core/security/anti-request-forgery?view=aspnetcore-8.0
 - Microsoft Learn, Tag Helpers de formularios: https://learn.microsoft.com/aspnet/core/mvc/views/working-with-forms?view=aspnetcore-8.0
 - Microsoft Learn, Validación de modelos en ASP.NET Core MVC: https://learn.microsoft.com/aspnet/core/mvc/models/validation?view=aspnetcore-8.0
+
+
+## Profundización aplicada: leer el contrato HTTP sin depender de la apariencia
+
+Una interfaz puede parecer correcta y, sin embargo, enviar datos distintos de los que creemos. Para estudiar formularios con precisión conviene distinguir tres niveles de información. El **nivel visual** es el que observa la persona: una etiqueta «Nombre», un campo donde escribe «Rotulador» y un botón. El **nivel HTML** es el documento devuelto por el servidor: contiene atributos como `name`, `id`, `method` y `action`. El **nivel HTTP** es la solicitud real: tiene una dirección, un método, cabeceras y un cuerpo con pares de nombres y valores. MVC recibe este último nivel; no puede adivinar qué pretendíamos mostrar en pantalla.
+
+La diferencia entre `id` y `name` merece una observación especial. `id` identifica un elemento del documento y sirve, entre otras cosas, para asociarlo con una etiqueta o localizarlo mediante JavaScript. `name` es el nombre que se utiliza cuando el navegador codifica los campos exitosos de un formulario. Si una caja de texto muestra el valor correcto pero no tiene el atributo `name` esperado, el binder no encontrará el valor bajo la clave que necesita el modelo. Renombrar únicamente el `id` no repara ese contrato. Esta distinción será muy útil cuando en 2.2 dejemos que `asp-for` genere ambos atributos.
+
+La codificación de formularios estándar, `application/x-www-form-urlencoded`, representa los datos como pares nombre–valor. Aunque el navegador presente un control de tipo número, lo que llega por HTTP sigue siendo una representación textual. ASP.NET Core debe convertirla al tipo de la propiedad C#. Esto explica por qué hay dos familias de errores que a primera vista pueden parecer iguales: ausencia de un valor, porque el campo no viajó o está vacío, y valor no convertible, porque el texto enviado no puede interpretarse como el tipo de destino. El binder interviene en ambos casos, pero el diagnóstico no debe confundirlos.
+
+También debemos separar la semántica de GET y POST de los efectos de la aplicación. HTTP no convierte automáticamente cualquier GET en una consulta segura ni cualquier POST en una inserción SQL: es nuestro código el que decide qué operaciones realiza. Utilizar GET para solicitar un formulario sigue siendo apropiado porque leerlo no debe modificar el estado. Utilizar POST para enviar una operación que puede producir cambios hace explícita la intención y habilita mecanismos como la comprobación antiforgery. Un formulario que recibe POST y presenta una confirmación, como en 2.1, todavía no demuestra persistencia; un formulario que recibe POST y ejecuta `SaveChangesAsync`, como en 2.4, sí puede producirla.
+
+Imaginemos tres incidencias distintas en la misma pantalla. En la primera, el formulario envía a una URL equivocada y obtenemos 404: el problema es el destino. En la segunda, la URL es correcta pero solo existe una acción GET y recibimos 405: el problema es la combinación de método y endpoint. En la tercera, la acción POST existe y está protegida, pero construimos una petición sin token y obtenemos 400: el problema es la verificación de seguridad. Cambiar una anotación `[Required]` no resuelve ninguna de esas incidencias. La habilidad profesional consiste en relacionar cada síntoma con la fase exacta del recorrido, no en ir modificando archivos al azar.
+
+El antiforgery se comprende mejor como comprobación de procedencia de una solicitud que como una propiedad «mágica» del formulario. La cookie identifica contexto, el campo oculto lleva un token y el servidor compara la información necesaria antes de permitir ejecutar la acción protegida. Por ello, copiar solo el valor del campo oculto entre navegadores o sesiones no equivale a reproducir el envío legítimo. Tampoco es una defensa general frente a ataques de inyección, validación deficiente o permisos incorrectos: esas preocupaciones requieren controles diferentes.
+
+**Actividad de reflexión opcional.** Observa el HTML de `Crear.cshtml` y responde, justificando cada decisión, qué componentes intervienen si el usuario cambia el texto de una etiqueta, si cambia el atributo `name` de un campo, si cambia el método del formulario y si cambia la acción de destino. En el primer caso puede cambiar solo la experiencia visual; en los otros tres puede romperse el contrato recibido por MVC. La respuesta razonada importa más que memorizar una tabla de atributos: te prepara para diagnosticar el comportamiento de formularios que no has desarrollado tú mismo.
+
 
 # 2.2. Tag Helpers: de los atributos HTML escritos a mano al enlace tipado con MVC
 
@@ -499,6 +525,24 @@ Después, en 2.4, usaremos la base SQL Server Express LocalDB con Entity Framewo
 - Microsoft Learn, [Introducción a los Tag Helpers](https://learn.microsoft.com/aspnet/core/mvc/views/tag-helpers/intro?view=aspnetcore-8.0).
 - Microsoft Learn, [Anchor Tag Helper](https://learn.microsoft.com/aspnet/core/mvc/views/tag-helpers/built-in/anchor-tag-helper?view=aspnetcore-8.0).
 - Microsoft Learn, [Model binding](https://learn.microsoft.com/aspnet/core/mvc/models/model-binding?view=aspnetcore-8.0).
+
+
+## Profundización aplicada: Tag Helpers como traducción controlada, no como HTML oculto
+
+Una de las dificultades al comenzar con Tag Helpers consiste en creer que reemplazan por completo al HTML. En realidad, trabajan **antes** de que el documento llegue al navegador. El archivo `.cshtml` contiene instrucciones reconocibles para Razor y extensiones de atributos como `asp-for` y `asp-action`; la respuesta HTTP contiene etiquetas HTML ordinarias. Esta transformación debe resultar observable, no misteriosa. Si inspeccionamos el código fuente generado, podemos analizar qué `action` se calculó, qué `name` y `id` se produjeron para cada entrada y cómo se construyeron los enlaces.
+
+Pensemos en un cambio frecuente durante el mantenimiento: la acción de creación deja de llamarse `Crear` y pasa a tener otra ruta pública. En el HTML escrito manualmente, una cadena fija puede quedar desactualizada si nadie la revisa. El Form Tag Helper utiliza información del enrutamiento y los nombres de controlador y acción para generar la dirección. Esta ventaja no significa que el compilador garantice todos los destinos: si escribimos un nombre de acción incorrecto como cadena en `asp-action`, podremos seguir produciendo una URL no deseada. Lo que ganamos es **integración con la infraestructura de rutas** y un lugar claro para localizar el problema.
+
+El Input Tag Helper también necesita un contrato. Con `asp-for="Nombre"`, Razor conoce el tipo de modelo y la expresión a la que se refiere el campo. A partir de ahí genera atributos y, cuando existen metadatos de validación, puede generar información que la validación del navegador interprete. No convierte por sí mismo texto inválido en un `decimal` válido: después del envío sigue siendo necesaria la conversión en el servidor. No vuelve segura una operación por el mero hecho de usar una etiqueta más expresiva. La fiabilidad procede de combinar marcado, binding, validación y protección del endpoint.
+
+En las vistas parciales aparece otro aspecto importante: **contexto**. Cuando una parcial recibe un `Producto` individual, un enlace con `asp-route-id="@Model.Id"` representa el identificador del producto que está dibujando. Si reutilizamos la misma parcial en un detalle y en una lista, el enlace debe seguir relacionándose con el modelo que recibe. Sin ese contrato, podríamos producir una colección de tarjetas bonitas que apuntan todas al mismo recurso. Los Tag Helpers no corrigen una parcial que recibe un modelo equivocado; hacen más explícita la construcción del enlace, pero necesitan datos correctos.
+
+Conviene prestar atención al HTML resultante en varios casos: un nombre con espacios, un texto con caracteres especiales y un identificador numérico insertado en la ruta. Razor codifica normalmente los valores representados en HTML y la infraestructura de routing se ocupa de generar destinos; eso no significa que debamos concatenar cadenas procedentes del usuario para fabricar etiquetas o atributos completos. Mantener los datos como datos, y no como fragmentos de marcado, facilita que el framework realice la codificación apropiada.
+
+Otra confusión habitual es atribuir al Tag Helper el comportamiento de JavaScript. `asp-validation-for` puede producir una ubicación donde representar un mensaje y atributos relacionados con validación. Sin embargo, la ejecución de validación cliente depende de los scripts instalados y cargados, y la aceptación final en el servidor depende de `ModelState`. Si retiramos los scripts, podemos perder inmediatez al informar de un error, pero no debemos perder el rechazo de entradas inválidas en la acción. Por tanto, el comportamiento observado en la pantalla no puede considerarse prueba suficiente de que el servidor valida correctamente.
+
+**Diagnóstico de transferencia.** Si el formulario funciona sin estilos pero deja de enviar después de convertirlo a Tag Helpers, evita revisar primero CSS. Inspecciona la etiqueta `form` generada, compara su `action` con la ruta MVC registrada, verifica `method="post"` y comprueba que viaja el token. Si el botón envía pero `Nombre` llega vacío, inspecciona el atributo `name` generado y la propiedad del modelo de entrada. Si un enlace de tarjeta apunta al Id equivocado, examina qué objeto se pasó a la parcial y qué valor se utilizó al construir `asp-route-id`. Cada diagnóstico conduce a un archivo distinto.
+
 
 # 2.3. Validación de formularios con DataAnnotations y ModelState
 
@@ -784,6 +828,24 @@ No se introducirán migraciones avanzadas, arquitecturas adicionales ni repaso e
 - Microsoft Learn, Tutorial MVC con validación de entradas: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/validation?view=aspnetcore-8.0
 - Microsoft Learn, Model binding en MVC: https://learn.microsoft.com/en-us/aspnet/core/mvc/models/model-binding?view=aspnetcore-8.0
 - Microsoft Learn, Formularios y Tag Helpers: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/working-with-forms?view=aspnetcore-8.0
+
+
+## Profundización aplicada: dos fases de validación y una sola decisión de negocio
+
+La palabra «validación» designa operaciones relacionadas, pero no idénticas. Primero el framework intenta **construir el dato**: debe interpretar las cadenas HTTP y asignarlas a propiedades con tipos C#. Después comprueba **restricciones declaradas** sobre ese dato: longitud del nombre, obligatoriedad o intervalo permitido para el precio. Una conversión fallida puede producir errores de `ModelState` aunque todavía no se haya ejecutado una regla `[Range]` sobre un `decimal` válido. Esa diferencia permite entender por qué algunos mensajes proceden del binder y otros de las DataAnnotations.
+
+Un diseño habitual es utilizar un modelo de entrada separado de la entidad de persistencia. El formulario no debería decidir el identificador autogenerado, la fecha de creación o cualquier propiedad de dominio que el servidor controla por sí mismo. Con `ProductoFormulario`, el contrato HTTP declara únicamente lo que la persona puede aportar: nombre y precio. Esta separación reduce el riesgo de sobrepublicación, pero exige un paso explícito en el controlador que copie los valores aceptados a la entidad. En 2.4 veremos esa traducción antes de escribir en LocalDB.
+
+El tipo anulable no significa ausencia de validación. Cuando declaramos `decimal? Precio`, expresamos que el binder puede no construir todavía un valor. `[Required]` establece si ese estado es aceptable para el formulario. `[Range]` expresa el intervalo válido una vez que hay un número interpretable. Ambas responsabilidades deben aparecer separadas en nuestro razonamiento. Si utilizáramos una propiedad no anulable `decimal`, su valor predeterminado puede ocultar la distinción entre campo no enviado y cero introducido; el diseño del DTO del formulario ayuda a comunicar esa intención.
+
+Las culturas numéricas añaden un problema distinto. «4,50» y «4.50» pueden interpretarse de manera diferente según la cultura que participa en el binding y las convenciones de la interfaz. La anotación `Range` con límites decimales debe construirse de manera coherente, y la implementación del proyecto utiliza interpretación invariante para sus límites. Esa decisión se refiere a los **límites de la regla**, no promete que toda combinación de navegador, cultura y valor escrito vaya a convertirse de forma idéntica. Para un laboratorio reproducible, un precio entero como 7 elimina una variable que no necesitamos en cada prueba.
+
+Una política de error es más útil cuando describe la corrección posible. «El nombre debe tener entre 2 y 60 caracteres» identifica el campo y sus límites; «Introduce un nombre» diferencia ausencia de contenido respecto de longitud. Si la validación falla, devolver la misma vista con el modelo de entrada permite conservar las correcciones ya realizadas. En nuestro controlador, el orden es esencial: comprobar `ModelState.IsValid` **antes** de convertir el DTO a entidad y de ejecutar persistencia. De lo contrario, se podría guardar un dato inválido aunque la interfaz terminara mostrando errores.
+
+La validación de navegador mejora la experiencia, pero funciona en un entorno controlado por la persona que envía la petición. Se puede desactivar JavaScript, invocar HTTP con otra herramienta o manipular el cuerpo enviado. Por ello, una aplicación que únicamente «impide pulsar Enviar» no está validando de forma suficiente su operación de servidor. Las reglas de negocio críticas deben ejecutarse en el servidor. Esta idea enlaza con antiforgery: un token válido demuestra que la petición supera una comprobación de procedencia, **no** que sus valores sean correctos. Son filtros diferentes y pueden fallar de manera independiente.
+
+**Caso de diagnóstico razonado.** Supongamos que un usuario envía `Precio=abc` y obtiene una vista con un mensaje de conversión, mientras otro envía `Precio=0` y obtiene el texto de `Range`. El primer síntoma apunta a la construcción de un `decimal?`; el segundo a una regla sobre un valor ya construido. Si un tercero envía `Nombre=X` con un precio correcto, el error será de longitud. Ninguna de estas observaciones exige todavía una consulta SQL. La separación entre recepción, conversión, validación y persistencia es precisamente la estructura mental que permite resolver las incidencias sin confundir capas.
+
 
 # 2.4. CRUD persistente de productos con EF Core y SQL Server Express LocalDB
 
@@ -1223,6 +1285,26 @@ El criterio de salida para 2.4 debe poder expresarse con ejemplos concretos: cre
 - Microsoft Learn, Registro de DbContext e inyección de dependencias: https://learn.microsoft.com/en-us/ef/core/dbcontext-configuration/
 - Microsoft Learn, Consultas sin seguimiento en EF Core: https://learn.microsoft.com/en-us/ef/core/querying/tracking
 - Microsoft Learn, Protección antiforgery de solicitudes MVC: https://learn.microsoft.com/en-us/aspnet/core/security/anti-request-forgery?view=aspnetcore-8.0
+
+
+## Profundización aplicada: distinguir pantalla, entidad y transacción
+
+En el CRUD persistente conviven varias representaciones de un producto que conviene no confundir. El formulario HTML contiene valores escritos como texto. `ProductoFormulario` representa esos valores una vez enlazados y validados. `Producto` es la entidad que EF Core traduce a un registro persistente. Finalmente, la vista de detalle representa una instantánea de lectura devuelta al usuario. Aunque las cuatro representaciones puedan mostrar «Rotulador», no son el mismo objeto ni producen los mismos efectos. Esta distinción será importante cuando modifiquemos solo el precio de un producto y queramos garantizar que no se crea un registro nuevo.
+
+En una lectura destinada exclusivamente a representar información, `AsNoTracking` comunica que no necesitamos conservar seguimiento de entidades para cambios posteriores dentro de ese contexto. En cambio, la acción de edición recupera la entidad que va a modificar, asigna nuevos valores y llama a `SaveChangesAsync`. Ese recorrido aprovecha el seguimiento de EF Core. No necesitamos impartir de nuevo toda la maquinaria del cambio de estados; sí es esencial saber por qué editar una entidad existente no equivale a crear una nueva con un identificador arbitrario recibido del navegador.
+
+Una acción POST puede haber modificado la base y, sin embargo, el navegador continuar mostrando una respuesta anterior si no ejecutamos una lectura posterior. De ahí la utilidad del patrón **Post/Redirect/Get** empleado tras crear, editar y borrar: el servidor termina la operación, responde con una redirección y el navegador solicita por GET la representación resultante. La redirección no garantiza por sí sola que se hayan guardado datos: esa garantía depende de que `SaveChangesAsync` haya completado correctamente el trabajo. Lo importante es que separamos la solicitud de escritura de la nueva consulta que permite observar el estado persistido.
+
+Los identificadores también pertenecen a dominios distintos. El valor `id` que aparece en una ruta permite localizar una entidad; no es automáticamente un permiso para editarla. En un producto de laboratorio, basta comprobar que el Id tiene sentido y que existe una fila. En una aplicación real necesitaríamos además comprobar qué usuario está autorizado. No añadimos aquí un sistema completo de seguridad, pero conviene evitar una conclusión incorrecta: antiforgery protege frente a una clase concreta de solicitudes falsificadas, mientras que la autorización decide quién puede realizar una operación sobre un recurso.
+
+LocalDB añade condiciones de entorno que no son defectos del patrón MVC. La cadena de conexión identifica instancia y base; `EnsureCreated` intenta disponer del esquema en un laboratorio nuevo; la semilla inicial se inserta solo cuando corresponde al primer arranque de esa base. Si alguien utiliza otra cadena de conexión después del ejercicio, podría ver un catálogo aparentemente «reiniciado» aunque la primera base conserve sus registros. Por eso las prácticas recomiendan trabajar con una base propia y comprobar los datos antes y después de reiniciar **el mismo host con la misma conexión**.
+
+En la edición de un producto con Id 7 pueden darse varios resultados. Si el GET no encuentra la entidad, devolver 404 es coherente porque la dirección señala un recurso inexistente. Si el GET la encuentra pero el POST trae un nombre inválido, volver a presentar la vista es coherente porque el usuario necesita corregirlo. Si el POST es válido, recuperar la entidad por Id y aplicar los cambios permite guardar en esa fila concreta. Si intentamos editar con un Id incorrecto, no deberíamos asignar silenciosamente los valores a otra fila. Cada resultado tiene una causa distinta y ofrece una pista diagnóstica.
+
+La eliminación muestra claramente por qué GET y POST tienen papeles diferentes. El GET de confirmación **no borra** nada: presenta el nombre del producto y pregunta al usuario si desea continuar. El POST de confirmación, protegido con antiforgery, puede eliminar la entidad y redirigir al catálogo. Si tras un GET la ficha deja de estar disponible, hay un error grave de diseño; si tras un POST correcto continúa apareciendo, debemos verificar el Id, la base y la ejecución de `SaveChangesAsync`. Esta observación es una forma sencilla de comprobar que la interfaz no es solo una representación que oculta filas visualmente.
+
+**Perspectiva profesional sin ampliar el ejercicio.** Los sistemas reales suelen necesitar control de concurrencia, manejo de excepciones transitorias, autorización y migraciones de esquema. No implementamos esas capacidades en esta jornada, pero sabemos identificar sus límites: `EnsureCreated` es una comodidad de laboratorio y no un sustituto general de las migraciones; la búsqueda opcional no constituye un motor de texto completo; los precios no incluyen todavía reglas fiscales ni monetarias complejas. Reconocer un límite explícito evita enseñar como patrón universal lo que se ha simplificado deliberadamente para aprender el recorrido MVC–EF Core.
+
 
 # 2.5. Razor Pages: otra organización para el mismo ciclo HTTP
 
