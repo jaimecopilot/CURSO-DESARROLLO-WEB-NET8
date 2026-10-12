@@ -107,7 +107,7 @@ Cada punto N.N tendrá:
 1. Apartado N.N desarrollado en el Markdown de teoría del módulo.
 2. Práctica PN.N con estado inicial, archivos exactos, instrucciones comentadas/descomentadas, ejecución, resultados, incidencias y consolidación.
 3. Carpeta o referencia identificable N.N dentro del proyecto del módulo, sin duplicar aplicaciones funcionales si una única evolución reproducible es suficiente.
-4. Prueba(s) de compilación y funcionales que ejerciten **los estados que se ordene ejecutar**. Los flujos navegador→UI→servidor/datos se validarán E2E cuando proceda.
+4. Prueba(s) de compilación y funcionales que ejerciten **los estados que se ordene ejecutar**. El alumno comprueba las respuestas y el comportamiento observable en cada ejercicio.
 5. Evidencia técnica en documentación de verificación separada de la destinada al alumno. Ninguna prueba se declarará ejecutada sin logs/resultado real.
 
 **Los retos programables también son pasos completos:** enunciado y solución con código en `Mxx_PRACTICAS.md`, bloque o variante comentada en el proyecto del mismo capítulo, instrucciones de activación, explicación, resultado esperado y E2E propio. Se aplica retroactivamente a los retos de 1.1 y 1.2 y a todos los capítulos posteriores; no basta un reto formulado como pregunta sin código cuando exige modificar la aplicación.
