@@ -15,8 +15,8 @@ from weasyprint import HTML
 from pypdf import PdfReader,PdfWriter
 import fitz
 CSS=(estilo.CSS_TEMPLATE
-     .replace("font-size: 9.8pt; line-height: 1.46","font-size: 11.55pt; line-height: 1.64")
-     .replace("font-size: 8.2pt; line-height: 1.35","font-size: 9.2pt; line-height: 1.52"))
+     .replace("font-size: 9.8pt; line-height: 1.46","font-size: 12.45pt; line-height: 1.68")
+     .replace("font-size: 8.2pt; line-height: 1.35","font-size: 9.55pt; line-height: 1.56"))
 CSS+=estilo.HTML_FORMATTER.get_style_defs(".highlight")
 CSS += "\np { margin: 8pt 0 10.8pt; }\nh2 { margin-top: 19pt; }\n"
 CHAPTER=re.compile(r"^(?:P)?3\.([1-6])\.\s")
@@ -72,7 +72,7 @@ def html_from_md(source,kind):
             .replace("__MD_AUTHOR__",cssq(author)))
     if kind=="PRACTICAS":
         # Evitar que el diagnóstico final quede cortado entre páginas.
-        css+="\nbody {font-size:11.9pt;line-height:1.70;}\np {margin:8.2pt 0 11pt;}\nbody > p:last-child {break-inside:avoid;}\n.module-intro {font-size:10pt;line-height:1.38;}\n.module-intro p {margin:4pt 0 6pt;}\n.module-intro h2 {margin-top:9pt;}\n.module-intro ul {margin:4pt 0 5pt;}\n.module-intro li {margin:1pt 0;}\n"
+        css+="\nbody {font-size:12.95pt;line-height:1.75;}\np {margin:8.7pt 0 11.4pt;}\nbody > p:last-child {break-inside:avoid;}\n.module-intro {font-size:10pt;line-height:1.38;}\n.module-intro p {margin:4pt 0 6pt;}\n.module-intro h2 {margin-top:9pt;}\n.module-intro ul {margin:4pt 0 5pt;}\n.module-intro li {margin:1pt 0;}\n"
     return ('<!doctype html><html lang="es"><head><meta charset="utf-8">'
        +'<style>'+css+'</style></head><body>'+rendered+'</body></html>')
 
