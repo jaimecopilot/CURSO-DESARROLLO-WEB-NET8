@@ -57,7 +57,7 @@ La inspección visual humana página a página no se sustituye por estas comprob
       ]
     ],
     "caracteres_md": 150944,
-    "bytes_pdf": 474521,
+    "bytes_pdf": 474641,
     "sha256_md": "e4a8599fbcfeee34d4543d90cd767e5424dc5d4956c733bde1fb49469d34f2ea",
     "fuente_md_incrustada_identica": true,
     "capitulos_inicio": {
