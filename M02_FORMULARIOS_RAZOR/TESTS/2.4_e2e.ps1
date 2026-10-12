@@ -120,7 +120,14 @@ try {
     Compile
     Start-App "lectura"
     $index=Get-Page "/Productos"
-    Assert ($index.Code -eq 200 -and $index.Text.Contains("Cuaderno") -and $index.Text.Contains("Lápiz") -and $index.Text.Contains("Carpeta")) "La semilla inicial no aparece en SQL."
+    # Razor puede codificar acentos mediante entidades HTML; comparar texto decodificado.
+    $decodedIndex=[System.Net.WebUtility]::HtmlDecode($index.Text)
+    if(-not ($decodedIndex.Contains("Cuaderno") -and $decodedIndex.Contains("Lápiz") -and $decodedIndex.Contains("Carpeta"))) {
+        Write-Host ("INDEX code=" + $index.Code + ", bytes=" + $index.Text.Length)
+        Write-Host $index.Text.Substring(0,[Math]::Min(1800,$index.Text.Length))
+        throw "La semilla inicial no aparece en el listado HTML decodificado."
+    }
+    Assert ($index.Code -eq 200) "Index inicial no devolvió 200."
     $detail=Get-Page "/Productos/Detalle/2"
     Assert ($detail.Code -eq 200) "No existe detalle 2 en base recién sembrada."
     Assert ((Get-Page "/Productos/Detalle/999999").Code -eq 404) "Id ausente no devuelve 404."
