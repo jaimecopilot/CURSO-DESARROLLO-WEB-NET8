@@ -81,6 +81,13 @@ run_scenario() {
     ! grep -iq '^X-Curso-Reto:' "$TMP/headers-$state.txt"
     ! grep -Fq 'id="reto-1-1"' "$TMP/body-$state.html"
   fi
+  if [[ "$state" == "aplicacion-autonoma" ]]; then
+    grep -Fq 'id="razonamiento-1-1"' "$TMP/body-$state.html"
+    grep -Fq 'ASP.NET Core ejecuta la acción MVC en el servidor' "$TMP/body-$state.html"
+    ! grep -Fq 'razonamiento-1-1' "$TMP/css-$state.txt"
+  else
+    ! grep -Fq 'id="razonamiento-1-1"' "$TMP/body-$state.html"
+  fi
   echo "E2E OK: $state (HTTP 200/404, vista Razor, layout y variantes)"
 
   kill "$PID" 2>/dev/null || true
@@ -104,6 +111,7 @@ for name, enable_header, enable_view in [
     ("solo-cabecera", True, False),
     ("solo-vista", False, True),
     ("activado", True, True),
+    ("aplicacion-autonoma", True, True),
     ("reto", True, True),
 ]:
     target = temporary / name
@@ -125,6 +133,11 @@ for name, enable_header, enable_view in [
     assert v.count(razor_start) == 1 and v.count(razor_end) == 1, "No se encuentra el paso 1.1.5"
     if enable_view:
         v = v.replace(razor_start, "").replace(razor_end, "")
+    if name == "aplicacion-autonoma":
+        marker = '<!-- APLICACIÓN 1.1.5: reemplaza este comentario por un párrafo id="razonamiento-1-1". Escribe con tus palabras qué hace el servidor. -->'
+        answer = '<p id="razonamiento-1-1">ASP.NET Core ejecuta la acción MVC en el servidor; la vista Razor genera el HTML que llega al navegador.</p>'
+        assert v.count(marker) == 1
+        v = v.replace(marker, answer)
     reto_start, reto_end = '@* RETO 1.1 (inicio)\n', '\nRETO 1.1 (fin) *@'
     assert v.count(reto_start) == 1 and v.count(reto_end) == 1
     if name == "reto":
@@ -135,6 +148,7 @@ PY
 run_scenario "$TMP/solo-cabecera" "solo-cabecera"
 run_scenario "$TMP/solo-vista" "solo-vista"
 run_scenario "$TMP/activado" "activado"
+run_scenario "$TMP/aplicacion-autonoma" "aplicacion-autonoma"
 run_scenario "$TMP/reto" "reto"
 
 # La práctica también crea una aplicación desde la plantilla incluida en el SDK.
@@ -159,4 +173,4 @@ kill "$PID" 2>/dev/null || true
 wait "$PID" 2>/dev/null || true
 PID=""
 echo "E2E OK: plantilla MVC creada, compilada y ejecutada."
-echo "Punto 1.1: seis escenarios E2E reales superados, incluido el reto."
+echo "Punto 1.1: siete escenarios E2E reales superados, incluida la aplicación autónoma de escritura y el reto."
