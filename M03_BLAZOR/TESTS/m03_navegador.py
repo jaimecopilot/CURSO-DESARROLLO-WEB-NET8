@@ -76,6 +76,7 @@ def verify32(page):
     page.goto(BASE+"/")
     page.get_by_role("link",name="Productos").click()
     page.wait_for_url("**/productos")
+    page.locator("#lista-productos li").nth(2).wait_for(timeout=15000)
     assert page.locator("#lista-productos li").count()==3
 def t33(p):
     f=p/"Components/Pages/Productos.razor"
@@ -96,6 +97,7 @@ def t33(p):
     f.write_text(s,encoding="utf-8")
 def verify33(page):
     page.goto(BASE+"/productos",wait_until="networkidle")
+    page.locator(".tarjeta").nth(2).wait_for(timeout=15000)
     assert page.locator(".tarjeta").count()==3
     assert page.locator('[data-producto-id="2"]').inner_text().find("Lápiz")>=0
 def t34(p):
