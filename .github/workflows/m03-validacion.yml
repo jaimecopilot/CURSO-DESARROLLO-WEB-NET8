@@ -1,0 +1,43 @@
+name: M03 - Blazor .NET 8 validación
+on:
+  workflow_dispatch:
+  push:
+    branches: [desarrollo/m03-sobre-m02-validado]
+    paths:
+      - "M03_BLAZOR/PROYECTO/**"
+      - "M03_BLAZOR/TESTS/**"
+      - ".github/workflows/m03-validacion.yml"
+permissions:
+  contents: read
+jobs:
+  compilar-estados:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        punto: ["3.1","3.2","3.3","3.4","3.5","3.6"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - name: Compilar estado inicial P${{ matrix.punto }}
+        run: dotnet build "M03_BLAZOR/PROYECTO/${{ matrix.punto }}/CursoWeb.Blazor/CursoWeb.Blazor.csproj" -c Release --nologo --warnaserror
+  navegador:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Preparar navegador Chromium
+        run: |
+          python -m pip install "playwright>=1.50,<2"
+          python -m playwright install --with-deps chromium
+      - name: Estados activados y eventos de usuario
+        run: python M03_BLAZOR/TESTS/m03_navegador.py
