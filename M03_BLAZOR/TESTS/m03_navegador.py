@@ -239,6 +239,106 @@ def v34editor(page):
     page.locator("#guardar-cambio").click()
     assert "Lápiz rojo" in page.locator('[data-producto-id="2"]').inner_text()
 
+
+def t34filtros(p):
+    t34editor(p)
+    rel="Components/Pages/Productos.razor"
+    enable_block(p,rel,"RETO INTEGRADOR 3.4.6")
+    for src,dst in [
+        ('@* <label>Buscar por nombre: <input id="buscar" @bind="busqueda" @bind:event="oninput" /></label> *@',
+         '<label>Buscar por nombre: <input id="buscar" @bind="busqueda" @bind:event="oninput" /></label>'),
+        ('@* <label>Precio máximo: <input id="precio-maximo" type="number" min="0" step="0.5" @bind="precioMaximo" /></label> *@',
+         '<label>Precio máximo: <input id="precio-maximo" type="number" min="0" step="0.5" @bind="precioMaximo" /></label>'),
+        ('@* <button id="alternar-orden" @onclick="AlternarOrden">Invertir orden por precio</button> *@',
+         '<button id="alternar-orden" @onclick="AlternarOrden">Invertir orden por precio</button>'),
+        ('@* <p id="resumen-filtrado">Mostrando @ProductosVisibles.Count() de @productos.Count productos</p> *@',
+         '<p id="resumen-filtrado">Mostrando @ProductosVisibles.Count() de @productos.Count productos</p>')]:
+        edit(p,rel,src,dst)
+    edit(p,rel,"@foreach (var producto in productos)",
+         "@foreach (var producto in ProductosVisibles)")
+def v34filtros(page):
+    page.goto(BASE+"/productos",wait_until="networkidle")
+    page.get_by_text("Mostrando 3 de 3 productos").wait_for(timeout=12000)
+    assert page.locator(".tarjeta").count()==3
+    assert page.locator(".tarjeta").first.get_attribute("data-producto-id")=="2"
+    page.locator("#alternar-orden").click()
+    page.locator('[data-producto-id="1"]').first.wait_for(timeout=12000)
+    assert page.locator(".tarjeta").first.get_attribute("data-producto-id")=="1"
+    page.locator("#buscar").fill("láp")
+    page.get_by_text("Mostrando 1 de 3 productos").wait_for(timeout=12000)
+    assert page.locator(".tarjeta").count()==1
+    assert page.locator(".tarjeta").first.get_attribute("data-producto-id")=="2"
+    page.locator("#precio-maximo").fill("1")
+    page.locator("#precio-maximo").blur()
+    page.get_by_text("Mostrando 0 de 3 productos").wait_for(timeout=12000)
+    page.locator("#precio-maximo").fill("2")
+    page.locator("#precio-maximo").blur()
+    page.get_by_text("Mostrando 1 de 3 productos").wait_for(timeout=12000)
+    page.locator("#buscar").fill("")
+    page.get_by_text("Mostrando 1 de 3 productos").wait_for(timeout=12000)
+    assert page.locator(".tarjeta").first.get_attribute("data-producto-id")=="2"
+
+def t35deshacer(p):
+    t35(p)
+    rel="Components/Pages/Productos.razor"
+    enable_block(p,rel,"RETO INTEGRADOR 3.5.5")
+    edit(p,rel,'AlQuitar="Quitar"','AlQuitar="QuitarConDeshacer"')
+    edit(p,rel,'@* <button id="deshacer" disabled="@(eliminacionPendiente is null)" @onclick="DeshacerEliminacion">Deshacer última eliminación</button> *@',
+         '<button id="deshacer" disabled="@(eliminacionPendiente is null)" @onclick="DeshacerEliminacion">Deshacer última eliminación</button>')
+    edit(p,rel,'@* <p id="estado-deshacer">@TextoDeshacer</p> *@',
+         '<p id="estado-deshacer">@TextoDeshacer</p>')
+def v35deshacer(page):
+    page.goto(BASE+"/productos",wait_until="networkidle")
+    assert page.locator("#deshacer").is_disabled()
+    page.locator('[data-producto-id="2"]').get_by_role("button",name="Quitar").click()
+    page.get_by_text("Total: 2").wait_for(timeout=12000)
+    assert page.locator("#deshacer").is_enabled()
+    assert "Lápiz" in page.locator("#estado-deshacer").inner_text()
+    page.locator("#deshacer").click()
+    page.get_by_text("Total: 3").wait_for(timeout=12000)
+    assert page.locator("#deshacer").is_disabled()
+    assert [e.get_attribute("data-producto-id") for e in page.locator(".tarjeta").all()]==["1","2","3"]
+    page.locator('[data-producto-id="2"]').get_by_role("button",name="Seleccionar").click()
+    page.get_by_text("Seleccionado: Lápiz").wait_for(timeout=12000)
+
+def t36reintento(p):
+    t36(p)
+    file="Components/Pages/Productos.razor"
+    for rel in ["Services/IProductosMemoriaService.cs",
+                "Services/ProductosMemoriaService.cs",file]:
+        enable_block(p,rel,"RETO INTEGRADOR 3.6.7")
+    original='''    protected override async Task OnInitializedAsync()
+    {
+        estado = "Cargando productos...";
+        productos = await Catalogo.ObtenerAsync();
+        cargando = false;
+        estado = "Lista preparada";
+    }
+'''
+    edit(p,file,original,"")
+    for src,dst in [
+        ('@* <label>Simular fallo: <input id="simular-error" type="checkbox" @bind="simularError" /></label> *@',
+         '<label>Simular fallo: <input id="simular-error" type="checkbox" @bind="simularError" /></label>'),
+        ('@* <button id="recargar-productos" disabled="@cargando" @onclick="RecargarAsync">Recargar catálogo</button> *@',
+         '<button id="recargar-productos" disabled="@cargando" @onclick="RecargarAsync">Recargar catálogo</button>'),
+        ('@* @if (!string.IsNullOrEmpty(errorCarga)) { <p role="alert" id="error-carga">@errorCarga</p> } *@',
+         '@if (!string.IsNullOrEmpty(errorCarga)) { <p role="alert" id="error-carga">@errorCarga</p> }')]:
+        edit(p,file,src,dst)
+def v36reintento(page):
+    page.goto(BASE+"/productos")
+    page.get_by_text("Lista preparada").wait_for(timeout=18000)
+    assert page.locator(".tarjeta").count()==3
+    page.locator("#simular-error").check()
+    page.locator("#recargar-productos").click()
+    page.get_by_text("Carga fallida").wait_for(timeout=18000)
+    assert "No se pudo cargar" in page.locator("#error-carga").inner_text()
+    assert page.locator(".tarjeta").count()==0
+    page.locator("#simular-error").uncheck()
+    page.locator("#recargar-productos").click()
+    page.get_by_text("Lista preparada").wait_for(timeout=18000)
+    assert page.locator(".tarjeta").count()==3
+    assert page.locator("#error-carga").count()==0
+
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True)
     build_run(browser,"3.1",verify=verify31)
@@ -252,5 +352,8 @@ with sync_playwright() as p:
     build_run(browser,"3.2",t32extra,v32extra)
     build_run(browser,"3.3",t33reto,v33reto)
     build_run(browser,"3.6",t36vacio,v36vacio)
+    build_run(browser,"3.4",t34filtros,v34filtros)
+    build_run(browser,"3.5",t35deshacer,v35deshacer)
+    build_run(browser,"3.6",t36reintento,v36reintento)
     browser.close()
 print("M03: seis escenarios de navegación e interactividad comprobados",flush=True)
