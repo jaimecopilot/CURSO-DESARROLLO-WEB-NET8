@@ -61,7 +61,7 @@ run_scenario() {
   code=$(curl -sS -o /dev/null -w "%{http_code}" "$BASE/no-existe")
   [[ "$code" == "404" ]]
 
-  if [[ "$state" == "datos-vista" || "$state" == "completo" || "$state" == "reto" ]]; then
+  if [[ "$state" == "datos-vista" || "$state" == "completo" || "$state" == "aplicacion" || "$state" == "reto" ]]; then
     echo "Verificación de HTML renderizado en $state:"
     grep -nE 'numero-productos|listado-productos|data-id|Cuaderno|Lápiz|Carpeta' "$TMP/body-$state" || true
   fi
@@ -91,10 +91,16 @@ PY
   else
     ! grep -Fq 'id="listado-productos"' "$TMP/body-$state"
   fi
-  if [[ "$state" == "completo" || "$state" == "reto" ]]; then
+  if [[ "$state" == "completo" || "$state" == "aplicacion" || "$state" == "reto" ]]; then
     grep -Fq 'href="/Productos">Productos</a>' "$TMP/body-$state"
   else
     ! grep -Fq 'href="/Productos">Productos</a>' "$TMP/body-$state"
+  fi
+  if [[ "$state" == "aplicacion" ]]; then
+    grep -Fq 'id="primer-producto"' "$TMP/body-$state"
+    grep -Fq 'El primer producto del catálogo es Cuaderno.' "$TMP/body-$state"
+  else
+    ! grep -Fq 'id="primer-producto"' "$TMP/body-$state"
   fi
   echo "E2E OK: P1.2 $state; GET, estado MVC, datos, vista, navegación y CSS"
   kill "$PID" 2>/dev/null || true
@@ -114,6 +120,7 @@ for name, data, view, nav in [
     ("datos", True, False, False),
     ("datos-vista", True, True, False),
     ("completo", True, True, True),
+    ("aplicacion", True, True, True),
     ("reto", True, True, True),
 ]:
     dest = tmp / name
@@ -139,6 +146,11 @@ for name, data, view, nav in [
     assert code.count(start) == 1 and code.count(end) == 1
     if view:
         code = code.replace(start, "").replace(end, "")
+    if name == "aplicacion":
+        marker = '    @* APLICACION 1.2.4: escribe aquí una condición @if (Model.Count > 0) y muestra el Nombre del primer producto dentro de un <p id="primer-producto">. No modifiques el controlador ni sustituyas el modelo por texto fijo. *@'
+        answer = '    @if (Model.Count > 0)\n    {\n        <p id="primer-producto">El primer producto del catálogo es @Model[0].Nombre.</p>\n    }'
+        assert code.count(marker) == 1
+        code = code.replace(marker, answer)
     v.write_text(code, encoding="utf-8")
 
     layout = dest / "Views" / "Shared" / "_Layout.cshtml"
@@ -153,6 +165,7 @@ PY
 run_scenario "$TMP/datos" datos
 run_scenario "$TMP/datos-vista" datos-vista
 run_scenario "$TMP/completo" completo
+run_scenario "$TMP/aplicacion" aplicacion
 run_scenario "$TMP/reto" reto
 
-echo "P1.2: cinco escenarios E2E reales superados, incluido el reto."
+echo "P1.2: seis escenarios E2E reales superados, incluida la aplicación autónoma y el reto."
