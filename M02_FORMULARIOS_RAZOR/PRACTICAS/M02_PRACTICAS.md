@@ -967,7 +967,12 @@ Cuando la base acaba de crearse, el programa inserta Cuaderno, Lápiz y Carpeta.
 Si ya existe una base denominada CursoWebProductos que no quieres compartir, utiliza una base de laboratorio distinta suministrando una cadena en una variable de entorno de PowerShell **solo para tu sesión**:
 
 ~~~powershell
-$env:ConnectionStrings__Productos = 'Server=(localdb)\MSSQLLocalDB;Database=CursoWebProductosAlumno;Trusted_Connection=True;TrustServerCertificate=True'
+$env:ConnectionStrings__Productos = @(
+    'Server=(localdb)\MSSQLLocalDB'
+    'Database=CursoWebProductosAlumno'
+    'Trusted_Connection=True'
+    'TrustServerCertificate=True'
+) -join ';'
 dotnet run --no-launch-profile --urls http://localhost:5091
 ~~~
 
@@ -1303,7 +1308,12 @@ El itinerario esencial (observación GET, activación POST y navegación) está 
 Este proyecto hereda el arranque de P2.4 y **necesita LocalDB disponible**, incluso si `/Comparacion` no consulta datos, porque `Program.cs` ejecuta `EnsureCreated()` al iniciar. Comprueba primero el entorno de P2.4. No borres ni sobrescribas la base de prácticas anterior. Si quieres aislar los datos, establece antes de arrancar una cadena a una base nueva, por ejemplo desde PowerShell:
 
 ~~~powershell
-$env:ConnectionStrings__Productos = "Server=(localdb)\MSSQLLocalDB;Database=CursoWebP25Alumno;Trusted_Connection=True;TrustServerCertificate=True"
+$env:ConnectionStrings__Productos = @(
+    'Server=(localdb)\MSSQLLocalDB'
+    'Database=CursoWebP25Alumno'
+    'Trusted_Connection=True'
+    'TrustServerCertificate=True'
+) -join ';'
 ~~~
 
 Después, desde la raíz del repositorio:
