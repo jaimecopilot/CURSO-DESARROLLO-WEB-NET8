@@ -137,6 +137,43 @@ También es impreciso vender Interactive Server como alternativa siempre superio
 
 Referencias: Microsoft Learn, [Blazor render modes en ASP.NET Core 8](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/render-modes?view=aspnetcore-8.0), y [fundamentos de componentes Razor](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/?view=aspnetcore-8.0).
 
+## Laboratorio de razonamiento: qué parte de la interacción pertenece al servidor
+
+Para analizar la interacción de forma rigurosa conviene separar **dónde se ejecuta la lógica**, **qué datos viajan** y **qué conserva el navegador**. En Interactive Server, el componente maneja el evento principalmente en el servidor y mantiene su estado en un circuito asociado a la conexión interactiva. El navegador no necesita conocer el algoritmo de incremento del contador como una función propia: recibe una representación actualizada. Esto es precisamente lo que el alumno observa al pulsar el botón de `/interactiva`.
+
+La comparación con `/estatica` ayuda a evitar una conclusión frecuente pero incorrecta: «Blazor convierte todo C# en JavaScript». El componente estático puede ejecutar C# durante la representación inicial en el servidor, pero eso no significa que todos sus métodos queden disponibles como manejadores de evento en el navegador. Interactive Server, por su parte, no implica enviar el código del método `Incrementar` al navegador para ejecutarlo allí; el circuito recibe los eventos y el servidor procesa la lógica del componente.
+
+Imaginemos que el método del contador no suma una unidad, sino que consulta el valor de una propiedad del componente y elige un mensaje. En `/interactiva`, tras el clic se volverían a evaluar las expresiones Razor que dependen del estado actualizado. En `/estatica`, el HTML ya enviado no puede actualizarse por ese manejador de evento sin un mecanismo adicional. La causa no es que la expresión Razor de `@contador` tenga una sintaxis distinta, sino que el modo de renderizado no ha habilitado el ciclo interactivo de eventos.
+
+La noción de circuito también afecta al aislamiento de usuarios. Dos navegadores con sesiones distintas no deberían compartir sin más la instancia de componente que almacena el contador. Un campo de instancia dentro de `@code` pertenece al estado de esa instancia; no es una variable `static` común para toda la aplicación. Conviene explicar esto antes de que aparezcan listas mutables en P3.4, porque de otro modo un alumno podría pensar que cada producto añadido automáticamente se hará visible para todos los demás.
+
+### El papel exacto de los tres lugares de configuración
+
+Es útil dividir la configuración en tres responsabilidades. En `Program.cs`, `AddRazorComponents` y `AddInteractiveServerComponents` proporcionan la infraestructura. El mapeo con `MapRazorComponents<App>().AddInteractiveServerRenderMode()` informa al host de los endpoints y modos de componente admitidos. En `Interactiva.razor`, `@rendermode InteractiveServer` declara que **esa página concreta** requiere interactividad. Finalmente, `App.razor` incluye el script necesario para que el navegador participe en la experiencia de Blazor.
+
+Podemos probar la necesidad conceptual de cada pieza con un diagnóstico, sin convertirlo en un ejercicio obligatorio de romper archivos. Si faltara el registro del modo interactivo, la página podría no disponer de la infraestructura para ejecutar eventos; si faltara la declaración de modo en la página, podríamos observar solo representación estática; si fallara la carga del script o del circuito, un botón preparado puede seguir apareciendo visualmente pero no producir cambios. Estos fallos no se resuelven inventando una acción MVC porque las páginas actuales no dependen de ese controlador.
+
+Hay además una diferencia de alcance entre declarar un modo en la página y establecerlo globalmente. Si asignáramos Interactive Server a todo `Routes`, las páginas del árbol adoptarían la interactividad global, salvo excepciones diseñadas para ello. Hemos optado por un modo explícito por página para que el alumno pueda contrastar el comportamiento estático e interactivo dentro de una sola aplicación. Es una decisión del laboratorio, no una prohibición general del modo global.
+
+### Navegación frente a interacción dentro de una página
+
+Si seleccionamos el enlace `/interactiva` desde la raíz, el navegador entra en la página asociada a esa ruta. Después, los clics del contador modifican el texto **sin que tengamos que navegar a otra dirección**. En MVC era frecuente observar una nueva URL o una respuesta de formulario después de la acción. En Blazor conviene diferenciar el evento de navegación de un evento que solo modifica estado local.
+
+Esto no quiere decir que la navegación de Blazor nunca utilice HTTP. La aplicación puede realizar peticiones completas, especialmente al abrir inicialmente una URL o cuando se requiere una carga de documento. Tampoco significa que todas las interacciones deban quedar dentro de un circuito: en una aplicación mayor podemos combinar navegación, formularios, servicios y endpoints. En M03 nos limitamos a distinguir estas operaciones para no confundir arquitectura con apariencia.
+
+### Un escenario de fallo de conexión razonado
+
+Supongamos que una persona tiene abierta `/interactiva`, donde el contador muestra «Pulsaciones: 5». Se desconecta temporalmente de la red y pulsa otra vez. La interfaz puede conservar visualmente el último valor mientras no puede comunicar correctamente el evento. Esto no demuestra que el método C# haya fallado al sumar: es posible que ni siquiera haya llegado a ejecutarse. El primer diagnóstico debería comprobar la conexión interactiva, no alterar la expresión aritmética del contador.
+
+Una vez restablecida la conectividad, el comportamiento depende del estado del circuito y de la capacidad de reconexión. El laboratorio no implementa estrategias avanzadas de recuperación, pero el alumno debe comprender que **la continuidad de la sesión interactiva tiene un coste operativo**. La diferencia con un HTML estático descargado es importante: aquel puede continuar siendo legible sin conexión, aunque no disponga de eventos C# interactivos.
+
+### Actividad de transferencia sin nuevo código
+
+Redacta un cuadro con tres columnas: «situación», «qué puedo observar» y «qué comprobaría primero». Incluye estos casos: URL inexistente, página estática con botón que no incrementa, página interactiva con botón que sí incrementa, página interactiva que pierde conexión y nueva carga de página que reinicia el contador. Cada caso representa una responsabilidad distinta: rutas, modo de renderizado, ciclo de eventos, conectividad y vida de la instancia.
+
+El resultado correcto del ejercicio no es memorizar el nombre de SignalR ni diagnosticar automáticamente todo como «problema de Razor». Debes poder justificar por qué una modificación en `Program.cs` sería relevante en algunos casos y completamente innecesaria en otros. Esta capacidad de diagnóstico es el puente hacia el resto de M03, donde los mismos conceptos se aplicarán al estado de un catálogo de productos.
+
+
 # 3.2. Estructura de Blazor Web App, componentes, páginas y navegación
 
 ## El proyecto B como unidad de aprendizaje
@@ -273,6 +310,51 @@ Mantener una URL estable también forma parte del diseño. Cambiar `@page "/prod
 
 Referencia: Microsoft Learn, [Routing y navegación de Blazor](https://learn.microsoft.com/en-us/aspnet/core/blazor/fundamentals/routing?view=aspnetcore-8.0).
 
+## Profundización guiada: cómo se resuelve una ruta de componente
+
+Una dirección como `/productos` es una promesa: cuando alguien la solicita, nuestra aplicación debe ser capaz de identificar el contenido correspondiente. En el proyecto B, la directiva `@page "/productos"` anuncia que `Productos.razor` es un componente routable. El router lo localiza en el ensamblado de la aplicación, y `RouteView` se ocupa de representarlo dentro del layout. Esta cadena se puede recorrer leyendo tres archivos, sin requerir un controlador MVC adicional.
+
+Comparemos con la solución de M01. Allí la ruta `/Productos/Detalle/2` podía seleccionar `ProductosController.Detalle` y devolver una vista tipada. El controller estaba concebido como elemento de coordinación HTTP. En Blazor, el componente de página puede incorporar además su propia representación y el estado que utiliza; la ruta está asociada al componente, no a una acción nombrada como `Index`. Es una diferencia de organización y de comportamiento disponible, no una afirmación de que el framework haya dejado de usar ASP.NET Core.
+
+### App, Routes y Layout como capas de composición
+
+`App.razor` define la estructura del documento y coloca el componente `Routes` donde se representa la parte variable de la aplicación. `Routes.razor` establece cómo seleccionar una página según la URL y aplicar un layout. `MainLayout.razor` define una estructura visual común con navegación y `@Body`. La página Productos suministra el contenido específico de su ruta, y más adelante la tarjeta suministrará un fragmento reutilizable de ese contenido.
+
+Podemos comprenderlo como una composición de responsabilidades. El componente raíz no necesita conocer los tres productos; el router no necesita saber cuánto cuesta Lápiz; el layout no necesita gestionar el campo de selección; y la tarjeta no necesita conocer todas las rutas de la aplicación. Cada pieza tiene una finalidad y un contrato que podemos identificar.
+
+Un error de principiante es trasladar todo el código del catálogo a `App.razor` porque allí aparece la etiqueta HTML `body`. Esa ubicación no es apropiada para un comportamiento que pertenece a la página Productos. Otro error es declarar navegación en un componente reutilizable que debería limitarse a mostrar un producto. Los ejemplos del curso evitan estos diseños: la página gestiona la colección, el layout ofrece navegación y la tarjeta recibe parámetros.
+
+### Comprender el carácter de NavLink
+
+`NavLink` es un componente que produce navegación y reconoce cuándo su dirección corresponde a la ruta actual. Esto permite marcar visualmente la sección activa del menú. Pero su existencia no implica que el router haya registrado automáticamente el destino. En P3.2 comprobamos primero la ruta directa y solo después activamos el enlace. La secuencia importa porque permite aislar dos condiciones: la página puede existir sin enlace de navegación; un enlace puede existir pero llevar a una ruta no registrada.
+
+Si un alumno modifica `href="/productos"` a `href="/producto"` sin cambiar la directiva `@page`, es probable que termine en una página no encontrada. Si cambia solo el texto «Productos» por «Catálogo», la ruta no tiene por qué cambiar. Estas pruebas conceptuales ilustran que el texto visible, la dirección pública y el archivo de implementación son tres cosas distintas que se coordinan, pero no se sustituyen.
+
+### La extensión .razor no basta para crear una página
+
+Un componente como `TarjetaProducto.razor` puede existir sin @page; se usa desde otro componente por su nombre de etiqueta. Una página como `Productos.razor` sí declara una ruta. Este contraste prepara la separación de P3.3. En una aplicación mayor puede haber cientos de componentes reutilizables y solo un subconjunto de ellos ser routables. Pensar que todos los archivos `.razor` son direcciones abriría un modelo erróneo de navegación.
+
+Tampoco debemos asimilar una ruta de componente a una Razor Page del módulo anterior. Ambas pueden utilizar la directiva `@page`, pero los archivos tienen extensiones y modelos de ejecución distintos. La Razor Page `Comparacion.cshtml` se organiza con `PageModel` y handlers HTTP; el componente `Productos.razor` participa en el árbol de componentes y puede mantener estado interactivo.
+
+### Sintaxis Razor y responsabilidades de datos
+
+Cuando escribimos `@foreach (var producto in productos)` dentro del componente, Razor genera una representación para cada objeto. La colección inicial pertenece al campo declarado en `@code`, no a un modelo que una acción MVC haya pasado a una vista. No necesitamos crear `ViewData` ni `ViewBag` para que esa variable exista. No obstante, sigue siendo C#; si la colección contiene un elemento con precio 3.75, `ToString("0.00")` controlará la cadena de precio representada.
+
+La distinción entre nombre del objeto y texto visible también importa. Cambiar la etiqueta del menú no renombra la propiedad `Nombre`. Cambiar el nombre de una propiedad del record sí exige adaptar las expresiones que la utilizan. La herramienta de compilación puede ayudarnos a localizar referencias rotas, pero el navegador continúa siendo necesario para observar cómo se representa el resultado.
+
+### Caso de transferencia: una ruta correcta, una pantalla sin productos
+
+Un compañero comunica que puede abrir `/productos` y ve el título, pero no aparecen los tres elementos. Como la ruta existe, no tiene sentido empezar creando otro `NavLink`. Debemos revisar la colección dentro de `Productos.razor` y la condición o iteración que produce los elementos. Si estuviera vacía, no hay nada que representar; si la vista estuviera mostrando una variable equivocada, la salida tampoco reflejaría los datos. Esta es una incidencia de estado y marcado, no de routing.
+
+En cambio, si la dirección devuelve 404, revisar los datos de Cuaderno es prematuro. Primero comprobamos la directiva `@page`, la ubicación del archivo y el router. Distinguir estas causas es una habilidad que se reutilizará cuando la página pase a depender de un servicio asíncrono en 3.6.
+
+### Actividad de interpretación de proyecto
+
+Elabora un recorrido escrito que empiece con `http://localhost:5092/productos` y termine en el texto «Lápiz — 1.20 €». Nombra `Program.cs`, `App.razor`, `Routes.razor`, `MainLayout.razor`, `Productos.razor` y `Producto.cs`, asignando una sola responsabilidad principal a cada uno. La evidencia está en los archivos existentes; no hace falta agregar un servicio, una API ni otra vista.
+
+Después describe qué archivo modificarías si: deseas cambiar el título de la ventana, quieres añadir un enlace de menú, necesitas crear una ruta nueva, deseas cambiar el precio de Lápiz en el estado fijo o quieres modificar el estilo de todos los elementos. La respuesta correcta será diferente en cada caso, porque se trata de responsabilidades diferentes. Esta reflexión prepara la extracción de componentes de P3.3.
+
+
 # 3.3. Parámetros, reutilización y composición de componentes
 
 ## Por qué extraer una tarjeta del listado
@@ -362,6 +444,67 @@ Esto se diferencia del atributo HTML `id`, que identifica elementos del document
 También podemos preguntarnos cuándo resulta contraproducente extraer un componente. Si una pieza consiste en una etiqueta que solo aparece una vez y no tiene una responsabilidad independiente, quizá la extracción complique más de lo que mejora. La reutilización se justifica cuando ofrece un contrato claro, concentra variaciones y facilita comprender la interfaz. Nuestra tarjeta cumple esas condiciones porque aparece varias veces y seguirá participando en eventos en 3.5.
 
 Referencia: Microsoft Learn, [Parámetros de componentes](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/?view=aspnetcore-8.0#component-parameters).
+
+## Profundización aplicada: diseñar componentes a partir de responsabilidades
+
+La extracción de `TarjetaProducto` puede parecer un gesto meramente estético si solo observamos que las tarjetas tienen bordes y títulos. Pero su valor principal está en definir un **contrato de representación**: el padre suministra un producto y el hijo representa sus propiedades. Esta separación permite cambiar el modo de presentación de todos los productos desde un solo archivo, y también deja claro quién controla el catálogo.
+
+No tenemos aquí una capa de dominio compleja. El record `Producto` contiene tres valores fáciles de reconocer. El componente no necesita saber si el precio procede de una base SQL, de un fichero o de un servicio en memoria, siempre que reciba el objeto esperado. Esta independencia será útil cuando en P3.6 introduzcamos un servicio y, posteriormente, en M04 una API. La interfaz de la tarjeta puede seguir estable mientras cambia el mecanismo de obtención de datos.
+
+### La diferencia entre referencia de objeto y copia de texto
+
+Podríamos diseñar TarjetaProducto con tres parámetros separados: `Id`, `Nombre` y `Precio`. Sería una solución técnicamente posible, pero exigiría que el padre transmitiera y mantuviera alineados los valores por separado. El proyecto usa un único `[Parameter] public Producto Producto`, que hace explícita su pertenencia al mismo objeto. Esta elección reduce las combinaciones incorrectas que pueden crearse por descuido.
+
+Esto no impide que existan componentes con parámetros simples. Un título, un mensaje o un indicador booleano pueden ser perfectamente adecuados como parámetros individuales. La decisión relevante es expresar un contrato coherente para la responsabilidad del componente, no convertir todas las propiedades en un objeto gigantesco.
+
+### Ciclo de representación y parámetros
+
+Cada vez que el padre necesita actualizar su representación, puede proporcionar nuevos valores a sus componentes hijos. Los hijos no deben asumir que el parámetro recibido se mantendrá inmutable durante toda la vida de la página si el padre cambia de datos. De manera parecida, modificar la propiedad pública marcada `[Parameter]` en el hijo no debe utilizarse como una estrategia oculta para reescribir el estado del padre. El canal explícito de eventos se estudiará en P3.5.
+
+Un buen componente de presentación recibe datos y calcula HTML a partir de ellos. Cuando necesita comunicar una acción, declara un callback o contrato de evento. Estas dos operaciones tienen direcciones distintas y representan responsabilidades distintas. El alumnado debería poder explicar esa distinción antes de introducir botones de tarjeta en el siguiente punto.
+
+### Cómo localizar un error de composición
+
+Considera este fragmento hipotético:
+
+~~~razor
+@foreach (var producto in productos)
+{
+    <TarjetaProducto Producto="productos[0]" />
+}
+~~~
+
+La iteración recorre tres elementos, pero el valor entregado al hijo es siempre el primero. El resultado serán tres tarjetas iguales. No hay error de compilación, porque la expresión tiene el tipo correcto. La incorrección es **semántica**: el dato de cada iteración no se transmite de forma coherente. Por eso la prueba de P3.3 compara los identificadores de las tarjetas, no solo cuenta que existan tres.
+
+Ahora compara la variante correcta:
+
+~~~razor
+@foreach (var producto in productos)
+{
+    <TarjetaProducto Producto="producto" />
+}
+~~~
+
+El componente hijo no necesita adivinar qué Id corresponde a cada posición: lo recibe. El HTML resultante puede identificarse en el navegador mediante `data-producto-id`, pero el atributo de diagnóstico no es el mecanismo de paso de parámetro. Es una consecuencia visible del objeto que recibe el hijo.
+
+### Reutilización de marcado sin duplicar responsabilidades
+
+Si queremos cambiar el texto «Precio:» por «Importe:», conviene modificar TarjetaProducto. Si queremos ordenar los productos, conviene modificar la colección o la lógica del padre. Si queremos añadir una cuarta fila de datos al estado fijo, modificamos la lista del padre. Si queremos marcar visualmente ciertos precios, el hijo puede incluir una condición Razor basada en `Producto.Precio`.
+
+Estos ejemplos justifican por qué no toda modificación debe realizarse en el mismo archivo. Una arquitectura didáctica de dos componentes ya puede enseñar separación de responsabilidades. No necesitamos anticipar sistemas de plantillas, bibliotecas de componentes empresariales o una estructura de docenas de proyectos para obtener una mejora real de mantenimiento.
+
+### Ejercicio comparativo con vistas parciales MVC
+
+En M01 utilizamos vistas parciales para representar productos. Un paralelismo útil es que ambas técnicas reducen repetición de marcado y reciben datos. Pero en Blazor, los componentes participan además en un ciclo de representación, admiten parámetros propios y pueden incorporar manejadores de eventos. En MVC, una vista parcial no se convierte simplemente en un componente interactivo por cambiar su nombre; pertenece al proceso de representación de vistas que inicia una acción.
+
+Al describir ambas técnicas, evita frases ambiguas como «Blazor es lo mismo que Razor, pero moderno». La sintaxis Razor es compartida, pero la unidad de composición y el modelo de ejecución son distintos. Esta diferencia se volverá evidente cuando TarjetaProducto solicite al padre una selección mediante EventCallback.
+
+### Actividad de transferencia sin introducir nueva arquitectura
+
+Supongamos que quieres mostrar los tres productos en dos ubicaciones: una página de catálogo y un pequeño resumen informativo. ¿Qué reutilizarías? La tarjeta puede formar parte de ambas composiciones si recibe el mismo contrato de producto. ¿Qué no debería hacer la tarjeta? No debería decidir qué productos existen, ni consultar por sí misma la base de datos del M02, ni asumir que siempre forma parte de una página denominada `/productos`.
+
+En tu respuesta, nombra los datos de entrada, la salida visual y cualquier dependencia que sería innecesaria. Si puedes defender por qué el hijo conoce un producto pero no la lista completa, has comprendido el fundamento de la composición que usaremos en los eventos de P3.5.
+
 
 # 3.4. Eventos, enlace de datos y estado de componente
 
