@@ -68,6 +68,12 @@ public class ProductosController : Controller
     }
     PASO 1.4.4 FIN */
 
+    // APLICACION 1.4 — Escribe aquí una acción propia BuscarPorNombre(string nombre).
+    // Utiliza [HttpGet("/catalogo/buscar/{nombre}")], busca sin distinguir
+    // mayúsculas en ObtenerProductosEjemplo(), devuelve NotFound() si no hay
+    // coincidencia y reutiliza View("Detalle", producto) si existe.
+    // No copies el método Detalle: resuelve tú mismo el enlace del parámetro.
+    //
     // RETO 1.4: comparar un resultado JSON de MVC con una vista HTML.
     /* RETO 1.4 INICIO
     [HttpGet("/catalogo/resumen/{id:int}")]
