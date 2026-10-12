@@ -45,11 +45,11 @@ T = explicación en minutos; P = trabajo práctico en minutos. A = aplicación M
 | **2.1** formularios HTML, GET/POST, model binding y antiforgery | P2.1: formulario Create GET/POST y comprobación de los datos recibidos y token antiforgery | A | 25 | 40 |
 | **2.2** Tag Helpers de formularios, acciones y errores | P2.2: adaptar Create para utilizar asp-for, asp-action y enlaces; inspeccionar HTML generado | A | 20 | 35 |
 | **2.3** DataAnnotations, ModelState, validación servidor/cliente | P2.3: Required, StringLength y Range; probar datos válidos e inválidos y conservar valores | A | 30 | 40 |
-| **2.4** CRUD completo con EF Core reutilizado | P2.4: SQLite, List/Create/Edit/Delete y comprobación de persistencia tras reinicio | A | 35 | 80 |
+| **2.4** CRUD completo con EF Core reutilizado | P2.4: SQL Server Express LocalDB, List/Create/Edit/Delete y comprobación de persistencia tras reinicio | A | 35 | 80 |
 | **2.5** Razor Pages, PageModel, OnGet/OnPost y comparación | P2.5: única página Razor Pages de ejemplo con lectura y envío mínimo, comparada con la acción MVC | A, ejemplo aislado dentro del mismo host | 10 | 15 |
 | **Subtotal** | +30 min de repaso y dudas | | **120** | **210** |
 
-**Estado de salida:** CRUD funcional de productos con validación y base SQLite sencilla. Razor Pages no se transforma en una tercera aplicación.
+**Estado de salida:** CRUD funcional de productos con validación y base SQL Server Express LocalDB sencilla. Razor Pages no se transforma en una tercera aplicación.
 
 ### M03 — Blazor Web App y componentes
 
@@ -90,7 +90,7 @@ T = explicación en minutos; P = trabajo práctico en minutos. A = aplicación M
 | **5.5** Docker: Dockerfile, build/run, mapeo de puerto | P5.5: construir imagen .NET 8, ejecutar con mapeo host→8080 y verificarla | A | 10 | 45 |
 | **Subtotal** | +30 min de repaso y dudas | | **60** | **270** |
 
-**Decisión de simplificación:** el proyecto final consolida B; para comparar los tres despliegues se usa **la misma aplicación MVC A**, evitando requerir simultáneamente procesos Blazor + API, autenticación y base externa en un laboratorio de seis horas. A se empaquetará con configuración didáctica sencilla; se documentará la diferencia entre funcionamiento de laboratorio y configuración de producción. Si una instalación concreta no permite los tres despliegues, la evidencia se registrará como pendiente en la verificación, no como éxito.
+**Decisión de simplificación:** el proyecto final consolida B; para comparar los tres despliegues se usa **la misma aplicación MVC A**, evitando requerir simultáneamente procesos Blazor + API, autenticación y base externa en un laboratorio de seis horas. Para Kestrel, M02 utiliza LocalDB en el equipo Windows. En IIS y Docker se mostrarán páginas MVC que no exijan la base de datos: LocalDB es una instancia Windows ligada al usuario y no está disponible dentro de un contenedor Linux. Se explicará esta limitación sin introducir un segundo servidor ni infraestructura adicional. Si una instalación concreta no permite los tres despliegues, la evidencia se registrará como pendiente en la verificación, no como éxito.
 
 ## 4. Dependencias entre prácticas
 
