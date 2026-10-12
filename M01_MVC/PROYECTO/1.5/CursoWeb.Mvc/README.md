@@ -22,18 +22,3 @@ dotnet run --no-launch-profile --urls http://localhost:5091
 - **RETO 1.5:** abrir `Views/Shared/_TarjetaProducto.cshtml` y eliminar las **dos líneas delimitadoras** del bloque Razor `RETO 1.5`. La condición `@if (Model.Precio < 3m)` añade `Precio económico` **solo a Lápiz** tanto en la lista de tarjetas como en su detalle.
 
 En `../../../PRACTICAS/M01_PRACTICAS.md` (sección P1.5) se explican todas las instrucciones, el código exacto, su comportamiento y los resultados esperados.
-
-## Comprobar
-
-Desde la raíz del repositorio:
-~~~bash
-bash M01_MVC/TESTS/1.5_e2e.sh
-~~~
-
-Compila, inicia Kestrel, verifica rutas y contenidos y prueba cada activación mediante copias temporales. SDK 8, Bash, Python 3 y curl son requisitos.
-
-## Laboratorios ampliados y correspondencia documental
-
-La versión ampliada de [P1.5](../../../PRACTICAS/M01_PRACTICAS.md) incluye recorridos adicionales de diagnóstico y consolidación basados en **este mismo proyecto**. Son actividades de lectura, comprobación HTTP y activación de los bloques ya documentados más arriba; no constituyen un segundo conjunto de soluciones ni requieren crear otro proyecto.
-
-**Correspondencia verificable:** P1.5 del Markdown → código de esta carpeta → `M01_MVC/TESTS/1.5_e2e.sh`. Las explicaciones detalladas y los enunciados viven solo en el MD de prácticas; el PDF se genera de esa fuente, sin editarlo manualmente.
