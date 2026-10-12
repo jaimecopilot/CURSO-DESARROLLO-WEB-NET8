@@ -3052,6 +3052,99 @@ Una vez completado tu intento, compara la lógica con este ejemplo, ubicado **un
 
 No debes copiar este bloque también al listado o al detalle. Ambas vistas reciben la salida de la misma parcial. Al ejecutar con la colección del curso, solo Cuaderno cumple la condición. Si más adelante cambias los datos, Razor vuelve a evaluar la condición con los valores actuales sin que debas modificar el HTML.
 
+## Integración final del M01 — un enlace generado desde el modelo y la ruta MVC
+
+Al terminar las cinco prácticas, la aplicación permite abrir la portada, consultar el catálogo, navegar a un detalle y reutilizar una tarjeta de producto. Sin embargo, **que todas esas páginas existan no significa que hayamos comprendido cómo se relacionan**. En esta última actividad recorrerás de nuevo el camino completo de una solicitud, pero esta vez construirás un cambio autónomo que conecta las ideas de enrutamiento (1.4) y de presentación con vistas parciales (1.5).
+
+### El problema: un enlace que debe seguir la ruta y el producto
+
+Abre `PROYECTO/1.5/CursoWeb.Mvc`, con P1.5.4 y P1.5.5 activados. En `Views/Shared/_TarjetaProducto.cshtml` existe un enlace:
+
+~~~cshtml
+<a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
+~~~
+
+El código funciona: Razor sustituye el valor de `Model.Id`, y el navegador recibe enlaces como `/Productos/Detalle/2`. Sin embargo, la URL se está construyendo directamente como una cadena. Para aprovechar las convenciones MVC podemos describir el **controlador**, la **acción** y el **valor de ruta** por separado mediante un Anchor Tag Helper. Es el mismo enfoque de generación de enlaces del framework que nos prepara para los Tag Helpers de formularios del M02, pero ahora lo utilizaremos en un ejemplo de navegación muy limitado.
+
+### A — Localizar todas las piezas antes de cambiar una línea
+
+Primero identifica el contrato de datos. En `Models/Producto.cs`, `Id` es un entero; `Nombre` es una cadena. El controlador `ProductosController` expone la acción `Detalle(int id)`, que selecciona un producto por identificador y devuelve la vista cuando lo encuentra. La vista `Views/Productos/Detalle.cshtml` utiliza un `@model` individual, no una colección. La parcial `_TarjetaProducto.cshtml` también recibe un `Producto`, por lo que ya conoce `Model.Id` y `Model.Nombre` en cada invocación.
+
+Lee `Views/_ViewImports.cshtml` y comprueba que contiene `@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers`. Esa directiva habilita los Tag Helpers integrados que usaremos. No es necesario crear un método C#, modificar `Program.cs` ni añadir un paquete NuGet nuevo: el proyecto contiene la infraestructura adecuada.
+
+**Antes de editar**, predice qué atributos escribiremos en la etiqueta fuente y cuáles aparecerán en el HTML que llegue al navegador. `asp-controller`, `asp-action` y `asp-route-id` se procesan en el servidor. La respuesta final debería contener un atributo `href` navegable, sin dejar esos atributos especiales visibles como si fueran texto.
+
+### B — Sustituir el enlace por tu propia implementación
+
+Encuentra en `_TarjetaProducto.cshtml` el comentario `APLICACION 1.5.B`. Inmediatamente debajo está la etiqueta con `href="/Productos/Detalle/@Model.Id"`. **Sustituye solo esa etiqueta** por otra que conserve su texto visible pero utilice:
+
+- `asp-controller="Productos"` para identificar el controlador;
+- `asp-action="Detalle"` para identificar la acción;
+- `asp-route-id="@Model.Id"` para proporcionar el identificador correcto de cada producto.
+
+No copies el valor 1, 2 o 3 a mano: el enlace debe derivarse del producto recibido por la parcial. El nombre visible seguirá siendo dinámico mediante `@Model.Nombre`. Conserva el mismo elemento `<a>`, sin incorporar JavaScript ni hacer una llamada explícita a una API.
+
+Puedes eliminar el comentario `APLICACION 1.5.B` después de resolverlo, pero no modifiques el comentario de `APLICACION 1.5` de la etiqueta destacada ni el bloque del reto económico. Son decisiones distintas que deben poder razonarse de forma independiente.
+
+### C — Inspeccionar el HTML que genera Razor
+
+Reconstruye el proyecto y abre `/Productos`. Cuando están habilitadas las tarjetas, aparecen tres enlaces, uno por producto. Desde las herramientas de desarrollo, inspecciona el HTML: cada etiqueta debe tener un `href` apropiado. Debes poder abrir la ficha de Cuaderno, Lápiz y Carpeta desde el catálogo. Si pulsas el enlace de Lápiz, el navegador debe llegar a `/Productos/Detalle/2` y mostrar un HTML de detalle con el identificador 2 y el nombre correspondiente.
+
+No basta con que el enlace tenga aspecto de enlace. Comprueba el **destino generado**, la navegación efectiva y el contenido de la ficha. Si hay una URL correcta pero la vista recibe un modelo equivocado, el problema ya no está en el enlace sino en el dato buscado por la acción.
+
+Abre ahora `/Productos/Detalle/1`. Cuando la parcial se reutiliza en el propio detalle, encontrarás también allí el enlace «Ver detalle de Cuaderno». Esa segunda aparición utiliza exactamente el mismo código `_TarjetaProducto.cshtml`: no hace falta escribir una etiqueta adicional dentro de `Detalle.cshtml`. Desde el punto de vista del servidor, es una segunda representación del fragmento con el mismo modelo.
+
+### D — Comparar cómo se llega a una ficha
+
+La aplicación ofrece varias maneras de acceder a un producto. Puedes escribir directamente la URL `/Productos/Detalle/2`, utilizar los enlaces del listado original o seguir el nuevo enlace de una tarjeta. También puedes solicitar la ruta por atributos `/catalogo/ficha/2`, que se estudió en el capítulo 1.4. Estas direcciones no son necesariamente distintas **páginas fuente**: pueden seleccionar acciones diferentes que reutilizan la misma vista con el mismo objeto.
+
+Distingue los conceptos antes de dar por terminado el ejercicio. El navegador no sabe si el `href` se escribió de manera literal o lo generó un Tag Helper; simplemente recibe una URL y envía una solicitud. La generación del enlace ocurrió en el servidor. El routing utilizará la URL resultante para seleccionar una acción en la siguiente petición. El controlador volverá a buscar un `Producto` y el resultado de vista compondrá otra página.
+
+Puedes describir el recorrido así: producto individual → parcial Razor → enlace HTML generado → clic del usuario → petición GET → routing MVC → `Detalle(int id)` → modelo encontrado → vista de detalle → HTML. Cada flecha representa una responsabilidad diferente. El enlace no busca el producto por sí solo, y la vista no ejecuta la consulta de datos.
+
+### E — Una comprobación de regresión útil para un desarrollador
+
+Repite las operaciones esenciales de la jornada sin deshacer tu modificación:
+
+1. Abre `/`: el encabezado inicial debe seguir accesible.
+2. Abre `/Productos`: deben aparecer tres productos con sus nombres y precios.
+3. Verifica que los tres enlaces de las tarjetas se corresponden con los identificadores respectivos.
+4. Abre `/Productos/Detalle/2`: identifica el nombre Lápiz y el identificador 2 en el HTML.
+5. Abre `/catalogo/ficha/2`: confirma que esta segunda ruta reutiliza correctamente la ficha.
+6. Solicita `/css/site.css` y `/recursos/guia-publica.txt`: ambos recursos deben seguir accesibles como archivos estáticos.
+
+No estamos intentando convertir el curso en una suite de pruebas. Estamos aprendiendo a **delimitar el cambio**: un ajuste en el código que genera un enlace no debe alterar los productos, los estilos ni el funcionamiento de las rutas anteriores. Si algo deja de funcionar, sabemos qué responsabilidad conviene inspeccionar primero.
+
+### F — Diagnóstico de fallos habituales
+
+**Los atributos `asp-...` aparecen literalmente en el HTML final.** Comprueba `@addTagHelper` en `_ViewImports.cshtml` y asegúrate de que has escrito los nombres de atributo correctamente. Si el framework no reconoce esos atributos, el resultado puede conservarlos como simples atributos HTML y no generar el `href` que necesitas.
+
+**Todos los enlaces terminan en el mismo producto.** Revisa si has escrito un identificador fijo en lugar de utilizar `@Model.Id`. La parcial debe utilizar el modelo que recibe en cada iteración. Si se pasa una lista entera a una parcial preparada para un objeto, el problema es de contrato de modelo, no del Anchor Tag Helper.
+
+**El enlace tiene destino, pero devuelve 404.** Comprueba que la acción `Detalle` está activa en el proyecto 1.5 y que el identificador existe. Una respuesta 404 puede provenir de una URL que no coincide con ninguna ruta o de una acción que sí se ejecutó pero decidió que no existe el recurso. El código de estado por sí solo no identifica automáticamente cuál de esas situaciones ha ocurrido.
+
+**El catálogo se ve correctamente, pero faltan las tarjetas.** Esta actividad presupone P1.5.4 y P1.5.5 ya activados. Revisa sus comentarios Razor y la llamada `<partial>`. No intentes resolver un problema de vista parcial añadiendo otro controlador.
+
+### G — Explicar el resultado como desarrollador
+
+Responde con el proyecto abierto, señalando código concreto: ¿dónde se prepara el objeto `Producto`?, ¿qué valor se introduce en `asp-route-id`?, ¿quién transforma los atributos Tag Helper en un enlace HTML?, ¿en qué momento el navegador realiza una nueva petición?, ¿qué archivo recibe el modelo para generar la ficha?, ¿por qué no debemos copiar otra versión de la tarjeta en la vista de detalle?
+
+La condición para considerar completado este ejercicio no es solamente que el enlace funcione, sino que puedas explicar **por qué la misma tarjeta presenta el producto correcto en dos páginas y por qué la URL se convierte en una nueva petición**. Esa explicación sintetiza el aprendizaje de M01 y deja preparado el salto a formularios, validación y persistencia en M02.
+
+### Solución de referencia de la integración final
+
+Después de haber escrito y comprobado tu propia solución, puedes contrastarla con esta variante:
+
+~~~cshtml
+<a asp-controller="Productos"
+   asp-action="Detalle"
+   asp-route-id="@Model.Id">Ver detalle de @Model.Nombre</a>
+~~~
+
+Al estar habilitados los Tag Helpers MVC en el proyecto, el servidor transforma estos atributos en un enlace con `href`, utilizando la información de ruta y el identificador del producto. El navegador no interpreta `asp-controller` ni `asp-route-id`; recibe una dirección ordinaria. El texto visible sigue utilizando el nombre del modelo, de modo que las tarjetas permanecen coherentes si el catálogo cambia.
+
+No se modifica `ProductosController`, no se duplica `Detalle.cshtml` y no se añade ningún archivo de presentación. Esta solución pertenece a la misma parcial que utilizan el listado y la ficha, y es precisamente esa reutilización la que hace valioso el ejercicio.
+
 ## Resultado y continuidad
 
 **Verificación final de M01 y preparación de M02.**
