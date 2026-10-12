@@ -529,12 +529,13 @@ public sealed class ProductoFormulario
 
     [Required(ErrorMessage = "Indica el precio.")]
     [Range(typeof(decimal), "0.01", "9999.99",
+        ParseLimitsInInvariantCulture = true,
         ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
     public decimal? Precio { get; set; }
 }
 ~~~
 
-El ejemplo omite el espacio de nombres de la clase porque estamos destacando las reglas. En el archivo real **conserva** `namespace CursoWeb.Mvc.Models;` y la declaración completa. Debes cambiar únicamente las anotaciones indicadas.
+El atributo `ParseLimitsInInvariantCulture = true` es deliberado: obliga a interpretar los límites 0.01 y 9999.99 según la cultura invariante, aunque el sistema esté configurado en español. Esto **no** cambia automáticamente la cultura con la que el model binder interpreta el campo recibido. El ejemplo omite el espacio de nombres de la clase porque estamos destacando las reglas. En el archivo real **conserva** `namespace CursoWeb.Mvc.Models;` y la declaración completa. Debes cambiar únicamente las anotaciones indicadas.
 
 Compila de nuevo, ejecuta el formulario y repite la entrada Nombre = X, Precio = 7. Ahora el resultado es diferente: aparece el formulario nuevamente con un error junto a Nombre. En el archivo de modelo puedes encontrar el mismo mensaje que acaba de mostrarse. La acción no ha cambiado su nombre ni su ruta; ha cambiado el criterio utilizado para aceptar la entrada.
 
