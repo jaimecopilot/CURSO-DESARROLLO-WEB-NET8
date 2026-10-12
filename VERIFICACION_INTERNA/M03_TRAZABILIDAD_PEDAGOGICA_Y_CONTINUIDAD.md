@@ -3,15 +3,19 @@
 Documento de trabajo editorial/técnico. **No incorporar al material docente ni a sus PDF.**
 La fuente oficial del alcance y del tiempo es `TEMARIO_30H.md`. Este documento NO añade nuevos temas principales.
 
-## Orden de trabajo para resolver la divergencia actual
+## Orden pedagógico definitivo (corrección explícita del responsable del curso)
 
-1. Fijar los resultados observables y la correspondencia TEORÍA → PRÁCTICA → ARCHIVO / BLOQUE → RESULTADO VISIBLE.
-2. Corregir el código de las instantáneas 3.3–3.6, preservando la aplicación acumulativa y manteniendo código didáctico inicialmente comentado cuando el alumno aún debe activarlo.
-3. Ejecutar sobre copias temporales la evolución completa y las pruebas positivas/negativas en navegador: cada punto debe preservar las funcionalidades obligatorias del anterior.
-4. Reescribir los apartados de PRÁCTICAS con código significativo inline al lado del paso correspondiente; actualizar después el anexo con los fuentes exactos, nunca al revés.
-5. Revisar TEORÍA para que todas las explicaciones, contratos, ejemplos y nombres coincidan con los pasos/prácticas. Desarrollar el razonamiento, no duplicar el cuaderno.
-6. Generar PDF desde ambos MD definitivos, revisar integridad, comprobar **página a página** y conservar la extensión editorial razonable, al menos 75–80 pp para teoría y prácticas sin inflar fuentes.
-7. No integrar en `main` sin autorización explícita.
+**NO partir del código del repositorio para redactar o ajustar posteriormente la teoría.** Ni usar el proyecto ya existente como guion principal de las prácticas. La dirección formativa es: **TEMARIO → TEORÍA CON EJEMPLOS DE CÓDIGO → PRÁCTICAS CON EL 100 % DEL CÓDIGO EXPLICADO → PROYECTOS QUE IMPLEMENTAN LA PRÁCTICA → VALIDACIÓN Y DOCUMENTOS FINALES**. Las discrepancias obligan a corregir la fuente que corresponda sin ocultar ni inventar código.
+
+1. Fijar el alcance del temario 3.1–3.6 y revisar **primero** el manual de TEORÍA: enseñar cada concepto desde su fundamento, motivarlo, ilustrarlo con ejemplos de Razor/C# **completos y comprensibles en el propio cuerpo**, explicar cómo funcionan y qué resultado producen. Los ejemplos deben ser técnicamente correctos y coherentes con .NET 8.
+2. Diseñar **después** el itinerario PRÁCTICO como una sola aplicación B que evoluciona acumulativamente punto por punto. Escribir el manual práctico como una **construcción íntegra explicada**, cubriendo **el 100 % de los archivos de código fuente utilizados y entregados al alumno**; todos los archivos y sus partes deben estar localizados y explicados, no solo unas líneas destacadas en el cuerpo y un volcado final sin explicación. Cada modificación se muestra con el código completo pertinente y su papel en el conjunto. El alumno debe poder recrear el proyecto desde cero, sin depender de deducir código oculto.
+3. Implementar/reestructurar los PROYECTOS siguiendo ese diseño práctico ya definido: instantáneas 3.1–3.6, que retienen la funcionalidad construida previamente. Mantener los fragmentos docentes comentados cuando proceda, y enlazarlos inequívocamente a su ejercicio. No incluir infraestructura o fuente versionada que no esté explicada en las prácticas.
+4. Verificar exhaustivamente **TEORÍA ↔ PRÁCTICAS ↔ ARCHIVO/FUNCIÓN/LÍNEA DEL PROYECTO ↔ COMPORTAMIENTO EJECUTABLE** en ambas direcciones, incluyendo archivos generados por plantilla que quedan versionados. Si son configuración, se explican igualmente; `bin/`, `obj/` y otros artefactos no versionados no forman parte del inventario docente.
+5. Ejecutar sobre copias temporales la aplicación progresiva y los escenarios positivos/negativos en navegador; las pruebas internas no aparecen en manuales.
+6. Generar y revisar PDF desde los dos MD canónicos solo cuando haya cierre formativo y técnico, manteniendo al menos ~75–80 páginas **por manual** sin padding tipográfico.
+7. No fusionar `main` sin permiso. **La teoría no puede ser una explicación a posteriori del código, y el anexo de fuentes no reemplaza el desarrollo de código en el cuerpo de la práctica.**
+
+Los ajustes preliminares recientes a P3.4/P3.5 se consideran **provisionales**, NO una implementación cerrada; no continuar modificando código antes de fijar la teoría y el diseño de las prácticas.
 
 ## Contrato de una única aplicación evolutiva
 
@@ -58,8 +62,8 @@ La correspondencia es **bidireccional**: todo ejercicio debe tener explicación 
 ## Reglas editoriales obligatorias de cada punto P3.x
 
 - Situación/problema realista del **mismo catálogo**, prerrequisitos y archivo/ruta exacta de la instantánea.
-- Mostrar varios fragmentos Razor y C# **en el punto exacto donde se activan o modifican**, no derivar todas las líneas al anexo.
-- Cada fragmento indica qué se conserva, qué se añade/sustituye, y de dónde procede: debe coincidir literalmente o ser explicado como extracto del código real.
+- Mostrar en el punto del procedimiento **todo el código C#/Razor/HTML/configuración necesario** para construir el estado didáctico: no solo fragmentos selectivos, y no depender del anexo para cubrir las piezas que faltan.
+- Explicar **todos los archivos, miembros, instrucciones y contratos relevantes de los fuentes versionados**; cada bloque debe corresponder al diseño práctico ya definido y a la implementación exacta, no al revés. Un anexo con código completo puede complementar el tutorial, pero no sustituir su explicación detallada.
 - Secuencia: objetivo concreto → código/razón → ejecutar → comportamiento observable → caso negativo y solución de diagnóstico → enlace al concepto de teoría.
 - El siguiente proyecto parte del final funcional obligatorio del anterior; las ampliaciones opcionales se trasladan cuando forman parte del recorrido integrado del módulo. Si una ampliación es deliberadamente aislada, debe declararse explícitamente.
 - La teoría **explica** mecanismos, decisiones y consecuencias; las prácticas **construyen** el mismo programa guiadas por esos mecanismos. Evitar duplicar párrafos solo para ganar páginas.
