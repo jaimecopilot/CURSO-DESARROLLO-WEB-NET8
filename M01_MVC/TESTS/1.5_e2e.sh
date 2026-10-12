@@ -92,7 +92,7 @@ for i in (1,2,3): assert f'data-producto-id="{i}"' in html
 PY
   fi
 
-  if [[ "$state" == "detalle-parcial" || "$state" == "aplicacion" || "$state" == "reto" ]]; then
+  if [[ "$state" == "detalle-parcial" || "$state" == "aplicacion" || "$state" == "navegacion" || "$state" == "reto" ]]; then
     grep -Fq 'id="tarjeta-detalle"' "$TMP/$state-detalle.html"
     grep -Fq 'data-producto-id="2"' "$TMP/$state-detalle.html"
     grep -Fq 'data-producto-id="1"' "$TMP/$state-detalle1.html"
@@ -132,6 +132,18 @@ PY
     ! grep -Fq 'class="etiqueta-destacada"' "$TMP/$state-index.html"
     ! grep -Fq 'class="etiqueta-destacada"' "$TMP/$state-detalle1.html"
   fi
+  if [[ "$state" == "navegacion" ]]; then
+    python3 - "$TMP/$state-index.html" "$TMP/$state-detalle.html" <<'PY'
+from pathlib import Path
+import re
+import sys
+index, detalle=(Path(p).read_text(encoding="utf-8") for p in sys.argv[1:])
+assert 'asp-controller=' not in index and 'asp-action=' not in index, "Los Tag Helpers no se ejecutaron"
+for id in (1, 2, 3):
+    assert f'href="/Productos/Detalle/{id}"' in index, f"Falta el enlace al producto {id}"
+assert 'href="/Productos/Detalle/2"' in detalle, "La misma parcial debe producir enlace en el detalle"
+PY
+  fi
   echo "E2E OK: P1.5 $state, vistas tipadas, layout, secciones y parciales"
   kill "$PID" 2>/dev/null || true
   wait "$PID" 2>/dev/null || true
@@ -152,6 +164,7 @@ for name,condition,section,cards,detail_card,reto in [
     ("tarjetas",True,True,True,False,False),
     ("detalle-parcial",True,True,True,True,False),
     ("aplicacion",True,True,True,True,False),
+    ("navegacion",True,True,True,True,False),
     ("reto",True,True,True,True,True),
 ]:
     target=tmp/name
@@ -169,6 +182,11 @@ for name,condition,section,cards,detail_card,reto in [
         content=path.read_text(encoding="utf-8")
         assert content.count(start)==1 and content.count(end)==1, f"Bloque ausente: {path}: {start}"
         if enabled: content=content.replace(start,"").replace(end,"")
+        if name == "navegacion" and path.name == "_TarjetaProducto.cshtml":
+            old_link = '<a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>'
+            new_link = '<a asp-controller="Productos" asp-action="Detalle" asp-route-id="@Model.Id">Ver detalle de @Model.Nombre</a>'
+            assert content.count(old_link) == 1
+            content = content.replace(old_link, new_link)
         if name == "aplicacion" and path.name == "_TarjetaProducto.cshtml":
             marker = '    @* APLICACION 1.5 — Escribe aquí una condición Razor propia: si Model.Precio >= 4m, representa <strong class="etiqueta-destacada">Producto destacado</strong>. La misma parcial se reutiliza en listado y detalle. *@'
             answer = '    @if (Model.Precio >= 4m)\n    {\n        <strong class="etiqueta-destacada">Producto destacado</strong>\n    }'
@@ -177,7 +195,7 @@ for name,condition,section,cards,detail_card,reto in [
         path.write_text(content,encoding="utf-8")
 PY
 
-for state in condicion seccion tarjetas detalle-parcial aplicacion reto; do
+for state in condicion seccion tarjetas detalle-parcial aplicacion navegacion reto; do
     run_scenario "$TMP/$state" "$state"
 done
-echo "P1.5: siete escenarios E2E reales, incluida regla autónoma y reto."
+echo "P1.5: ocho escenarios E2E reales, incluidas regla autónoma, navegación Tag Helper y reto."
