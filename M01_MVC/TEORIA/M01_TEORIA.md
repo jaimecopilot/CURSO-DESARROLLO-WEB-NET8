@@ -2405,7 +2405,7 @@ El capítulo 1.5 reutilizará esos resultados de detalle para profundizar en có
 
 La práctica comienza inspeccionando el controlador existente y la lista compartida; activa `Estado()` y observa texto plano; activa `Detalle(int id)` y comprueba 200/400/404; incorpora una ruta por atributos; añade enlaces por producto en la vista; y realiza el reto JSON, igualmente comentado en el proyecto.
 
-La batería de pruebas compila y ejecuta **cada estado solicitado** y verifica sus respuestas reales a través de HTTP, sin reemplazar la comprensión manual de la navegación. Se preservan también las pruebas de regresión de los capítulos 1.1 a 1.3.
+La práctica permite activar los cambios sucesivamente y observar sus respuestas HTTP: primero la ruta de estado, luego el detalle y sus errores, después la ficha alternativa y finalmente el resultado JSON. Después de cada avance, el alumno debe comprobar también que la portada, el catálogo y los recursos que ya funcionaban continúan accesibles.
 
 El capítulo siguiente, **1.5**, profundizará en la sintaxis Razor, la composición de vistas, los layouts y las vistas parciales usando las páginas y el detalle funcional de este capítulo.
 
