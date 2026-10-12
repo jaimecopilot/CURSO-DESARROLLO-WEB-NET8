@@ -1249,7 +1249,7 @@ El archivo `Pages/_ViewStart.cshtml` establece `Layout = "/Views/Shared/_Layout.
 
 **Objetivo.** Reutilizar la sintaxis `@if` de M01 para interpretar una propiedad del `PageModel`. **Estado inicial:** en `Pages/Comparacion.cshtml` hay un comentario `APLICACION 2.5.6 (ESCRIBIR)`; no existe todavía una solución activa.
 
-**Tu tarea:** debajo de `<p id="mensaje-page">@Model.Mensaje</p>`, escribe una condición Razor que añada un elemento con `id="respuesta-larga"` únicamente cuando `Model.Mensaje` tenga más de 40 caracteres. No modifiques `OnGet` ni el formulario. Compila y compara la representación del GET con la de un POST cuyo nombre sea suficientemente largo. Un mensaje corto no debe mostrar el elemento; uno largo sí.
+**Tu tarea:** debajo de `<p id="mensaje-page">@Model.Mensaje</p>`, escribe una condición Razor que añada un elemento con `id="respuesta-larga"` únicamente cuando `Model.Mensaje` tenga más de 40 caracteres. No modifiques `OnGet` ni el formulario. Compila y compara el GET con un POST que envíe «Ana» y otro que envíe «Ana Martínez de la Ribera». Recuerda que el mensaje inicial de `OnGet` ya supera los 40 caracteres, por lo que el elemento aparece en GET; el resultado corto del primer POST debe ocultarlo y el segundo POST volverá a mostrarlo. La condición se aplica a `Mensaje`, no directamente a la longitud de `Nombre`.
 
 Una posible solución para consultar después de intentarlo es:
 
