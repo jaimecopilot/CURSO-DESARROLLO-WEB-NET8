@@ -15,4 +15,14 @@ public sealed class ProductosMemoriaService : IProductosMemoriaService
             new Producto(3, "Carpeta", 3.75m)
         ];
     }
+    /* RETO INTEGRADOR 3.6.7 INICIO
+    public async Task<IReadOnlyList<Producto>> ObtenerConErrorAsync(bool simularError)
+    {
+        await Task.Delay(350);
+        if (simularError)
+            throw new InvalidOperationException("Fallo controlado del servicio local.");
+        return await ObtenerAsync();
+    }
+    RETO INTEGRADOR 3.6.7 FIN */
+
 }
