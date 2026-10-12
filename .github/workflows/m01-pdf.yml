@@ -3,7 +3,7 @@ name: M01 - Generar y verificar los dos PDF
 on:
   workflow_dispatch:
   push:
-    branches: [desarrollo/m01-mvc]
+    branches: [desarrollo/m01-mvc, revision-didactica/m01]
     paths:
       - "M01_MVC/TEORIA/M01_TEORIA.md"
       - "M01_MVC/PRACTICAS/M01_PRACTICAS.md"
@@ -63,7 +63,7 @@ jobs:
             echo "Sin cambios binarios o métricos"
           else
             git commit -m "docs(m01): publicar dos PDF derivados de Markdown y verificados"
-            git fetch origin desarrollo/m01-mvc
-            git rebase origin/desarrollo/m01-mvc
-            git push origin HEAD:desarrollo/m01-mvc
+            git fetch origin "$GITHUB_REF_NAME"
+            git rebase "origin/$GITHUB_REF_NAME"
+            git push origin "HEAD:$GITHUB_REF_NAME"
           fi
