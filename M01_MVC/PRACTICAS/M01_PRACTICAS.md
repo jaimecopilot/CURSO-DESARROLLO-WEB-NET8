@@ -1158,13 +1158,8 @@ La página inicial `/` continúa funcionando. La ruta `/Productos/Index` es equi
 | Vista activada | 1.2.3 + 1.2.4 | Aparecen contador y tres productos; aún no existe el enlace adicional |
 | Navegación activada | 1.2.3 + 1.2.4 + 1.2.5 | Se añade el enlace Productos y permite navegar al catálogo |
 
-Para realizar una comprobación automatizada, desde la **raíz del repositorio**:
+**Comprobación del alumno:** ejecuta la aplicación con los bloques indicados activados y verifica manualmente las URL y los cambios descritos en este apartado.
 
-~~~bash
-bash M01_MVC/TESTS/1.2_e2e.sh
-~~~
-
-Este script construye el proyecto en su estado inicial y activa las demás combinaciones mediante copias temporales. Arranca realmente Kestrel y verifica las respuestas HTTP, los textos visibles en el HTML, las rutas, los recursos estáticos y la permanencia de la página de 1.1. Requiere SDK .NET 8, Bash, Python 3 y curl; se utiliza también en GitHub Actions. No sustituye la observación de la interfaz con un navegador durante la clase.
 
 **Criterio de finalización del ejercicio:** puedes explicar por qué el listado no aparece en el estado inicial, por qué el contador aparece antes de activar `@foreach` y por qué el enlace adicional no requiere cambiar el controlador.
 
@@ -1792,13 +1787,8 @@ El reto no se resuelve simplemente porque aparece el enlace. Debes poder justifi
 
 **Verificación automatizada del ejercicio y el reto.**
 
-Desde la raíz del repositorio y con la aplicación manual **detenida** para dejar libre el puerto:
+**Comprobación del alumno:** ejecuta la aplicación con los bloques indicados activados y verifica manualmente las URL y los cambios descritos en este apartado.
 
-~~~bash
-bash M01_MVC/TESTS/1.3_e2e.sh
-~~~
-
-La comprobación crea copias temporales, activa de manera controlada los bloques de cada etapa y comprueba con peticiones HTTP reales:
 
 - Que las páginas de 1.1 y 1.2 continúan devolviendo HTML y muestran los productos.
 - Que el registro de configuración aparece al activar el paso 1.3.3.
@@ -1887,15 +1877,9 @@ El alumnado debe saber explicar por qué ninguno de estos cambios obliga a reesc
 
 ### Una última ejecución reproducible
 
-Desde la raíz del repositorio, con el proceso manual detenido, ejecuta el script de pruebas del capítulo:
+**Comprobación del alumno:** ejecuta la aplicación con los bloques indicados activados y verifica manualmente las URL y los cambios descritos en este apartado.
 
-~~~bash
-bash M01_MVC/TESTS/1.3_e2e.sh
-~~~
 
-La prueba reconstruye cinco estados, incluido el reto, mediante copias temporales. Su finalidad es verificar que los bloques preparados se pueden activar sin romper el catálogo y que los recursos estáticos presentan los códigos de estado esperados.
-
-No sustituye la observación con F12 ni la comprensión de qué archivo responde a cada pregunta. La batería automatizada confirma el funcionamiento técnico; el objetivo pedagógico exige relacionarlo con las responsabilidades del proyecto.
 
 **Síntesis práctica y preparación de 1.4.**
 
@@ -2637,13 +2621,8 @@ Una URL que retorna 404 en el estado base puede retornar 200 después de activar
 
 **Pruebas automáticas con servidor HTTP real.**
 
-Detener la aplicación manual, volver a la **raíz del repositorio** y ejecutar:
+**Comprobación del alumno:** ejecuta la aplicación con los bloques indicados activados y verifica manualmente las URL y los cambios descritos en este apartado.
 
-~~~bash
-bash M01_MVC/TESTS/1.4_e2e.sh
-~~~
-
-El script construye y arranca una aplicación en cada estado. Para evitar modificar el proyecto del alumno, crea copias temporales donde elimina únicamente los comentarios de las fases ya habilitadas. Comprueba también el listado de tres productos, la navegación, la hoja CSS y la guía pública de capítulos anteriores.
 
 En los nuevos recorridos comprueba `GET /Productos/Estado`, `/Productos/Detalle/id`, `/catalogo/ficha/id` y `/catalogo/resumen/id`, con sus resultados 200/400/404. El reto recibe JSON real y se comprueba que contenga `id=2` y `nombre=Lápiz`.
 
@@ -2849,13 +2828,8 @@ Elige Lápiz y describe las tres rutas mediante las que podemos obtener informac
 
 Para cada una, identifica el método que se ejecuta, la instrucción que devuelve el resultado y el formato esperado. Después justifica por qué dos direcciones pueden usar una misma vista y por qué la tercera no necesita ninguna.
 
-Ejecuta por último, desde la raíz del repositorio y con el servidor manual detenido:
+**Comprobación del alumno:** ejecuta la aplicación con los bloques indicados activados y verifica manualmente las URL y los cambios descritos en este apartado.
 
-~~~bash
-bash M01_MVC/TESTS/1.4_e2e.sh
-~~~
-
-La secuencia automatizada comprueba seis estados, incluido el reto. No sustituye la explicación personal: un resultado correcto debe acompañarse de la capacidad de predecir qué hará cada endpoint antes de solicitarlo.
 
 Una vez comprendidas las acciones y rutas, el siguiente capítulo se centrará en la presentación Razor. Conservaremos los mismos endpoints de catálogo y detalle y aprenderemos a representar productos mediante layouts, secciones y vistas parciales reutilizables.
 
@@ -3483,13 +3457,8 @@ Después visitar `http://localhost:5091/Productos/Detalle/2`: la tarjeta reutili
 
 ### Verificación del reto
 
-Desde la **raíz del repositorio**, con la instancia manual detenida, ejecutar:
+**Comprobación del alumno:** ejecuta la aplicación con los bloques indicados activados y verifica manualmente las URL y los cambios descritos en este apartado.
 
-~~~bash
-bash M01_MVC/TESTS/1.5_e2e.sh
-~~~
-
-El escenario `reto` activa automáticamente la condición en una copia temporal junto con los pasos 1.5.2–1.5.5. Compila, inicia Kestrel y verifica que existe **una** etiqueta en el catálogo, **una** en `Detalle/2` y **ninguna** en `Detalle/1`. También vuelve a comprobar que las páginas y rutas anteriores siguen funcionando.
 
 **Reto de etiqueta económica con comprobaciones positivas y negativas.**
 
@@ -3566,13 +3535,8 @@ Después solicita `Detalle/1` y confirma que la etiqueta no aparece en la tarjet
 
 **Comprobación manual de los cambios.**
 
-Detén el servidor y ejecuta desde la raíz del repositorio:
+**Comprobación del alumno:** ejecuta la aplicación con los bloques indicados activados y verifica manualmente las URL y los cambios descritos en este apartado.
 
-~~~bash
-bash M01_MVC/TESTS/1.5_e2e.sh
-~~~
-
-El script construye copias temporales de las variantes y comprueba las respuestas HTTP. Si supera sus escenarios, sabemos que el código preparado permite activar los pasos sin introducir errores detectados por esas pruebas.
 
 Sin embargo, el alumno todavía debe explicar qué se ejecuta dentro del servidor, qué HTML recibe el navegador y por qué una vista parcial puede utilizarse en varios lugares. Los tests automáticos son una ayuda para la reproducibilidad, no sustituyen la comprensión del flujo.
 
@@ -3589,13 +3553,8 @@ Con la aplicación todavía ejecutándose, completa la tabla de resultados obser
 
 No debes modificar archivos para conseguir cada resultado: los cuatro casos utilizan el mismo estado final del proyecto. Esta es una prueba de que el comportamiento depende del modelo entregado a las vistas, no de crear una copia distinta de la plantilla para cada producto.
 
-Detén el servidor y ejecuta la batería de P1.5 desde la raíz del repositorio:
+**Comprobación del alumno:** ejecuta la aplicación con los bloques indicados activados y verifica manualmente las URL y los cambios descritos en este apartado.
 
-~~~bash
-bash M01_MVC/TESTS/1.5_e2e.sh
-~~~
-
-Al finalizar, explica qué estados reconstruye el script mediante copias temporales y por qué no modifica el proyecto inicial del alumno. Su objetivo es que los pasos activables y el reto permanezcan reproducibles incluso cuando se regresa a una fase anterior de la práctica.
 
 ### Conclusión del taller
 
