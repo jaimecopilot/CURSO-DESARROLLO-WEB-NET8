@@ -219,20 +219,18 @@ Muy diferente es una conexión rechazada cuando el proceso no está ejecutándos
 
 También hay que distinguir la ruta de un endpoint de la dirección de un archivo fuente. `/Home/Index` no es una orden al sistema operativo para abrir `Views/Home/Index.cshtml`. Es una dirección que el middleware MVC interpreta y relaciona con un controlador y una acción.
 
-**Por qué curl ayuda a entender lo que hace el navegador.**
+**Una comprobación cruzada: por qué el navegador y curl muestran cosas distintas.**
 
-La herramienta `curl` puede enviar peticiones HTTP sin renderizar la interfaz. Por ejemplo:
+Hasta este momento hemos visto cómo acceder a `/` desde el navegador y con `curl -i`. Las dos herramientas consultan el servidor, pero no ofrecen exactamente el mismo punto de vista. El navegador **interpreta** el HTML, aplica CSS y permite seguir enlaces; `curl` **muestra** la respuesta de una solicitud sin componer visualmente la página. Esta distinción es útil cuando el aspecto de una página puede inducirnos a un diagnóstico incorrecto.
 
-~~~bash
-curl -i http://localhost:5091/
-curl -i http://localhost:5091/Home/Index
-curl -i http://localhost:5091/ruta-inexistente
-curl -i http://localhost:5091/css/site.css
-~~~
+Supongamos que el navegador muestra correctamente el título, pero no percibimos ningún cambio después de activar el paso 1.1.4. Eso no demuestra que la modificación haya fallado: el paso añade una **cabecera de respuesta** que normalmente no se representa en la página. Para observarla debemos seleccionar el documento principal en F12 → Red o examinar la respuesta HTTP con `curl -i`. Si la cabecera aparece y el HTML no cambia, hemos confirmado justamente el comportamiento previsto.
 
-La opción `-i` permite incluir las cabeceras en la salida. Esta herramienta no sustituye al navegador para evaluar CSS, accesibilidad o experiencia de usuario, pero sí permite identificar el resultado del servidor independientemente de cómo se representa en pantalla. De hecho, puede ser decisiva para averiguar si una hoja de estilos falla porque recibe 404 o porque el navegador la recibió correctamente y otra regla CSS prevaleció.
+La situación inversa se presenta en el paso 1.1.5: al activar un bloque de la vista, cambia el cuerpo HTML, mientras el código de estado puede continuar siendo 200 y las cabeceras de la acción permanecer iguales. Para comprobarlo, no basta con buscar un nuevo nombre de cabecera: debemos inspeccionar el cuerpo de la respuesta o la representación visual.
 
-En el cuaderno práctico compararemos la observación de F12 con estas llamadas. Es importante poder responder exactamente qué información suministra cada herramienta: el panel de red ayuda a relacionar peticiones del documento y sus recursos; `curl` permite reproducir una única petición y leer sus cabeceras y cuerpo; el código C# del controlador explica quién ha generado ciertos valores.
+**Método de contraste.** Antes de modificar el archivo, identifica qué parte esperas que cambie: URL, estado, cabecera, cuerpo o apariencia. Después elige una observación capaz de distinguir ese efecto. La prueba más útil no es la que imprime más información, sino la que permite confirmar o descartar la hipótesis relacionada con la modificación.
+
+Este pequeño método evita una confusión frecuente: pensar que «no veo nada nuevo en pantalla» significa necesariamente que el código ejecutado es el mismo. La pantalla no representa toda la respuesta HTTP; el navegador también procesa información que permanece invisible para la persona usuaria.
+
 
 **Reconstruir una petición para diagnosticar un fallo.**
 
@@ -896,17 +894,9 @@ Este diagrama representa relaciones **lógicas**: crear objetos del modelo no im
 
 El flujo también puede resumirse así:
 
-~~~mermaid
-flowchart LR
-    A["GET /Productos"] --> B["Routing MVC"]
-    B --> C["Controller: Index()"]
-    C --> D["Datos del modelo: Producto"]
-    D --> C
-    C --> E["Resultado View(productos)"]
-    E --> F["Vista Razor tipada"]
-    F --> G["HTML de respuesta"]
-    G --> H["Navegador"]
-~~~
+El diagrama de secuencia anterior permite distinguir **quién inicia la solicitud** de **qué responsabilidad desempeña cada capa**. No representa una red de llamadas HTTP entre clases: la lista, el controlador y la vista se ejecutan dentro de la aplicación ASP.NET Core. El único intercambio HTTP de esa secuencia es el realizado con el navegador. Por ello basta con una única representación del recorrido, sin duplicarlo en varios diagramas equivalentes.
+
+
 
 Es importante entender dos diferencias temporales:
 
