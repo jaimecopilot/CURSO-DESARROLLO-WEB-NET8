@@ -1324,7 +1324,7 @@ GET /DOCUMENTACION/nota-interna.txt        -> 404, no publicado como estático
 
 **Comprobación de continuidad:** la portada y el catálogo del capítulo 1.2 deben seguir funcionando en todos los estados; no se ha desactivado ninguno de esos recorridos.
 
-**Verificación automatizada del ejercicio y el reto.**
+**Comprueba el resultado del ejercicio y el reto.**
 
 **Comprobación del alumno:** ejecuta la aplicación con los bloques indicados activados y verifica manualmente las URL y los cambios descritos en este apartado.
 
@@ -1908,7 +1908,7 @@ El ejemplo muestra los elementos relevantes de la respuesta, no necesariamente t
 
 Una URL que retorna 404 en el estado base puede retornar 200 después de activar su acción. La diferencia es **el código habilitado**, no el navegador.
 
-**Pruebas automáticas con servidor HTTP real.**
+**Comprobaciones de las respuestas HTTP.**
 
 **Comprobación del alumno:** ejecuta la aplicación con los bloques indicados activados y verifica manualmente las URL y los cambios descritos en este apartado.
 
@@ -2030,7 +2030,7 @@ La finalidad de una revisión técnica no es demostrar únicamente que las rutas
 
 **No debe aparecer una ficha para un id inexistente.**
 
-Si `/Productos/Detalle/99` mostrara una ficha con datos del producto 1, habría una discrepancia. La condición del controlador establece que, cuando no se encuentra el objeto, se devuelve `NotFound()`. El test del capítulo comprueba ese comportamiento.
+Si `/Productos/Detalle/99` mostrara una ficha con datos del producto 1, habría una discrepancia. La condición del controlador establece que, cuando no se encuentra el objeto, se devuelve `NotFound()`. Comprueba ese comportamiento solicitando la URL indicada.
 
 **No debe aparecer HTML completo en la acción de Estado.**
 
@@ -2132,7 +2132,7 @@ Una vez comprendidas las acciones y rutas, el siguiente capítulo se centrará e
 
 **Teoría relacionada:** capítulo 1.5 del Markdown teórico de M01; conviene tener abiertos los apartados sobre `@model`, expresiones, `@if`, `@foreach`, `@section`, `@RenderBody()` y el Partial Tag Helper.
 
-**Tiempo orientativo de aula:** 20 minutos de teoría y 50 de práctica incluyendo reto. Las explicaciones desarrolladas permiten estudio individual; las comprobaciones automáticas no consumen tiempo de aula.
+**Tiempo orientativo de aula:** 20 minutos de teoría y 50 de práctica incluyendo reto. Las explicaciones desarrolladas también sirven para el estudio individual después de la clase.
 
 **Estado inicial:** el proyecto del capítulo **1.5** contiene las páginas completas de P1.4: listado con tres enlaces de detalle, acción `Detalle(int id)`, acción `Ficha(int id)` por atributos y la acción de texto `Estado()`. El reto opcional de P1.4 sigue comentado. Lo nuevo de P1.5 está preparado en archivos Razor con comentarios que el alumno irá retirando.
 
