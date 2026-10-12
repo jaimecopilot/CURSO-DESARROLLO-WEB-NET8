@@ -13,20 +13,18 @@ jobs:
   formularios-sin-base:
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        practica: ["2.1", "2.2", "2.3"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-dotnet@v4
         with:
           dotnet-version: "8.0.x"
-      - name: P2.1 - GET, POST, antiforgery y reto
+      - name: Prueba HTTP P${{ matrix.practica }}
         shell: bash
-        run: bash M02_FORMULARIOS_RAZOR/TESTS/2.1_e2e.sh
-      - name: P2.2 - Tag Helpers y enlace a acciones
-        shell: bash
-        run: bash M02_FORMULARIOS_RAZOR/TESTS/2.2_e2e.sh
-      - name: P2.3 - ModelState, validación y reto
-        shell: bash
-        run: bash M02_FORMULARIOS_RAZOR/TESTS/2.3_e2e.sh
+        run: bash -x M02_FORMULARIOS_RAZOR/TESTS/${{ matrix.practica }}_e2e.sh
   razor-pages-localdb:
     runs-on: windows-latest
     timeout-minutes: 35
