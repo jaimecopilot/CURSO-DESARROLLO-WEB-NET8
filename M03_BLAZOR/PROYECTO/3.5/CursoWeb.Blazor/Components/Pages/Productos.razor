@@ -1,40 +1,118 @@
 @page "/productos"
 @rendermode InteractiveServer
-<PageTitle>Comunicación</PageTitle>
-<h1>P3.5 | Comunicación padre–hijo</h1>
+<PageTitle>Catálogo y comunicación</PageTitle>
+<h1>P3.5 | El mismo catálogo, ahora con EventCallback</h1>
+<p>Conservamos selección, alta, edición y consulta de P3.4. En este punto, trasladamos el evento de la tarjeta al hijo sin trasladar la propiedad de la lista.</p>
 <p id="seleccion">Seleccionado: @seleccion</p>
+
+<section aria-label="Consultar catálogo">
+    <label>Buscar por nombre: <input id="buscar" @bind="busqueda" @bind:event="oninput" /></label>
+    <label>Precio máximo: <input id="precio-maximo" type="number" min="0" step="0.5" @bind="precioMaximo" /></label>
+    <button id="alternar-orden" @onclick="AlternarOrden">Invertir orden por precio</button>
+    <p id="resumen-filtrado">Mostrando @ProductosVisibles.Count() de @productos.Count productos</p>
+</section>
+
 <div class="tarjetas" id="tarjetas-productos">
-    @foreach (var producto in productos)
+    @foreach (var producto in ProductosVisibles)
     {
-        @* PASO 3.5.2: al activar AlSeleccionar en la tarjeta,
-           reemplaza esta línea por la variante siguiente. *@
-        <TarjetaProducto Producto="producto" />
-        @* <TarjetaProducto Producto="producto" AlSeleccionar="Seleccionar" /> *@
-        @* RETO 3.5: reemplaza por esta tercera variante al activar AlQuitar: *@
-        @* <TarjetaProducto Producto="producto" AlSeleccionar="Seleccionar" AlQuitar="Quitar" /> *@
+        <div class="tarjeta-con-acciones" data-elemento-id="@producto.Id">
+            @* PASO 3.5.2: pasa la selección desde el botón del padre al callback del hijo.
+               Activa AlSeleccionar en TarjetaProducto y reemplaza la etiqueta siguiente.
+               No mantengas simultáneamente el botón seleccionar-padre. *@
+            <TarjetaProducto Producto="producto" />
+            @* <TarjetaProducto Producto="producto" AlSeleccionar="SeleccionarParaEditar" /> *@
+            @* RETO 3.5: reemplaza por esta variante tras activar AlQuitar en el hijo. *@
+            @* <TarjetaProducto Producto="producto" AlSeleccionar="SeleccionarParaEditar" AlQuitar="Quitar" /> *@
+            <button class="seleccionar-padre" @onclick="() => SeleccionarParaEditar(producto.Id)">Seleccionar</button>
+        </div>
     }
 </div>
 <p id="cantidad">Total: @productos.Count</p>
-@* RETO INTEGRADOR 3.5.5: activa los dos elementos y el bloque C#.
-   Cambia únicamente AlQuitar="Quitar" por AlQuitar="QuitarConDeshacer"
-   en la tercera variante de la tarjeta. *@
+
+<section aria-label="Crear y editar productos">
+    <label>Nombre nuevo: <input id="nombre-nuevo" @bind="nuevoNombre" /></label>
+    <button id="agregar" @onclick="Agregar">Añadir producto</button>
+    <label>Editar nombre: <input id="editar-nombre" @bind="nombreEditado" /></label>
+    <button id="guardar-cambio" @onclick="GuardarCambio">Guardar nombre</button>
+    <button id="limpiar" @onclick="Limpiar">Limpiar selección</button>
+</section>
+
+@* RETO INTEGRADOR 3.5.5: tras conectar AlQuitar a QuitarConDeshacer,
+   activa estos controles y el bloque C# de recuperación. *@
 @* <button id="deshacer" disabled="@(eliminacionPendiente is null)" @onclick="DeshacerEliminacion">Deshacer última eliminación</button> *@
 @* <p id="estado-deshacer">@TextoDeshacer</p> *@
+
 @code {
+    // Estado de P3.4 conservado en P3.5: no se reinicia al cambiar de capítulo.
     private readonly List<Producto> productos =
     [
         new(1, "Cuaderno", 4.50m),
         new(2, "Lápiz", 1.20m),
         new(3, "Carpeta", 3.75m)
     ];
-    private string seleccion = "ninguno";
 
-    /* PASO 3.5.2 INICIO
-    private void Seleccionar(int id)
+    private string seleccion = "ninguno";
+    private string nuevoNombre = string.Empty;
+    private int siguienteId = 4;
+    private int? idEnEdicion;
+    private string nombreEditado = string.Empty;
+
+    private void SeleccionarParaEditar(int id)
     {
-        seleccion = productos.First(p => p.Id == id).Nombre;
+        var producto = productos.First(p => p.Id == id);
+        idEnEdicion = id;
+        seleccion = producto.Nombre;
+        nombreEditado = producto.Nombre;
     }
-    PASO 3.5.2 FIN */
+
+    private void GuardarCambio()
+    {
+        if (idEnEdicion is null || string.IsNullOrWhiteSpace(nombreEditado))
+            return;
+        var indice = productos.FindIndex(p => p.Id == idEnEdicion.Value);
+        if (indice < 0)
+            return;
+        productos[indice] = productos[indice] with { Nombre = nombreEditado.Trim() };
+        seleccion = productos[indice].Nombre;
+    }
+
+    private void Agregar()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoNombre))
+            return;
+        productos.Add(new Producto(siguienteId++, nuevoNombre.Trim(), 5m));
+        nuevoNombre = string.Empty;
+    }
+
+    private void Limpiar()
+    {
+        seleccion = "ninguno";
+        idEnEdicion = null;
+        nombreEditado = string.Empty;
+    }
+
+    private string busqueda = string.Empty;
+    private decimal? precioMaximo;
+    private bool ordenAscendente = true;
+
+    private IEnumerable<Producto> ProductosVisibles =>
+        (ordenAscendente
+            ? productos.OrderBy(p => p.Precio).ThenBy(p => p.Id)
+            : productos.OrderByDescending(p => p.Precio).ThenBy(p => p.Id))
+        .Where(p =>
+            (string.IsNullOrWhiteSpace(busqueda) ||
+             p.Nombre.Contains(busqueda.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+            (precioMaximo is null || p.Precio <= precioMaximo.Value));
+
+    private void AlternarOrden() => ordenAscendente = !ordenAscendente;
+
+    /* RETO 3.5 INICIO
+    private void Quitar(int id)
+    {
+        productos.RemoveAll(p => p.Id == id);
+        Limpiar();
+    }
+    RETO 3.5 FIN */
 
     /* RETO INTEGRADOR 3.5.5 INICIO
     private (Producto Producto, int Indice)? eliminacionPendiente;
@@ -50,7 +128,7 @@
             return;
         eliminacionPendiente = (productos[indice], indice);
         productos.RemoveAt(indice);
-        seleccion = "ninguno";
+        Limpiar();
     }
 
     private void DeshacerEliminacion()
@@ -62,12 +140,4 @@
         eliminacionPendiente = null;
     }
     RETO INTEGRADOR 3.5.5 FIN */
-
-    /* RETO 3.5 INICIO
-    private void Quitar(int id)
-    {
-        productos.RemoveAll(p => p.Id == id);
-        seleccion = "ninguno";
-    }
-    RETO 3.5 FIN */
 }
