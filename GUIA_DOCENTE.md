@@ -5,7 +5,7 @@
 Formación presencial de 30 horas lectivas (lunes–viernes, 6 h cada mañana), con prioridad práctica. El alumnado domina C#, programación asíncrona básica, ASP.NET Core Web API y Entity Framework Core; no se vuelve a impartir esas materias. No se da por conocido MVC, Razor Pages, Blazor, IIS ni Docker.
 
 Dos aplicaciones pequeñas, con dominio de productos:
-- **A (MVC)**, días 1–2: controladores, vistas Razor, formularios, validación y persistencia SQLite con EF Core.
+- **A (MVC)**, días 1–2: controladores, vistas Razor, formularios, validación y persistencia SQL Server Express LocalDB con EF Core.
 - **B (Blazor Web App, Interactive Server)**, días 3–5: componentes, eventos, binding, servicios y consumo de una API REST auxiliar con datos en memoria.
 - **API auxiliar**: parte del material proporcionado; solo GET/POST y gestión simple de errores. No se enseña Web API de nuevo.
 - **Seguridad**: demostración preconfigurada y explícitamente limitada; no implementar Identity desde cero.
@@ -27,7 +27,7 @@ Explicar el recorrido petición→routing→acción→vista; mostrar las convenc
 
 ### Día 2 — Formularios y Razor Pages (120/210/30)
 
-Centrar la explicación en model binding, antiforgery, Tag Helpers y ModelState. El CRUD P2.4 concentra 115 minutos; se reutiliza EF Core que el alumnado ya conoce. Mantener el ejemplo Razor Pages P2.5 deliberadamente pequeño. Salida: CRUD válido con errores de formulario visibles y SQLite simple.
+Centrar la explicación en model binding, antiforgery, Tag Helpers y ModelState. El CRUD P2.4 concentra 115 minutos; se reutiliza EF Core que el alumnado ya conoce. Mantener el ejemplo Razor Pages P2.5 deliberadamente pequeño. Salida: CRUD válido con errores de formulario visibles y SQL Server Express LocalDB.
 
 ### Día 3 — Blazor (120/210/30)
 
@@ -50,24 +50,24 @@ Destinar 90 min prácticos a consolidar Blazor B, NO construir una tercera aplic
 - **API no responde:** verificar que está iniciada, puerto real, URL del servicio y códigos de respuesta. Usar URL independiente por proceso.
 - **IIS falla al arrancar:** verificar versión de Hosting Bundle, registro del módulo ASP.NET Core, App Pool, permisos de archivos y diagnóstico local.
 - **Docker no expone la web:** verificar motor activo, nombre de imagen y mapeo puerto-host:8080-contenedor para la imagen ASP.NET Core 8.
-- **Falta infraestructura preparada:** registrar la práctica como no ejecutada y utilizar únicamente la demostración prevista; no atribuir un E2E superado.
+- **Falta infraestructura preparada:** registrar la práctica como no ejecutada y utilizar únicamente la demostración prevista; no presentar como realizada una práctica no ejecutada.
 
 ## Evaluación funcional mínima
 
 Se considera completado M01 cuando listado/detalle y navegación funcionan; M02 cuando un producto se crea, edita, elimina y la validación falla/funciona donde corresponde; M03 cuando componentes padre/hijo y eventos actualizan la pantalla; M04 cuando Blazor consume GET/POST y distingue accesos anónimos de autenticados en la demo; M05 cuando se ejecuta/publica la misma aplicación bajo tres mecanismos y el proyecto Blazor final funciona.
 
-Las evidencias de prueba automatizada deben cubrir los recorridos clave de extremo a extremo, y cada estado intermedio que se indique ejecutar debe compilar o estar acompañado de un estado correcto de activación. Separar evidencias internas de los documentos docentes.
+Cada estado intermedio indicado al alumno debe estar acompañado de instrucciones de activación y comprobaciones que pueda realizar desde el navegador o la consola.
 
 ## Regla obligatoria para los retos
 
 Los **retos y ejercicios de consolidación con código** son parte del material práctico, no sugerencias vagas. Cada reto programable debe contener dentro de `Mxx_PRACTICAS.md`: enunciado, objetivo, preparación, ubicación exacta de los archivos, código completo que se activa o cambia, explicación de cada cambio, comandos de ejecución, resultado esperado y soluciones razonadas para consulta. El código debe estar **también en el proyecto del capítulo**, identificado mediante comentarios o variantes reproducibles para que el alumno comente y descomente los bloques adecuados. Si un cambio no puede expresarse en comentarios sin invalidar el archivo, se proporciona una variante completa de ese archivo con instrucciones precisas.
 
-Se probará mediante compilación y E2E cada reto que se indique ejecutar, incluyendo comprobaciones de sus resultados específicos y regresión de los ejercicios anteriores. El reto puede ser una variante breve de un paso anterior; no debe introducir contenidos fuera del temario ni sobrepasar el tiempo práctico asignado. Los retos conceptuales o de observación no necesitan bloques de código artificiales, pero sí un resultado comprobable.
+Cada reto programable debe poder compilarse y ejecutarse en los estados propuestos, incluyendo comprobaciones observables y continuidad de los ejercicios anteriores. El reto puede ser una variante breve de un paso anterior; no debe introducir contenidos fuera del temario ni sobrepasar el tiempo práctico asignado. Los retos conceptuales o de observación no necesitan bloques de código artificiales, pero sí un resultado comprobable.
 
 **Criterio de cierre de capítulo:** teoría, ejercicios guiados **y retos** explicados en Markdown, código localizado en el proyecto y pruebas realmente ejecutadas; nunca considerar completo un reto si solo figura un enunciado o una respuesta verbal.
 
 ## Política editorial
 
-Material docente por módulo: TEORIA/Mxx_TEORIA.md, PRACTICAS/Mxx_PRACTICAS.md y sus dos PDF. Construcción punto a punto: cada capítulo N.N se añade a los documentos acumulativos del módulo. Un capítulo no se declara cerrado hasta tener teoría completa, práctica íntegra, proyecto trazable y evidencias técnicas. Generar PDF solo al cerrar los Markdown. No incluir anotaciones internas de edición, auditorías ni informes de CI en el material del alumno.
+Material docente por módulo: TEORIA/Mxx_TEORIA.md, PRACTICAS/Mxx_PRACTICAS.md y sus dos PDF. Construcción punto a punto: cada capítulo N.N se añade a los documentos acumulativos del módulo. Un capítulo reúne teoría completa, práctica íntegra y un proyecto cuyo código corresponde a los pasos descritos. Generar PDF solo al cerrar los Markdown. No incluir anotaciones internas de edición, auditorías ni informes de CI en el material del alumno.
 
 Los tiempos de la matriz son planificaciones docentes; el ajuste real se confirmará tras una clase piloto, sin sumar temas fuera del alcance.
