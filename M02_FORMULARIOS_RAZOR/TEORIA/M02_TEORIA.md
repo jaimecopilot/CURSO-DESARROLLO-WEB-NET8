@@ -784,3 +784,442 @@ No se introducirán migraciones avanzadas, arquitecturas adicionales ni repaso e
 - Microsoft Learn, Tutorial MVC con validación de entradas: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/validation?view=aspnetcore-8.0
 - Microsoft Learn, Model binding en MVC: https://learn.microsoft.com/en-us/aspnet/core/mvc/models/model-binding?view=aspnetcore-8.0
 - Microsoft Learn, Formularios y Tag Helpers: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/working-with-forms?view=aspnetcore-8.0
+
+# 2.4. CRUD persistente de productos con EF Core y SQL Server Express LocalDB
+
+## Cuando una confirmación deja de ser suficiente
+
+En P2.1 aprendimos a recibir un producto mediante un POST protegido. En P2.2 mejoramos la generación del formulario con Tag Helpers; en P2.3 diferenciamos un dato recibido de un dato válido, mediante un modelo de entrada, DataAnnotations y `ModelState`. Hemos progresado sin cambiar de aplicación ni introducir dependencias que ocultaran la responsabilidad de cada paso. Sin embargo, el usuario todavía podía preguntar: **«He enviado un producto correcto; ¿por qué no aparece cuando vuelvo al catálogo?»**. Hasta ahora, la respuesta era que el controlador solamente devolvía una vista de confirmación: el estado persistente no se modificaba.
+
+El problema de 2.4 consiste en conectar la interfaz MVC que ya conocemos con una fuente de datos que sobreviva a las peticiones HTTP y al reinicio del proceso. Utilizaremos **Entity Framework Core 8 y SQL Server Express LocalDB**. El alumnado ya conoce el funcionamiento general de EF Core y C#, de modo que no necesitamos repetir un curso de mapeo objeto-relacional: nos concentraremos en las decisiones específicas de una aplicación MVC con formularios, validación, vistas Razor, identificadores de ruta y respuestas HTTP.
+
+El resultado del itinerario esencial será un **CRUD**: consultar una lista y un detalle (**Read**), crear (**Create**), editar (**Update**) y eliminar (**Delete**) productos. No se desarrollarán roles empresariales, autenticación Identity, servicios distribuidos, mecanismos de concurrencia avanzados ni un repositorio de acceso a datos artificial. Esas cuestiones tienen valor propio, pero exceden el alcance de seis horas del segundo día y pueden distraernos de la conexión entre un formulario Razor y una entidad persistente.
+
+Antes de tocar SQL Server debemos definir qué significa aquí **persistir**. Si enviamos Nombre = «Rotulador» y Precio = 7, el nuevo producto debe aparecer en `/Productos`, disponer de un identificador que permita abrir `/Productos/Detalle/{id}` y seguir existiendo después de detener y arrancar de nuevo el servidor. El mismo principio se aplica a una modificación de precio o a una eliminación. Una página de confirmación sin guardar no cumple ese requisito, por muy correcto que sea su HTML.
+
+## Una sola aplicación y una base LocalDB deliberadamente sencilla
+
+El proyecto conserva la estructura básica de MVC: controladores en `Controllers/`, tipos de entrada y dominio en `Models/`, vistas en `Views/`, configuración de servicios y middleware en `Program.cs`. Añadimos una carpeta `Data/` con el contexto EF Core y configuramos una conexión SQL Server. No estamos creando una API auxiliar ni trasladando la lógica al navegador.
+
+**SQL Server Express LocalDB es una tecnología ligada al entorno Windows.** En nuestro laboratorio permite disponer de una instancia local sin explicar la administración de un servidor SQL remoto. No debe interpretarse como una solución directamente transportable a contenedores Linux: en M05, cuando comparemos Kestrel, IIS y Docker, utilizaremos demostraciones compatibles con el entorno concreto y explicaremos esta limitación.
+
+La cadena de conexión se encuentra bajo el nombre `Productos` en `appsettings.json`:
+
+~~~json
+{
+  "ConnectionStrings": {
+    "Productos": "Server=(localdb)\\MSSQLLocalDB;Database=CursoWebProductos;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true"
+  }
+}
+~~~
+
+En este archivo JSON, la barra inversa del nombre de instancia aparece escapada como `\\`. En la cadena SQL resultante designa la instancia `(localdb)\\MSSQLLocalDB`. La base se llama `CursoWebProductos`. El atributo `Trusted_Connection=True` permite usar autenticación integrada, apropiada para un ejercicio local ejecutado con la cuenta de Windows del alumno; no estamos preparando credenciales de despliegue ni almacenando una contraseña en el repositorio.
+
+**Importante para el laboratorio:** cada persona debe utilizar su propia instancia y base local. Si ya ha usado una base con ese nombre en ejercicios anteriores, su contenido y esquema podrían diferir del estado inicial descrito aquí. Cambiar el nombre de la base a uno nuevo para la práctica evita interferencias sin borrar datos de otros ejercicios. No se debe recomendar destruir bases de datos desconocidas «para empezar de cero». Más adelante mostraremos cómo se puede suministrar una cadena alternativa con la variable `ConnectionStrings__Productos`, sin editar el fichero distribuido.
+
+Para comprobar la instalación en Windows puede utilizarse `sqllocaldb info` desde una terminal. Que el comando exista no demuestra que la aplicación pueda conectarse: también influyen la instancia, los permisos y la configuración. La observación decisiva será el arranque de la aplicación y la consulta real del catálogo.
+
+## Producto y ProductoFormulario: conservar lo aprendido al escribir en la base
+
+La entidad del catálogo conserva tres propiedades:
+
+~~~csharp
+public sealed class Producto
+{
+    public int Id { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public decimal Precio { get; set; }
+}
+~~~
+
+Esta clase representa el dato persistente: `Id` identifica una fila, `Nombre` describe el producto y `Precio` representa una cantidad. EF Core podrá interpretar `Id` como clave primaria mediante sus convenciones habituales. En SQL Server, ese identificador podrá generarse al insertar el registro. La acción de alta **no necesita recibir un Id elegido por el navegador**.
+
+En cambio, el formulario seguirá usando el contrato validado de P2.3:
+
+~~~csharp
+public sealed class ProductoFormulario
+{
+    [Required(ErrorMessage = "Indica el nombre.")]
+    [StringLength(60, MinimumLength = 2,
+        ErrorMessage = "El nombre debe tener entre 2 y 60 caracteres.")]
+    public string? Nombre { get; set; }
+
+    [Required(ErrorMessage = "Indica el precio.")]
+    [Range(typeof(decimal), "0.01", "9999.99",
+        ParseLimitsInInvariantCulture = true,
+        ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
+    public decimal? Precio { get; set; }
+}
+~~~
+
+La propiedad `Nombre` se mantiene anulable en el tipo de entrada para representar el caso en el que falta el campo, y `Precio` es `decimal?` para distinguir un número de una ausencia. Las anotaciones declaran las restricciones: nombre obligatorio de dos a sesenta caracteres y precio dentro de un intervalo ilustrativo. El argumento `ParseLimitsInInvariantCulture = true` se refiere a la interpretación de los límites textuales del atributo; **no configura por sí solo la cultura de todas las solicitudes HTTP**.
+
+El valor de esta separación no es «tener más clases». Su valor es definir **qué acepta el servidor desde un formulario**. Un usuario no debe poder elegir arbitrariamente la identidad del producto nuevo ni modificar otras propiedades futuras solo añadiendo campos ocultos a la petición. En un proyecto más grande esta decisión puede formar parte de un sistema de DTOs, pero aquí una clase concreta es suficiente. Evita introducir una capa de mapeo adicional para copiar únicamente dos propiedades.
+
+La ruta de edición sigue la misma regla: tomamos el `id` de la ruta, buscamos la entidad que existe y asignamos explícitamente las propiedades aprobadas del `ProductoFormulario`. No recibimos un `Producto` completo para marcarlo como modificado sin revisar su procedencia.
+
+## DbContext: una dependencia de los controladores, no de las vistas
+
+La nueva clase `AppDbContext`, en `Data/AppDbContext.cs`, hereda de `DbContext`. Expone el conjunto `Productos`:
+
+~~~csharp
+public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
+    : DbContext(options)
+{
+    public DbSet<Producto> Productos => Set<Producto>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Producto>()
+            .Property(p => p.Precio).HasPrecision(10, 2);
+    }
+}
+~~~
+
+No necesitamos explicar todos los estados internos del change tracker para comprender qué representa este contexto: es la pieza que utiliza EF Core para construir consultas y administrar cambios sobre nuestra base. La configuración `HasPrecision(10, 2)` especifica una precisión coherente con el uso de precios de dos decimales. No significa que la aplicación haya implementado cálculos financieros rigurosos ni sustituye la validación del intervalo en el formulario.
+
+El controlador declara la dependencia mediante su constructor:
+
+~~~csharp
+private readonly AppDbContext _db;
+
+public ProductosController(AppDbContext db) => _db = db;
+~~~
+
+ASP.NET Core puede resolver esta dependencia porque registramos el contexto en el contenedor de servicios:
+
+~~~csharp
+var cadena = builder.Configuration.GetConnectionString("Productos")
+    ?? throw new InvalidOperationException("Falta ConnectionStrings:Productos.");
+
+builder.Services.AddDbContext<AppDbContext>(
+    options => options.UseSqlServer(cadena));
+~~~
+
+Este es un **punto de continuidad con M01**: allí aprendimos que el host registra servicios antes de construir la aplicación. Ahora registramos uno más. La acción no abre manualmente la conexión con `new SqlConnection`, y la vista no crea un `DbContext`. El contenedor proporciona el contexto a la aplicación con el ámbito habitual de la solicitud, y el controlador trabaja con esa dependencia. [Documentación EF Core sobre DbContext y DI](https://learn.microsoft.com/en-us/ef/core/dbcontext-configuration/).
+
+La pregunta pedagógica relevante es: «¿qué ganamos al recibir `AppDbContext` en lugar de instanciarlo directamente?». La configuración permanece centralizada y las acciones no necesitan conocer cómo se construye una conexión. Cuando el alumno abra `ProductosController`, encontrará operaciones sobre objetos de dominio y un contexto ya suministrado, no cadenas SQL repetidas en cada método.
+
+## Crear el esquema sin introducir un segundo curso de migraciones
+
+El proyecto contiene un bloque de inicialización de laboratorio:
+
+~~~csharp
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    bool baseCreada = db.Database.EnsureCreated();
+
+    if (baseCreada)
+    {
+        db.Productos.AddRange(
+            new Producto { Nombre = "Cuaderno", Precio = 4.50m },
+            new Producto { Nombre = "Lápiz", Precio = 1.20m },
+            new Producto { Nombre = "Carpeta", Precio = 3.75m });
+        db.SaveChanges();
+    }
+}
+~~~
+
+El contexto se obtiene dentro de un ámbito explícito porque esta inicialización tiene lugar durante el arranque del host, fuera de una solicitud HTTP. `EnsureCreated` permite **crear una base nueva con su esquema** si todavía no existe. El valor booleano indica si la base se creó en esa operación; solamente en ese caso se insertan los tres registros de demostración. Esa condición no es ornamental: si el alumno elimina productos y reinicia Kestrel, el programa **no debe recrear los datos eliminados**.
+
+Es importante explicar los límites de `EnsureCreated`. No lleva un historial de migraciones ni actualiza automáticamente un esquema anterior cuando cambia el modelo. **No se debe mezclar `EnsureCreated` con el flujo normal de migraciones `Migrate` sobre la misma base**. Para aplicaciones que evolucionan y se despliegan de forma sostenida, las migraciones tienen otro propósito. Aquí escogemos un estado inicial simplificado porque el alumnado ya sabe EF Core y el curso necesita destinar tiempo a los formularios MVC. [Documentación EF Core sobre EnsureCreated](https://learn.microsoft.com/en-us/ef/core/managing-schemas/ensure-created).
+
+La inicialización no es una operación apropiada para ejecutar en cada petición ni para copiar sin revisión a una aplicación de producción. Si LocalDB no está disponible, el programa puede fallar antes de empezar a escuchar en Kestrel porque la inicialización necesita conectarse. En ese caso, no debemos interpretar el error como un fallo de routing o una vista que no existe; la causa se encuentra en la dependencia SQL.
+
+### El primer arranque es una observación, no solo un trámite
+
+Cuando el estudiante ejecuta la aplicación por primera vez sobre una base nueva, debería observar que la lista muestra Cuaderno, Lápiz y Carpeta. Después puede detener Kestrel, volver a iniciarlo y comprobar que esos mismos datos no se duplican. La semilla únicamente se aplica al crear la base. Esta comprobación anticipa el concepto de persistencia incluso antes de activar Create.
+
+Si la lista aparece vacía al usar una base que ya existía, no es correcto deducir automáticamente que EF Core haya borrado los datos. Debemos inspeccionar qué base se está utilizando, si su esquema corresponde al proyecto y si había filas previas. Tampoco debemos borrar sin confirmar una base con el mismo nombre perteneciente a otro trabajo. El laboratorio tiene que ser reproducible **sin poner en riesgo otros datos del alumno**.
+
+## Read: reutilizar Index y Detalle sobre consultas reales
+
+En M01, la acción `Index` creaba o recuperaba una lista fija de tres productos. En P2.4 la acción consulta el conjunto EF Core:
+
+~~~csharp
+[HttpGet]
+public async Task<IActionResult> Index()
+{
+    var productos = await _db.Productos
+        .AsNoTracking()
+        .OrderBy(p => p.Id)
+        .ToListAsync();
+
+    return View(productos);
+}
+~~~
+
+El método sigue devolviendo una vista Razor con una colección. Esto nos permite conservar los conocimientos de presentación, parciales, listas y enlaces adquiridos durante M01. Lo que cambia es **la procedencia de los datos**, no el motor que genera el HTML. El método de consulta es asíncrono, porque el acceso al proveedor de datos implica trabajo de entrada y salida; `ToListAsync` materializa el resultado de la consulta.
+
+`AsNoTracking()` indica que no necesitamos que el contexto haga seguimiento de las entidades que estamos recuperando solamente para mostrarlas. Se trata de una decisión adecuada para listas y detalles de lectura. En cambio, en las operaciones de edición y eliminación recuperaremos una entidad que el contexto pueda seguir para aplicar `SaveChangesAsync`.
+
+`OrderBy(p => p.Id)` da a los resultados un orden explícito y reproducible. No debemos asumir que SQL Server devolverá siempre los registros en orden de inserción si no solicitamos una ordenación. En nuestros primeros ejercicios es útil que Cuaderno, Lápiz y Carpeta aparezcan de forma estable, pero esa elección se puede cambiar más adelante.
+
+La acción de detalle recibe un identificador desde el routing y devuelve `NotFound()` cuando no existe un producto con ese valor:
+
+~~~csharp
+[HttpGet]
+public async Task<IActionResult> Detalle(int id)
+{
+    if (id <= 0)
+        return BadRequest("El identificador debe ser mayor que cero.");
+
+    var producto = await _db.Productos.AsNoTracking()
+        .FirstOrDefaultAsync(p => p.Id == id);
+
+    return producto is null ? NotFound() : View(producto);
+}
+~~~
+
+La distinción entre **400 por un identificador estructuralmente inválido** y **404 por un identificador positivo que no existe** resulta más clara ahora que la fuente de datos puede crecer, cambiar o perder registros. El enlace generado en el catálogo incorpora el Id de cada entidad. La vista no busca en SQL Server; el controlador decide qué objeto le entrega.
+
+## Create: transformar un POST válido en un INSERT persistente
+
+En P2.3 una solicitud correcta terminaba en `View("Confirmacion", producto)`. Esa vista era útil para estudiar el binder, pero la entidad se perdía como nuevo registro porque no la habíamos guardado. En P2.4 activaremos una acción POST que crea una entidad y llama a `SaveChangesAsync`.
+
+~~~csharp
+[HttpPost]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> Crear(ProductoFormulario entrada)
+{
+    if (!ModelState.IsValid)
+        return View(entrada);
+
+    var producto = new Producto
+    {
+        Nombre = entrada.Nombre!,
+        Precio = entrada.Precio!.Value
+    };
+
+    _db.Productos.Add(producto);
+    await _db.SaveChangesAsync();
+
+    return RedirectToAction(nameof(Detalle), new { id = producto.Id });
+}
+~~~
+
+El fragmento reproduce el bloque que el alumno activará en `ProductosController`. Observa que **no desaparece la protección antiforgery ni la comprobación de ModelState**: la persistencia se añade *después* de haber aprendido a recibir y validar. La aplicación no debería escribir un producto inválido simplemente porque existe una base disponible.
+
+El método `Add` informa al contexto de que queremos crear una entidad nueva. La llamada `SaveChangesAsync` materializa el cambio en la base de datos. Antes de guardar, `producto.Id` representa su valor temporal o predeterminado; después de guardar, SQL Server habrá asignado el identificador persistente mediante el mecanismo configurado para la clave. No hay que inventar el número 4 como hicimos en una confirmación temporal de P2.3.
+
+La última línea merece atención especial: **no devuelve directamente otra vista**. Utiliza `RedirectToAction` para indicar al navegador que realice una petición GET a la ficha del producto creado. Este patrón es conocido como **Post/Redirect/Get (PRG)**. Si el usuario actualiza la página final, se recarga un GET de detalle en lugar de repetir automáticamente un POST de inserción. No constituye una garantía universal contra duplicados o envíos concurrentes, pero organiza de forma adecuada el flujo habitual de un formulario.
+
+La secuencia observable será POST protegido a `/Productos/Crear`, **302** de redirección y GET a `/Productos/Detalle/{id}`. Si el navegador sigue automáticamente la redirección, normalmente el usuario verá el HTML de detalle sin prestar atención al 302 intermedio. Por eso, para estudiar el protocolo, conviene utilizar la pestaña Red y observar las dos solicitudes por separado.
+
+### Qué pasa cuando la validación falla
+
+Si el nombre tiene un solo carácter o el precio es cero, `ModelState.IsValid` es falso y se ejecuta `return View(entrada)`. El controlador **no llega** a `_db.Productos.Add` ni a `SaveChangesAsync`. La vista muestra mensajes de error y conserva los valores admitidos. El alumno debe comprobar que el catálogo no contiene un producto nuevo y que el número de filas no aumenta tras una petición inválida.
+
+La validación servidor-cliente sigue funcionando como en P2.3. No vamos a «optimizar» la acción eliminando el `if` para confiar únicamente en los atributos HTML. Un POST puede proceder de un cliente sin JavaScript y debe someterse a las mismas reglas del modelo de entrada.
+
+### El problema de una segunda solicitud idéntica
+
+PRG facilita la navegación tras un envío correcto, pero no impide que un usuario realice deliberadamente dos POST válidos desde dos pestañas o envíe dos veces la misma información. La base puede contener registros duplicados si no existen reglas de unicidad. En este ejercicio **no inventaremos un índice único ni un algoritmo de idempotencia** que no figura en el temario; el objetivo es comprender el flujo persistente de MVC.
+
+Una ampliación opcional de otro curso podría definir qué significa «producto duplicado» y qué política de negocio debe aplicarse. Aquí basta con reconocer que un patrón de navegación y una restricción de datos resuelven problemas distintos.
+
+## Update: cargar primero, editar después y guardar un cambio concreto
+
+La edición no es una creación con un botón diferente. Para editar correctamente hay que identificar una entidad **que ya existe**. El formulario GET de `Editar(int id)` busca el producto y presenta sus valores en un `ProductoFormulario`. El POST vuelve a recibir ese formulario validado, busca la entidad y modifica solo las propiedades permitidas.
+
+~~~csharp
+[HttpGet]
+public async Task<IActionResult> Editar(int id)
+{
+    if (id <= 0) return BadRequest();
+
+    var producto = await _db.Productos.AsNoTracking()
+        .FirstOrDefaultAsync(p => p.Id == id);
+    if (producto is null) return NotFound();
+
+    ViewData["ProductoId"] = producto.Id;
+    return View(new ProductoFormulario
+    {
+        Nombre = producto.Nombre,
+        Precio = producto.Precio
+    });
+}
+~~~
+
+El GET utiliza `AsNoTracking()` porque solo necesita poblar el formulario inicial. Guarda el identificador en `ViewData["ProductoId"]` para construir en la vista la URL del POST. Hay alternativas más estructuradas, como un modelo específico que incluya el Id de navegación, pero este ejemplo minimiza clases adicionales para centrarse en la diferencia entre **identificar un recurso y editar sus campos**.
+
+En la vista `Editar.cshtml`, el Form Tag Helper declara `asp-action="Editar"`, `asp-route-id="@productoId"` y `method="post"`. El Id se suministra como valor de ruta, mientras que `Nombre` y `Precio` proceden de los inputs. El controlador no acepta que el navegador cambie cualquier propiedad de la entidad de dominio mediante un formulario.
+
+El POST ejecuta otra consulta, esta vez sin `AsNoTracking()`:
+
+~~~csharp
+[HttpPost]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> Editar(int id, ProductoFormulario entrada)
+{
+    if (id <= 0) return BadRequest();
+
+    var producto = await _db.Productos
+        .FirstOrDefaultAsync(p => p.Id == id);
+    if (producto is null) return NotFound();
+
+    if (!ModelState.IsValid)
+    {
+        ViewData["ProductoId"] = id;
+        return View(entrada);
+    }
+
+    producto.Nombre = entrada.Nombre!;
+    producto.Precio = entrada.Precio!.Value;
+
+    await _db.SaveChangesAsync();
+    return RedirectToAction(nameof(Detalle), new { id });
+}
+~~~
+
+Ahora `producto` es una entidad seguida por el contexto. Al asignar las dos propiedades y guardar, EF Core puede emitir la operación de actualización. No necesitamos llamar a `Update` sobre un objeto recibido arbitrariamente desde la solicitud: **leemos la entidad existente y actualizamos explícitamente únicamente los campos permitidos**. Este patrón reduce la superficie de sobrepublicación y resulta pedagógicamente transparente.
+
+### Por qué restauramos el Id del formulario cuando hay errores
+
+Cuando el POST de edición recibe un precio inválido, devuelve la misma vista con `return View(entrada)`. Pero `Editar.cshtml` necesita conocer **a qué producto debe volver a enviar** el formulario cuando la persona corrija el dato. Por eso el controlador restaura `ViewData["ProductoId"] = id` antes de devolver la vista inválida.
+
+Si olvidamos ese paso, el formulario podría generar una URL sin el identificador correcto, aunque los mensajes de validación aparezcan. La persona intentaría corregir una propiedad, pero el segundo POST podría dirigirse a un destino distinto. El error demuestra que la trazabilidad de una operación de edición incluye tanto el modelo de entrada como la **identidad del recurso**.
+
+La edición también debe devolver 404 si alguien solicita un Id positivo que ya no existe, y no debe crear un producto nuevo con ese número. La creación y la modificación son operaciones distintas. Este ejemplo no resuelve conflictos de concurrencia entre usuarios que cambien simultáneamente la misma fila; ese escenario se podría abordar en una formación específica de EF Core.
+
+## Delete: una pantalla de confirmación y un POST que cambia el estado
+
+La eliminación es especialmente útil para enseñar que **los métodos HTTP tienen consecuencias**. Queremos permitir que el usuario abra una pantalla de confirmación sin borrar nada. Por eso, GET `/Productos/Eliminar/{id}` debe mostrar el nombre y el identificador, y ofrecer un botón explícito para confirmar la operación.
+
+El GET de `Eliminar` únicamente lee la entidad:
+
+~~~csharp
+[HttpGet]
+public async Task<IActionResult> Eliminar(int id)
+{
+    if (id <= 0) return BadRequest();
+
+    var producto = await _db.Productos.AsNoTracking()
+        .FirstOrDefaultAsync(p => p.Id == id);
+
+    return producto is null ? NotFound() : View(producto);
+}
+~~~
+
+La vista `Eliminar.cshtml` muestra el producto y genera un formulario POST con Form Tag Helper, `asp-route-id` y el botón «Sí, eliminar». La navegación GET, la lectura de la vista y el botón «No, volver al catálogo» no son operaciones destructivas.
+
+El POST usa la acción visible `Eliminar`, pero el método C# se llama `EliminarConfirmado` y contiene `[ActionName("Eliminar")]`. Este atributo permite exponer la misma operación de MVC con un nombre lógico coherente con el formulario:
+
+~~~csharp
+[HttpPost, ActionName("Eliminar")]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> EliminarConfirmado(int id)
+{
+    if (id <= 0) return BadRequest();
+
+    var producto = await _db.Productos
+        .FirstOrDefaultAsync(p => p.Id == id);
+    if (producto is null) return NotFound();
+
+    _db.Productos.Remove(producto);
+    await _db.SaveChangesAsync();
+    return RedirectToAction(nameof(Index));
+}
+~~~
+
+La secuencia separa la autorización del envío, la existencia del registro, el cambio de estado de EF Core y la operación persistente real. `Remove` marca la entidad para eliminarla; `SaveChangesAsync` aplica la operación en la base. Tras guardar, el navegador es redirigido al listado. Esto permite observar que el producto **ya no está** tanto en la lista como en su URL anterior de detalle, que ahora debería devolver 404.
+
+Nunca enseñaremos una eliminación de datos reales que se ejecute al abrir un enlace GET. Es un ejemplo incorrecto de diseño HTTP y podría causar problemas con previsualizadores o herramientas que navegan automáticamente enlaces. El botón POST protegido y la página de confirmación tienen aquí un propósito educativo, además de su utilidad práctica.
+
+### Una eliminación que debe seguir eliminada tras reiniciar
+
+La comprobación final de persistencia debe ir más allá de la respuesta inmediata del POST. Tras eliminar un producto de laboratorio, detén Kestrel, vuelve a iniciarlo, abre `/Productos` y verifica que **no reaparece**. Recuerda que la semilla de productos se ejecutó solamente cuando la base se creó por primera vez; el reinicio no vuelve a insertar todas las filas.
+
+Si el producto reaparece, el diagnóstico debe comenzar por la conexión de base de datos utilizada en cada ejecución y por el código de inicialización, no por la vista Razor. También hay que evitar confundir dos bases con nombres distintos: cambiar `ConnectionStrings:Productos` entre arranques puede hacer que parezca que se han perdido o restaurado datos cuando en realidad estamos consultando almacenes diferentes.
+
+La eliminación de un registro conocido puede probarse con una URL de detalle antes y después del POST: 200 antes, 404 después. Un nombre que deja de mostrarse en un fragmento visual aislado no constituye por sí solo una prueba tan sólida como la consulta al mismo identificador persistente.
+
+## Diferenciar las cuatro operaciones mediante HTTP y EF Core
+
+Podemos resumir el itinerario de P2.4 como cuatro operaciones sobre una misma entidad, con responsabilidades diferentes:
+
+| Operación | Solicitud | Acción MVC | Trabajo EF Core | Resultado |
+|---|---|---|---|---|
+| Listar/Detalle | GET | Index/Detalle | Consulta, normalmente sin seguimiento | HTML de listado o ficha |
+| Crear | GET, después POST | Crear | Add + SaveChangesAsync | 302 a detalle del nuevo Id |
+| Editar | GET, después POST | Editar | Consultar entidad y asignar campos + SaveChangesAsync | 302 a detalle actualizado |
+| Eliminar | GET, después POST | Eliminar | Buscar entidad + Remove + SaveChangesAsync | 302 a listado |
+
+La tabla no debe memorizarse aisladamente. Su valor surge al ejecutarla paso a paso, observando las rutas y viendo cuándo cambia el contenido de LocalDB. **GET no realiza una escritura** en estos escenarios; el trabajo persistente se concentra en POST y está protegido con antiforgery.
+
+La consulta `Index` utiliza `AsNoTracking()`, mientras que las modificaciones trabajan sobre entidades seguidas. Ese contraste ayuda a comprender por qué una página que muestra datos no tiene que alterar el estado del contexto, pero una edición necesita que los cambios queden registrados antes de guardarse.
+
+Las tres operaciones que cambian datos aplican también una regla de navegación: tras guardar correctamente, el servidor responde con una redirección a una representación GET. La diferencia de destinos es razonable: después de crear o editar mostramos el detalle del producto identificado; después de eliminar volvemos al catálogo porque la ficha anterior ya no existe.
+
+## Antiforgery, ModelState y sobrepublicación siguen presentes
+
+Una tentación habitual al conectar un formulario con EF Core es prestar atención solamente a la llamada `SaveChangesAsync` y olvidar las protecciones aprendidas. Eso sería retroceder pedagógicamente. La nueva operación persistente debe respetar **el mismo contrato de entrada** que ya se comprobó en P2.3 y los mecanismos antiforgery utilizados desde P2.1.
+
+Los formularios de creación, edición y eliminación se generan con Form Tag Helper y un POST. El controlador mantiene `[ValidateAntiForgeryToken]`. La creación y la edición reciben `ProductoFormulario`, cuyas propiedades están restringidas por anotaciones, y consultan `ModelState.IsValid` antes de llamar a EF Core. En eliminación no existe un formulario de nombre y precio; lo importante es que la solicitud incluya el Id de la ruta y un token válido, y que el servidor compruebe la existencia de la entidad.
+
+Los límites del ejemplo también deben quedar claros. No estamos implementando una política de permisos: cualquier usuario que pueda navegar al formulario de laboratorio y obtener su token podría, en ausencia de autenticación/autorización adicional, utilizar sus operaciones. En una aplicación real habría que definir quién puede modificar o borrar productos. Ese tema está fuera del CRUD didáctico y será tratado superficialmente en el módulo de seguridad, sin pretender que este código esté listo para Internet.
+
+Tampoco implementamos control de concurrencia optimista. Si dos operadores editan el mismo producto al mismo tiempo, podríamos necesitar marcas de versión y una política de conflictos. No vamos a entregar una falsa promesa de seguridad empresarial a cambio de unas líneas adicionales de ejemplo; estas limitaciones forman parte de la explicación honesta del alcance.
+
+## Amplificación razonada: un catálogo vacío y una búsqueda GET
+
+Después de completar Create, Edit y Delete, el alumno puede desarrollar dos variantes opcionales que ponen a prueba su comprensión. No forman parte del recorrido imprescindible de las seis horas y no requieren añadir una nueva aplicación.
+
+La **primera ampliación** se resuelve en Razor. Si se eliminan todos los registros del laboratorio, el listado `Index` seguirá recibiendo una colección válida, pero estará vacía. El código de presentación debe diferenciar `Model is null` de `Model.Count == 0`. Un modelo nulo significa que no se ha proporcionado la colección esperada; una colección vacía es un resultado perfectamente legítimo de una consulta. La actividad pide mostrar «No hay productos guardados» solo en el segundo caso.
+
+La **segunda ampliación** es una búsqueda de productos por nombre. La solicitud no altera datos, por lo que tiene sentido utilizar GET:
+
+~~~text
+GET /catalogo/buscar?nombre=Lapiz
+~~~
+
+El controlador contiene un bloque de reto comentado:
+
+~~~csharp
+[HttpGet("/catalogo/buscar")]
+public async Task<IActionResult> Buscar(string? nombre)
+{
+    var consulta = _db.Productos.AsNoTracking();
+
+    if (!string.IsNullOrWhiteSpace(nombre))
+        consulta = consulta.Where(p => p.Nombre.Contains(nombre));
+
+    var encontrados = await consulta.OrderBy(p => p.Id).ToListAsync();
+    return View("Index", encontrados);
+}
+~~~
+
+La consulta se compone a partir de `IQueryable`; EF Core puede traducir la expresión al proveedor SQL Server. **No se cargan todos los productos para filtrarlos en memoria a mano**. Debemos recordar que la coincidencia textual puede depender de la intercalación o *collation* de la base: por ejemplo, las reglas de mayúsculas y acentos dependen de la configuración de SQL Server, no de un comportamiento universal de `Contains`.
+
+La vista `Index` ya sabe representar una colección de productos, así que el método devuelve `View("Index", encontrados)`. No necesitamos construir otra lista visual. El proyecto incluye también un pequeño formulario GET comentado para remitir el término de búsqueda. Una vez activadas ambas partes, el alumno podrá comparar el catálogo completo con el resultado filtrado y confirmar que la consulta no ha modificado la persistencia.
+
+La búsqueda es un ejemplo de **reutilización de lo aprendido**: routing, model binding de un parámetro simple, LINQ to Entities, lectura de EF Core y Razor. No introduce técnicas de búsqueda de texto completo ni optimización de índices, temas ajenos al alcance de esta jornada.
+
+## Diagnosticar lo que parece un error de MVC y en realidad es SQL
+
+Con persistencia, una misma pantalla puede fallar por razones muy diferentes. Si la aplicación no arranca porque `EnsureCreated` no consigue conectarse, el problema aparece antes de que una solicitud HTTP llegue a los controladores. Debemos verificar LocalDB, la cadena de conexión y la instancia. Modificar `@model` de una vista no resolverá una instancia SQL inexistente.
+
+Si el catálogo devuelve una excepción al consultar, preguntaremos si la base está disponible, si el esquema coincide con la entidad y si se creó correctamente. Si un formulario de creación muestra 405 en su estado inicial, es posible que el POST de P2.4.3 todavía esté comentado: esa observación pertenece a la secuencia de aprendizaje. Si muestra 400 al enviar sin token, debemos revisar antiforgery; no implica que SQL Server haya rechazado los datos.
+
+Si un formulario inválido devuelve 200 y se vuelven a mostrar sus mensajes, la aplicación puede estar funcionando exactamente como se diseñó: `ModelState` impidió la escritura. Lo que no debería ocurrir es que el dato inválido aparezca en el catálogo. En ese caso habría que comprobar la posición de `SaveChangesAsync` respecto de la condición de validación.
+
+Si la edición vuelve a mostrarse con un error pero pierde el Id del producto, el síntoma apunta a la generación de la ruta del formulario después de `return View(entrada)`. El controlador necesita conservar el identificador que permite volver a editar la misma entidad. Si después de eliminar una fila su detalle sigue devolviendo 200, necesitamos investigar si se ejecutó el POST adecuado, qué base de datos se está consultando y si se guardó realmente la operación.
+
+El mejor diagnóstico sigue el orden **solicitud → acción → validación → contexto EF → persistencia → respuesta → nueva consulta**. No consiste en recompilar de manera repetida sin identificar qué capa produce el comportamiento inesperado.
+
+## Cierre de 2.4 y preparación de Razor Pages
+
+El resultado de P2.4 es la misma aplicación MVC de M01, ahora capaz de representar datos que viven en una base LocalDB y de modificar esa base mediante formularios validados. Hemos empleado C# y EF Core que el alumnado ya conoce, pero los hemos integrado en un recorrido de interfaz web que ahora incluye redirecciones, mensajes de validación, enlaces con Id, confirmación de borrado y comprobaciones posteriores al reinicio.
+
+Al iniciar **2.5** estudiaremos una Razor Page mínima dentro del mismo host. No volveremos a enseñar un segundo CRUD completo ni cambiaremos la fuente de datos: la finalidad será comparar **controlador + vista MVC** con **PageModel + OnGet/OnPost**. El ejemplo será breve precisamente porque este CRUD concentra la mayor parte del trabajo aplicado del día.
+
+El criterio de salida para 2.4 debe poder expresarse con ejemplos concretos: crear un producto válido, observar su nueva ficha, reiniciar y comprobar que permanece; editar el mismo Id y constatar el cambio; intentar una entrada inválida y comprobar que no modifica la base; eliminar mediante POST y verificar que el detalle ya no existe. Esas observaciones demuestran mucho más que una pantalla que dice «operación correcta».
+
+## Referencias de ampliación
+
+- Microsoft Learn, CRUD en una aplicación ASP.NET Core MVC con EF Core: https://learn.microsoft.com/en-us/aspnet/core/data/ef-mvc/crud?view=aspnetcore-8.0
+- Microsoft Learn, Creación y administración del esquema sin migraciones: https://learn.microsoft.com/en-us/ef/core/managing-schemas/ensure-created
+- Microsoft Learn, Registro de DbContext e inyección de dependencias: https://learn.microsoft.com/en-us/ef/core/dbcontext-configuration/
+- Microsoft Learn, Consultas sin seguimiento en EF Core: https://learn.microsoft.com/en-us/ef/core/querying/tracking
+- Microsoft Learn, Protección antiforgery de solicitudes MVC: https://learn.microsoft.com/en-us/aspnet/core/security/anti-request-forgery?view=aspnetcore-8.0
