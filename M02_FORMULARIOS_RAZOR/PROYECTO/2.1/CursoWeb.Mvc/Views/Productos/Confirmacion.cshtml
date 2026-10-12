@@ -10,6 +10,12 @@
    Cuando el precio sea menor, no debe aparecer la etiqueta. No modifiques el modelo ni el controlador.
    NO se entrega el resultado activado: el alumno debe escribir el código.
 *@
+@* RETO 2.1 INICIO
+@if (!string.IsNullOrWhiteSpace(Model.Nombre) && Model.Nombre.Length > 8)
+{
+    <p id="nombre-extenso">El nombre tiene más de ocho caracteres.</p>
+}
+RETO 2.1 FIN *@
 <p>Este resultado confirma el enlace de modelos; los productos aún no se guardan.</p>
 <p><a asp-controller="Productos" asp-action="Crear">Enviar otro formulario</a></p>
 <p><a asp-controller="Productos" asp-action="Index">Volver al catálogo</a></p>
