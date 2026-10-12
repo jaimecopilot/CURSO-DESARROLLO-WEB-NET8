@@ -11,11 +11,11 @@ excluyendo las cabeceras y pies repetidos y los bloques Mermaid transformados en
 | TEORIA | 2.3 | 30-45 | 100.00% | 0 |
 | TEORIA | 2.4 | 46-65 | 99.98% | 1 |
 | TEORIA | 2.5 | 66-75 | 100.00% | 0 |
-| PRACTICAS | P2.1 | 4-17 | 100.00% | 0 |
-| PRACTICAS | P2.2 | 18-30 | 100.00% | 0 |
-| PRACTICAS | P2.3 | 31-48 | 99.98% | 1 |
-| PRACTICAS | P2.4 | 49-69 | 99.98% | 1 |
-| PRACTICAS | P2.5 | 70-78 | 100.00% | 0 |
+| PRACTICAS | P2.1 | 3-16 | 100.00% | 0 |
+| PRACTICAS | P2.2 | 17-29 | 100.00% | 0 |
+| PRACTICAS | P2.3 | 30-47 | 99.98% | 1 |
+| PRACTICAS | P2.4 | 48-67 | 99.98% | 1 |
+| PRACTICAS | P2.5 | 68-76 | 100.00% | 0 |
 
 Los contadores de tokens son un diagnóstico de extracción textual: no prueban idéntica maquetación,
 igualdad visual de los diagramas ni ausencia de errores de lectura humana.
@@ -142,13 +142,13 @@ igualdad visual de los diagramas ni ausencia de errores de lectura humana.
   },
   {
     "tipo": "PRACTICAS",
-    "paginas": 78,
+    "paginas": 76,
     "fuente_original_incrustada_identica": true,
     "capitulos": [
       {
         "punto": "P2.1",
-        "desde": 4,
-        "hasta": 17,
+        "desde": 3,
+        "hasta": 16,
         "palabras_visibles_md": 4209,
         "palabras_extraidas_pdf": 4216,
         "cobertura": 1.0,
@@ -187,8 +187,8 @@ igualdad visual de los diagramas ni ausencia de errores de lectura humana.
       },
       {
         "punto": "P2.2",
-        "desde": 18,
-        "hasta": 30,
+        "desde": 17,
+        "hasta": 29,
         "palabras_visibles_md": 4162,
         "palabras_extraidas_pdf": 4162,
         "cobertura": 1.0,
@@ -198,8 +198,8 @@ igualdad visual de los diagramas ni ausencia de errores de lectura humana.
       },
       {
         "punto": "P2.3",
-        "desde": 31,
-        "hasta": 48,
+        "desde": 30,
+        "hasta": 47,
         "palabras_visibles_md": 5417,
         "palabras_extraidas_pdf": 5418,
         "cobertura": 0.999815,
@@ -223,11 +223,11 @@ igualdad visual de los diagramas ni ausencia de errores de lectura humana.
       },
       {
         "punto": "P2.4",
-        "desde": 49,
-        "hasta": 69,
-        "palabras_visibles_md": 6276,
-        "palabras_extraidas_pdf": 6277,
-        "cobertura": 0.999841,
+        "desde": 48,
+        "hasta": 67,
+        "palabras_visibles_md": 6259,
+        "palabras_extraidas_pdf": 6260,
+        "cobertura": 0.99984,
         "tokens_no_encontrados": 1,
         "ejemplos_missing": [
           [
@@ -248,8 +248,8 @@ igualdad visual de los diagramas ni ausencia de errores de lectura humana.
       },
       {
         "punto": "P2.5",
-        "desde": 70,
-        "hasta": 78,
+        "desde": 68,
+        "hasta": 76,
         "palabras_visibles_md": 2353,
         "palabras_extraidas_pdf": 2353,
         "cobertura": 1.0,
