@@ -74,7 +74,7 @@ def inspect(kind):
         first=starts[n]
         after=starts[n+1] if n<5 else len(pdf)
         pdftext="\n".join(pdf[p].get_text("text",clip=fitz.Rect(
-            0,78,pdf[p].rect.width,pdf[p].rect.height-48),sort=True)
+            0,53,pdf[p].rect.width,pdf[p].rect.height-48),sort=True)
              for p in range(first,after))
         expected=words(visible_md(section))
         actual=words(pdftext)
