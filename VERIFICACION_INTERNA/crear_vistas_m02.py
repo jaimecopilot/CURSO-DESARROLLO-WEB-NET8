@@ -27,8 +27,8 @@ def render_sheet(pdf,kind):
             canvas.paste(thumb,(x,y))
             pen.rectangle((x-1,y-1,x+W+1,y+h+1),outline="#8795a2",width=1)
             pen.text((x+5,y+h+4),f"Página {pn+1}",fill="#172c42",font=font)
-        fn=OUT/f"{kind}_HOJA_{start//(C*R)+1:02d}.png"
-        canvas.save(fn,optimize=True)
+        fn=OUT/f"{kind}_HOJA_{start//(C*R)+1:02d}.jpg"
+        canvas.save(fn,quality=82,optimize=True,subsampling=0)
         sheets.append(fn)
     # Alta resolución para portada, primera página de texto y últimas.
     high_pages=sorted(set([0,1,2,pages//2,pages-2,pages-1]))
