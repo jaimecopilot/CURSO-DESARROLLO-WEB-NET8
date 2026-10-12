@@ -31,17 +31,19 @@ Al finalizar este punto, el alumno podrá explicar qué función desempeña ASP.
 
 Se utilizará una primera aplicación del curso, `CursoWeb.Mvc`, que mostrará una página relacionada con el futuro catálogo de productos. No necesitaremos base de datos, autenticación ni conocimientos nuevos de C#.
 
-## MVC y Web API: el contexto
+## MVC y Web API: del contrato de datos a una página HTML
 
-**Del conocimiento de Web API a una aplicación web visible.**
+**El problema que queremos resolver.**
 
-Los alumnos ya conocen ASP.NET Core Web API: una aplicación recibe una petición como `GET /api/productos`, ejecuta un endpoint y devuelve, habitualmente, JSON. Un programa consumidor interpreta después esos datos. Cuando queremos construir una **interfaz web tradicional**, el servidor también puede generar la representación HTML que ve el navegador.
+Hasta ahora el alumno sabe construir una Web API capaz de responder a una petición como `GET /api/productos`. Esa API puede entregar una colección JSON con los nombres y precios, pero todavía queda una decisión distinta: **¿quién transforma los datos en una página con título, navegación, lista y estilos?**
 
-ASP.NET Core es la plataforma de desarrollo web de .NET. Facilita la creación de aplicaciones que atienden HTTP y ofrece infraestructura común: servidor HTTP, enrutamiento, servicios, configuración y una secuencia de procesamiento de las peticiones. Encima de esa plataforma se utilizan distintos estilos de programación: controladores de API, MVC con vistas, Razor Pages y componentes Blazor. Comparten plataforma, pero no son intercambiables.
+Podríamos programar un cliente que solicite JSON y construya el HTML. Sin embargo, para una aplicación web de páginas tradicionales ASP.NET Core MVC ofrece otra posibilidad: el servidor ejecuta una acción, prepara los datos y representa una **vista Razor** antes de devolver el HTML al navegador. Aprenderemos ese segundo recorrido sin abandonar las nociones de HTTP que ya conocemos.
 
-Para situarnos, imaginemos que un usuario abre en el navegador la dirección del catálogo. La aplicación debe decidir qué recurso se ha solicitado, preparar la información de los productos y producir una respuesta. En una API, el resultado puede ser una colección JSON. En MVC, el resultado habitual de una acción que devuelve una vista es un documento HTML listo para ser interpretado y mostrado por el navegador.
+ASP.NET Core es la plataforma web común. Proporciona hospedaje, configuración, inyección de dependencias, middleware y enrutamiento; sobre ella podemos programar API, MVC con vistas, Razor Pages o Blazor. La distinción entre estas alternativas no consiste en utilizar servidores ni protocolos diferentes, sino principalmente en cómo organizamos la atención de la petición y la representación resultante.
 
-Por ejemplo, una API podría producir una respuesta semejante a esta:
+**Dos respuestas posibles para una misma necesidad.**
+
+Imagina que debemos mostrar Cuaderno y Lápiz. Una API de productos podría responder:
 
 ~~~http
 HTTP/1.1 200 OK
@@ -50,7 +52,7 @@ Content-Type: application/json; charset=utf-8
 [{"id":1,"nombre":"Cuaderno"},{"id":2,"nombre":"Lápiz"}]
 ~~~
 
-Una acción MVC que devuelve una vista podría producir este otro contenido:
+En cambio, una página MVC podría responder con el documento que el navegador sabe representar directamente:
 
 ~~~http
 HTTP/1.1 200 OK
@@ -58,41 +60,31 @@ Content-Type: text/html; charset=utf-8
 
 <!DOCTYPE html>
 <html lang="es">
-  <body>
+<body>
     <h1>Productos</h1>
-    <ul><li>Cuaderno</li><li>Lápiz</li></ul>
-  </body>
+    <ul>
+        <li>Cuaderno</li>
+        <li>Lápiz</li>
+    </ul>
+</body>
 </html>
 ~~~
 
-Ambos ejemplos utilizan HTTP. La diferencia esencial es el **contrato de presentación**: datos estructurados destinados a un consumidor, frente a marcado preparado para representarse como página. No es una separación absoluta: una API puede devolver otros formatos y una aplicación MVC también puede devolver JSON. Es la forma de trabajar que utilizaremos en el curso la que establece esa comparación.
+Las dos respuestas son HTTP 200, aunque difieren en el `Content-Type` y en el cuerpo. **JSON expresa datos estructurados; HTML define elementos de una página.** Una API no está obligada a devolver siempre JSON, ni un controlador MVC está obligado a devolver siempre HTML: aquí comparamos los usos que vamos a practicar.
 
-**Pregunta de razonamiento.** Si una API devuelve el nombre y el precio de un producto, ¿por qué el navegador no presenta automáticamente una ficha de producto con el formato deseado? Porque JSON describe datos, pero no define por sí mismo los elementos HTML, su estructura visual ni los estilos. Una interfaz necesita construir esa representación, y MVC puede hacerlo del lado del servidor.
-
-**MVC y Web API: parecido de infraestructura, diferencia de intención.**
-
-Comparación orientativa, a partir de una misma necesidad de mostrar datos:
-
-| Aspecto | Acción MVC con vista Razor | Endpoint o controlador Web API |
+| Pregunta | Página MVC con Razor | Web API que ya conocemos |
 |---|---|---|
-| Caso más común | Generar una página para una persona | Facilitar datos/operaciones a un consumidor |
-| Respuesta típica | HTML | JSON |
-| Presentación | Se construye en el servidor mediante una vista | El consumidor decide cómo presentar los datos |
-| Infraestructura HTTP | ASP.NET Core y routing | ASP.NET Core y routing |
-| ¿Puede acceder a servicios y EF Core? | Sí | Sí |
-| ¿Es obligatoria una base de datos? | No | No |
+| ¿Dónde se ejecuta C#? | En el servidor ASP.NET Core | En el servidor ASP.NET Core |
+| ¿Qué recibe habitualmente el cliente? | HTML preparado con la vista | Datos, normalmente JSON |
+| ¿Quién construye la presentación inicial? | La vista Razor del servidor | El cliente que consume los datos |
+| ¿Pueden intervenir EF Core, servicios y rutas? | Sí | Sí |
+| ¿Se necesita obligatoriamente una base de datos? | No | No |
 
-Un fragmento conceptual de MVC podría ser `return View(productos);`. Su correspondiente estilo de API podría ser `return Ok(productos);`. En el primer caso se solicita la representación de una vista; en el segundo se envían datos con un resultado HTTP apropiado. Son ejemplos de **intención**: no debemos copiar el segundo en el controlador del proyecto 1.1 porque aún no hemos creado ningún modelo `Producto`.
+Esta tabla describe **responsabilidades predominantes**, no prohibiciones técnicas. Una aplicación puede tener páginas MVC y endpoints de API al mismo tiempo. También puede incluir JavaScript en sus páginas. Para comprender el primer flujo del curso no necesitaremos ninguna de esas variantes.
 
-En particular, no es correcto afirmar que *MVC significa servidor y API significa cliente*: ambos códigos se ejecutan en el servidor. Tampoco es correcto afirmar que MVC no utiliza HTTP porque el usuario solo ve un sitio web: cada navegación sigue siendo una comunicación HTTP.
+**Cómo se materializa la decisión en el proyecto del alumno.**
 
-**MVC frente a una Web API: mismos fundamentos, resultados distintos.**
-
-El alumnado ya conoce Web API, por lo que conviene partir de ese conocimiento y evitar enseñar HTTP desde cero. ASP.NET Core MVC y las API web se apoyan en el mismo framework y pueden convivir en una misma aplicación. Lo que cambia es la responsabilidad predominante de sus endpoints y el resultado que preparan.
-
-Una API suele exponer información estructurada para otros programas. Si el resultado es JSON, el cliente puede interpretarlo como datos y decidir qué interfaz construir. Una aplicación MVC con vistas Razor puede devolver HTML ya preparado para que el navegador lo represente. Ninguna de esas opciones requiere un protocolo de red diferente: ambas utilizan HTTP.
-
-El ejemplo de la primera página devuelve una vista:
+La primera versión de `CursoWeb.Mvc` no muestra todavía la lista de productos. Nos interesa identificar la generación de una página antes de introducir los modelos del punto 1.2. Su controlador contiene una acción sencilla:
 
 ~~~csharp
 [HttpGet]
@@ -102,27 +94,30 @@ public IActionResult Index()
 }
 ~~~
 
-Una acción de Web API podría devolver un resultado con datos JSON, pero no necesitamos cambiar nuestro controlador inicial para comprender la diferencia. En 1.4 haremos la comparación dentro del mismo proyecto, con `Content()` y `Ok()`, después de haber estudiado los tipos de resultado.
+La llamada `View()` no devuelve inmediatamente una cadena HTML ni indica al navegador que abra un archivo `.cshtml`. Crea un resultado de MVC. Cuando se ejecuta ese resultado, el framework localiza la vista asociada a `HomeController.Index`, utiliza `Views/Home/Index.cshtml` y compone la respuesta. El layout compartido añade la estructura exterior, como navegación y cabecera de documento.
 
-**Qué significa renderizar del lado del servidor.**
+En la vista inicial encontramos, entre otras líneas:
 
-En MVC, la ejecución de Razor que construye la vista ocurre en el servidor. Cuando el navegador recibe la respuesta, las expresiones Razor ya se han evaluado. Esto simplifica la comprensión del primer flujo: el cliente solicita una URL y recibe un documento HTML.
+~~~cshtml
+@{
+    ViewData["Title"] = "Primer recorrido MVC";
+}
 
-Esta afirmación no implica que una página MVC no pueda utilizar JavaScript ni que sea imposible actualizar parte de una página dinámicamente. Simplemente estamos estudiando el comportamiento mínimo del proyecto suministrado, que no necesita JavaScript de aplicación para mostrar sus contenidos iniciales.
+<h1>1.1 | Primer recorrido MVC</h1>
+<p>Esta página HTML ha sido generada en el servidor mediante una acción MVC.</p>
+~~~
 
-**Una tabla conceptual para evitar confusiones.**
+La expresión `ViewData["Title"]` proporciona un título al layout y el `<h1>` forma parte del cuerpo visible. Estas son dos responsabilidades de presentación distintas. Todavía no vamos a modificar Razor ni a explicar toda su sintaxis: en el punto 1.5 abordaremos las vistas tipadas y la composición con detalle. Por ahora basta con reconocer **qué archivo participa** y **qué recibe el navegador**.
 
-| Pregunta | MVC con vistas Razor del curso | Web API conocida por el alumno |
-|---|---|---|
-| ¿Qué protocolo se utiliza? | HTTP | HTTP |
-| ¿Cuál es un resultado frecuente? | HTML | JSON |
-| ¿Quién prepara el HTML inicial? | Servidor, mediante Razor | Normalmente otro cliente o capa |
-| ¿Debe existir una vista `.cshtml`? | Si se devuelve `View()` | No para un resultado JSON |
-| ¿Existen controladores y rutas? | Sí, en esta aplicación | Pueden existir |
-| ¿Se pueden devolver errores HTTP? | Sí | Sí |
-| ¿Una acción MVC está obligada a devolver HTML? | No | Tampoco toda API se limita a JSON |
+**Una decisión que el alumno debe poder explicar.**
 
-La tabla contiene características habituales, no restricciones absolutas de ASP.NET Core. El objetivo es aprovechar conocimientos previos y concentrarnos en la representación de páginas web, que es la nueva competencia de M01.
+Si queremos devolver los productos como datos para otra aplicación, un resultado del estilo `Ok(productos)` podría ser apropiado. Si pretendemos construir una página HTML para una persona, `View(productos)` permite entregar los datos a una vista. En este primer ejercicio utilizamos `View()` sin modelo porque solo queremos observar la página y el recorrido HTTP; `Producto` y `View(productos)` se incorporarán en el capítulo 1.2.
+
+Antes de continuar, predice tres situaciones: ¿la llamada `return View()` ejecuta C# dentro del navegador? ¿Qué archivo habría que cambiar para modificar el texto del encabezado? ¿Tendría sentido editar el controlador para cambiar únicamente el contenido de un párrafo? Razona tu respuesta sin modificar todavía el proyecto.
+
+El navegador **no ejecuta** `HomeController` ni la sintaxis Razor. El servidor genera HTML y el cliente representa ese resultado. Si un cambio afecta al texto visible, generalmente buscaremos la vista; si afecta a la selección de datos o a la decisión del resultado HTTP, examinaremos la acción. Esta distinción orientará los pasos siguientes y, sobre todo, evitará modificar archivos al azar.
+
+El siguiente problema es averiguar **cómo llega la petición del navegador al servidor y cómo distinguimos una respuesta HTML de la hoja de estilos que se descarga después**. Para responderlo estudiaremos el intercambio HTTP real antes de profundizar en el pipeline y las rutas.
 
 ## El recorrido HTTP en el navegador
 
@@ -1029,14 +1024,7 @@ Es necesario **observar cada estado antes de activar el siguiente**, porque el o
 
 Al finalizar, debe poder responderse a la pregunta: *«Cuando cambio el nombre de Cuaderno por Bloc, ¿qué archivo modifico y por qué no tengo que reescribir la vista?»*. La respuesta debe enlazar las responsabilidades de Modelo, Controlador y Vista que acabamos de estudiar.
 
-**Referencias técnicas.**
 
-- Microsoft Learn, patrón MVC y separación de responsabilidades: https://learn.microsoft.com/aspnet/core/mvc/overview?view=aspnetcore-8.0
-- Microsoft Learn, tutorial de controladores MVC: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/adding-controller?view=aspnetcore-8.0
-- Microsoft Learn, sintaxis Razor y vistas tipadas: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/razor?view=aspnetcore-8.0
-
-
----
 
 **Comparar tres situaciones que parecen la misma avería.**
 
@@ -1085,6 +1073,12 @@ Al contrastar esos resultados, explica por qué cambia la página en cada estado
 Una vez entendido qué parte del código representa datos, qué parte decide el resultado y qué parte lo presenta, el resto del módulo gana sentido. En 1.3 exploraremos la ubicación de los archivos y la configuración. En 1.4 veremos cómo una acción recibe un identificador y entrega un único `Producto` a una vista de detalle; será una aplicación directa del mismo contrato que ya hemos utilizado. En 1.5 extraeremos la representación repetida de un producto a una parcial Razor, lo que permitirá reutilizar el mismo marcado desde diferentes vistas.
 
 Es importante no confundir el alcance de este primer día con el de una aplicación empresarial terminada. Nuestro catálogo no tiene operaciones de escritura, persistencia, gestión de usuarios ni validación de formularios. El hecho de que funcione y esté organizado con MVC no implica que disponga ya de esas capacidades. En M02 añadiremos las funcionalidades necesarias de manera incremental, reutilizando la separación de responsabilidades que acabamos de establecer.
+
+**Referencias técnicas.**
+
+- Microsoft Learn, patrón MVC y separación de responsabilidades: https://learn.microsoft.com/aspnet/core/mvc/overview?view=aspnetcore-8.0
+- Microsoft Learn, tutorial de controladores MVC: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/adding-controller?view=aspnetcore-8.0
+- Microsoft Learn, sintaxis Razor y vistas tipadas: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/razor?view=aspnetcore-8.0
 
 # 1.3. Estructura, convenciones y puesta en marcha de un proyecto ASP.NET Core MVC
 
@@ -1576,15 +1570,7 @@ La práctica `P1.3` parte de una página `/Productos` ya funcional, sigue el ár
 
 El alumno debe terminar explicando **en qué carpeta se modifica una cosa y por qué**, además de haber comprobado cada resultado. Esta capacidad permite avanzar al punto `1.4`, donde los controladores atenderán nuevas acciones, parámetros y rutas.
 
-**Referencias de Microsoft Learn.**
 
-- Estructura básica de un proyecto MVC: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/start-mvc?view=aspnetcore-8.0
-- Archivos estáticos en ASP.NET Core: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/static-files?view=aspnetcore-8.0
-- Configuración en ASP.NET Core: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/?view=aspnetcore-8.0
-- Vistas Razor y convenciones: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/overview?view=aspnetcore-8.0
-
-
----
 
 **Una estrategia de diagnóstico basada en carpetas.**
 
@@ -1602,6 +1588,12 @@ La primera comprobación no debe ser reescribir el código. Debemos identificar 
 
 Si se producen dos intentos de arranque sobre el mismo puerto, el segundo puede fallar porque ya existe un proceso escuchando. No debe diagnosticarse automáticamente como un error de MVC ni del controlador: es una condición del entorno de ejecución.
 
+**Referencias de Microsoft Learn.**
+
+- Estructura básica de un proyecto MVC: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/start-mvc?view=aspnetcore-8.0
+- Archivos estáticos en ASP.NET Core: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/static-files?view=aspnetcore-8.0
+- Configuración en ASP.NET Core: https://learn.microsoft.com/en-us/aspnet/core/fundamentals/configuration/?view=aspnetcore-8.0
+- Vistas Razor y convenciones: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/overview?view=aspnetcore-8.0
 
 # 1.4. Controladores, acciones, parámetros y routing en ASP.NET Core MVC
 
@@ -2061,11 +2053,11 @@ En una acción hemos utilizado varios métodos de retorno. Es importante no trat
 
 El tipo declarado `IActionResult` permite devolver diferentes tipos concretos de resultado desde una misma acción. Una firma `ActionResult<T>` es frecuente en Web API cuando se desea describir un tipo de dato de éxito y posibles errores; aquí utilizamos `IActionResult` para no desviar la práctica hacia el diseño de API.
 
-**: dos situaciones que conviene distinguir.**
+**Dos causas distintas de una respuesta 404.**
 
 Si `GET /no-existe` no coincide con ninguna ruta de nuestra aplicación, el sistema de enrutamiento termina sin ejecutar una acción de catálogo. Si `GET /Productos/Detalle/99` coincide con `Detalle(int id)`, **la acción sí se ejecuta**, intenta buscar el producto y decide `NotFound()`. Ambas situaciones pueden producir 404, pero sus causas y soluciones no son iguales.
 
-**frente a 404.**
+**400 frente a 404: entrada rechazada o recurso inexistente.**
 
 Un identificador que nuestra acción considera inválido, como 0, obtiene 400 por una regla explícita del código. Un identificador válido en formato pero inexistente, como 99, obtiene 404. El código de estado **no aparece automáticamente por el hecho de usar un int**: lo decidimos deliberadamente en estos métodos. Verificaremos la diferencia mediante HTTP.
 
@@ -2318,15 +2310,7 @@ La batería de pruebas compila y ejecuta **cada estado solicitado** y verifica s
 
 El capítulo siguiente, **1.5**, profundizará en la sintaxis Razor, la composición de vistas, los layouts y las vistas parciales usando las páginas y el detalle funcional de este capítulo.
 
-**Fuentes y referencias.**
 
-- Microsoft Learn, enrutamiento a acciones de controlador: https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/routing?view=aspnetcore-8.0
-- Microsoft Learn, solicitudes mediante controladores: https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/actions?view=aspnetcore-8.0
-- Microsoft Learn, resultados de acciones de controlador: https://learn.microsoft.com/en-us/aspnet/core/web-api/action-return-types?view=aspnetcore-8.0
-- Microsoft Learn, vistas Razor y tipado de modelos: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/overview?view=aspnetcore-8.0
-
-
----
 
 **Activación incremental y regresión.**
 
@@ -2365,6 +2349,13 @@ Para considerar aprendido el capítulo, el alumno debería poder responder sin c
 Cada respuesta debe hacer referencia a un archivo o línea real del proyecto, no a una definición memorizada. El éxito consiste en relacionar el recorrido HTTP, la acción ejecutada, el dato utilizado y el resultado devuelto.
 
 El capítulo 1.5 reutilizará esos resultados de detalle para profundizar en cómo Razor compone la presentación. Por eso es importante cerrar antes esta distinción: **las rutas seleccionan acciones, las acciones eligen resultados y las vistas representan datos**.
+
+**Fuentes y referencias.**
+
+- Microsoft Learn, enrutamiento a acciones de controlador: https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/routing?view=aspnetcore-8.0
+- Microsoft Learn, solicitudes mediante controladores: https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/actions?view=aspnetcore-8.0
+- Microsoft Learn, resultados de acciones de controlador: https://learn.microsoft.com/en-us/aspnet/core/web-api/action-return-types?view=aspnetcore-8.0
+- Microsoft Learn, vistas Razor y tipado de modelos: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/overview?view=aspnetcore-8.0
 
 # 1.5. Vistas Razor, modelos tipados, layouts y vistas parciales
 
@@ -2886,13 +2877,6 @@ Con esta práctica se completa el **contenido funcional previsto de M01**: desde
 
 Para afianzar lo aprendido, recorre las cinco etapas del módulo con los proyectos incluidos y comprueba que cada cambio de código corresponde a un comportamiento observable. La práctica ofrece los procedimientos necesarios para continuar el desarrollo del catálogo.
 
-**Referencias técnicas.**
-
-- Microsoft Learn, Razor syntax: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/razor?view=aspnetcore-8.0
-- Microsoft Learn, layouts: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/layout?view=aspnetcore-8.0
-- Microsoft Learn, partial views: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/partial?view=aspnetcore-8.0
-- Microsoft Learn, Partial Tag Helper: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/tag-helpers/built-in/partial-tag-helper?view=aspnetcore-8.0
-
 **El reto como prueba de reutilización real.**
 
 El reto pide que la parcial incorpore una etiqueta cuando `Precio < 3m`. No se trata simplemente de añadir una condición cualquiera: la localización de esa condición es la parte central del ejercicio.
@@ -2931,3 +2915,10 @@ Si el usuario selecciona un enlace de detalle, se produce otra solicitud HTTP, s
 Este recorrido prepara el siguiente módulo. Cuando M02 incorpore formularios y persistencia, no será necesario reaprender qué son un controlador, una vista, un resultado HTTP o un modelo tipado. La arquitectura y las convenciones seguirán siendo reconocibles.
 
 El aprendizaje central no es memorizar sintaxis aislada de Razor, sino comprender **cómo los datos llegan a una representación coherente y reutilizable**, y cómo una modificación localizada debe conservar el comportamiento previo de la aplicación.
+
+**Referencias técnicas.**
+
+- Microsoft Learn, Razor syntax: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/razor?view=aspnetcore-8.0
+- Microsoft Learn, layouts: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/layout?view=aspnetcore-8.0
+- Microsoft Learn, partial views: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/partial?view=aspnetcore-8.0
+- Microsoft Learn, Partial Tag Helper: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/tag-helpers/built-in/partial-tag-helper?view=aspnetcore-8.0
