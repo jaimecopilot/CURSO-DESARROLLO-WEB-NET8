@@ -1455,6 +1455,15 @@ Contiene cada transición numerada: selección, binding, alta y reto. Observa qu
 <h1>P3.4 | Estado y eventos</h1>
 <p>Los datos existen únicamente durante la sesión interactiva de este componente.</p>
 <p id="seleccion">Seleccionado: @seleccion</p>
+@* RETO INTEGRADOR 3.4.6: activa los tres controles y su lógica C#;
+   el filtro se aplica inmediatamente al escribir y no modifica la colección. *@
+@* <label>Buscar por nombre: <input id="buscar" @bind="busqueda" @bind:event="oninput" /></label> *@
+@* <label>Precio máximo: <input id="precio-maximo" type="number" min="0" step="0.5" @bind="precioMaximo" /></label> *@
+@* <button id="alternar-orden" @onclick="AlternarOrden">Invertir orden por precio</button> *@
+@* <p id="resumen-filtrado">Mostrando @ProductosVisibles.Count() de @productos.Count productos</p> *@
+@* RETO INTEGRADOR 3.4.6: sustituir solamente la expresión foreach
+   original por la variante siguiente, conservando todo el artículo y botones. *@
+@* @foreach (var producto in ProductosVisibles) *@
 <div class="tarjetas" id="tarjetas-productos">
     @foreach (var producto in productos)
     {
@@ -1463,6 +1472,8 @@ Contiene cada transición numerada: selección, binding, alta y reto. Observa qu
             <p>@producto.Precio.ToString("0.00") €</p>
             @* PASO 3.4.2 (ACTIVAR): descomenta este botón al activar Seleccionar. *@
             @* <button @onclick="() => Seleccionar(producto.Id)">Seleccionar</button> *@
+            @* PASO 3.4.5: sustituir el botón anterior, no añadir un segundo. *@
+            @* <button @onclick="() => SeleccionarParaEditar(producto.Id)">Seleccionar</button> *@
         </article>
     }
 </div>
@@ -1470,6 +1481,9 @@ Contiene cada transición numerada: selección, binding, alta y reto. Observa qu
 @* <label>Nombre nuevo: <input id="nombre-nuevo" @bind="nuevoNombre" /></label> *@
 @* PASO 3.4.4 (ACTIVAR): descomenta el botón tras activar Agregar. *@
 @* <button id="agregar" @onclick="Agregar">Añadir producto</button> *@
+@* PASO 3.4.5: activa juntos el campo y el botón tras activar el método de edición. *@
+@* <label>Editar nombre: <input id="editar-nombre" @bind="nombreEditado" /></label> *@
+@* <button id="guardar-cambio" @onclick="GuardarCambio">Guardar nombre</button> *@
 @* RETO 3.4 (ACTIVAR): botón para deshacer la selección. *@
 @* <button id="limpiar" @onclick="Limpiar">Limpiar selección</button> *@
 @code {
@@ -1502,6 +1516,49 @@ Contiene cada transición numerada: selección, binding, alta y reto. Observa qu
         nuevoNombre = string.Empty;
     }
     PASO 3.4.4 FIN */
+
+
+    /* PASO 3.4.5 INICIO
+    private int? idEnEdicion;
+    private string nombreEditado = string.Empty;
+    private void SeleccionarParaEditar(int id)
+    {
+        var producto = productos.First(p => p.Id == id);
+        idEnEdicion = id;
+        seleccion = producto.Nombre;
+        nombreEditado = producto.Nombre;
+    }
+
+    private void GuardarCambio()
+    {
+        if (idEnEdicion is null || string.IsNullOrWhiteSpace(nombreEditado))
+            return;
+
+        var indice = productos.FindIndex(p => p.Id == idEnEdicion.Value);
+        if (indice < 0)
+            return;
+
+        productos[indice] = productos[indice] with { Nombre = nombreEditado.Trim() };
+        seleccion = productos[indice].Nombre;
+    }
+    PASO 3.4.5 FIN */
+
+    /* RETO INTEGRADOR 3.4.6 INICIO
+    private string busqueda = string.Empty;
+    private decimal? precioMaximo;
+    private bool ordenAscendente = true;
+
+    private IEnumerable<Producto> ProductosVisibles =>
+        (ordenAscendente
+            ? productos.OrderBy(p => p.Precio).ThenBy(p => p.Id)
+            : productos.OrderByDescending(p => p.Precio).ThenBy(p => p.Id))
+        .Where(p =>
+            (string.IsNullOrWhiteSpace(busqueda) ||
+             p.Nombre.Contains(busqueda.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+            (precioMaximo is null || p.Precio <= precioMaximo.Value));
+
+    private void AlternarOrden() => ordenAscendente = !ordenAscendente;
+    RETO INTEGRADOR 3.4.6 FIN */
 
     /* RETO 3.4 INICIO
     private void Limpiar() => seleccion = "ninguno";
@@ -1566,6 +1623,11 @@ Tres variantes de tarjeta en el padre, métodos de recepción y lista propietari
     }
 </div>
 <p id="cantidad">Total: @productos.Count</p>
+@* RETO INTEGRADOR 3.5.5: activa los dos elementos y el bloque C#.
+   Cambia únicamente AlQuitar="Quitar" por AlQuitar="QuitarConDeshacer"
+   en la tercera variante de la tarjeta. *@
+@* <button id="deshacer" disabled="@(eliminacionPendiente is null)" @onclick="DeshacerEliminacion">Deshacer última eliminación</button> *@
+@* <p id="estado-deshacer">@TextoDeshacer</p> *@
 @code {
     private readonly List<Producto> productos =
     [
@@ -1581,6 +1643,33 @@ Tres variantes de tarjeta en el padre, métodos de recepción y lista propietari
         seleccion = productos.First(p => p.Id == id).Nombre;
     }
     PASO 3.5.2 FIN */
+
+    /* RETO INTEGRADOR 3.5.5 INICIO
+    private (Producto Producto, int Indice)? eliminacionPendiente;
+
+    private string TextoDeshacer => eliminacionPendiente is { } pendiente
+        ? $"Pendiente: {pendiente.Producto.Nombre}"
+        : "Ninguna eliminación pendiente";
+
+    private void QuitarConDeshacer(int id)
+    {
+        var indice = productos.FindIndex(p => p.Id == id);
+        if (indice < 0)
+            return;
+        eliminacionPendiente = (productos[indice], indice);
+        productos.RemoveAt(indice);
+        seleccion = "ninguno";
+    }
+
+    private void DeshacerEliminacion()
+    {
+        if (eliminacionPendiente is not { } anterior)
+            return;
+        if (!productos.Any(p => p.Id == anterior.Producto.Id))
+            productos.Insert(Math.Min(anterior.Indice, productos.Count), anterior.Producto);
+        eliminacionPendiente = null;
+    }
+    RETO INTEGRADOR 3.5.5 FIN */
 
     /* RETO 3.5 INICIO
     private void Quitar(int id)
@@ -1631,6 +1720,9 @@ namespace CursoWeb.Blazor.Services;
 public interface IProductosMemoriaService
 {
     Task<IReadOnlyList<Producto>> ObtenerAsync();
+    /* RETO INTEGRADOR 3.6.7 INICIO
+    Task<IReadOnlyList<Producto>> ObtenerConErrorAsync(bool simularError);
+    RETO INTEGRADOR 3.6.7 FIN */
 }
 ~~~
 
@@ -1658,6 +1750,16 @@ public sealed class ProductosMemoriaService : IProductosMemoriaService
             new Producto(3, "Carpeta", 3.75m)
         ];
     }
+    /* RETO INTEGRADOR 3.6.7 INICIO
+    public async Task<IReadOnlyList<Producto>> ObtenerConErrorAsync(bool simularError)
+    {
+        await Task.Delay(350);
+        if (simularError)
+            throw new InvalidOperationException("Fallo controlado del servicio local.");
+        return await ObtenerAsync();
+    }
+    RETO INTEGRADOR 3.6.7 FIN */
+
 }
 ~~~
 
@@ -1689,6 +1791,12 @@ Inyección, ciclo de inicialización preparado, bandera de carga, estados de pre
    prueba el reto retornando una lista vacía desde el servicio. *@
 @* @if (!cargando && productos.Count == 0) { <p id="sin-productos">No hay productos para mostrar.</p> } *@
 
+@* RETO INTEGRADOR 3.6.7: activar tras sustituir OnInitializedAsync
+   original por el nuevo del bloque C#. Simula error sin utilizar HTTP. *@
+@* <label>Simular fallo: <input id="simular-error" type="checkbox" @bind="simularError" /></label> *@
+@* <button id="recargar-productos" disabled="@cargando" @onclick="RecargarAsync">Recargar catálogo</button> *@
+@* @if (!string.IsNullOrEmpty(errorCarga)) { <p role="alert" id="error-carga">@errorCarga</p> } *@
+
 @code {
     private IReadOnlyList<Producto> productos = Array.Empty<Producto>();
     private bool cargando = true;
@@ -1703,6 +1811,36 @@ Inyección, ciclo de inicialización preparado, bandera de carga, estados de pre
         estado = "Lista preparada";
     }
     PASO 3.6.2 FIN */
+
+    /* RETO INTEGRADOR 3.6.7 INICIO
+    private bool simularError;
+    private string? errorCarga;
+
+    // Sustituye el OnInitializedAsync de PASO 3.6.2 por este:
+    protected override Task OnInitializedAsync() => RecargarAsync();
+
+    private async Task RecargarAsync()
+    {
+        cargando = true;
+        errorCarga = null;
+        estado = "Cargando productos...";
+        productos = Array.Empty<Producto>();
+        try
+        {
+            productos = await Catalogo.ObtenerConErrorAsync(simularError);
+            estado = "Lista preparada";
+        }
+        catch (InvalidOperationException)
+        {
+            errorCarga = "No se pudo cargar el catálogo de demostración.";
+            estado = "Carga fallida";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+    RETO INTEGRADOR 3.6.7 FIN */
 }
 ~~~
 
