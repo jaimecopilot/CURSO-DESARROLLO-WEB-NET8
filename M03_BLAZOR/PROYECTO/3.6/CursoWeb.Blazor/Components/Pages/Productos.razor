@@ -19,6 +19,12 @@
    prueba el reto retornando una lista vacía desde el servicio. *@
 @* @if (!cargando && productos.Count == 0) { <p id="sin-productos">No hay productos para mostrar.</p> } *@
 
+@* RETO INTEGRADOR 3.6.7: activar tras sustituir OnInitializedAsync
+   original por el nuevo del bloque C#. Simula error sin utilizar HTTP. *@
+@* <label>Simular fallo: <input id="simular-error" type="checkbox" @bind="simularError" /></label> *@
+@* <button id="recargar-productos" disabled="@cargando" @onclick="RecargarAsync">Recargar catálogo</button> *@
+@* @if (!string.IsNullOrEmpty(errorCarga)) { <p role="alert" id="error-carga">@errorCarga</p> } *@
+
 @code {
     private IReadOnlyList<Producto> productos = Array.Empty<Producto>();
     private bool cargando = true;
@@ -33,4 +39,34 @@
         estado = "Lista preparada";
     }
     PASO 3.6.2 FIN */
+
+    /* RETO INTEGRADOR 3.6.7 INICIO
+    private bool simularError;
+    private string? errorCarga;
+
+    // Sustituye el OnInitializedAsync de PASO 3.6.2 por este:
+    protected override Task OnInitializedAsync() => RecargarAsync();
+
+    private async Task RecargarAsync()
+    {
+        cargando = true;
+        errorCarga = null;
+        estado = "Cargando productos...";
+        productos = Array.Empty<Producto>();
+        try
+        {
+            productos = await Catalogo.ObtenerConErrorAsync(simularError);
+            estado = "Lista preparada";
+        }
+        catch (InvalidOperationException)
+        {
+            errorCarga = "No se pudo cargar el catálogo de demostración.";
+            estado = "Carga fallida";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+    RETO INTEGRADOR 3.6.7 FIN */
 }
