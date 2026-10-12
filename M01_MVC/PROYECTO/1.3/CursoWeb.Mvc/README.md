@@ -26,16 +26,4 @@ Abrir `/` y `/Productos`. Ambos muestran sus páginas previas. No se utilizan se
 
 **Importante:** los archivos de texto y CSS ya existen, incluso cuando el enlace que permite descubrirlos en la navegación sigue comentado. Quitar un enlace del layout **no protege ni oculta** un archivo dentro de `wwwroot`. Esta distinción es parte del reto.
 
-Toda la explicación del código y del reto está en `../../../PRACTICAS/M01_PRACTICAS.md`, sección P1.3. Para ejecutar los escenarios de forma automatizada desde la raíz del repositorio:
-
-~~~bash
-bash M01_MVC/TESTS/1.3_e2e.sh
-~~~
-
-El script crea copias temporales y verifica los estados de forma independiente en Kestrel, sin alterar el proyecto inicial del alumno.
-
-## Laboratorios ampliados y correspondencia documental
-
-La versión ampliada de [P1.3](../../../PRACTICAS/M01_PRACTICAS.md) incluye recorridos adicionales de diagnóstico y consolidación basados en **este mismo proyecto**. Son actividades de lectura, comprobación HTTP y activación de los bloques ya documentados más arriba; no constituyen un segundo conjunto de soluciones ni requieren crear otro proyecto.
-
-**Correspondencia verificable:** P1.3 del Markdown → código de esta carpeta → `M01_MVC/TESTS/1.3_e2e.sh`. Las explicaciones detalladas y los enunciados viven solo en el MD de prácticas; el PDF se genera de esa fuente, sin editarlo manualmente.
+Consulta [la práctica P1.3](../../../PRACTICAS/M01_PRACTICAS.md) para el desarrollo completo y la comprobación en el navegador.
