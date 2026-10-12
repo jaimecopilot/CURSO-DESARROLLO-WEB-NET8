@@ -294,6 +294,71 @@ curl -i http://localhost:5091/ruta-inexistente
 
 Si los códigos de respuesta no coinciden con lo esperado, revisar el puerto, la URL exacta y que se esté ejecutando el proyecto `CursoWeb.Mvc` en lugar de `PlantillaMvc`.
 
+## Laboratorio de razonamiento P1.1 — localizar la responsabilidad sin probar cambios al azar
+
+Hemos conseguido ejecutar una página MVC, añadir una cabecera HTTP y modificar su HTML. Pero una misma aplicación puede producir síntomas parecidos por causas completamente distintas: la página no abre, la página abre sin estilos, el contenido visible no cambia o una URL alternativa produce 404. Este laboratorio propone un método de diagnóstico que podrás reutilizar durante todo el curso.
+
+No vas a añadir un controlador nuevo. Trabajarás sobre el código y las URLs de `PROYECTO/1.1/CursoWeb.Mvc`, con las activaciones que acabas de realizar. El objetivo no es recopilar capturas por obligación, sino aprender a formular una hipótesis contrastable y elegir la observación correcta antes de modificar un archivo.
+
+### Escenario 1 — HTML correcto, pero la cabecera no aparece
+
+Mantén el servidor ejecutándose y entra en `/`. Verifica que el encabezado `1.1 | Primer recorrido MVC` aparece correctamente. Si ya activaste `PASO 1.1.4`, examina la pestaña **Red / Network** del navegador, recarga y selecciona la solicitud del documento principal. El resultado esperado es una respuesta HTML 200 con la cabecera `X-Curso-Paso: 1.1.4`.
+
+Supón ahora que el encabezado de la página se ve, pero no encuentras la cabecera personalizada. ¿Significa que Razor ha fallado? No: la cabecera se asigna dentro de `HomeController.Index()`, mientras que Razor genera el cuerpo HTML. Antes de cambiar `Index.cshtml`, comprueba que el paso 1.1.4 está activo en el controlador correcto y que inspeccionas **cabeceras de respuesta**, no las de petición.
+
+Una forma independiente de verlo es `curl -i http://localhost:5091/`. La opción `-i` incluye las cabeceras junto al contenido. Si obtienes HTML pero no la cabecera personalizada, el hecho observado apunta al código del controlador o a la versión de proyecto que realmente se está ejecutando, no al CSS.
+
+### Escenario 2 — CSS accesible sin pasar por HomeController
+
+Solicita `http://localhost:5091/css/site.css`. Debe responder 200 y presentar un tipo de contenido correspondiente a CSS. La cabecera `X-Curso-Paso` añadida en la acción `Index()` **no tiene por qué aparecer** en esa respuesta. Son solicitudes distintas atendidas por diferentes componentes del pipeline.
+
+Describe el recorrido que probablemente siguió cada recurso. Para `/`, el enrutamiento de MVC selecciona la acción Home/Index y Razor prepara HTML. Para `/css/site.css`, la infraestructura de archivos estáticos puede resolver el recurso dentro de `wwwroot`. Que los dos recursos aparezcan en una misma pantalla no los convierte en una única petición.
+
+**Experimento de interpretación:** elimina mentalmente el enlace `<link rel="stylesheet" href="~/css/site.css" />` del layout. La página HTML podría seguir respondiendo 200, pero el navegador dejaría de solicitar esa hoja CSS a partir del enlace. El hecho de que un archivo exista bajo `wwwroot` no obliga a todos los navegadores a descargarlo; necesita ser solicitado por alguna URL o referencia. No hace falta realizar una modificación permanente para comprenderlo.
+
+### Escenario 3 — Dos direcciones correctas y una URL inexistente
+
+Abre sucesivamente `/`, `/Home/Index` y `/ruta-inexistente`. Las dos primeras deberían presentar la misma página. La tercera debe producir 404. Analiza el patrón de ruta de `Program.cs`:
+
+~~~csharp
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+~~~
+
+Los valores predeterminados `Home` e `Index` permiten que `/` seleccione la misma acción que `/Home/Index`. No son dos copias del archivo HTML: ambas direcciones se resuelven hacia un resultado MVC. Por el contrario, una dirección que no coincide con ningún endpoint de la aplicación no se convierte en página simplemente porque el servidor esté escuchando.
+
+¿Qué nos dice un 404? Que hemos obtenido una respuesta HTTP que informa de un recurso o endpoint no encontrado. No significa lo mismo que un error de conexión. Para distinguirlos, detén la aplicación y vuelve a solicitar `/`. Sin proceso que escuche en el puerto, es posible obtener un error de conexión y no una respuesta HTTP 404. Vuelve a iniciar la aplicación antes de seguir.
+
+### Escenario 4 — El contenido no cambia tras editar la vista
+
+En el paso 1.1.5 el bloque `<section id="marca-paso-1-1-5">` se encontraba dentro de un comentario Razor. Si el comentario permanece, el código HTML que contiene **no debe llegar al navegador**. Si retiras los delimitadores, el servidor representa el bloque dentro del cuerpo de respuesta.
+
+Antes de tocar otras partes del proyecto, comprueba qué versión está abierta. La ruta física de trabajo debe contener `PROYECTO/1.1`, y la vista debe estar en `Views/Home/Index.cshtml`. Una de las fuentes de confusión de las prácticas incrementales es editar un proyecto distinto del que arrancaste en la terminal.
+
+Abre después las herramientas de desarrollo y busca el identificador `marca-paso-1-1-5` en el HTML de respuesta. No te limites a observar el diseño visual: un estilo puede hacer menos evidente un elemento que realmente existe. **La ausencia del fragmento en el HTML** y **la falta de visibilidad de un fragmento existente** requieren comprobaciones diferentes.
+
+### Preparar una explicación reproducible
+
+Para cualquiera de los cuatro escenarios, escribe una descripción breve con las siguientes piezas: URL exacta, resultado observado, resultado esperado, archivo o mecanismo que probablemente interviene, cambio mínimo que comprobarías y evidencia que confirmaría la solución. No basta con decir «la página funciona»; distingue en tu descripción un código HTTP, una cabecera o un elemento concreto del cuerpo HTML.
+
+Puedes usar esta tabla para comparar los mecanismos sin crear más código:
+
+| Lo que observas | Dónde conviene mirar primero | Lo que NO demuestra |
+|---|---|---|
+| `GET /` devuelve HTML 200 | Ruta, controlador y vista | Que todos los enlaces de la página funcionen |
+| Falta `X-Curso-Paso` | Acción `HomeController.Index()` y cabeceras de respuesta | Que el HTML sea incorrecto |
+| No se descarga `/css/site.css` | `wwwroot`, `UseStaticFiles()` y enlace del layout | Que el controlador del catálogo esté mal |
+| El HTML no incluye `marca-paso-1-1-5` | Comentarios Razor y vista `Home/Index` | Que el navegador no pueda interpretar HTML |
+| `/ruta-inexistente` devuelve 404 | Tabla de rutas y endpoints disponibles | Que Kestrel esté detenido |
+| El puerto rechaza la conexión | Proceso y URL de arranque | Que MVC haya decidido devolver un 404 |
+
+### Cierre de la actividad
+
+Describe con tus palabras por qué no sería correcto resolver estos seis síntomas editando siempre `HomeController.cs`. Indica también qué evidencia sería suficiente para demostrar que el reto de P1.1 ha modificado **dos partes distintas de una misma respuesta HTTP**: la cabecera de respuesta y el contenido generado por la vista.
+
+Esta actividad es especialmente útil cuando comiences a trabajar con rutas de productos y respuestas 400/404 en P1.4. El objetivo no es memorizar el código de un único proyecto, sino consolidar una forma de investigar problemas web sin confundir transporte, selección de acción, datos, Razor y recursos estáticos.
+
 ## Reto: aplicación de los pasos
 
 **Consolidación y reto 1.1 — distinguir metadatos HTTP y HTML.**
