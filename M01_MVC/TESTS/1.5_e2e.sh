@@ -92,7 +92,7 @@ for i in (1,2,3): assert f'data-producto-id="{i}"' in html
 PY
   fi
 
-  if [[ "$state" == "detalle-parcial" || "$state" == "aplicacion" || "$state" == "navegacion" || "$state" == "reto" ]]; then
+  if [[ "$state" == "detalle-parcial" || "$state" == "aplicacion" || "$state" == "navegacion" || "$state" == "reto" || "$state" == "integrado" ]]; then
     grep -Fq 'id="tarjeta-detalle"' "$TMP/$state-detalle.html"
     grep -Fq 'data-producto-id="2"' "$TMP/$state-detalle.html"
     grep -Fq 'data-producto-id="1"' "$TMP/$state-detalle1.html"
@@ -101,7 +101,7 @@ PY
     ! grep -Fq 'id="tarjeta-detalle"' "$TMP/$state-detalle.html"
   fi
 
-  if [[ "$state" == "reto" ]]; then
+  if [[ "$state" == "reto" || "$state" == "integrado" ]]; then
     python3 - "$TMP/$state-index.html" "$TMP/$state-detalle.html" "$TMP/$state-detalle1.html" <<'PY'
 from pathlib import Path
 from html import unescape
@@ -117,7 +117,7 @@ PY
     ! grep -Fq 'class="etiqueta-economico"' "$TMP/$state-detalle.html"
   fi
 
-  if [[ "$state" == "aplicacion" ]]; then
+  if [[ "$state" == "aplicacion" || "$state" == "integrado" ]]; then
     python3 - "$TMP/$state-index.html" "$TMP/$state-detalle.html" "$TMP/$state-detalle1.html" <<'PY'
 from pathlib import Path
 from html import unescape
@@ -132,7 +132,7 @@ PY
     ! grep -Fq 'class="etiqueta-destacada"' "$TMP/$state-index.html"
     ! grep -Fq 'class="etiqueta-destacada"' "$TMP/$state-detalle1.html"
   fi
-  if [[ "$state" == "navegacion" ]]; then
+  if [[ "$state" == "navegacion" || "$state" == "integrado" ]]; then
     python3 - "$TMP/$state-index.html" "$TMP/$state-detalle.html" <<'PY'
 from pathlib import Path
 import re
@@ -143,6 +143,14 @@ for id in (1, 2, 3):
     assert f'href="/Productos/Detalle/{id}"' in index, f"Falta el enlace al producto {id}"
 assert 'href="/Productos/Detalle/2"' in detalle, "La misma parcial debe producir enlace en el detalle"
 PY
+  fi
+  if [[ "$state" == "integrado" ]]; then
+    get "$state" "/catalogo/buscar/Cuaderno" 200 busqueda
+    get "$state" "/catalogo/buscar/cuaderno" 200 busquedaMin
+    get "$state" "/catalogo/buscar/NoExiste" 404 busqueda404
+    grep -Fq 'id="detalle-producto"' "$TMP/$state-busqueda.html"
+    grep -Fq 'class="etiqueta-destacada"' "$TMP/$state-index.html"
+    grep -Fq 'class="etiqueta-economico"' "$TMP/$state-index.html"
   fi
   echo "E2E OK: P1.5 $state, vistas tipadas, layout, secciones y parciales"
   kill "$PID" 2>/dev/null || true
@@ -166,6 +174,7 @@ for name,condition,section,cards,detail_card,reto in [
     ("aplicacion",True,True,True,True,False),
     ("navegacion",True,True,True,True,False),
     ("reto",True,True,True,True,True),
+    ("integrado",True,True,True,True,True),
 ]:
     target=tmp/name
     copytree(src,target,ignore=ignore_patterns("bin","obj"))
@@ -182,20 +191,28 @@ for name,condition,section,cards,detail_card,reto in [
         content=path.read_text(encoding="utf-8")
         assert content.count(start)==1 and content.count(end)==1, f"Bloque ausente: {path}: {start}"
         if enabled: content=content.replace(start,"").replace(end,"")
-        if name == "navegacion" and path.name == "_TarjetaProducto.cshtml":
+        if name in ("navegacion", "integrado") and path.name == "_TarjetaProducto.cshtml":
             old_link = '<a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>'
             new_link = '<a asp-controller="Productos" asp-action="Detalle" asp-route-id="@Model.Id">Ver detalle de @Model.Nombre</a>'
             assert content.count(old_link) == 1
             content = content.replace(old_link, new_link)
-        if name == "aplicacion" and path.name == "_TarjetaProducto.cshtml":
+        if name in ("aplicacion", "integrado") and path.name == "_TarjetaProducto.cshtml":
             marker = '    @* APLICACION 1.5 — Escribe aquí una condición Razor propia: si Model.Precio >= 4m, representa <strong class="etiqueta-destacada">Producto destacado</strong>. La misma parcial se reutiliza en listado y detalle. *@'
             answer = '    @if (Model.Precio >= 4m)\n    {\n        <strong class="etiqueta-destacada">Producto destacado</strong>\n    }'
             assert content.count(marker) == 1
             content = content.replace(marker, answer)
         path.write_text(content,encoding="utf-8")
+    if name == "integrado":
+        ctl = target / "Controllers" / "ProductosController.cs"
+        ctltext = ctl.read_text(encoding="utf-8")
+        marker_start = "    /* APLICACION P1.4 EN P1.5 INICIO\n"
+        marker_end = "    APLICACION P1.4 EN P1.5 FIN */"
+        assert marker_start in ctltext and marker_end in ctltext
+        ctltext = ctltext.replace(marker_start, "").replace(marker_end, "")
+        ctl.write_text(ctltext, encoding="utf-8")
 PY
 
-for state in condicion seccion tarjetas detalle-parcial aplicacion navegacion reto; do
+for state in condicion seccion tarjetas detalle-parcial aplicacion navegacion reto integrado; do
     run_scenario "$TMP/$state" "$state"
 done
-echo "P1.5: ocho escenarios E2E reales, incluidas regla autónoma, navegación Tag Helper y reto."
+echo "P1.5: nueve escenarios E2E reales, incluido el estado integrado con todas las variantes."
