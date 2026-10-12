@@ -14,7 +14,7 @@
 
 ## Aplicaciones del curso
 
-- **A — MVC:** días 1–2, productos, vistas Razor, formularios, DataAnnotations y CRUD con SQLite/EF Core.
+- **A — MVC:** días 1–2, productos, vistas Razor, formularios, DataAnnotations y CRUD con SQL Server Express LocalDB/EF Core.
 - **B — Blazor Web App Interactive Server:** días 3–5, componentes, eventos, binding, servicios y consumo de una pequeña API de productos.
 - **API auxiliar:** recurso suministrado para M04; no constituye otro curso de Web API.
 
@@ -37,6 +37,6 @@ Cada punto dispone de código de proyecto trazable paso a paso, con bloques acti
 
 **M02–M05:** materiales pendientes de elaboración. Los PDF de los demás módulos se generarán después de cerrar cada par de Markdown, no como ficheros individuales por ejercicio.
 
-**Publicación:** el trabajo de M01 permanece en la rama `desarrollo/m01-mvc`. La rama principal no incorpora todavía estos materiales; la revisión humana de los PDF y de las prácticas en laboratorio sigue pendiente antes de solicitar su integración.
+**Acceso a los materiales:** consulta el README del módulo y sigue la secuencia de actividades indicada en sus prácticas.
 
 > Esta edición está fijada por el programa docente en .NET 8; consultar la fecha de soporte del SDK en REQUISITOS_LABORATORIO.md antes de programar nuevas ediciones.
