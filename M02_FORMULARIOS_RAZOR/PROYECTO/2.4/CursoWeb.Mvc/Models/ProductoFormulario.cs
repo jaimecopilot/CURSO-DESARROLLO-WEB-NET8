@@ -1,6 +1,8 @@
 using System.ComponentModel.DataAnnotations;
 namespace CursoWeb.Mvc.Models;
 
+// P2.4: seguimos reutilizando el contrato de entrada validado de P2.3.
+// No expone Id ni otros campos que el cliente no debe controlar.
 public sealed class ProductoFormulario
 {
     [Required(ErrorMessage = "Indica el nombre.")]
@@ -8,6 +10,6 @@ public sealed class ProductoFormulario
     public string? Nombre { get; set; }
 
     [Required(ErrorMessage = "Indica el precio.")]
-    [Range(typeof(decimal), "0.01", "9999.99", ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
+    [Range(typeof(decimal), "0.01", "9999.99", ParseLimitsInInvariantCulture = true, ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
     public decimal? Precio { get; set; }
 }
