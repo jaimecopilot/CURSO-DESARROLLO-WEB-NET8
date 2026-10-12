@@ -1,8 +1,8 @@
 namespace CursoWeb.Mvc.Models;
 
 /// <summary>
-/// PASO 1.2.2: el modelo representa datos del dominio sin conocer HTTP ni HTML.
-/// No accede a base de datos; se usan datos fijos hasta M02.
+/// P2.4–P2.5: entidad persistida en LocalDB mediante EF Core.
+/// La demostración de Razor Pages no modifica ni duplica este modelo.
 /// </summary>
 public sealed class Producto
 {
