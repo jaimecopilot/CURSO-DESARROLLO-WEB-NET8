@@ -4,7 +4,14 @@
 }
 <h1>Crear producto — P2.3</h1>
 <p>Los errores se comprueban en el servidor mediante DataAnnotations y ModelState.</p>
+
+@* PASO 2.3.1: la entrada se representa con ProductoFormulario, no con la entidad Producto. *@
 <form asp-controller="Productos" asp-action="Crear" method="post">
+    @* PASO 2.3.4: ModelOnly muestra errores de modelo no asignados a campos.
+       Para ver también los errores de propiedades en una lista general,
+       prueba temporalmente asp-validation-summary="All" y compara.
+       Los span asp-validation-for mostrarán los mensajes junto a cada campo.
+    *@
     <div asp-validation-summary="ModelOnly" class="text-danger"></div>
     <div>
         <label asp-for="Nombre"></label>
@@ -19,3 +26,16 @@
     <button type="submit">Validar producto</button>
 </form>
 <p><a asp-controller="Productos" asp-action="Index">Volver al catálogo</a></p>
+
+@* PASO 2.3.5 (ACTIVAR) — Al terminar la validación de servidor,
+   retira los delimitadores del siguiente comentario Razor para habilitar
+   los tres scripts de validación cliente desde _ValidationScriptsPartial.
+   El layout ya contiene RenderSectionAsync("Scripts", required: false).
+   IMPORTANTE: si una biblioteca CDN no carga, los mensajes del navegador
+   pueden no activarse; la validación de servidor debe seguir funcionando.
+
+@section Scripts
+{
+    <partial name="_ValidationScriptsPartial" />
+}
+*@
