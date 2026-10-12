@@ -1065,3 +1065,246 @@ Al acabar el recorrido esencial, debes poder describir cada operación sin confu
 El punto de llegada no es que aparezca un mensaje diciendo «Guardado», sino que **el dato creado puede consultarse y editarse por su identificador, sobrevive al reinicio, y desaparece cuando se ejecuta una eliminación confirmada**. El alumnado que conoce EF Core debe ser capaz de conectar ese comportamiento con `Add`, cambios de propiedades, `Remove` y `SaveChangesAsync`, pero también con el contrato y las rutas MVC.
 
 El siguiente punto, **P2.5**, utilizará una Razor Page muy pequeña dentro de la misma aplicación para comparar el método de trabajo con un controlador y una vista. No crearemos otro CRUD ni una API adicional: la finalidad es distinguir `PageModel`, `OnGet` y `OnPost` mientras reutilizamos el conocimiento que acabamos de consolidar.
+
+# P2.5. Comparar MVC y Razor Pages dentro de la misma aplicación
+
+## Objetivo y preparación
+
+En P2.4 terminaste un catálogo MVC que consulta y modifica productos con EF Core. Ahora observarás una manera diferente de organizar **una página con un GET y un POST**, sin reconstruir el catálogo ni crear una segunda aplicación. La demostración utilizará el mismo proceso web, el mismo layout y dos archivos ya preparados: `Pages/Comparacion.cshtml` y `Pages/Comparacion.cshtml.cs`.
+
+**Abre este proyecto:** `M02_FORMULARIOS_RAZOR/PROYECTO/2.5/CursoWeb.Mvc/CursoWeb.Mvc.csproj`. El estado inicial contiene `OnGet` activo, `OnPost` comentado, dos anotaciones de validación comentadas, un handler de reto comentado y enlaces de navegación preparados. **No debes crear ni eliminar esos archivos.**
+
+El itinerario esencial (observación GET, activación POST y navegación) está diseñado para los **15 minutos prácticos** del temario. Los pasos de validación, aplicación autónoma y reto son una profundización posterior. La teoría correspondiente es el capítulo 2.5 de `M02_TEORIA.md`, apoyado por los capítulos 2.1–2.4.
+
+Este proyecto hereda el arranque de P2.4 y **necesita LocalDB disponible**, incluso si `/Comparacion` no consulta datos, porque `Program.cs` ejecuta `EnsureCreated()` al iniciar. Comprueba primero el entorno de P2.4. No borres ni sobrescribas la base de prácticas anterior. Si quieres aislar los datos, establece antes de arrancar una cadena a una base nueva, por ejemplo desde PowerShell:
+
+~~~powershell
+$env:ConnectionStrings__Productos = "Server=(localdb)\MSSQLLocalDB;Database=CursoWebP25Alumno;Trusted_Connection=True;TrustServerCertificate=True"
+~~~
+
+Después, desde la raíz del repositorio:
+
+~~~powershell
+cd M02_FORMULARIOS_RAZOR/PROYECTO/2.5/CursoWeb.Mvc
+dotnet restore
+dotnet build
+dotnet run --launch-profile CursoWeb.Mvc
+~~~
+
+El perfil incluido anuncia `http://localhost:5091`. Si Visual Studio o Kestrel indican otro puerto, reemplázalo en las direcciones siguientes. Una variable de entorno configurada en una consola no se propaga automáticamente a una instancia de Visual Studio iniciada por separado.
+
+## Paso 2.5.1 — Confirmar la coexistencia de MVC y Razor Pages
+
+**Objetivo.** Localizar las dos familias de endpoints y comprobar que el catálogo anterior sigue operativo. **Estado inicial:** no debes activar ni eliminar código; este paso es de lectura.
+
+Abre `M02_FORMULARIOS_RAZOR/PROYECTO/2.5/CursoWeb.Mvc/Program.cs`. Localiza las marcas `PASO 2.5.1` y observa:
+
+~~~csharp
+builder.Services.AddControllersWithViews();
+builder.Services.AddRazorPages();
+// ...
+app.MapRazorPages();
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+~~~
+
+Los métodos `Add...` registran servicios y los `Map...` publican las rutas. La primera pareja permite las páginas con `@page`; la segunda conserva controladores y vistas. No agregues otra aplicación `WebApplication` ni un nuevo puerto para Razor Pages.
+
+**Ejecuta y comprueba.** Abre `http://localhost:5091/Productos` y luego `http://localhost:5091/Comparacion`. Ambas direcciones deben devolver una página. La primera conserva el catálogo MVC; la segunda corresponde a la Razor Page. Si toda la aplicación falla al arrancar con una excepción de SQL Server, revisa la conexión LocalDB heredada de P2.4 antes de modificar el routing.
+
+**Por qué funciona:** son endpoints distintos publicados por el mismo host. **Teoría relacionada:** «El mismo host registra MVC y Razor Pages».
+
+## Paso 2.5.2 — Seguir una petición GET hasta OnGet
+
+**Objetivo.** Identificar quién prepara el mensaje de la nueva página y cómo se representa en HTML. **Estado inicial:** `OnGet` ya está activo; todavía no actives `OnPost`.
+
+Abre `Pages/Comparacion.cshtml` y localiza sus dos primeras directivas:
+
+~~~cshtml
+@page "/Comparacion"
+@model CursoWeb.Mvc.Pages.ComparacionModel
+~~~
+
+Abre ahora `Pages/Comparacion.cshtml.cs` y lee:
+
+~~~csharp
+public void OnGet()
+{
+    Mensaje = "OnGet prepara la página sin enviar un formulario.";
+}
+~~~
+
+En `Comparacion.cshtml`, la línea `<p id="mensaje-page">@Model.Mensaje</p>` representa ese valor. Solicita `GET /Comparacion`, actualiza la página e inspecciona el HTML. Debes encontrar el texto de `OnGet` y el elemento `mensaje-page`. En las herramientas de desarrollo del navegador puedes observar la petición GET y su respuesta.
+
+**Experimento previo al POST:** el formulario ya muestra un botón, pero `OnPost` sigue comentado. Envía «Ana», observa lo ocurrido y comprueba que no aparece el mensaje `OnPost ha recibido: Ana`. **No presupongas un HTTP 405:** que no exista un handler POST explícito no garantiza ese código en Razor Pages. Vuelve después a cargar la URL mediante GET.
+
+**Por qué funciona:** la directiva `@page` define el endpoint, `@model` enlaza con la clase `PageModel` y el framework selecciona `OnGet` para el GET. **Teoría relacionada:** «PageModel» y «Una solicitud, dos formas de distribuir la responsabilidad».
+
+## Paso 2.5.3 — Activar el POST y seguir el enlace de datos
+
+**Objetivo.** Hacer que el mismo formulario atienda POST sin añadir un controlador MVC. **Estado inicial:** el handler `OnPost` existe pero está comentado.
+
+Abre `Pages/Comparacion.cshtml.cs`. Busca exactamente:
+
+~~~csharp
+/* PASO 2.5.3 INICIO
+public IActionResult OnPost()
+{
+    // ... cuerpo ya preparado en el archivo ...
+}
+PASO 2.5.3 FIN */
+~~~
+
+**Instrucción:** elimina únicamente las dos líneas que contienen `/* PASO 2.5.3 INICIO` y `PASO 2.5.3 FIN */`, manteniendo intacto el método situado entre ellas. No pegues el bloque abreviado anterior en tu proyecto; el archivo real contiene el método completo y la comprobación de `ModelState`. Guarda y recompila.
+
+El método activo debe terminar realizando la siguiente operación cuando la entrada es aceptable:
+
+~~~csharp
+Mensaje = $"OnPost ha recibido: {Nombre.Trim()}";
+return Page();
+~~~
+
+En `Pages/Comparacion.cshtml` ya existe un formulario como este:
+
+~~~cshtml
+<form method="post" asp-antiforgery="true">
+    <label asp-for="Nombre"></label>
+    <input asp-for="Nombre" />
+    <span asp-validation-for="Nombre" class="text-danger"></span>
+    <button type="submit">Enviar a OnPost</button>
+</form>
+~~~
+
+El fragmento resume los elementos relevantes; **no sustituye** la vista completa, que incluye el resumen de validación y navegación. No elimines el atributo `asp-antiforgery`.
+
+**Ejecuta y observa.** Compila, abre `/Comparacion`, escribe «Ana» y envía. La respuesta debe incluir `OnPost ha recibido: Ana`. Introduce un nombre con espacios iniciales y finales y observa que el mensaje usa `Trim()`. Si falta el texto, comprueba que se activó `OnPost`, que se recompiló, y que el navegador está enviando POST a la página.
+
+**Caso negativo de seguridad:** observa el campo oculto `__RequestVerificationToken` del HTML generado. Una petición POST fabricada sin ese token debe ser rechazada, en condiciones normales, con HTTP 400 antes de ejecutarse el handler. Puedes comprobarlo en una terminal distinta:
+
+~~~powershell
+curl.exe -i -X POST -d "Nombre=Ana" http://localhost:5091/Comparacion
+~~~
+
+No desactives antiforgery para hacer que la prueba pase. Enviar desde el formulario real y fabricar un POST sin token son experimentos diferentes: el formulario legítimo incluye el token y utiliza las cookies correspondientes.
+
+**Por qué funciona:** `[BindProperty]` permite recibir `Nombre` en `PageModel`; el nombre del handler selecciona el POST y `Page()` vuelve a representar esa página, sin escribir en LocalDB. **Teoría relacionada:** «Del GET al POST» y «Antiforgery».
+
+## Paso 2.5.4 — Activar la validación de servidor
+
+**Objetivo.** Recuperar el significado de DataAnnotations y `ModelState` ahora aplicado a una propiedad de página. **Estado inicial:** `OnPost` debe estar activo, mientras que las anotaciones siguientes están comentadas. Este paso es de profundización.
+
+Abre `Pages/Comparacion.cshtml.cs`, localiza `PASO 2.5.4` y elimina el prefijo `//` de estas dos anotaciones, sin modificar la línea `[BindProperty]`:
+
+~~~csharp
+[Required(ErrorMessage = "Introduce un nombre.")]
+[StringLength(60, MinimumLength = 2,
+    ErrorMessage = "El nombre debe tener entre 2 y 60 caracteres.")]
+public string? Nombre { get; set; }
+~~~
+
+Compila, vuelve a `/Comparacion` y ejecuta estas tres entradas de una en una:
+
+| Entrada | Resultado que debes observar |
+|---|---|
+| Nombre vacío | «Introduce un nombre.» junto al campo |
+| `X` | «El nombre debe tener entre 2 y 60 caracteres.» |
+| `Ana` | «OnPost ha recibido: Ana» |
+
+Prueba además una cadena de más de 60 caracteres. La página debe mostrar el error de longitud y conservar la entrada para corregirla. El elemento `asp-validation-for="Nombre"` presenta los errores de esa propiedad; el resumen `ModelOnly` no los sustituye.
+
+**Por qué funciona:** el binder obtiene el valor, DataAnnotations registra errores en `ModelState` y `OnPost` devuelve `Page()` antes de construir un mensaje de éxito cuando hay errores. El retorno de una página inválida con HTTP 200 no significa que el dato haya sido aceptado: debes leer el HTML devuelto. Esta práctica se centra en la validación de servidor; no necesita reinstalar los scripts de validación cliente de P2.3.
+
+**Diagnóstico:** si `X` se acepta, verifica que ambas anotaciones realmente quedaron activadas; si no aparece el error, comprueba el `span` con `asp-validation-for="Nombre"`. **Teoría relacionada:** «DataAnnotations y ModelState siguen significando lo mismo».
+
+## Paso 2.5.5 — Navegar desde MVC a Razor Pages y regresar
+
+**Objetivo.** Crear navegación cruzada sin escribir una URL literal en el enlace nuevo. **Estado inicial:** el menú MVC aún no muestra «Comparar Razor Pages»; el enlace de regreso desde la página ya está activo.
+
+Abre `Views/Shared/_Layout.cshtml` y busca `PASO 2.5.5`. La línea siguiente está encerrada en un comentario Razor:
+
+~~~cshtml
+@* <a asp-page="/Comparacion">Comparar Razor Pages</a> *@
+~~~
+
+Elimina **solo los delimitadores de ese comentario** para dejar:
+
+~~~cshtml
+<a asp-page="/Comparacion">Comparar Razor Pages</a>
+~~~
+
+No modifiques la línea explicativa anterior. Abre `Pages/Comparacion.cshtml` y comprueba que ya existe el enlace de regreso:
+
+~~~cshtml
+<a asp-controller="Productos" asp-action="Index">Volver al catálogo MVC</a>
+~~~
+
+El archivo `Pages/_ViewStart.cshtml` establece `Layout = "/Views/Shared/_Layout.cshtml"`, por lo que ambos estilos comparten el menú.
+
+**Ejecuta y observa.** Compila, visita `/Productos`, pulsa «Comparar Razor Pages» y después «Volver al catálogo MVC». El primer enlace debe llevarte a `/Comparacion`; el segundo devuelve el listado. Si el navegador muestra literalmente `asp-page` como atributo en vez de convertirlo en un `href`, comprueba `Pages/_ViewImports.cshtml`, donde se registran los Tag Helpers.
+
+**Por qué funciona:** `asp-page` genera el destino de la Razor Page, mientras `asp-controller` y `asp-action` generan el destino MVC. **Teoría relacionada:** «Navegación cruzada y layout compartido».
+
+## Aplicación autónoma 2.5.6 — Representar una condición con Razor
+
+**Objetivo.** Reutilizar la sintaxis `@if` de M01 para interpretar una propiedad del `PageModel`. **Estado inicial:** en `Pages/Comparacion.cshtml` hay un comentario `APLICACION 2.5.6 (ESCRIBIR)`; no existe todavía una solución activa.
+
+**Tu tarea:** debajo de `<p id="mensaje-page">@Model.Mensaje</p>`, escribe una condición Razor que añada un elemento con `id="respuesta-larga"` únicamente cuando `Model.Mensaje` tenga más de 40 caracteres. No modifiques `OnGet` ni el formulario. Compila y compara la representación del GET con la de un POST cuyo nombre sea suficientemente largo. Un mensaje corto no debe mostrar el elemento; uno largo sí.
+
+Una posible solución para consultar después de intentarlo es:
+
+~~~cshtml
+@if (Model.Mensaje.Length > 40)
+{
+    <p id="respuesta-larga">La respuesta supera los 40 caracteres.</p>
+}
+~~~
+
+**Por qué funciona:** se evalúa la longitud del mensaje ya construido por el handler; no es una regla sobre la longitud de `Nombre` ni un atributo de validación. El `id` permite comprobar el resultado inspeccionando el HTML. **Teoría relacionada:** «PageModel» y renderizado de expresiones Razor.
+
+## Reto 2.5 — Un segundo handler POST que transforma el nombre
+
+**Objetivo.** Comprobar que una misma página puede atender dos destinos POST sin duplicar formularios ni controladores. **Estado inicial:** `OnPostMayusculas` está comentado en el `PageModel` y el segundo botón está comentado en el archivo Razor. Es una profundización opcional.
+
+**Primera modificación.** Abre `Pages/Comparacion.cshtml.cs`, busca `RETO 2.5 INICIO` y `RETO 2.5 FIN` y elimina las dos líneas delimitadoras `/* ... */`, igual que hiciste con `OnPost`. Conserva el método completo situado dentro:
+
+~~~csharp
+public IActionResult OnPostMayusculas()
+{
+    if (!ModelState.IsValid)
+        return Page();
+
+    if (string.IsNullOrWhiteSpace(Nombre))
+    {
+        ModelState.AddModelError(nameof(Nombre), "Introduce un nombre.");
+        return Page();
+    }
+
+    Mensaje = $"Nombre en mayúsculas: {Nombre.Trim().ToUpperInvariant()}";
+    return Page();
+}
+~~~
+
+**Segunda modificación.** Abre `Pages/Comparacion.cshtml`, busca el comentario `RETO 2.5` y activa exclusivamente el botón preparado:
+
+~~~cshtml
+<button type="submit" asp-page-handler="Mayusculas">Mostrar en mayúsculas</button>
+~~~
+
+Mantén el botón «Enviar a OnPost» y el formulario. No copies el nombre del método `OnPostMayusculas` dentro de `asp-page-handler`: el sufijo del handler es `Mayusculas`.
+
+**Ejecuta y comprueba.** Compila, abre `/Comparacion` y escribe «Ana». El primer botón debe seguir mostrando «OnPost ha recibido: Ana»; el segundo debe mostrar «Nombre en mayúsculas: ANA». Comprueba también que el formulario sigue incluyendo el token antiforgery.
+
+**Caso negativo:** envía un nombre vacío o de un carácter después de activar las anotaciones de 2.5.4. Ninguno de los dos handlers debe presentar un resultado positivo: deben mostrarse los errores de la propiedad `Nombre`. Prueba asimismo que un POST directo sin token se rechaza. Si el botón de mayúsculas no selecciona el handler, inspecciona el `action` o `formaction` HTML que generó el Tag Helper y comprueba que se transmite `handler=Mayusculas`.
+
+**Por qué funciona:** Razor Pages reconoce handlers por la convención `OnPost` más el nombre `Mayusculas`. Ambos comparten `Nombre`, `ModelState` y la política antiforgery de la página. El método alternativo transforma la representación del nombre, pero no inserta, edita ni elimina productos. **Teoría relacionada:** «Más de un POST en una página».
+
+## Cierre de P2.5 y conexión con Blazor
+
+Vuelve a `/Productos` después de realizar las pruebas. Los nombres escritos en `/Comparacion` **no deben haber aparecido como productos nuevos**. En particular, `ComparacionModel` no utiliza `AppDbContext`, `Add`, `Remove` ni `SaveChangesAsync`. Si el catálogo cambió, investiga alguna modificación ajena a esta práctica y no la atribuyas al handler de demostración.
+
+Al concluir debes poder describir dos recorridos completos: `GET/POST /Productos/Crear` llega a acciones de `ProductosController`, utiliza `ProductoFormulario` y, cuando la entrada es válida, puede escribir en LocalDB; `GET/POST /Comparacion` llega a `OnGet` o `OnPost` en `ComparacionModel` y representa mensajes sin persistir datos.
+
+La diferencia esencial no es que uno use HTML y otro no: ambos generan HTML con Razor y atienden HTTP. La diferencia visible es **dónde se organiza el comportamiento de la solicitud**. En el módulo siguiente estudiaremos componentes Razor de Blazor y veremos una tercera organización, ahora con estado y eventos interactivos.
+
+**Diagnóstico final.** Si la ruta no existe, revisa `@page` y `MapRazorPages`; si no arranca el host, comprueba LocalDB; si el POST no modifica el mensaje, revisa `OnPost`; si falla con HTTP 400, inspecciona antiforgery; si un nombre inválido pasa, comprueba DataAnnotations; si los mensajes no aparecen, revisa `asp-validation-for` y la respuesta generada. Cambia una sola causa posible antes de volver a compilar.
