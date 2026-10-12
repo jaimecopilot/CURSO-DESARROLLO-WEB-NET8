@@ -2464,6 +2464,22 @@ M01_MVC/PROYECTO/1.5/CursoWeb.Mvc/
 └── CursoWeb.Mvc.csproj
 ~~~
 
+### Qué permanece entre P1.4 y P1.5
+
+Cada subcarpeta `PROYECTO/1.x` es una **instantánea independiente** preparada para comenzar su punto sin repetir los anteriores. La copia de P1.5 incorpora las capacidades **troncales** de P1.4: catálogo, `Estado()`, `Detalle(int id)`, `Ficha(int id)`, vistas y recursos estáticos. Sin embargo, no activa automáticamente los **retos ni las aplicaciones de ampliación opcionales** realizados en otras carpetas.
+
+En particular, la búsqueda por nombre escrita en la aplicación autónoma P1.4 no forma parte de los pasos obligatorios de P1.5. **No se ha perdido**: en `PROYECTO/1.5/CursoWeb.Mvc/Controllers/ProductosController.cs` existe ahora el bloque comentado `APLICACION P1.4 EN P1.5`, que puedes activar durante la integración opcional final. Si no realizaste la ampliación P1.4, no debes activarlo para poder completar P1.5.
+
+| Capacidad anterior | ¿Está activa al abrir 1.5? | Qué hace el alumno |
+|---|---|---|
+| Listado de tres productos y enlaces | Sí | Comprobar `/Productos` |
+| Acciones `Estado`, `Detalle` y `Ficha` | Sí | Mantener las rutas disponibles |
+| Reto JSON de P1.4 | No | Solo activar si quiere repetir la ampliación |
+| Búsqueda autónoma por nombre de P1.4 | No, pero conserva el bloque comentado | Activar únicamente para integrar las variantes |
+| Condiciones y parciales de P1.5 | Preparadas, todavía comentadas | Activar en el orden 1.5.2 a 1.5.5 |
+
+**Itinerario de aula:** resolver primero los pasos 1.5.1–1.5.5 y razonar el reto guiado. La segunda regla visual, la búsqueda heredada y el Anchor Tag Helper son **ampliaciones opcionales** para estudio o trabajo posterior. Así se conserva la profundidad del manual de referencia sin convertir todos los fragmentos en trabajo obligatorio de los 50 minutos del punto.
+
 **No editar el proyecto 1.4 para esta práctica:** el de 1.5 conserva la evolución anterior y permite activar los siguientes pasos sin reconstruir otras versiones. El archivo parcial `_TarjetaProducto.cshtml` y sus estilos **ya existen**, aunque inicialmente las vistas todavía no lo incluyen.
 
 Abrir `CursoWeb.Mvc.csproj` en Visual Studio, o ejecutar desde la raíz del repositorio:
@@ -3060,6 +3076,8 @@ No debes copiar este bloque también al listado o al detalle. Ambas vistas recib
 
 ## Integración final del M01 — un enlace generado desde el modelo y la ruta MVC
 
+**Actividad ampliada y opcional de cierre.** Antes de comenzar, resuelve la funcionalidad principal de P1.5. Si completaste también la búsqueda por nombre de P1.4, puedes activar su bloque de transferencia y comprobarlo junto con las demás variantes.
+
 Al terminar las cinco prácticas, la aplicación permite abrir la portada, consultar el catálogo, navegar a un detalle y reutilizar una tarjeta de producto. Sin embargo, **que todas esas páginas existan no significa que hayamos comprendido cómo se relacionan**. En esta última actividad recorrerás de nuevo el camino completo de una solicitud, pero esta vez construirás un cambio autónomo que conecta las ideas de enrutamiento (1.4) y de presentación con vistas parciales (1.5).
 
 ### El problema: un enlace que debe seguir la ruta y el producto
@@ -3110,7 +3128,7 @@ Puedes describir el recorrido así: producto individual → parcial Razor → en
 
 ### E — Una comprobación de regresión útil para un desarrollador
 
-Repite las operaciones esenciales de la jornada sin deshacer tu modificación:
+Repite las operaciones esenciales de la jornada sin deshacer tu modificación. Si has realizado las ampliaciones opcionales, comprueba también que conviven en una única versión del proyecto: la búsqueda por nombre de P1.4, las dos etiquetas visuales de P1.5 y el enlace generado por Anchor Tag Helper. Para ello activa solamente los bloques indicados en sus respectivas actividades y comprueba sus resultados antes de avanzar:
 
 1. Abre `/`: el encabezado inicial debe seguir accesible.
 2. Abre `/Productos`: deben aparecer tres productos con sus nombres y precios.
