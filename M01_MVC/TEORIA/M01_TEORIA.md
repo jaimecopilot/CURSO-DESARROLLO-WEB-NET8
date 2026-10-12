@@ -423,7 +423,7 @@ La práctica no pretende enseñar todas las variantes del pipeline ni construir 
 
 Observemos los archivos reales de `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc`. El arranque está definido en `Program.cs`:
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+La configuración que necesitamos ya está en `Program.cs`: `CreateBuilder(args)` prepara la aplicación, `AddControllersWithViews()` registra MVC, `UseStaticFiles()` atiende recursos públicos y `MapControllerRoute(...)` define la ruta convencional. Seguiremos ahora su ejecución en lugar de repetir todo el archivo.
 
 Examinemos cada parte, sin adelantar toda la materia de routing del punto 1.4:
 
@@ -536,7 +536,9 @@ Este es otro motivo para inspeccionar tanto el documento principal como sus recu
 
 El paso 1.1.4 añade una cabecera a la respuesta:
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+~~~csharp
+Response.Headers["X-Curso-Paso"] = "1.1.4";
+~~~
 
 La instrucción modifica la colección de cabeceras HTTP de la respuesta de la acción. El navegador puede mostrar ese dato en su panel de red, pero no tiene por qué dibujar automáticamente el texto en la página.
 
@@ -1212,7 +1214,7 @@ La evolución entre capítulos también explica por qué no pretendemos que el a
 
 La primera línea del archivo de proyecto selecciona `Microsoft.NET.Sdk.Web`. Esta elección no equivale a ejecutar un servidor, sino a declarar que construimos una aplicación web con un conjunto determinado de objetivos, referencias y tareas de compilación.
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+En el archivo `CursoWeb.Mvc.csproj` aparecen `Sdk="Microsoft.NET.Sdk.Web"` y `<TargetFramework>net8.0</TargetFramework>`. El primero selecciona el SDK web y el segundo declara el framework de destino; ninguno representa por sí mismo una petición HTTP.
 
 `TargetFramework` es el framework de destino del proyecto, no necesariamente la versión exacta de cada dependencia que pudiéramos añadir después. En nuestro ejemplo, el framework se fija en .NET 8 porque ese es el alcance del curso. Los conocimientos previos de C# y Web API permiten al alumnado reconocer que sigue tratándose de un proyecto de .NET, con su proceso de restauración, compilación y ejecución.
 
@@ -1377,7 +1379,9 @@ obtiene un valor de tipo cadena. Si quisiéramos expresar una configuración com
 
 El código del paso 1.3.3 muestra una llamada a logging:
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+~~~csharp
+app.Logger.LogInformation("P1.3 configuracion: {Nombre}", app.Configuration["Curso:Nombre"]);
+~~~
 
 La cadena de la sección `Curso` aporta el valor, mientras que la plantilla del mensaje define cómo registrarlo. Si cambia el valor de configuración y reiniciamos la aplicación, el código puede seguir siendo el mismo y el mensaje reflejar el valor actualizado. De esta manera comprobamos la utilidad de externalizar un ajuste que no merece ser una constante compilada dentro del controlador.
 
@@ -1746,7 +1750,7 @@ flowchart TD
 
 Una ruta MVC no es el nombre de un archivo. Es una regla utilizada por la infraestructura de endpoints para asociar una solicitud HTTP con código ejecutable. La plantilla convencional de nuestro proyecto:
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+La plantilla concreta es `{controller=Home}/{action=Index}/{id?}`, tal como se declara en `Program.cs`. `Home` e `Index` son los valores predeterminados; el segmento final, `id`, es opcional.
 
 contiene tres posiciones. Los dos primeros valores tienen nombres y valores predeterminados; el último segmento es opcional. La sintaxis con llaves representa parámetros de ruta, no variables de C# declaradas dentro de `Program.cs`. Su misión es describir **cómo interpretar los segmentos de una URL**.
 
@@ -2211,9 +2215,9 @@ Para los casos 400 y 404 la evidencia principal es el estado HTTP. En este curso
 
 Cuando el alumnado ya conoce Web API, resulta útil mostrar en una misma clase las tres formas de salida que el capítulo introduce:
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+Una respuesta de texto sencillo se obtiene con `return Content("Catalogo MVC disponible", "text/plain");`, como en `ProductosController.Estado()`.
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+Una respuesta HTML tipada utiliza `return View(producto);`, como en `ProductosController.Detalle(int id)` cuando se ha localizado el objeto.
 
 ~~~csharp
 return Ok(new { producto.Id, producto.Nombre });
@@ -2554,11 +2558,11 @@ Esta observación constituye una de las diferencias más importantes entre apren
 
 En el catálogo hemos utilizado:
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+En `Views/Productos/Index.cshtml`, el contrato es `@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?`: se recibe una colección que puede ser nula.
 
 En la ficha de detalle y en la parcial utilizamos:
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+En `Views/Productos/Detalle.cshtml` y en `Views/Shared/_TarjetaProducto.cshtml`, el contrato es `@model CursoWeb.Mvc.Models.Producto`: ambas representaciones trabajan con un único producto.
 
 La diferencia responde a la estructura de los datos. El listado recorre una colección; la ficha y la tarjeta trabajan con un único producto.
 
@@ -2578,7 +2582,7 @@ Una vista Razor no es un archivo de HTML puro. La directiva `@if` permite decidi
 
 En el capítulo preparamos una condición de presentación:
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+El bloque de la vista del catálogo empieza con `@if (Model.Count >= 3)` dentro de la rama en la que el modelo no es nulo; únicamente decide si mostrar un mensaje descriptivo.
 
 Su única responsabilidad es mostrar un mensaje cuando la lista contiene al menos tres elementos. No cambia la colección ni aplica ninguna regla comercial. Además, la situamos dentro del `else` de una comprobación anterior, de forma que sabemos que `Model` no es nulo cuando accedemos a `Count`.
 
@@ -2688,7 +2692,7 @@ El layout define la estructura común de una página MVC: documento HTML, cabece
 
 En el proyecto, `Views/_ViewStart.cshtml` selecciona `_Layout`:
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+En `Views/_ViewStart.cshtml` se indica `Layout = "_Layout";`; así las vistas usan de manera predeterminada `Views/Shared/_Layout.cshtml`.
 
 Después, cada vista concreta define el contenido que se insertará en `@RenderBody()`. El título del documento también puede variar mediante `ViewData["Title"]`, permitiendo que la pestaña del navegador refleje si estamos en el catálogo o en una ficha individual.
 
@@ -2702,11 +2706,11 @@ Una sección Razor permite que una vista defina contenido destinado a una regió
 
 En el layout:
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+En el layout compartido se reserva el lugar mediante `@RenderSection("Notas", required: false)`, una sección opcional que no obliga a cada vista a definir contenido adicional.
 
 En la vista de detalle:
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+La vista `Detalle.cshtml` aporta su propio bloque `@section Notas { ... }`. La vista del catálogo no lo aporta, y por eso ambas funcionan con el mismo layout sin crear contenido vacío.
 
 La vista declara la sección y el layout define dónde se representa. Como el parámetro `required` es `false`, otras vistas que no declaran esa sección pueden seguir utilizándolo sin tener que añadir texto vacío.
 
@@ -2823,7 +2827,7 @@ Supongamos que cada producto debe mostrar su nombre, precio y enlace. Podríamos
 
 La parcial `_TarjetaProducto.cshtml` concentra ese marcado:
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+La tarjeta se encuentra en `Views/Shared/_TarjetaProducto.cshtml`: concentra el nombre, el precio y el enlace de un único `Producto` para ser representada tanto en el listado como en la ficha.
 
 Ahora la vista de listado necesita solamente iterar los productos y pasar uno a uno a la parcial. La vista de detalle puede pasar directamente su único `Model`.
 
@@ -2931,7 +2935,7 @@ El reto utiliza lo que acabamos de aprender: al modificar **una única vista par
 
 Dentro de `Views/Shared/_TarjetaProducto.cshtml` existe un bloque de código comentado:
 
-*Se reutiliza el fragmento de código mostrado anteriormente en este capítulo, sin modificaciones.*
+El bloque opcional de la parcial utiliza `@if (Model.Precio < 3m)` para mostrar «Precio económico». Al estar en la parcial, la condición se aplica en todas las vistas que la utilizan.
 
 La condición compara el precio decimal del producto con tres unidades monetarias. El código del curso contiene estos valores: Cuaderno 4,50, Lápiz 1,20 y Carpeta 3,75. Por tanto, el mensaje aparece únicamente para **Lápiz**.
 
