@@ -10,7 +10,7 @@
 
 Este manual continúa directamente el catálogo de productos construido en M01. El alumno ya sabe relacionar una solicitud HTTP con una ruta MVC, seleccionar una acción del controlador, entregar un modelo tipado a una vista Razor y reutilizar un layout. El nuevo problema no es mostrar datos existentes, sino recibir información que escribe otra persona, entender cómo se transforma en objetos C#, decidir si puede aceptarse y, finalmente, conservarla.
 
-La progresión acordada para este módulo abarca cinco puntos: **2.1** formularios HTML, GET/POST, model binding y antiforgery; **2.2** Tag Helpers; **2.3** DataAnnotations, ModelState y validación; **2.4** CRUD con EF Core y SQL Server Express LocalDB; y **2.5** una comparación breve con Razor Pages dentro del mismo host MVC. La edición de trabajo comienza por el capítulo 2.1. Los demás capítulos se desarrollarán dentro de este mismo archivo; no se crearán cinco manuales separados.
+La progresión acordada para este módulo abarca cinco puntos: **2.1** formularios HTML, GET/POST, model binding y antiforgery; **2.2** Tag Helpers; **2.3** DataAnnotations, ModelState y validación; **2.4** CRUD con EF Core y SQL Server Express LocalDB; y **2.5** una comparación breve con Razor Pages dentro del mismo host MVC. El conjunto de capítulos se presenta de forma progresiva en este mismo manual, con el código fuente de cada práctica situado en la carpeta correspondiente.
 
 Al finalizar el día, el producto será un catálogo que permita crear, consultar, modificar y eliminar datos persistidos. La aplicación Razor Pages será solamente una demostración alternativa de recepción de información, no otro proyecto empresarial. Seguimos usando **.NET 8** y los conocimientos previos de C#, Web API y Entity Framework Core; no volveremos a impartir esas tecnologías desde el principio.
 
@@ -1223,3 +1223,267 @@ El criterio de salida para 2.4 debe poder expresarse con ejemplos concretos: cre
 - Microsoft Learn, Registro de DbContext e inyección de dependencias: https://learn.microsoft.com/en-us/ef/core/dbcontext-configuration/
 - Microsoft Learn, Consultas sin seguimiento en EF Core: https://learn.microsoft.com/en-us/ef/core/querying/tracking
 - Microsoft Learn, Protección antiforgery de solicitudes MVC: https://learn.microsoft.com/en-us/aspnet/core/security/anti-request-forgery?view=aspnetcore-8.0
+
+# 2.5. Razor Pages: otra organización para el mismo ciclo HTTP
+
+## Del catálogo MVC a una página centrada en sí misma
+
+En 2.4 terminamos un recorrido completo: el navegador envía una petición, el enrutamiento selecciona una acción de \`ProductosController\`, la acción consulta o modifica el catálogo mediante EF Core y una vista Razor produce HTML. Para crear un producto, incluso en el caso más pequeño, intervienen al menos una acción GET, una acción POST y la vista \`Views/Productos/Crear.cshtml\`. Esa separación resulta útil cuando coordinamos varios recursos y operaciones, pero no es la única forma de organizar una interfaz web que recibe y representa datos.
+
+**Razor Pages** proporciona una alternativa integrada en ASP.NET Core para construir interfaces organizadas por página. En lugar de asociar la solicitud a una acción de un controlador MVC y después seleccionar una vista, asociamos una dirección a un archivo de página \`.cshtml\` y a sus métodos controladores de petición, denominados *handlers*. Podemos utilizar ambos estilos dentro de la misma aplicación, con las mismas ideas de HTTP, Razor, model binding, validación, Tag Helpers y protección antiforgery.
+
+No estamos cambiando la tecnología de servidor ni construyendo Blazor. Seguimos recibiendo HTTP y generando HTML. Razor Pages utiliza los servicios e infraestructura de ASP.NET Core MVC, pero propone una **organización orientada a páginas**. Tampoco obliga a prescindir de servicios, EF Core o separación de responsabilidades en aplicaciones mayores; en este ejercicio limitamos deliberadamente la página a un nombre y un mensaje.
+
+## Una solicitud, dos formas de distribuir la responsabilidad
+
+En MVC, la solicitud \`GET /Productos/Crear\` se resuelve mediante una acción semejante a:
+
+~~~csharp
+[HttpGet]
+public IActionResult Crear() => View(new ProductoFormulario());
+~~~
+
+Después, el controlador devuelve una vista en \`Views/Productos/Crear.cshtml\`. La vista lleva \`@model\` y dibuja el formulario, pero no decide por sí sola qué acción HTTP atenderá la ruta. En el POST real de 2.4, otra sobrecarga de \`Crear\` recibe \`ProductoFormulario\`, comprueba \`ModelState\` y, cuando procede, escribe en LocalDB mediante el contexto EF.
+
+En P2.5 mantendremos ese catálogo sin modificarlo. Incorporamos únicamente dos archivos nuevos que funcionan como pareja:
+
+~~~text
+CursoWeb.Mvc/
+  Pages/
+    Comparacion.cshtml
+    Comparacion.cshtml.cs
+    _ViewImports.cshtml
+    _ViewStart.cshtml
+  Controllers/
+    ProductosController.cs
+  Views/
+    Shared/
+      _Layout.cshtml
+~~~
+
+El primero contiene el marcado Razor y comienza así:
+
+~~~cshtml
+@page "/Comparacion"
+@model CursoWeb.Mvc.Pages.ComparacionModel
+@{
+    ViewData["Title"] = "MVC y Razor Pages";
+}
+<h1>P2.5 | Comparación entre MVC y Razor Pages</h1>
+<p id="mensaje-page">@Model.Mensaje</p>
+~~~
+
+La directiva **\`@page\`** convierte el archivo Razor en un endpoint de Razor Pages; el texto \`"/Comparacion"\` fija su ruta, de modo que podemos solicitar \`GET /Comparacion\`. **\`@model\`** indica el tipo de la clase que respalda la página. No debemos confundir esta página con una vista MVC normal: aunque ambas usan archivos \`.cshtml\` y expresiones Razor, una vista MVC es seleccionada por una acción y no se vuelve direccionable por añadirle un nombre de archivo; una Razor Page se identifica como endpoint gracias a \`@page\` y al mapeo correspondiente.
+
+Esta comparación prepara además M03: allí aparecerán **componentes Razor de Blazor**. Compartir la extensión \`.razor\` o la sintaxis de expresiones Razor no implica compartir el mismo mecanismo de ejecución. Una Razor Page sirve una respuesta de página ante GET o POST; la interactividad de Blazor necesita además un modo de renderizado interactivo y un ciclo de eventos de componentes.
+
+## El mismo host registra MVC y Razor Pages
+
+La coexistencia no requiere una segunda aplicación web. Nuestro archivo real \`Program.cs\`, en \`PROYECTO/2.5/CursoWeb.Mvc\`, registra ambos estilos:
+
+~~~csharp
+builder.Services.AddControllersWithViews();
+builder.Services.AddRazorPages();
+~~~
+
+Al configurar los endpoints, el mismo host contiene:
+
+~~~csharp
+app.UseStaticFiles();
+app.UseRouting();
+app.MapRazorPages();
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+~~~
+
+\`AddRazorPages\` registra los servicios necesarios y \`MapRazorPages\` publica los endpoints de las páginas; \`AddControllersWithViews\` y \`MapControllerRoute\` conservan el funcionamiento del catálogo. Si existe \`Comparacion.cshtml\` pero omitimos el mapeo de Razor Pages, la ruta no quedará disponible como pretendemos. Si omitimos el mapeo convencional de MVC, el catálogo existente perderá sus rutas habituales.
+
+La aplicación sigue configurando \`AppDbContext\` con SQL Server Express LocalDB y ejecutando \`EnsureCreated()\` al iniciar, tal como hacía P2.4. **Esto significa que el host todavía necesita una instancia LocalDB accesible para arrancar**, aunque la página \`/Comparacion\` no realice ninguna consulta ni escritura de productos. No hay que atribuir a Razor Pages un error de arranque provocado por la conexión a SQL Server.
+
+## PageModel: dónde viven los handlers y el estado del formulario
+
+El archivo \`Pages/Comparacion.cshtml.cs\` contiene:
+
+~~~csharp
+public sealed class ComparacionModel : PageModel
+{
+    [BindProperty]
+    public string? Nombre { get; set; }
+
+    public string Mensaje { get; private set; } = string.Empty;
+
+    public void OnGet()
+    {
+        Mensaje = "OnGet prepara la página sin enviar un formulario.";
+    }
+}
+~~~
+
+La clase hereda de **\`PageModel\`**, el objeto que organiza el comportamiento de la página. El \`.cshtml.cs\` es su archivo *code-behind* y comparte el nombre base de la página. En el ejemplo, \`Nombre\` recibe la entrada del formulario; \`Mensaje\` es una propiedad que la página lee para mostrar el resultado. \`Mensaje\` no es un campo de base de datos ni un valor persistente: pertenece a la instancia de la solicitud actual.
+
+El handler **\`OnGet\`** se ejecuta al atender un GET que coincide con esta página. Escribe un mensaje en \`Mensaje\`; después Razor evalúa \`@Model.Mensaje\` y genera el HTML que recibe el navegador. Si el usuario vuelve a solicitar la dirección, se crea un nuevo procesamiento de petición. No hemos implementado ninguna sesión ni un almacenamiento compartido de mensajes.
+
+La coincidencia entre verbo HTTP y nombre de handler es intencionada: \`OnGet\` para GET, \`OnPost\` para POST. No es necesario convertir cada handler en una acción de un controlador diferente. Razor Pages puede tener handlers síncronos o asíncronos; en esta demostración, no realizamos I/O que justifique emplear \`OnPostAsync\`.
+
+## Del GET al POST: enviar un nombre y volver a representar la página
+
+El marcado actual contiene este formulario:
+
+~~~cshtml
+<form method="post" asp-antiforgery="true">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <div>
+        <label asp-for="Nombre"></label>
+        <input asp-for="Nombre" />
+        <span asp-validation-for="Nombre" class="text-danger"></span>
+    </div>
+    <button type="submit">Enviar a OnPost</button>
+</form>
+~~~
+
+El formulario envía un POST hacia la misma página, no hacia \`ProductosController.Crear\`. El atributo \`asp-for\` conecta la etiqueta, el campo y el mensaje de validación con \`Nombre\`. Igual que en los ejemplos MVC, los **Tag Helpers se ejecutan en el servidor** y generan HTML ordinario. El archivo \`Pages/_ViewImports.cshtml\` contiene \`@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers\`, necesario para su aplicación.
+
+La propiedad está marcada con **\`[BindProperty]\`**, por lo que los datos enviados en el formulario pueden enlazarse con \`Nombre\` en el handler POST. Esto no significa que cualquier GET enlace automáticamente esa propiedad desde la URL. Para enlazar propiedades de página en GET se necesitaría una decisión explícita como \`SupportsGet = true\`; aquí no la necesitamos.
+
+El proyecto inicial entrega el método \`OnPost\` dentro del bloque \`PASO 2.5.3\`, desactivado para que el alumno lo habilite después de observar \`OnGet\`. Su versión preparada es:
+
+~~~csharp
+public IActionResult OnPost()
+{
+    if (!ModelState.IsValid)
+        return Page();
+
+    if (string.IsNullOrWhiteSpace(Nombre))
+    {
+        ModelState.AddModelError(nameof(Nombre), "Introduce un nombre.");
+        return Page();
+    }
+
+    Mensaje = $"OnPost ha recibido: {Nombre.Trim()}";
+    return Page();
+}
+~~~
+
+Al activarlo, el recorrido es: el navegador envía los campos, Razor Pages selecciona el handler POST de \`ComparacionModel\`, el binder asigna \`Nombre\`, la validación actualiza \`ModelState\`, el handler decide qué respuesta producir y \`Page()\` vuelve a representar \`Comparacion.cshtml\`. No hemos guardado nada: no existe ningún \`_db.Productos.Add\` ni \`SaveChangesAsync\` en ese handler.
+
+La llamada **\`return Page()\`** es conceptualmente distinta de \`return View(entrada)\` en MVC, aunque ambas terminan generando HTML. La primera devuelve la Razor Page actual con su \`PageModel\`; la segunda devuelve una vista MVC elegida por una acción. También sería posible redirigir tras un POST, pero aquí **no lo hacemos** porque queremos observar el mensaje de la misma petición.
+
+**Una precaución de diagnóstico:** no debemos enseñar que un POST sin \`OnPost\` devuelve necesariamente 405. En Razor Pages la ausencia de un handler explícito puede producir el renderizado de la propia página sin haber ejecutado nuestra lógica de POST. Lo relevante del estado inicial es comprobar que **no aparece el mensaje \`OnPost ha recibido\`**. Una vez activado el handler, la nueva conducta sí puede comprobarse con un nombre concreto.
+
+## DataAnnotations y ModelState siguen significando lo mismo
+
+El formulario de P2.5 utiliza los mecanismos que ya estudiamos en 2.3, pero aplicados a una propiedad del \`PageModel\`. El código contiene estas anotaciones preparadas para activar en el paso 2.5.4:
+
+~~~csharp
+[BindProperty]
+// [Required(ErrorMessage = "Introduce un nombre.")]
+// [StringLength(60, MinimumLength = 2,
+//     ErrorMessage = "El nombre debe tener entre 2 y 60 caracteres.")]
+public string? Nombre { get; set; }
+~~~
+
+Al retirar únicamente los prefijos \`//\` de las dos anotaciones, una entrada ausente debe generar el error de \`Required\` y un nombre de un solo carácter debe generar el error de \`StringLength\`. Un nombre correcto permite alcanzar la asignación a \`Mensaje\`. El modelo admite \`string?\` para no ocultar que el valor puede estar ausente antes de pasar la validación; la regla \`Required\` es la que expresa el requisito de negocio.
+
+Como en MVC, **\`ModelState\` no es el nombre de un validador específico**, sino el conjunto de valores y errores resultante del enlace y la validación de la solicitud. Cuando el handler devuelve \`Page()\` ante una entrada inválida, los Tag Helpers representan los mensajes y conservan el dato del campo, para que el usuario pueda corregirlo.
+
+Hay una sutileza útil: \`asp-validation-summary="ModelOnly"\` muestra errores de nivel de modelo, mientras que \`asp-validation-for="Nombre"\` es el lugar previsto para el error de esta propiedad. Si esperamos leer allí un fallo de \`Required\` y solo inspeccionamos el resumen, interpretaremos incorrectamente una página que funciona.
+
+P2.5 comprueba principalmente **validación de servidor**. El marcado de \`asp-validation-for\` no demuestra por sí solo que los scripts de validación de navegador estén cargados. La validación JavaScript se trató en 2.3; no es requisito volver a instalar ni desarrollar esos scripts durante los quince minutos de esta práctica.
+
+## Antiforgery: un POST de Razor Pages tampoco es una excepción de seguridad
+
+Un navegador conserva cookies de una sesión entre solicitudes. Sin protección, una página ajena podría intentar provocar un POST hacia nuestra aplicación usando ese contexto. Por eso estudiamos antiforgery en los formularios MVC. Razor Pages mantiene la misma preocupación: los formularios POST de páginas están protegidos frente a falsificación de solicitudes de forma predeterminada.
+
+El ejemplo escribe \`asp-antiforgery="true"\` para hacer explícita la generación del campo oculto de protección por el Form Tag Helper. Al inspeccionar el HTML se debe encontrar \`__RequestVerificationToken\`. Para que la verificación tenga sentido también interviene el contexto de cookies de la petición original. Un POST fabricado sin token debe rechazarse antes de ejecutar el handler protegido; no basta con enviar \`Nombre\` correctamente.
+
+No hay que colocar dos mecanismos de generación del campo por costumbre. En este proyecto **el Form Tag Helper genera el token**; no se añade simultáneamente \`@Html.AntiForgeryToken()\`. Tampoco se desactiva la protección para simplificar una prueba. La comparación importante con 2.4 es que MVC marca sus acciones POST con \`[ValidateAntiForgeryToken]\`, mientras que Razor Pages aplica por defecto la protección a sus handlers de métodos no seguros.
+
+Un HTTP 400 sin token y un HTTP 200 que vuelve a mostrar un error de \`ModelState\` representan causas distintas. El primer resultado procede del filtro de seguridad; el segundo puede ser la respuesta correcta de un formulario validado. Confundirlos lleva a modificar el componente equivocado.
+
+## Más de un POST en una página: handlers con nombre
+
+Una Razor Page no está limitada a \`OnGet\` y \`OnPost\`. El reto opcional prepara otro handler:
+
+~~~csharp
+public IActionResult OnPostMayusculas()
+{
+    if (!ModelState.IsValid)
+        return Page();
+
+    if (string.IsNullOrWhiteSpace(Nombre))
+    {
+        ModelState.AddModelError(nameof(Nombre), "Introduce un nombre.");
+        return Page();
+    }
+
+    Mensaje = $"Nombre en mayúsculas: {Nombre.Trim().ToUpperInvariant()}";
+    return Page();
+}
+~~~
+
+El nuevo nombre responde a la convención \`On\` + verbo \`Post\` + handler \`Mayusculas\`. Para solicitarlo, la vista incorpora este botón alternativo:
+
+~~~cshtml
+<button type="submit" asp-page-handler="Mayusculas">Mostrar en mayúsculas</button>
+~~~
+
+Al generar HTML, el Tag Helper construye el destino del handler, habitualmente a través de un valor de ruta o consulta como \`?handler=Mayusculas\`, según la plantilla de ruta. No se debe escribir \`OnPostMayusculas\` en el atributo ni convertirlo en un endpoint MVC. El botón predeterminado sigue ejecutando \`OnPost\`.
+
+Los dos handlers comparten las reglas de validación de \`Nombre\` y la protección antiforgery. Usamos \`ToUpperInvariant()\` para mostrar una transformación estable en este pequeño ejemplo; eso no equivale a implementar reglas lingüísticas completas para todos los idiomas. Tampoco se actualiza ningún producto de la base de datos.
+
+## Navegación cruzada y layout compartido
+
+En \`Pages/_ViewStart.cshtml\` se configura:
+
+~~~cshtml
+@{
+    Layout = "/Views/Shared/_Layout.cshtml";
+}
+~~~
+
+Así, la Razor Page usa el layout ya conocido por el alumnado: cabecera, navegación y estructura visual se mantienen. El layout contiene un enlace preparado para el paso 2.5.5:
+
+~~~cshtml
+<a asp-page="/Comparacion">Comparar Razor Pages</a>
+~~~
+
+\`asp-page\` construye un enlace hacia la Razor Page; para regresar al catálogo desde \`Comparacion.cshtml\`, utilizamos el mecanismo MVC que ya conocemos:
+
+~~~cshtml
+<a asp-controller="Productos" asp-action="Index">Volver al catálogo MVC</a>
+~~~
+
+Los enlaces no hacen que una Razor Page se convierta en vista MVC ni viceversa. Son simplemente direcciones generadas por Tag Helpers para endpoints distintos de un mismo host. La dirección \`/Comparacion\` sigue correspondiendo a \`@page\`; \`/Productos\` sigue llegando a \`ProductosController\`.
+
+## Cuándo resulta razonable elegir cada estilo
+
+Una aplicación con pantallas relativamente independientes, cada una con un formulario y su propia lógica de carga y envío, puede encajar bien en Razor Pages: el código de esa pantalla queda próximo a su marcado. Un sistema con varias acciones sobre un recurso, controladores compartidos, rutas organizadas alrededor de operaciones y vistas reutilizables puede resultar natural en MVC. Ninguna de esas descripciones constituye una prohibición: ambas alternativas pueden utilizar servicios, persistencia, vistas parciales y pruebas.
+
+En nuestro curso la elección está guiada por el objetivo formativo. **M01 y M02 usan MVC** para aprender el patrón y construir el CRUD. **P2.5 usa una sola Razor Page** para reconocer el contraste. **M03 comenzará Blazor**, cuyo modelo de eventos y componentes interactivos es otro concepto; no añadimos aquí esa complejidad.
+
+## Diagnóstico de una página que no se comporta como esperamos
+
+Si \`/Comparacion\` responde 404, primero revisaremos \`@page "/Comparacion"\`, \`AddRazorPages\`, \`MapRazorPages\` y la carpeta \`Pages\`. No sirve renombrar acciones de \`ProductosController\` para arreglar el endpoint de página.
+
+Si la aplicación no arranca y el error menciona SQL Server o \`EnsureCreated\`, la causa probable es el entorno LocalDB heredado de 2.4; no deduciremos que Razor Pages ha fallado al resolver \`OnGet\`.
+
+Si el GET muestra el mensaje pero un POST no produce \`OnPost ha recibido\`, comprobar primero si el bloque del handler permanece comentado, después el método del formulario y, por último, los errores de modelo. Un POST sin token puede devolver 400 **antes** de llegar al handler.
+
+Si un nombre corto sigue siendo aceptado, comprobar que se han activado las dos anotaciones de 2.5.4 y que se recompiló la aplicación. Si el error existe pero no se ve en el resumen superior, mirar \`asp-validation-for="Nombre"\`, que representa los errores de propiedad. Si el valor se pierde en una página inválida, verificar que devolvemos \`Page()\` y conservamos \`ModelState\` sin redirigir ni sobrescribir \`Nombre\`.
+
+Si el botón de mayúsculas no llama al handler previsto, verificar conjuntamente el método \`OnPostMayusculas\`, el \`asp-page-handler="Mayusculas"\` y el HTML generado; la existencia de uno solo de esos elementos no completa el reto. Si la navegación aparece como texto literal \`asp-page\`, comprobar \`_ViewImports.cshtml\`.
+
+Por último, la comprobación de no regresión debe ser sencilla: la Razor Page no escribe en LocalDB. Tras visitar la página y enviar nombres, el catálogo MVC debe seguir conteniendo los mismos productos. Un cambio en el catálogo durante este ejercicio indicaría una modificación imprevista en otro punto del proyecto.
+
+## Cierre del módulo y lecturas recomendadas
+
+Hemos seguido un mismo hilo desde 2.1: primero aprendimos a **enviar** valores, después a generar formularios y enlaces mantenibles, más tarde a **validar** entradas y, finalmente, a modificar un catálogo persistente. Razor Pages vuelve al inicio de ese hilo para enseñarnos que podemos organizar de otra forma el código que recibe el formulario, sin abandonar HTTP ni las protecciones que ya conocemos. El alumno debe terminar pudiendo explicar, delante de las dos pantallas, quién atiende cada GET y cada POST, qué representa \`ModelState\` y por qué ninguna operación de esta página modifica el catálogo.
+
+El recorrido principal de P2.5 es breve. Los detalles sobre handlers adicionales, validación negativa y criterios de elección sirven para estudio autónomo y no añaden otro bloque obligatorio de programación a la jornada.
+
+- Microsoft Learn, Introducción a Razor Pages: https://learn.microsoft.com/es-es/aspnet/core/razor-pages/?view=aspnetcore-8.0
+- Microsoft Learn, Introducción a Razor Pages con ASP.NET Core: https://learn.microsoft.com/es-es/aspnet/core/tutorials/razor-pages/razor-pages-start?view=aspnetcore-8.0
+- Microsoft Learn, Convenciones de autorización y rutas de Razor Pages: https://learn.microsoft.com/en-us/aspnet/core/razor-pages/razor-pages-conventions?view=aspnetcore-8.0
+- Microsoft Learn, Form Tag Helper y antiforgery: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/working-with-forms?view=aspnetcore-8.0
+- Microsoft Learn, Model binding en ASP.NET Core: https://learn.microsoft.com/en-us/aspnet/core/mvc/models/model-binding?view=aspnetcore-8.0
