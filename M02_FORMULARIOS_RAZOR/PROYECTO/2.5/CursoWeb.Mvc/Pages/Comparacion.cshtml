@@ -1,0 +1,17 @@
+@page "/Comparacion"
+@model CursoWeb.Mvc.Pages.ComparacionModel
+@{
+    ViewData["Title"] = "Razor Pages comparativa";
+}
+<h1>Razor Pages: una sola página GET/POST</h1>
+<p id="mensaje-page">@Model.Mensaje</p>
+<form method="post">
+    @Html.AntiForgeryToken()
+    <div>
+        <label asp-for="Nombre"></label>
+        <input asp-for="Nombre" />
+        <span asp-validation-for="Nombre" class="text-danger"></span>
+    </div>
+    <button type="submit">Enviar a OnPost</button>
+</form>
+<p><a asp-controller="Productos" asp-action="Index">Volver a MVC</a></p>
