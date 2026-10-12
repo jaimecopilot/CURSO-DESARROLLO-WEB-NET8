@@ -33,7 +33,7 @@ Cada punto dispone de código de proyecto trazable paso a paso, con bloques acti
 
 ## Estado y publicación
 
-**M01 — Fundamentos de MVC:** ya contiene los cinco apartados (1.1–1.5), teoría, prácticas, retos con código comentado, proyectos escalonados y sus dos PDF derivados de los Markdown. La batería de CI ha superado 28/28 escenarios HTTP E2E. Consulta [M01 y sus materiales](M01_MVC/README.md).
+**M01 — Fundamentos de MVC:** ya contiene los cinco apartados (1.1–1.5), teoría, prácticas, retos con código comentado, proyectos escalonados y sus dos PDF derivados de los Markdown. El material incluye comprobaciones prácticas de los resultados esperados en el navegador. Consulta [M01 y sus materiales](M01_MVC/README.md).
 
 **M02–M05:** materiales pendientes de elaboración. Los PDF de los demás módulos se generarán después de cerrar cada par de Markdown, no como ficheros individuales por ejercicio.
 
