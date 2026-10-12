@@ -262,3 +262,377 @@ Escribe el bloque dentro del artículo, después del precio. Compila y observa e
 Imagina que la página Productos se utiliza más adelante para mostrar resultados de una API. ¿Debería `TarjetaProducto` hacer por sí misma una petición HTTP cada vez que se representa? En nuestro diseño, no: el padre o un servicio coordinador obtiene datos, y las tarjetas reciben los objetos que deben mostrar. Este planteamiento permite reutilizar la representación sin acoplarla al origen de datos y prepara el servicio de P3.6.
 
 **Relación con la teoría:** 3.3 desarrolla el contrato `[Parameter]`, la composición y la propiedad de los datos. Al terminar debes poder explicar por qué la tarjeta no necesita una ruta `@page` para funcionar dentro de la página.
+
+# P3.4. Eventos, @onclick, @bind y estado de componentes
+
+## Objetivo, ubicación y relación con P3.3
+
+En P3.3 las tarjetas mostraban productos mediante parámetros. Ahora veremos que los componentes no solo representan información: también pueden reaccionar a eventos y alterar datos en memoria. Para aislar el concepto, durante P3.4 los botones de selección estarán escritos **directamente en la página padre**. En P3.5 los trasladaremos al hijo y aprenderemos EventCallback. No introducimos una API remota, guardado en EF Core ni administración de estado global.
+
+La ubicación exacta es `M03_BLAZOR/PROYECTO/3.4/CursoWeb.Blazor/`, y el archivo principal `Components/Pages/Productos.razor`. El estado inicial contiene tres tarjetas, un texto «Seleccionado: ninguno», botones comentados y métodos C# asociados también comentados. **La compilación inicial debe funcionar sin activar ninguno de ellos**.
+
+### 3.4.1. Abrir el estado inicial y reconocer el campo de selección
+
+Detén la aplicación de P3.3. Abre el archivo `CursoWeb.Blazor.csproj` de la carpeta 3.4, ejecuta `dotnet build` y arranca con `dotnet run --no-launch-profile --urls http://localhost:5092`. Visita `http://localhost:5092/productos` y localiza el elemento `id="seleccion"`. Debes leer «Seleccionado: ninguno». Cuenta los tres artículos con clase `tarjeta`; no debe haber botones Seleccionar activos.
+
+Abre el archivo de página y localiza la directiva `@rendermode InteractiveServer`. Encuentra también el campo:
+
+~~~csharp
+private string seleccion = "ninguno";
+~~~
+
+El campo pertenece al componente y sirve para mostrar el valor actual. No es una propiedad de `Producto`, no se guarda en LocalDB y no se transmite a un controlador. Esta observación anticipa el paso siguiente: un evento modificará ese campo y el framework volverá a representar el texto.
+
+### 3.4.2. Activar el evento de selección
+
+En `Components/Pages/Productos.razor`, localiza el comentario Razor identificado como `PASO 3.4.2 (ACTIVAR)`. El botón real del proyecto aparece en una única línea:
+
+~~~razor
+@* <button @onclick="() => Seleccionar(producto.Id)">Seleccionar</button> *@
+~~~
+
+Retira exclusivamente `@*` y `*@`, dejando el botón activo. En el bloque `@code`, localiza el fragmento delimitado por `PASO 3.4.2 INICIO` y `PASO 3.4.2 FIN` y activa su método:
+
+~~~csharp
+private void Seleccionar(int id)
+{
+    seleccion = productos.First(p => p.Id == id).Nombre;
+}
+~~~
+
+Compila. En `/productos` debe aparecer un botón Seleccionar por tarjeta. Pulsa en Lápiz y observa «Seleccionado: Lápiz». Después pulsa en Carpeta y observa el cambio a ese nombre. **El dato cambia dentro de la misma página** y no se necesita realizar una nueva operación MVC por cada clic.
+
+**Caso negativo de activación:** si activaste el botón pero no el método C#, el compilador puede comunicar que `Seleccionar` no existe. Revisa ambos bloques del mismo paso; no inventes un método con otro nombre. **Caso negativo de ejecución:** si el botón está visible pero no produce cambios, comprueba primero que estás ejecutando `/productos` del proyecto 3.4, y después que el circuito Interactive Server funciona; recuerda la comparación de P3.1.
+
+**Por qué funciona:** la expresión lambda captura el Id del producto que se está representando en esa tarjeta. El método del componente encuentra su nombre y modifica `seleccion`. Blazor programa una actualización de la representación al finalizar el evento. No es necesario llamar manualmente a `StateHasChanged()` para este clic ordinario.
+
+### 3.4.3. Incorporar un campo con @bind
+
+Localiza `PASO 3.4.3 (ACTIVAR)` y retira los delimitadores de comentario del campo:
+
+~~~razor
+<label>Nombre nuevo:
+    <input id="nombre-nuevo" @bind="nuevoNombre" />
+</label>
+~~~
+
+En `@code` activa también el fragmento `PASO 3.4.3 INICIO / FIN`, que declara:
+
+~~~csharp
+private string nuevoNombre = string.Empty;
+~~~
+
+Compila, abre `/productos` y escribe «Regla». De momento **no se añade** ninguna tarjeta porque todavía falta el método del paso siguiente. Esta separación resulta intencionada: estamos comprobando el vínculo entre el control HTML y el estado C#, sin introducir simultáneamente todas las operaciones.
+
+A diferencia de `asp-for` del formulario MVC, aquí `@bind` participa en el enlace de datos de una interfaz interactiva. Si escribes sin abandonar el campo, recuerda que el enlace predeterminado del `input` se actualiza conforme a su evento de cambio; el itinerario principal no necesita la variante avanzada `@bind:event="oninput"`.
+
+### 3.4.4. Activar el alta de un producto en memoria
+
+Localiza `PASO 3.4.4 (ACTIVAR)` y descomenta exactamente el botón:
+
+~~~razor
+<button id="agregar" @onclick="Agregar">Añadir producto</button>
+~~~
+
+A continuación, en `@code`, activa **todo** el bloque `PASO 3.4.4 INICIO / FIN`, incluida la declaración del nuevo identificador:
+
+~~~csharp
+private int siguienteId = 4;
+
+private void Agregar()
+{
+    if (string.IsNullOrWhiteSpace(nuevoNombre))
+        return;
+    productos.Add(new Producto(siguienteId++, nuevoNombre.Trim(), 5m));
+    nuevoNombre = string.Empty;
+}
+~~~
+
+Ahora compila y ejecuta. Escribe «Regla» y pulsa Añadir. Debe aparecer una cuarta tarjeta y vaciarse el campo. Comprueba que el nuevo producto tiene un Id distinto de los tres anteriores y el precio fijo 5.00 que proporciona esta demostración.
+
+**Caso negativo:** intenta añadir un nombre vacío y después uno compuesto exclusivamente por espacios. En ambos casos la cantidad de tarjetas debe mantenerse igual. No confundas esta condición sencilla con todas las reglas DataAnnotations de M02: aquí aprendemos el ciclo de eventos y la representación, no repetimos todo el CRUD persistente.
+
+**Estado persistente:** recarga la ruta completamente para iniciar otra instancia de componente. Lo normal es que reaparezcan los tres productos originales. Es coherente: la lista pertenece a la sesión/instancia de interfaz y no se almacena en SQL ni se envía a la API que todavía no existe. Un resultado visual de «cuatro tarjetas» no demuestra un INSERT.
+
+### Reto 3.4 — Limpiar la selección sin alterar el catálogo
+
+El proyecto contiene un botón y un método comentados bajo la marca `RETO 3.4`. Su objetivo es practicar que un mismo estado puede cambiar por otra acción distinta de Seleccionar.
+
+Activa en el Razor:
+
+~~~razor
+<button id="limpiar" @onclick="Limpiar">Limpiar selección</button>
+~~~
+
+Y activa en `@code`:
+
+~~~csharp
+private void Limpiar() => seleccion = "ninguno";
+~~~
+
+Compila. Selecciona Cuaderno, comprueba que la pantalla muestra su nombre y pulsa Limpiar. El texto debe volver a «Seleccionado: ninguno». **Control negativo:** ninguna tarjeta debe desaparecer ni cambiar de precio. El método solo asigna un nuevo valor a `seleccion`; no tiene motivos para modificar la lista.
+
+**Solución razonada:** el botón y el método están dentro del componente dueño de ese estado, por lo que no necesitamos EventCallback. Si se activara la línea del botón sin el método, el error de compilación indicaría una correspondencia incompleta entre vista y código. Si se cambiara `seleccion` pero no la interfaz, revisaríamos el contexto interactivo antes de introducir una operación de red.
+
+### Profundización aplicada: diagnóstico de cinco síntomas parecidos
+
+Una interfaz que «no hace nada» puede fallar por causas distintas. Si el botón no aparece, inspecciona el comentario Razor. Si aparece pero no compila, comprueba el método correspondiente. Si compila pero el clic no actualiza, confirma el modo interactivo y la conexión. Si el clic llega a `Agregar` pero no crea una tarjeta, verifica el valor de `nuevoNombre` y la condición `IsNullOrWhiteSpace`. Si el objeto se añade y no se representa, comprueba que el `foreach` lee la misma colección a la que se ha agregado.
+
+La lección es localizar la fase exacta: **entrada → enlace → evento → estado → representación**. No modifiques `Program.cs` cada vez que un dato es incorrecto, ni cambies el modelo cuando lo que falta es activar un botón. La teoría 3.4 explica las responsabilidades de cada pieza y el comportamiento esperado cuando no existe persistencia.
+
+# P3.5. Comunicación padre–hijo mediante EventCallback
+
+## Objetivo y preparación
+
+En P3.4 el botón estaba en el mismo componente que poseía la lista. Ahora queremos que cada `TarjetaProducto` muestre su propio botón, pero que sea `Productos.razor` quien actualice la selección o quite el elemento. Esta diferencia nos obliga a expresar un **contrato de evento del hijo hacia el padre**. El proyecto se encuentra en `M03_BLAZOR/PROYECTO/3.5/CursoWeb.Blazor/`.
+
+El estado inicial ya compila con tres tarjetas, «Seleccionado: ninguno» y «Total: 3». Los dos archivos que cambiarán son `Components/TarjetaProducto.razor` y `Components/Pages/Productos.razor`. Evita introducir una colección global o compartir campos a través de un singleton; para esta relación directa basta `EventCallback<int>`.
+
+### 3.5.1. Inspeccionar la propiedad de los datos
+
+Detén P3.4, abre 3.5, compila y ejecuta. Comprueba el estado inicial. Abre `Productos.razor` y señala dónde se crea la lista. Abre `TarjetaProducto.razor` y localiza:
+
+~~~csharp
+[Parameter, EditorRequired] public Producto Producto { get; set; } = default!;
+~~~
+
+Esta propiedad recibe un dato desde el padre. Ahora queremos otro contrato: el hijo comunicará un Id, pero **no será dueño de la lista que el padre representa**. Antes de activar código, dibuja el flujo: parámetro Producto desde padre a hijo; evento de selección desde hijo a padre.
+
+### 3.5.2. Declarar el callback en la tarjeta
+
+En `Components/TarjetaProducto.razor` activa el bloque C# delimitado por `PASO 3.5.2 INICIO / FIN`:
+
+~~~csharp
+[Parameter] public EventCallback<int> AlSeleccionar { get; set; }
+
+private Task NotificarSeleccion() =>
+    AlSeleccionar.InvokeAsync(Producto.Id);
+~~~
+
+Activa también el botón Razor señalado por `PASO 3.5.2 (ACTIVAR)`:
+
+~~~razor
+<button @onclick="NotificarSeleccion">Seleccionar</button>
+~~~
+
+El botón invoca un método del propio hijo; ese método notifica al callback mediante `InvokeAsync`. De momento no has cambiado el padre. La unidad funcional completa requiere conectar el callback al método que modificará la selección.
+
+### 3.5.3. Conectar el callback al padre
+
+En `Components/Pages/Productos.razor` activa el bloque C# `PASO 3.5.2 INICIO / FIN`:
+
+~~~csharp
+private void Seleccionar(int id)
+{
+    seleccion = productos.First(p => p.Id == id).Nombre;
+}
+~~~
+
+Busca la línea que representa cada tarjeta:
+
+~~~razor
+<TarjetaProducto Producto="producto" />
+~~~
+
+El proyecto contiene debajo una variante comentada. **Sustituye la línea activa** por:
+
+~~~razor
+<TarjetaProducto Producto="producto" AlSeleccionar="Seleccionar" />
+~~~
+
+No debes dejar activas ambas versiones, porque obtendrías seis tarjetas. Guarda, compila y abre `/productos`. Pulsa Seleccionar en Lápiz. Debe aparecer «Seleccionado: Lápiz» en el componente padre. Pulsa Carpeta y comprueba que cambia el texto.
+
+**Explicación:** el hijo no modifica directamente `seleccion`. Comunica el identificador con `EventCallback<int>`; el padre recibe el dato, busca el nombre y cambia un campo propio. Esa separación permite reutilizar TarjetaProducto sin acoplarlo a una única pantalla.
+
+### 3.5.4. Reconstruir la comunicación desde el navegador
+
+Sigue un clic con puntos de interrupción en Visual Studio si lo deseas. El orden debe ser: botón de la tarjeta → `NotificarSeleccion` → `AlSeleccionar.InvokeAsync(Producto.Id)` → método `Seleccionar(int)` del padre → campo `seleccion` → texto actualizado. No hay un nuevo controlador ni una nueva acción POST como en M02.
+
+Como caso negativo de código, si la propiedad `AlSeleccionar` está comentada en la tarjeta pero el padre intenta pasar ese parámetro, puedes obtener un error de compilación o de parámetro desconocido. Si el botón no aparece, revisa el comentario Razor. Si aparecen duplicados, revisa las dos variantes de TarjetaProducto en el padre.
+
+### Reto 3.5 — Solicitar que se quite una tarjeta
+
+**Enunciado:** cada tarjeta tendrá un botón «Quitar». Al pulsarlo, la tarjeta **solicita** al padre que elimine ese Id de la lista en memoria. No debe modificar una colección privada del padre por acceso oculto.
+
+En `Components/TarjetaProducto.razor` activa el bloque `RETO 3.5 INICIO / FIN`:
+
+~~~csharp
+[Parameter] public EventCallback<int> AlQuitar { get; set; }
+
+private Task NotificarQuitar() =>
+    AlQuitar.InvokeAsync(Producto.Id);
+~~~
+
+Y activa el botón del reto:
+
+~~~razor
+<button @onclick="NotificarQuitar">Quitar</button>
+~~~
+
+En `Components/Pages/Productos.razor` activa el bloque `RETO 3.5 INICIO / FIN`:
+
+~~~csharp
+private void Quitar(int id)
+{
+    productos.RemoveAll(p => p.Id == id);
+    seleccion = "ninguno";
+}
+~~~
+
+Por último, **reemplaza** la versión activa de TarjetaProducto por la tercera variante preparada en el proyecto:
+
+~~~razor
+<TarjetaProducto Producto="producto"
+                AlSeleccionar="Seleccionar"
+                AlQuitar="Quitar" />
+~~~
+
+Compila y ejecuta. Selecciona Lápiz y comprueba que el padre refleja su nombre. Ahora pulsa Quitar en esa tarjeta: el total debe pasar de tres a dos y la tarjeta de Lápiz debe desaparecer. Además, la selección vuelve a «ninguno».
+
+**Caso negativo:** al recargar completamente el componente pueden volver los tres productos, porque la lista es local. No interpretes esta operación como un DELETE de SQL Server. La persistencia no es el objetivo de P3.5.
+
+**Solución razonada:** la tarjeta comunica únicamente una intención y el Id del producto. El padre es dueño de la lista, por lo que decide cómo aplicar `RemoveAll`. Esta solución es coherente con el flujo de datos padre→hijo mediante `[Parameter]` y la notificación hijo→padre mediante `EventCallback<int>`. La teoría 3.5 contiene la explicación de ambos contratos.
+
+### Diagnóstico y consolidación
+
+Si al activar el reto el proyecto falla, revisa que el parámetro `AlQuitar` exista en el hijo y que el método `Quitar` exista en el padre. Si se elimina otro elemento, revisa qué Id envía la tarjeta y qué predicado emplea `RemoveAll`. Si un botón de selección no cambia el texto, sigue la cadena `NotificarSeleccion` → `InvokeAsync` → `Seleccionar`. Si se dibujan seis tarjetas, desactiva las variantes de componente que dejaste duplicadas.
+
+El aprendizaje principal no es memorizar una sintaxis: es mantener una correspondencia clara entre **quién posee el dato**, **quién recibe un parámetro** y **quién comunica una intención**. Esta misma separación será útil cuando M04 conecte la interfaz a una API remota.
+
+# P3.6. OnInitializedAsync, servicio en memoria y estados de carga
+
+## Objetivo y punto de partida
+
+Hasta ahora, la página creaba directamente una colección de productos. En esta práctica aprenderemos a pedirlos a un **servicio en memoria asíncrono** mediante inyección de dependencias. El servicio no realiza HTTP ni utiliza base de datos: esa complejidad se introducirá de forma controlada en M04. El proyecto de trabajo es `M03_BLAZOR/PROYECTO/3.6/CursoWeb.Blazor/`.
+
+La página inicial compila y muestra «Servicio pendiente de activar», pero todavía no llama al servicio porque el bloque de `OnInitializedAsync` permanece comentado. De esa manera puedes observar el estado anterior a la carga, activar un cambio identificado y comprobar su efecto en la interfaz.
+
+### 3.6.1. Localizar el servicio y su registro
+
+Abre `Services/IProductosMemoriaService.cs`. La interfaz declara:
+
+~~~csharp
+Task<IReadOnlyList<Producto>> ObtenerAsync();
+~~~
+
+La implementación `Services/ProductosMemoriaService.cs` devuelve una colección de Cuaderno, Lápiz y Carpeta después de `await Task.Delay(700)`. Esta espera simula una operación asíncrona para poder ver la transición de estados; no representa acceso a una API externa.
+
+En `Program.cs` comprueba el registro:
+
+~~~csharp
+builder.Services.AddScoped<IProductosMemoriaService, ProductosMemoriaService>();
+~~~
+
+Y en `Components/Pages/Productos.razor` localiza:
+
+~~~razor
+@inject IProductosMemoriaService Catalogo
+~~~
+
+El componente solicita una dependencia por interfaz y la recibe del contenedor de ASP.NET Core. El alumno ya conoce el concepto de inyección de dependencias de otros ámbitos de .NET; ahora observa cómo participa en un componente Razor.
+
+### 3.6.2. Ejecutar el estado inicial sin activar el método
+
+Detén P3.5, abre 3.6, compila y ejecuta. Abre `/productos`. Debes encontrar el texto «Servicio pendiente de activar» y ninguna tarjeta. Observa los campos en `@code`:
+
+~~~csharp
+private IReadOnlyList<Producto> productos = Array.Empty<Producto>();
+private bool cargando = true;
+private string estado = "Servicio pendiente de activar";
+~~~
+
+Este estado inicial no está «mal hecho»: la interfaz no llama aún al servicio y, por tanto, no tiene datos que representar. La finalidad del paso es comprobar que el alumno entiende la diferencia entre **un componente existente** y **un componente que ya cargó sus datos**.
+
+### 3.6.3. Activar OnInitializedAsync
+
+En `Components/Pages/Productos.razor` retira los delimitadores C# del bloque `PASO 3.6.2 INICIO / FIN`. El método activo debe quedar:
+
+~~~csharp
+protected override async Task OnInitializedAsync()
+{
+    estado = "Cargando productos...";
+    productos = await Catalogo.ObtenerAsync();
+    cargando = false;
+    estado = "Lista preparada";
+}
+~~~
+
+Guarda, compila y recarga `/productos`. Primero debe aparecer «Cargando productos...»; cuando el servicio termine, debe mostrarse «Lista preparada» y tres tarjetas. Si no alcanzas a leer el primer mensaje por la velocidad del equipo, recuerda que la espera controlada se encuentra en el servicio y no en la vista.
+
+El método no lo llama el alumno desde un botón: **Blazor lo invoca durante la inicialización del componente**. Tampoco es el handler `OnGet` de una Razor Page; esos nombres pertenecen a modelos diferentes. La propiedad `productos` se llena después del `await` y el estado de la interfaz cambia.
+
+### 3.6.4. Interpretar el marcado condicional
+
+En la misma página encontrarás:
+
+~~~razor
+<p id="estado-carga">@estado</p>
+@if (!cargando && productos.Count > 0)
+{
+    <div class="tarjetas" id="tarjetas-productos">
+        @foreach (var producto in productos)
+        {
+            <TarjetaProducto Producto="producto" />
+        }
+    </div>
+}
+~~~
+
+La bandera `cargando` impide representar tarjetas mientras la operación no ha terminado. El valor de `productos.Count` determina si existe algo que mostrar. Esta separación permite razonar sobre estados reales y no sobre una pantalla que «a veces aparece y a veces no».
+
+**Caso negativo reversible:** comenta temporalmente la asignación `cargando = false`, recompila y observa que, aun después de que el servicio devuelva objetos, la condición de la página no permite representar tarjetas. Restablece la asignación. El resultado ilustra que obtener datos y habilitar su representación son dos operaciones conectadas, pero distintas.
+
+### 3.6.5. Comprender la elección de prerenderizado
+
+En la cabecera de `Productos.razor` aparece:
+
+~~~razor
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+~~~
+
+La página desactiva el prerenderizado para facilitar una observación controlada de la carga y evitar una ejecución duplicada durante las fases de prerenderizado e inicialización interactiva. No lo interpretes como recomendación general para producción: el prerenderizado puede ser útil para presentar contenido antes de que la interactividad esté conectada.
+
+En la teoría 3.6 se explica que `OnInitializedAsync` puede ejecutarse dos veces con prerenderizado. La práctica principal no implementa persistencia de estado de prerenderizado ni estrategias avanzadas de caché; basta comprender la razón de esta elección y saber localizarla.
+
+### Reto 3.6 — Lista vacía después de una carga correcta
+
+**Enunciado:** muestra una indicación legible cuando el servicio ha terminado pero no hay productos. La pantalla debe distinguir «cargando» de «terminado con lista vacía».
+
+Activa el comentario Razor `RETO 3.6 (ACTIVAR)`:
+
+~~~razor
+@if (!cargando && productos.Count == 0)
+{
+    <p id="sin-productos">No hay productos para mostrar.</p>
+}
+~~~
+
+Para probar el caso negativo, abre `Services/ProductosMemoriaService.cs` y sustituye temporalmente el bloque de retorno de tres productos por:
+
+~~~csharp
+return Array.Empty<Producto>();
+~~~
+
+**Importante:** reemplaza la instrucción `return` original, no añadas otra después de ella. Compila, abre `/productos` y observa que la carga termina con «Lista preparada» y el mensaje «No hay productos para mostrar», sin tarjetas. Esto no es un error de HTTP ni una excepción: el servicio ha devuelto una colección vacía válida.
+
+**Resultado positivo complementario:** restaura la lista original del servicio y recarga. Deben volver a mostrarse tres tarjetas y el mensaje de lista vacía no debe aparecer. La solución es una condición Razor dependiente de `cargando` y del número de elementos; no se necesita una API ni un nuevo componente.
+
+### Cierre y transferencia a M04
+
+Al terminar M03 debes poder explicar un recorrido completo de Blazor: una ruta selecciona un componente, un parámetro entrega datos a una tarjeta, un evento modifica estado, un callback notifica al padre, un servicio se obtiene mediante inyección y `OnInitializedAsync` carga una colección. Las pruebas realizadas deben relacionar cada comportamiento con sus archivos concretos; no basta con decir que los seis proyectos compilan.
+
+En M04 sustituiremos o complementaremos el servicio en memoria por llamadas `HttpClient` a una API auxiliar suministrada por el curso. Precisamente por eso no adelantamos HTTP en P3.6: necesitamos que el alumno comprenda antes los componentes, su ciclo de vida y sus estados.
+
+## Autoevaluación integradora
+
+Al final del módulo, abre P3.6 y describe cinco diferencias entre la aplicación MVC A y la aplicación Blazor B sin recurrir a generalidades. Señala el lugar donde se configura Interactive Server; cómo se declara una ruta `@page`; cómo una tarjeta recibe un producto; cómo un método de clic actualiza un texto; y cómo el servicio obtiene datos sin que la página sepa dónde se construye su colección.
+
+Si puedes relacionar estos cinco aspectos con código real, explicar un caso positivo y negativo y distinguir estado de componente de persistencia, habrás alcanzado el objetivo de la jornada. No hay que construir todavía un CRUD nuevo ni desplegar infraestructura adicional.
+
+## Fuentes de consulta
+
+- Microsoft Learn: [Fundamentos de Blazor](https://learn.microsoft.com/en-us/aspnet/core/blazor/?view=aspnetcore-8.0).
+- Microsoft Learn: [Modos de renderizado](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/render-modes?view=aspnetcore-8.0).
+- Microsoft Learn: [Componentes, parámetros y composición](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/?view=aspnetcore-8.0).
+- Microsoft Learn: [Eventos y EventCallback](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling?view=aspnetcore-8.0).
+- Microsoft Learn: [Ciclo de vida de los componentes](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/lifecycle?view=aspnetcore-8.0).
