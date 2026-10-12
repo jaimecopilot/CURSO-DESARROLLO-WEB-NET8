@@ -645,6 +645,69 @@ No abordamos esas técnicas avanzadas en M03. La conclusión relevante es recono
 
 Referencia: Microsoft Learn, [Tratamiento de eventos](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling?view=aspnetcore-8.0) y [Enlace de datos en componentes](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/data-binding?view=aspnetcore-8.0).
 
+## Análisis de funcionamiento: tres cambios de estado de naturaleza distinta
+
+P3.4 contiene tres operaciones que pueden confundirse si solo observamos que todas producen HTML actualizado. Seleccionar un producto cambia una **cadena** en el componente; escribir en un input cambia un **campo enlazado**; añadir un producto cambia el **contenido de una colección**. Blazor participa en representar los efectos de las tres operaciones, pero no es correcto afirmar que todas ejecutan exactamente el mismo tipo de mutación.
+
+Cuando seleccionamos Lápiz, el método `Seleccionar(int id)` utiliza el identificador recibido y consulta la lista local para obtener el nombre. La información que aparece en pantalla procede del campo `seleccion`. La lista no se modifica, por lo que la cantidad de tarjetas sigue siendo tres. Si se observa un cambio de cantidad al seleccionar, debemos buscar otra operación no prevista o una variante de código accidentalmente activa.
+
+Cuando escribimos en el campo asociado a `@bind="nuevoNombre"`, el navegador y el componente intercambian el valor según el evento del enlace. Esta modificación prepara la información que una operación posterior podría utilizar. Por sí sola no tiene motivo para alterar `productos`. Por ello el paso 3.4.3 se comprueba sin activar el botón de alta: necesitamos entender que disponer de una entrada enlazada no equivale a haber ejecutado una operación sobre el catálogo.
+
+Cuando finalmente pulsamos Añadir, el método `Agregar()` lee el campo enlazado, decide si contiene una entrada aceptable, crea un objeto y lo añade a `productos`. Después limpia el campo. Esta secuencia enlaza dos cambios de estado: la colección contiene ahora un elemento más y el texto de entrada vuelve a estar vacío. Ambos deberían reflejarse en la representación. Si solo sucede uno, el diagnóstico debe separar el cambio de colección de la limpieza del campo.
+
+### Estado de entrada, validación mínima y límite del ejercicio
+
+La condición `string.IsNullOrWhiteSpace(nuevoNombre)` responde a una necesidad puntual: evitar crear productos sin nombre útil. No pretende representar el conjunto de validaciones de un formulario empresarial. En M02 aprendimos `Required`, `StringLength`, `Range` y `ModelState`, junto con la persistencia en SQL Server. Repetir ahora todo ese recorrido dentro de un componente Blazor diluiría el objetivo formativo de la sesión: **el alumno ya conoce los requisitos de datos; está aprendiendo un nuevo modelo de interfaz**.
+
+Por ello el precio se fija en `5m` y el identificador se obtiene de un contador local. En este pequeño escenario no existe una estrategia de generación de identificadores apta para uso concurrente entre varios usuarios. Cada instancia de componente trabaja con su propia colección y su propio contador. La decisión es válida para el laboratorio, siempre que no presentemos el resultado como diseño definitivo de base de datos.
+
+El alumno debe poder explicar qué comportamiento sería incorrecto: añadir un nombre vacío, crear dos objetos con la misma identidad dentro de esa lista, borrar por accidente otro objeto o declarar la operación completada solo porque el botón cambia de color. Las comprobaciones reales tienen que mirar la colección representada y el texto después del evento.
+
+### El papel del cierre de expresiones lambda
+
+Dentro del `foreach` encontramos `@onclick="() => Seleccionar(producto.Id)"`. La lambda expresa qué trabajo debe ejecutar Blazor cuando llega el clic. No se está ejecutando `Seleccionar` durante la construcción del documento: se prepara una función que utiliza el identificador del elemento correspondiente. Esa distinción entre **construir el callback** y **ejecutar el callback** es una de las ideas esenciales de los frameworks de componentes.
+
+Es útil comparar con una forma que no tendría el mismo significado:
+
+~~~razor
+@* Ejemplo de diagnóstico, NO sustituye el botón real:
+   <button @onclick="Seleccionar(producto.Id)">Seleccionar</button>
+*@
+~~~
+
+La variante intenta utilizar el resultado de ejecutar un método donde se espera un manejador, en lugar de proporcionar una función que pueda invocarse después. El ejemplo sirve para explicar un problema de tipos y momento de ejecución; el proyecto ya incluye la forma correcta, sin necesidad de introducir esta variante dentro del recorrido del alumno.
+
+### El renderizado posterior al evento no es una mutación del DOM escrita a mano
+
+Una persona que viene de JavaScript puede buscar una instrucción equivalente a `document.getElementById("seleccion").textContent = ...`. No la encontrará en nuestro componente, porque declaramos qué contenido debe representar Razor en función de `seleccion`. Después del evento, Blazor actualiza la interfaz de acuerdo con el estado. El código del componente expresa un modelo declarativo: **qué debería verse para un valor determinado**, no una secuencia manual de operaciones sobre nodos HTML.
+
+Esto facilita razonar sobre el mismo contenido desde distintas rutas de cambio. Si seleccionamos Cuaderno y después pulsamos Limpiar, ambos métodos modifican `seleccion` y la misma expresión Razor refleja el resultado. No necesitamos que cada método conozca el identificador DOM del párrafo. El elemento `id="seleccion"` existe en el laboratorio para facilitar la observación y las pruebas, no porque la aplicación lo necesite para mutar el texto.
+
+### La importancia de secuenciar eventos y binding
+
+Considera un alumno que escribe «Regla» en el campo y pulsa Añadir inmediatamente. El enlace de datos del input y el evento del botón deben cooperar para que `Agregar` lea el valor actualizado. Por esa razón recomendamos comprobar primero la relación `@bind` con el campo y después activar el botón. Esta separación también ayuda si se produce un comportamiento extraño: podemos determinar si falla la entrada del dato o la operación que lo consume.
+
+En componentes reales hay distintas opciones para los eventos de enlace, por ejemplo actualizar en cada pulsación de tecla con `@bind:event="oninput"`. No la adoptamos como nueva práctica obligatoria porque añadir variantes antes de comprender el enlace ordinario suele generar confusión. El alumno sí debe saber que el momento de actualización del valor depende de la configuración del binding.
+
+### Persistencia aparente y vida de la instancia
+
+Tras pulsar Añadir, la tarjeta se encuentra en la lista local durante la vida de esa instancia. Si la persona vuelve a la página mediante una navegación que crea otra instancia, el componente puede inicializar la lista otra vez. La ausencia de persistencia no debe diagnosticarse como un fallo de `@onclick`. Es la consecuencia de una arquitectura explícita: no hay ninguna operación de guardar y no existe un repositorio de datos externo conectado.
+
+Esta distinción protege al alumno de un falso paralelismo con M02. Allí un POST podía llegar a `SaveChangesAsync` y una nueva consulta SQL confirmaba la fila. Aquí la prueba positiva consiste en observar el cuarto componente dentro de la sesión actual. Son evidencias de operaciones diferentes; no debemos aplicar el mismo criterio de persistencia a mecanismos que no la ofrecen.
+
+### Un caso de transferencia: la selección no debería perderse al añadir un producto
+
+En nuestra implementación, `Agregar()` modifica la lista y limpia `nuevoNombre`, pero no modifica `seleccion`. Si el usuario había seleccionado Lápiz, esa selección puede mantenerse cuando se añade Regla. Sería incorrecto asumir que toda actualización de la colección reinicia automáticamente todos los campos del componente. Un componente mantiene varios elementos de estado independientes y cada método determina cuáles modifica.
+
+Esta observación prepara P3.5, donde el padre decidirá qué hacer con una selección comunicada desde una tarjeta y cómo resetearla cuando se quite un producto. La lógica de estado reside en el componente que lo posee, y los eventos deben comunicar intenciones claras para que ese componente pueda aplicar sus reglas.
+
+### Preguntas de diagnóstico con respuesta causal
+
+Si pulsamos Seleccionar y aparece otro nombre, ¿qué revisamos? El Id capturado por la lambda y el objeto que `First` encuentra en la lista. Si escribimos un nombre y se añade un producto vacío, ¿qué revisamos? El campo enlazado, el evento del input y la condición de `Agregar`. Si la lista se actualiza pero el input no se limpia, ¿qué revisamos? La asignación a `string.Empty` y la representación del binding. Si el texto nunca cambia pese a compilar, ¿qué revisamos? Primero el modo interactivo y la conexión, después el manejador.
+
+Estos diagnósticos responden a síntomas diferentes. Aprender a distinguirlos evita arreglos arbitrarios que podrían ocultar la causa. No necesitamos incorporar logs empresariales ni herramientas de estado global; la observación del código, los puntos de interrupción y la respuesta visible bastan para los objetivos de este módulo.
+
+
 # 3.5. Comunicación padre–hijo: parámetros y EventCallback
 
 ## Cuando el botón está dentro del hijo, pero el dato pertenece al padre
@@ -779,6 +842,57 @@ Para depurar este patrón resulta útil escribir un pequeño recorrido: clic en 
 Un contrato pequeño reduce la información compartida y mantiene claras las responsabilidades. Esta idea es transferible a otros frameworks de componentes, aunque las herramientas sintácticas sean diferentes. No necesitamos introducir bibliotecas de estado global, mediadores, arquitecturas empresariales o patrones avanzados para apreciar su valor: basta con observar que un hijo reutilizable no modifica silenciosamente el estado que otro componente posee.
 
 Referencia: Microsoft Learn, [Comunicación y EventCallback](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/event-handling?view=aspnetcore-8.0).
+
+## Profundización: un protocolo pequeño para comunicar intenciones
+
+La relación padre–hijo de Blazor puede comprenderse mediante un contrato de dos direcciones. En la entrada, la propiedad `Producto` contiene el objeto que la tarjeta representará. En la salida, `AlSeleccionar` o `AlQuitar` contienen callbacks que notifican intenciones. En ninguno de los dos casos el componente hijo necesita recibir una referencia directa a la colección mutable del padre.
+
+Este diseño reduce el acoplamiento. Si mañana la página sustituye la lista local por resultados de un servicio, la tarjeta puede continuar recibiendo un `Producto` y emitiendo un Id. El padre podría interpretar `AlQuitar` de otra manera, por ejemplo solicitar confirmación o realizar una operación contra una API futura, sin que la tarjeta necesite conocer todos esos detalles.
+
+### Tres formas diferentes de compartir información
+
+Podemos comparar tres diseños. El primero copia una propiedad a un hijo por parámetro y deja que el hijo la muestre. Es lo que construimos en P3.3. El segundo coloca un botón en el padre y modifica directamente su estado; ese es el modelo de P3.4. El tercero coloca el botón en el hijo, que debe comunicar la intención al padre; ese es el modelo de P3.5. Los tres pueden ser correctos según la responsabilidad que deseamos modelar.
+
+El error aparece cuando confundimos los contratos. Pasar `Producto` al hijo no le concede automáticamente autoridad sobre toda la colección. Dibujar un botón dentro de la tarjeta tampoco significa que el padre vaya a enterarse de la operación sin haber conectado un callback. Necesitamos una relación explícita, y `EventCallback<int>` ofrece precisamente esa posibilidad.
+
+### Qué garantiza el tipo del callback y qué no
+
+La declaración `EventCallback<int>` establece que el callback trabaja con un valor entero. Este tipo ayuda al compilador y a las herramientas a identificar combinaciones incorrectas. No garantiza, sin embargo, que el entero corresponda a un producto realmente existente o que la persona tenga autorización para quitarlo en una aplicación de producción. Son preguntas de validación y seguridad distintas.
+
+En el laboratorio, el Id procede del objeto que la tarjeta está representando. El padre sabe qué lista utiliza y puede buscarlo. Si el Id no existe en el contexto del padre, la implementación de `First` en la selección podría generar una excepción; en aplicaciones reales convendría decidir explícitamente qué hacer ante ese caso. No añadimos aquí una capa avanzada de manejo de estados concurrentes porque nuestra colección y nuestra secuencia de interacción son pequeñas y controladas.
+
+El reto de eliminación utiliza `RemoveAll(p => p.Id == id)`, que produce una nueva lista lógica con menos elementos, pero no modifica datos almacenados en SQL. Debemos distinguir un resultado visible del componente de un efecto persistente: el contrato de callback solo expresa comunicación entre componentes; la semántica de negocio depende del método del padre.
+
+### Por qué se utiliza InvokeAsync
+
+`AlSeleccionar.InvokeAsync(Producto.Id)` es la forma explícita de notificar un callback. Devuelve una tarea que puede representar una operación asíncrona. El hijo no necesita conocer si el padre implementó un método sincrónico pequeño o si más adelante el tratamiento será asíncrono. Esta decisión deja abierto un patrón de evolución sin obligar a introducir una API durante M03.
+
+No debemos sustituir el callback por una llamada directa inventada como `Padre.Seleccionar(...)`, porque el componente hijo no dispone de una referencia estructurada al objeto padre ni debería depender de una clase concreta para presentar una tarjeta. La propiedad de callback es un contrato público del componente, igual que su propiedad de datos, y se conecta en la etiqueta del padre.
+
+### Transferencia desde la vista parcial MVC
+
+Recordemos la vista parcial del catálogo MVC: recibía un modelo y generaba un fragmento de HTML. Si necesitaba realizar una acción, normalmente representaba un enlace o formulario que conduciría a otro endpoint HTTP. En nuestra tarjeta Blazor, un botón puede emitir un callback que cambia inmediatamente el estado del padre sin navegar a otra URL. Esa es una capacidad relevante del modelo interactivo.
+
+No significa que las vistas parciales sean «malas» ni que los componentes deban reemplazarlas en todas las aplicaciones. Es una diferencia de comportamiento disponible y de responsabilidades. El alumno debería ser capaz de identificar cuál conviene cuando la operación principal consiste en navegar hacia otro recurso y cuál resulta expresiva cuando queremos actualizar una selección local sin cambiar de pantalla.
+
+### Caso de diagnóstico: tarjeta duplicada después de activar callbacks
+
+En el proyecto P3.5 se entregan variantes completas del componente padre: una sin callback, otra con `AlSeleccionar` y una tercera con `AlSeleccionar` y `AlQuitar`. Si el alumno descomenta las variantes sin sustituir la línea activa, cada iteración del `foreach` produce dos o tres tarjetas. La cantidad de elementos HTML aumenta, pero no necesariamente la longitud de la colección `productos`. Esto es un error de **composición**, no un error de `EventCallback`.
+
+El diagnóstico correcto empieza por contar las instancias de `TarjetaProducto` dentro de la iteración. Después se comprueba que cada variante tenga declarados sus parámetros en el hijo y sus métodos correspondientes en el padre. Solo al completar ambos lados tiene sentido probar la navegación o la interacción.
+
+### Caso de diagnóstico: la tarjeta se quita, pero el texto sigue seleccionado
+
+Imaginemos que modificamos `Quitar(int id)` para eliminar el producto, pero olvidamos limpiar `seleccion`. Si eliminamos Lápiz cuando estaba seleccionado, podríamos continuar leyendo «Seleccionado: Lápiz» mientras la tarjeta ya no existe. No hay un problema de transmisión del evento: el callback llegó al padre y `RemoveAll` funcionó. El problema es que **el padre no actualizó otro campo del estado que debía cambiar de forma coherente**.
+
+Por eso el reto incluye `seleccion = "ninguno"`. La solución expresa una pequeña regla de consistencia local. El hijo no debe decidir cómo actualizar ese estado; corresponde al padre porque conoce tanto la selección como la lista. Esa decisión ejemplifica el beneficio de mantener la propiedad del estado en un único lugar claro.
+
+### Reutilización conceptual en M04
+
+Cuando consumamos una API, un botón de tarjeta podría notificar un Id al padre y el padre podría llamar a un servicio HTTP. Pero no es necesario que el componente conozca el protocolo de comunicación para seguir siendo reutilizable. Esta separación evita trasladar los detalles de transporte a cada botón de cada tarjeta.
+
+El objetivo de P3.5 termina antes de esa frontera: el alumno debe demostrar un callback real, seleccionar y quitar elementos, y explicar qué parte del estado cambió. Una descripción que solo diga «el botón manda un evento» resulta insuficiente si no identifica el Id, el método receptor y el efecto visible en la lista.
+
 
 # 3.6. OnInitializedAsync y ciclo de vida esencial de un componente
 
@@ -923,6 +1037,67 @@ Cada paso reutiliza el lenguaje conceptual anterior. El alumno no necesita memor
 La demostración termina con un catálogo local y temporal, no con un CRUD persistente. M02 ya enseñó la persistencia; M03 enseña la composición y el comportamiento interactivo de la interfaz. Mantener separadas esas responsabilidades es parte del diseño del curso, no una carencia del proyecto.
 
 Referencia: Microsoft Learn, [Ciclo de vida de componentes Razor](https://learn.microsoft.com/en-us/aspnet/core/blazor/components/lifecycle?view=aspnetcore-8.0) y [Inyección de dependencias en Blazor](https://learn.microsoft.com/en-us/aspnet/core/blazor/fundamentals/dependency-injection?view=aspnetcore-8.0).
+
+## Ampliación aplicada: secuencia de vida, representación y errores de carga
+
+El ciclo de vida de componentes no debe aprenderse como una colección de nombres aislados. Cada método tiene sentido porque el framework necesita crear, inicializar, proporcionar parámetros, representar y eventualmente descartar componentes. En P3.6 nos concentramos en `OnInitializedAsync`, que permite iniciar una operación de obtención de datos cuando se prepara la instancia. El alumno ya conoce `async` y `await` de C#, de modo que la novedad no está en escribir una tarea, sino en entender **cuándo la invoca el framework** y cómo se relaciona con la representación.
+
+### Qué debe contener un estado representable antes del await
+
+Cuando un método asíncrono inicia una operación que todavía no ha terminado, el componente puede necesitar producir una representación provisional. Por ello el proyecto define una lista vacía, la bandera `cargando` y el mensaje `estado` antes de obtener datos. Estos valores permiten que la página tenga una representación coherente tanto al empezar como después de la espera.
+
+Una implementación que presupusiera que `productos` siempre está disponible con tres elementos podría intentar acceder a una posición inexistente antes de completar la carga. Nuestro marcado no lo hace: comprueba `!cargando && productos.Count > 0` antes de dibujar tarjetas. Esta condición explica por qué la pantalla inicial no debe interpretarse como una excepción, sino como un estado esperado.
+
+El servicio utiliza `await Task.Delay(700)` para simular latencia. En una aplicación real podría existir una consulta a otra API, un acceso a almacenamiento o una operación de red. La espera artificial facilita la observación, pero no conviene copiarla como si fuera una recomendación para producir sistemas más lentos. El contenido formativo está en la transición y en la separación de responsabilidades, no en la duración exacta del retardo.
+
+### Una fuente de datos separada de su representación
+
+`IProductosMemoriaService` establece un contrato: obtener una lista de productos de manera asíncrona. La página usa ese contrato mediante `@inject`. La implementación decide dónde construir la lista. Esta separación tiene un beneficio concreto: la página puede centrarse en los estados de presentación y la tarjeta puede seguir representando un objeto, sin saber de qué manera se obtuvo.
+
+La idea se relaciona con la inyección de dependencias de Web API. En ambos casos, el contenedor registra una implementación y las clases o componentes pueden solicitar su contrato. La diferencia importante para Blazor Interactive Server aparece en la vida de los servicios `Scoped`: su alcance no debe equipararse automáticamente con una petición HTTP MVC, porque los circuitos interactivos tienen una duración propia. Nuestro servicio no guarda modificaciones entre llamadas, de modo que la práctica no necesita explorar esas implicaciones operativas.
+
+### Prerenderizado y dobles inicializaciones
+
+En una Blazor Web App es posible representar una página inicialmente en el servidor y luego crear la instancia interactiva asociada al navegador. Con prerenderizado habilitado, `OnInitializedAsync` puede ejecutarse una vez durante el prerenderizado y otra durante la inicialización interactiva. En una carga de datos costosa, esta repetición puede resultar relevante. Si el método no fuera idempotente, incluso podría generar resultados indeseados.
+
+El laboratorio desactiva el prerenderizado de P3.6 con `@rendermode @(new InteractiveServerRenderMode(prerender: false))`. Queremos observar una sola secuencia de carga que evoluciona visiblemente desde «Cargando» hasta «Lista preparada». Debemos explicar, sin embargo, que el prerenderizado por defecto puede mejorar la experiencia de carga inicial y que desactivarlo no es un estándar universal. En aplicaciones mayores existen técnicas para conservar estado de prerenderizado y evitar operaciones duplicadas, fuera del alcance de este módulo.
+
+### Cuatro estados conceptualmente diferentes
+
+Consideremos una pantalla con estas posibilidades: todavía no se ha ejecutado la carga, la operación está en curso, la operación ha terminado con datos y la operación ha terminado sin datos. Estos estados no significan lo mismo. En nuestro proyecto inicial, `estado = "Servicio pendiente de activar"` indica que el método aún está comentado. Al activarlo, aparece `"Cargando productos..."` antes de completar `ObtenerAsync`. Cuando termina, `"Lista preparada"` anuncia la finalización. Si la lista está vacía, el reto muestra una frase adicional, no un error técnico.
+
+El alumno debe distinguir también un quinto estado que estudiará en M04: **la operación falló**. Un servicio HTTP puede devolver un código de error o no ser alcanzable; eso necesita una representación y manejo específicos. M03 utiliza un servicio controlado para no mezclar fallos de red con la comprensión de los eventos y el ciclo de vida.
+
+### Diagnóstico de servicio no registrado
+
+Si elimináramos temporalmente el registro de `IProductosMemoriaService` en `Program.cs` y dejáramos el `@inject` de la página, el contenedor no sabría cómo suministrar la dependencia. No sería un problema de routing ni del CSS de las tarjetas. La causa estaría en la configuración de servicios. Por eso el primer paso de P3.6 pide abrir y comprender tanto la interfaz como su registro antes de activar `OnInitializedAsync`.
+
+Otro fallo diferente sería registrar correctamente el servicio pero olvidar activar el método de inicialización. En ese caso el proyecto puede compilar y la página representar el mensaje inicial de «Servicio pendiente de activar» para siempre. La depuración correcta consiste en comprobar que el bloque de la práctica está activo y que se está ejecutando la versión correspondiente del proyecto, no en cambiar la interfaz de DI.
+
+### Diagnóstico de operación completada sin actualización visual
+
+Supongamos que `productos = await Catalogo.ObtenerAsync()` se ejecuta correctamente, pero el código omite `cargando = false`. La lista contiene tres objetos, pero la condición del Razor sigue siendo falsa. El alumno podría afirmar que el servicio «no devolvió nada» porque no ve tarjetas. La realidad sería otra: **el estado de presentación impide mostrarlas**. El método necesita mantener coherentes tanto la colección como la señal de finalización.
+
+Este caso demuestra la utilidad de representar explícitamente el estado de carga. En aplicaciones complejas, se usan modelos de estado más expresivos; aquí bastan una bandera y un texto para mostrar la idea. No introducimos una biblioteca de gestión de estado para resolver un problema que el alumno ya puede comprender con dos campos.
+
+### Un resultado vacío no es necesariamente un resultado incorrecto
+
+Cuando el servicio devuelve `Array.Empty<Producto>()`, ha completado la operación con una colección válida pero sin elementos. La condición `productos.Count > 0` impide representar tarjetas, y el reto introduce un mensaje para explicar lo ocurrido. Es distinto de una solicitud de red fallida y distinto de un servicio todavía pendiente. La observación positiva del reto no es «ver tres productos», sino «ver que el componente terminó correctamente y explica que no hay productos».
+
+Este matiz es importante porque preparará el tratamiento de resultados y errores HTTP de M04. Aprenderemos entonces que una respuesta satisfactoria con colección vacía, una respuesta 404 y una respuesta de error de servidor pueden merecer representaciones distintas. Aquí el alumno aprende primero a no confundir **cero elementos** con **espera infinita**.
+
+### Integración de toda la jornada en una sola historia
+
+Imagina que el usuario visita la página de productos de la futura aplicación B. El sistema debe localizar la ruta de componente, representar el layout, obtener datos de un servicio y crear tarjetas. El usuario puede interactuar con esa representación, modificar una selección o solicitar una acción en una tarjeta. Cada parte de esa historia procede de un punto del módulo: routing en 3.2, composición en 3.3, eventos en 3.4, callbacks en 3.5 e inicialización asíncrona en 3.6.
+
+No hemos conectado todavía todos esos mecanismos en un CRUD remoto completo; hacerlo sin haber aprendido las piezas separadas haría más difícil atribuir cada comportamiento a su causa. La progresión del módulo está diseñada para que el alumno pueda explicar cada eslabón antes de combinarlos con HTTP en M04.
+
+### Autoevaluación razonada
+
+Describe qué archivo revisas primero ante las siguientes incidencias: una página devuelve 404; una tarjeta muestra un precio incorrecto; un botón no desencadena ningún evento; un hijo emite un Id distinto del esperado; la colección de productos se carga pero nunca se representa; la pantalla informa de lista vacía después de una carga correcta. Las respuestas deberían relacionar síntomas con routing, parámetro recibido, renderizado interactivo, EventCallback, bandera de carga y estado vacío respectivamente.
+
+Si todas tus respuestas consisten en «cambiar Program.cs» o «reconstruir la aplicación», todavía no estás usando la separación de responsabilidades que hemos practicado. El resultado formativo de M03 no es la cantidad de componentes escritos, sino la capacidad de comprender cómo cooperan para construir una interfaz interactiva reproducible.
+
 
 ## Bibliografía y documentación de referencia del módulo
 
