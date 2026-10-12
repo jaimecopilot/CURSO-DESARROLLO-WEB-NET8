@@ -5,6 +5,11 @@
 <h1>Datos recibidos del formulario</h1>
 <p id="producto-recibido">Nombre: <strong>@Model.Nombre</strong></p>
 <p id="precio-recibido">Precio: <strong>@Model.Precio.ToString("0.00")</strong> €</p>
+@* APLICACION 2.1.5 — Escribe aquí una condición Razor propia:
+   cuando Model.Precio >= 4m, muestra <strong id="precio-elevado">Importe elevado para el ejemplo</strong>.
+   Cuando el precio sea menor, no debe aparecer la etiqueta. No modifiques el modelo ni el controlador.
+   NO se entrega el resultado activado: el alumno debe escribir el código.
+*@
 <p>Este resultado confirma el enlace de modelos; los productos aún no se guardan.</p>
 <p><a asp-controller="Productos" asp-action="Crear">Enviar otro formulario</a></p>
 <p><a asp-controller="Productos" asp-action="Index">Volver al catálogo</a></p>
