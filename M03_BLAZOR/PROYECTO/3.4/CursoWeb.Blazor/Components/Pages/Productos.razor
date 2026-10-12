@@ -19,6 +19,12 @@
 @* <label>Nombre nuevo: <input id="nombre-nuevo" @bind="nuevoNombre" /></label> *@
 @* PASO 3.4.4 (ACTIVAR): descomenta el botón tras activar Agregar. *@
 @* <button id="agregar" @onclick="Agregar">Añadir producto</button> *@
+@* PASO 3.4.5: después de activar Seleccionar, sustituye su botón por esta variante.
+   El nuevo manejador conserva el Id y prepara el editor, sin buscar por nombre. *@
+@* <button @onclick="() => SeleccionarParaEditar(producto.Id)">Seleccionar</button> *@
+@* PASO 3.4.5: activa juntos el campo y el botón tras activar el método de edición. *@
+@* <label>Editar nombre: <input id="editar-nombre" @bind="nombreEditado" /></label> *@
+@* <button id="guardar-cambio" @onclick="GuardarCambio">Guardar nombre</button> *@
 @* RETO 3.4 (ACTIVAR): botón para deshacer la selección. *@
 @* <button id="limpiar" @onclick="Limpiar">Limpiar selección</button> *@
 @code {
@@ -51,6 +57,32 @@
         nuevoNombre = string.Empty;
     }
     PASO 3.4.4 FIN */
+
+
+    /* PASO 3.4.5 INICIO
+    private int? idEnEdicion;
+    private string nombreEditado = string.Empty;
+    private void SeleccionarParaEditar(int id)
+    {
+        var producto = productos.First(p => p.Id == id);
+        idEnEdicion = id;
+        seleccion = producto.Nombre;
+        nombreEditado = producto.Nombre;
+    }
+
+    private void GuardarCambio()
+    {
+        if (idEnEdicion is null || string.IsNullOrWhiteSpace(nombreEditado))
+            return;
+
+        var indice = productos.FindIndex(p => p.Id == idEnEdicion.Value);
+        if (indice < 0)
+            return;
+
+        productos[indice] = productos[indice] with { Nombre = nombreEditado.Trim() };
+        seleccion = productos[indice].Nombre;
+    }
+    PASO 3.4.5 FIN */
 
     /* RETO 3.4 INICIO
     private void Limpiar() => seleccion = "ninguno";
