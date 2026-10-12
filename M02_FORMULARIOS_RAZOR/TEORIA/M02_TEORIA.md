@@ -499,3 +499,287 @@ Después, en 2.4, usaremos la base SQL Server Express LocalDB con Entity Framewo
 - Microsoft Learn, [Introducción a los Tag Helpers](https://learn.microsoft.com/aspnet/core/mvc/views/tag-helpers/intro?view=aspnetcore-8.0).
 - Microsoft Learn, [Anchor Tag Helper](https://learn.microsoft.com/aspnet/core/mvc/views/tag-helpers/built-in/anchor-tag-helper?view=aspnetcore-8.0).
 - Microsoft Learn, [Model binding](https://learn.microsoft.com/aspnet/core/mvc/models/model-binding?view=aspnetcore-8.0).
+
+# 2.3. Validación de formularios con DataAnnotations y ModelState
+
+## La nueva pregunta: no basta con recibir datos
+
+Al terminar P2.2, el catálogo tiene un formulario bastante más expresivo que el de P2.1. Podemos declarar su destino mediante `asp-controller` y `asp-action`, asociar etiquetas con propiedades mediante `asp-for`, y generar los campos de entrada de forma coherente con el modelo tipado. La página se representa en el servidor y el navegador puede remitir sus valores mediante POST. También conservamos la protección antiforgery del primer ejercicio.
+
+Esa mejora no responde, sin embargo, a una pregunta fundamental: **¿qué hacemos con los datos que no representan un producto aceptable?** Un campo vacío, un precio negativo, un texto excesivamente largo o una cadena que no pueda convertirse en un decimal pueden llegar al servidor de distintas maneras. El atributo `type="number"` facilita la edición en el navegador, pero no constituye una defensa suficiente: se pueden construir peticiones HTTP sin interactuar con ese control, el JavaScript puede estar deshabilitado y otros clientes pueden enviar directamente pares de nombre y valor.
+
+Para comprender la diferencia, pensemos en dos situaciones. Una persona escribe Nombre = «Carpeta» y Precio = 8. Un objeto `ProductoFormulario` con esos valores puede cumplir nuestras reglas y convertirse en un producto. Otra escribe Nombre = «X» y Precio = -5. El navegador puede transportar esos datos, pero la aplicación debe saber que no cumplen el contrato de negocio. **Recibir información y aceptarla son operaciones distintas.** Es precisamente la responsabilidad que añadiremos en este capítulo.
+
+Nuestro aprendizaje seguirá una progresión deliberada. Primero entenderemos por qué el modelo que recibe el formulario no tiene por qué ser la misma clase que la entidad del catálogo. Después definiremos sus reglas con atributos declarativos de C#. A continuación observaremos qué registra `ModelState` cuando se produce un error, cómo devuelve el controlador la misma página y de qué manera las vistas Razor muestran mensajes junto a los campos. Finalmente diferenciaremos la validación en el servidor de la validación anticipada que puede realizar el navegador cuando se habilitan las bibliotecas correspondientes.
+
+El objetivo no es impartir otra vez Entity Framework Core: los alumnos ya conocen esa herramienta, pero **P2.3 todavía no persiste** datos. Reservamos la operación de almacenamiento y los identificadores reales para el CRUD de P2.4, cuando podamos confiar en un contrato de entrada validado.
+
+## Por qué separar Producto y ProductoFormulario
+
+En M01, `Producto` era un objeto de dominio sencillo:
+
+~~~csharp
+public sealed class Producto
+{
+    public int Id { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public decimal Precio { get; set; }
+}
+~~~
+
+Servía para representar los elementos de la colección del catálogo, seleccionar una ficha y obtener los valores mostrados en Razor. En P2.1 y P2.2 también lo usamos como parámetro de entrada por simplicidad. Ese diseño permitió observar el mecanismo de model binding, pero ahora conviene evolucionarlo.
+
+Un formulario de **alta** de producto necesita recibir un nombre y un precio; normalmente no debería permitir al usuario elegir el identificador persistente que asignará el sistema. Si utilizamos la entidad directamente como contrato de entrada, corremos el riesgo de aceptar propiedades que el usuario no debería controlar, problema conocido como **sobrepublicación o overposting**. La importancia de este aspecto crece cuando las entidades añaden campos como Activo, PropietarioId o PrecioAutorizado, que no deben quedar bajo control de cualquier petición HTML.
+
+El proyecto introduce una clase diferente:
+
+~~~csharp
+public sealed class ProductoFormulario
+{
+    public string? Nombre { get; set; }
+    public decimal? Precio { get; set; }
+}
+~~~
+
+El nuevo tipo tiene únicamente las propiedades necesarias para el formulario. No expone `Id`. Al mismo tiempo, ambas propiedades se declaran anulables. Esa decisión es relevante para los experimentos: **un campo que no llega y un valor numérico explícito no son la misma cosa**. Con `decimal?` podemos distinguir un precio ausente (`null`) del número cero (`0`) y del número siete (`7`). En una propiedad no anulable `decimal`, un valor ausente puede acabar representado por el valor predeterminado cero, lo que dificulta explicar por qué ha fallado una regla.
+
+La propiedad `Nombre` es `string?` porque el formulario puede llegar sin ese campo. Que la propiedad permita almacenar `null` en C# no implica que el negocio lo acepte. Esa diferencia entre **posibilidad técnica del tipo** y **restricción del dominio** es precisamente lo que hacen visible las DataAnnotations.
+
+Una vez validada la entrada, la acción puede crear un objeto de dominio:
+
+~~~csharp
+var producto = new Producto
+{
+    Id = 4, // Identificador de demostración: P2.3 aún no guarda.
+    Nombre = entrada.Nombre!,
+    Precio = entrada.Precio!.Value
+};
+return View("Confirmacion", producto);
+~~~
+
+El número 4 no es un identificador asignado por SQL Server; pertenece solamente a esta demostración temporal. En P2.4 lo eliminaremos del flujo de creación y dejaremos que la persistencia proporcione un identificador real. El operador `!` expresa al compilador que confiamos en la nulabilidad después de comprobar la entrada; no constituye una validación por sí mismo.
+
+### El modelo de entrada no es una segunda aplicación
+
+No estamos duplicando el catálogo. Conservamos las mismas rutas, el mismo controlador y la misma vista de confirmación; lo que cambia es el **tipo aceptado por el POST**. La vista `Crear.cshtml` trabaja con `ProductoFormulario`, mientras `Confirmacion.cshtml` recibe `Producto`. La transformación entre ambos tipos está situada en el controlador, donde resulta explícita y fácil de explicar.
+
+Esta separación se puede trasladar a sistemas mayores sin introducir complejidad innecesaria. En el curso no añadiremos una biblioteca de mapeo ni una capa de servicios adicional solo para copiar dos propiedades. El alumnado conoce C# y puede comprender la asignación directa. La prioridad es identificar qué información entra desde HTTP y qué entidad representa el catálogo.
+
+## DataAnnotations: reglas declaradas junto al contrato de entrada
+
+Las **DataAnnotations** son atributos de .NET que expresan, entre otros usos, restricciones de validación sobre propiedades de un modelo. El espacio de nombres principal es `System.ComponentModel.DataAnnotations`. En lugar de escribir en cada acción una serie de condiciones repetidas para el nombre y el precio, definiremos las reglas relevantes una sola vez en `ProductoFormulario`.
+
+El ejercicio utiliza tres tipos de anotaciones. `[Required]` indica que el campo es obligatorio; `[StringLength]` limita la longitud del nombre, con mínimo y máximo; y `[Range]` expresa el intervalo admitido para el precio. El proyecto incluye las líneas correspondientes **comentadas**, de modo que el alumno pueda activarlas y observar qué errores aparecen.
+
+~~~csharp
+using System.ComponentModel.DataAnnotations;
+
+public sealed class ProductoFormulario
+{
+    [Required(ErrorMessage = "Indica el nombre.")]
+    [StringLength(60, MinimumLength = 2,
+        ErrorMessage = "El nombre debe tener entre 2 y 60 caracteres.")]
+    public string? Nombre { get; set; }
+
+    [Required(ErrorMessage = "Indica el precio.")]
+    [Range(typeof(decimal), "0.01", "9999.99",
+        ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
+    public decimal? Precio { get; set; }
+}
+~~~
+
+El ejemplo muestra el **estado resultante después de activar las cuatro anotaciones**. No hace falta cambiar el controlador a la vez: la plataforma conoce cómo recoger los atributos del modelo de entrada al validar los valores recibidos. Tampoco tenemos que escribir JavaScript propio para expresar de nuevo los mismos límites cuando utilizamos los Tag Helpers y las bibliotecas de validación convencionales.
+
+Los mensajes explícitos de las anotaciones tienen una ventaja didáctica: cuando falla una entrada, el alumno puede buscar el mismo texto en el modelo y en el HTML devuelto. La regla declarativa deja de ser un concepto abstracto y se convierte en una causa verificable del comportamiento de la aplicación.
+
+### Required no hace lo mismo que StringLength
+
+Consideremos el nombre. Si no se envía el campo `Nombre`, `[Required]` comunica que falta un dato obligatorio. `[StringLength(60, MinimumLength = 2)]` no sustituye esa responsabilidad: su finalidad es imponer límites a la longitud cuando se dispone de una cadena. Son reglas complementarias.
+
+Tampoco debemos confundir la longitud con el significado de la cadena. Un nombre de tres letras puede cumplir esas reglas y ser inapropiado para un negocio real; una cadena de cincuenta y nueve caracteres puede ser técnicamente válida sin constituir un nombre comercial aceptable. Las reglas de este curso son **criterios de demostración**. La definición final de las restricciones de un sistema de producción depende de sus requisitos y de su dominio.
+
+En el reto opcional aparece un comportamiento interesante: `[Required]` aplicado a una cadena rechaza, de forma predeterminada, una entrada sin contenido útil, incluidas cadenas compuestas solo por espacios. Por eso no sería apropiado añadir una nueva condición en el controlador que repita sin explicación exactamente esa comprobación. Una regla adicional debe expresar algo que las anotaciones existentes no contemplan.
+
+### Required y Range sobre decimal?
+
+El precio se representa con `decimal?`. Cuando no llega un valor, `[Required]` puede detectar su ausencia. Cuando el binder consigue convertir una cantidad numérica, `[Range]` evalúa si pertenece al intervalo permitido, entre 0,01 y 9999,99 en este ejemplo.
+
+La sintaxis `[Range(typeof(decimal), "0.01", "9999.99")]` crea una regla para el tipo decimal a partir de límites escritos con una representación invariante. Es útil distinguir los límites definidos en el atributo de la forma en que el navegador representa las cantidades en distintas culturas. La conversión del dato recibido también depende de la cultura de la solicitud y del mecanismo de model binding. Un problema de separadores decimales no se arregla simplemente aumentando el máximo permitido.
+
+Un precio igual a 0 es numérico, pero no cumple el intervalo. Un precio igual a -5 tampoco. Un texto como «abc», enviado a la propiedad Precio, tiene un problema de conversión antes incluso de comprobar si está entre los límites. Esto nos conduce a una diferencia esencial: **los errores de model binding y los errores de validación son fuentes distintas de información** que confluyen en `ModelState`.
+
+## Model binding y model validation: un recorrido completo
+
+Cuando llega un POST desde el formulario, MVC debe interpretar sus campos. Primero necesita saber cuál es la acción y cuál es su parámetro. En nuestro caso la firma es:
+
+~~~csharp
+[HttpPost]
+[ValidateAntiForgeryToken]
+public IActionResult Crear(ProductoFormulario entrada)
+~~~
+
+El binder intenta construir `entrada` y asignar propiedades a partir de los valores enviados. Una entrada `Precio=7` puede convertirse en decimal; otra `Precio=abc` no es representable directamente en esa propiedad. Ese problema de conversión queda registrado como error de enlace.
+
+Después interviene la validación del modelo, que examina atributos como `Required`, `StringLength` y `Range`. Una cadena de un solo carácter para Nombre sí puede convertirse en una cadena C#, pero no cumple nuestra longitud mínima. Por tanto, el problema no es de conversión, sino de **regla declarativa**.
+
+En ASP.NET Core MVC, `ModelState` reúne información sobre ambos tipos de errores. Su propiedad `IsValid` permite conocer si la entrada está libre de los errores registrados. Esa comprobación es responsabilidad de la aplicación cuando construimos vistas MVC tradicionales; no debemos trasladar sin más lo que ocurre en una Web API que usa `[ApiController]`, donde el framework puede devolver automáticamente un 400 por validación.
+
+La documentación de Microsoft explica que los errores de conversión y de reglas del modelo confluyen en ModelState y que, en MVC con vistas, la acción normalmente comprueba IsValid para devolver la página con mensajes de error. [Validación de modelos en ASP.NET Core MVC](https://learn.microsoft.com/en-us/aspnet/core/mvc/models/validation?view=aspnetcore-8.0).
+
+### Un error no implica automáticamente HTTP 400
+
+Ésta es una distinción importante para el alumnado con experiencia en API REST. En nuestro formulario MVC, cuando `ModelState.IsValid` es falso, devolvemos la misma vista:
+
+~~~csharp
+if (!ModelState.IsValid)
+{
+    return View(entrada);
+}
+~~~
+
+En el escenario básico, el navegador suele recibir **200 OK** con el HTML de la página de creación y sus errores visibles. La respuesta no dice «el producto se ha creado»; indica que estamos mostrando el formulario de nuevo para que la persona pueda corregirlo. Un HTTP 200 por este camino no convierte los datos en válidos.
+
+En cambio, una petición que incumple `[ValidateAntiForgeryToken]` normalmente obtiene **400 Bad Request** antes de que se ejecute el cuerpo de la acción. La diferencia no es accidental: una cosa es rechazar la legitimidad del envío y otra presentar un formulario normal con problemas de entrada.
+
+Una tercera posibilidad es un 405 porque no hay una acción POST compatible con la ruta. Los tres síntomas —400, 405 y 200 con errores de validación— tienen causas diferentes y deben diagnosticarse consultando la petición, el código de la acción y el HTML devuelto.
+
+## La importancia de devolver la misma vista con sus datos
+
+Cuando la entrada es incorrecta, sería frustrante obligar a la persona a volver a escribir todos los campos del formulario. Nuestro controlador utiliza `return View(entrada)` para que Razor vuelva a representar `Crear.cshtml` con el objeto recibido. La vista dispone de los Tag Helpers vinculados a `ProductoFormulario` y del contexto de `ModelState`.
+
+El valor de un campo que era válido, como `Nombre="Carpeta grande"`, debe mantenerse al mostrar un error de precio. Incluso cuando hay un problema de conversión, los Tag Helpers de MVC pueden dar preferencia a los valores intentados almacenados en `ModelState`, permitiendo que el usuario vea el texto que escribió y pueda corregirlo. No hay que borrar todo el formulario por una propiedad inválida.
+
+Conviene comprobar ese comportamiento con dos peticiones diferentes. Enviar `Nombre=Carpeta grande` y `Precio=-2` sirve para observar una regla de rango. Enviar `Nombre=Carpeta grande` y `Precio=abc` mediante una petición HTTP directa permite estudiar el error de conversión. El control `type="number"` del navegador puede impedir escribir «abc» en la interfaz normal, por eso es importante entender que **los clientes HTTP no se reducen a lo que permite escribir ese control**.
+
+La vista utiliza `span asp-validation-for` para presentar los errores de cada propiedad:
+
+~~~cshtml
+<div>
+    <label asp-for="Nombre"></label>
+    <input asp-for="Nombre" />
+    <span asp-validation-for="Nombre" class="text-danger"></span>
+</div>
+<div>
+    <label asp-for="Precio"></label>
+    <input asp-for="Precio" type="number" step="0.01" />
+    <span asp-validation-for="Precio" class="text-danger"></span>
+</div>
+~~~
+
+Si la validación de Nombre registra un error, su mensaje debe aparecer junto al campo correspondiente, no en un lugar arbitrario. El elemento span es parte del HTML que se produce; el atributo especial indica a Razor cuál es la propiedad asociada.
+
+### Validation Summary: ModelOnly no significa All
+
+El formulario incluye también un elemento con `asp-validation-summary="ModelOnly"`. Hay que explicar su significado para evitar una interpretación errónea cuando no muestra los mismos mensajes que los `span`. **ModelOnly** se ocupa de errores asociados al modelo y no enumera de forma general todos los errores de propiedades. **All** permite mostrar una lista que incluya errores de propiedades y otros errores del modelo.
+
+Por eso, cuando introducimos un precio fuera de rango, puede aparecer un mensaje junto a `Precio` sin que el resumen de `ModelOnly` lo repita. No significa que `ModelState` haya ignorado la regla. El alumnado deberá cambiar temporalmente `ModelOnly` a `All`, observar la diferencia y restaurar la primera opción para no duplicar mensajes sin necesidad.
+
+Una validación legible no depende solamente de que exista un mensaje; también importa su relación con el campo y la posibilidad de corregirlo. Si un error se sitúa junto al precio y el valor escrito permanece visible, el usuario sabe qué debe revisar. El resumen general puede ser útil para errores que no correspondan a una única propiedad.
+
+## Conservar la separación entre la vista y las reglas
+
+No sería una buena práctica escribir la regla de precio dos veces: una en el controlador y otra, con valores distintos, en JavaScript. Al declarar las reglas de entrada en `ProductoFormulario`, los Tag Helpers pueden generar metadatos de validación en atributos HTML, y las bibliotecas cliente compatibles pueden interpretarlos.
+
+Por ejemplo, al usar un modelo con DataAnnotations, el HTML de un input puede contener atributos `data-val` que describen restricciones. Estos atributos no son por sí mismos un algoritmo de validación ejecutable: tienen que ser interpretados por un script compatible para ofrecer validación anticipada en el navegador. ASP.NET Core conserva la validación de servidor independientemente de ese componente opcional.
+
+Nuestro proyecto no añade un sistema moderno de frontend, ni un gestor complejo de formularios, ni componentes Blazor en esta jornada. En cambio, introduce una demostración limitada con jQuery, jQuery Validation y jQuery Validation Unobtrusive. Es una combinación convencional para observar la **validación discreta** de formularios MVC.
+
+El contrato esencial sigue siendo el mismo. Una petición inválida debe ser rechazada desde la acción mediante la comprobación de `ModelState.IsValid` aunque se deshabilite JavaScript o no se cargue ningún recurso externo. La validación en cliente es una ayuda para presentar errores antes del viaje HTTP, **no una garantía de seguridad**.
+
+## Validación en el navegador y su dependencia de los scripts
+
+La versión de proyecto de P2.3 incorpora un archivo `Views/Shared/_ValidationScriptsPartial.cshtml` con referencias a tres recursos JavaScript: jQuery, jQuery Validation y jQuery Validation Unobtrusive. Las versiones concretas están fijadas en el archivo para facilitar la reproducción del laboratorio. Las bibliotecas deben cargarse en un orden coherente, ya que unas dependen de las otras.
+
+En el layout encontramos:
+
+~~~cshtml
+@await RenderSectionAsync("Scripts", required: false)
+~~~
+
+Esa instrucción permite que una vista declare su propia sección opcional de scripts. El atributo `required: false` evita que otras vistas del catálogo deban declarar esa sección. No se altera la acción del controlador ni el modelo por añadir un punto de inserción de recursos JavaScript en el layout.
+
+La vista `Crear.cshtml` contiene, inicialmente comentada, esta sección que el alumno puede activar después de haber comprobado la validación de servidor:
+
+~~~cshtml
+@section Scripts
+{
+    <partial name="_ValidationScriptsPartial" />
+}
+~~~
+
+Cuando se habilita, se representa la parcial correspondiente y el navegador intenta descargar los scripts. En un laboratorio con acceso a la CDN indicada, las bibliotecas interpretan los atributos generados a partir de DataAnnotations y pueden mostrar mensajes antes de enviar una solicitud inválida. Es frecuente que un formulario con un valor incorrecto no llegue a originar el POST cuando la validación cliente lo intercepta.
+
+Esto no convierte el laboratorio en una prueba de seguridad. **Debe repetirse la misma entrada inválida con JavaScript deshabilitado o mediante una petición HTTP directa** para comprobar que el servidor sigue rechazándola. Si el navegador no tiene acceso a la CDN, la demostración de cliente no podrá completarse hasta proporcionar archivos locales apropiados; en cambio, los controles de servidor deberían continuar funcionando. El resultado dependiente de una CDN no debe presentarse como si estuviese garantizado en entornos sin conexión.
+
+Las bibliotecas y el patrón de validación cliente se describen también en la documentación oficial de Microsoft: https://learn.microsoft.com/en-us/aspnet/core/mvc/models/validation?view=aspnetcore-8.0.
+
+### Por qué el navegador no sustituye al servidor
+
+Es posible que el control `type="number"` no permita introducir letras en una interfaz concreta. Otro navegador puede representar los controles de forma distinta y un cliente HTTP puede enviar cualquier cadena como valor de campo. Las reglas críticas tienen que seguir verificándose en el servidor. Un mensaje anticipado del navegador mejora la experiencia de usuario, pero no constituye una frontera confiable.
+
+Por la misma razón, no añadiremos al controlador un camino de inserción que omita `ModelState` simplemente porque la vista ya valida antes de enviar. Al llegar P2.4, donde el POST pasará a escribir en una base real, esta disciplina se volverá aún más importante: **no se guardarán productos procedentes de entradas inválidas**.
+
+## Un ejemplo completo: nombre válido y precio negativo
+
+Volvamos al formulario de producto. Un usuario envía los campos `Nombre=Rotulador` y `Precio=-5` utilizando un POST protegido. Supongamos que las DataAnnotations ya están activadas. El binder obtiene una cadena y un decimal; la conversión ha sido posible. El problema aparece después: el decimal no cumple el mínimo 0,01 que establece `[Range]`.
+
+La acción consulta `ModelState.IsValid` y obtiene `false`. Entonces devuelve `View(entrada)`. Razor genera otra vez `Crear.cshtml`, conserva el nombre escrito y añade junto a Precio el mensaje «El precio debe estar entre 0,01 y 9999,99». No se representa Confirmacion.cshtml y no se crea ninguna entidad de dominio.
+
+Si el usuario corrige el precio a 7 y vuelve a enviar, los valores ya cumplen las reglas del formulario. La acción puede construir `Producto` y devolver la confirmación. Como P2.3 no contiene operaciones de almacenamiento, el catálogo continúa mostrando los tres elementos originales.
+
+En ese pequeño escenario aparecen todos los conceptos de los tres primeros puntos del M02. P2.1 enseñó a recibir los valores. P2.2 los relacionó de forma declarativa con la vista. P2.3 decide si son aceptables y permite corregirlos. Esta acumulación progresiva justifica trabajar sobre una sola aplicación en vez de presentar tres demostraciones inconexas.
+
+### Variaciones que revelan causas distintas
+
+**Nombre vacío y precio 7.** La anotación Required detecta que falta el nombre. La vista debe mostrar el mensaje asociado a Nombre, sin borrar de forma innecesaria el valor de precio que sí era correcto.
+
+**Nombre «X» y precio 7.** Existe un nombre, pero no satisface la longitud mínima. El mensaje procede de StringLength, no de Required.
+
+**Nombre «Rotulador» y precio 0.** Existe un valor numérico, pero está fuera del rango permitido. Required no basta para resolver esa situación.
+
+**Nombre «Rotulador» y precio «abc».** El binder no puede representar el texto como decimal; ModelState registra un problema de conversión. El navegador normal puede impedir introducir esas letras en el control, pero un cliente HTTP puede remitirlas. Esta variante pertenece al diagnóstico de entradas, no a una regla de negocio Range.
+
+**Formulario sin token antiforgery.** La petición puede ser rechazada con 400 antes de que el cuerpo de la acción valide esos campos. No debemos interpretar ese 400 como la respuesta que representa un error ordinario de Name o Precio dentro de la misma vista.
+
+En el material práctico cada situación se trabaja con una predicción previa, una modificación concreta cuando corresponda y una comprobación visible. El objetivo es que el estudiante pueda decir **qué capa actuó y por qué**, no que memorice una tabla de códigos HTTP sin comprender el recorrido.
+
+## Cómo diagnosticar ModelState sin convertir el log en la solución
+
+Cuando un formulario muestra un error, el alumno dispone de varios puntos de observación: las herramientas de red del navegador permiten ver lo que se envió; el código del modelo revela las anotaciones; la acción indica cómo se comprueba IsValid; y la vista explica dónde se representan mensajes. A veces es útil inspeccionar también las claves y errores registrados en ModelState.
+
+El proyecto contiene un bloque opcional comentado que recorre las entradas de `ModelState` que tienen errores y escribe sus mensajes mediante `System.Diagnostics.Debug.WriteLine`. El alumno puede activarlo de forma temporal, ejecutar una solicitud inválida y comprobar que las claves `Nombre` y `Precio` corresponden a las propiedades declaradas. El ejercicio no exige introducir un sistema de logging adicional ni modificar la configuración del laboratorio.
+
+Esta inspección debe diferenciarse de la solución de negocio. Observar `ModelState` no implica aceptar un valor inválido; la decisión del controlador sigue dependiendo de IsValid. Tampoco resulta útil imprimir en un log de producción todas las entradas del formulario si pueden contener datos personales: en esta demostración se registran mensajes de error y nombres de campos, no un volcado indiscriminado de la petición.
+
+## Aplicación de transferencia: Display y el texto de una etiqueta
+
+Además de reglas de validación, las DataAnnotations permiten aportar información de presentación, por ejemplo mediante `[Display(Name = "Nombre del producto")]`. Este atributo no necesita renombrar la propiedad de C#. El modelo puede conservar `Nombre` y el Tag Helper `asp-for="Nombre"` puede generar un texto de etiqueta más descriptivo para el usuario.
+
+La aplicación autónoma de P2.3 consistirá en escribir ese atributo sobre la propiedad correspondiente y observar el resultado. El alumno deberá explicar por qué el input continúa enviando el campo `Nombre`, mientras que la etiqueta visual puede mostrar «Nombre del producto». Es una comprobación de que **los metadatos de presentación y el contrato de transporte HTTP no son lo mismo**.
+
+No convertiremos la actividad en una investigación sobre todos los atributos de DataAnnotations. Nos basta con una observación funcional conectada a los Tag Helpers que ya conocemos y al nuevo modelo de entrada.
+
+## Reto opcional: un error contextual añadido al ModelState
+
+Las anotaciones sencillas son apropiadas para restricciones que pueden expresarse junto a una propiedad. Sin embargo, existen situaciones en que la acción necesita señalar un problema contextual que no viene de una anotación. Como demostración controlada, el reto opcional marcará como inválidos los nombres que comiencen por `TEST`.
+
+El controlador contiene un bloque comentado que utiliza `ModelState.AddModelError(nameof(entrada.Nombre), ...)` cuando se cumple esa condición. El alumno podrá activarlo, introducir un nombre que tenga longitud válida y observar que, aun cumpliendo Required y StringLength, el formulario muestra un nuevo error de Nombre y no pasa a la confirmación.
+
+El ejemplo sirve para conocer la mecánica, **no para sugerir que todas las reglas empresariales deban escribirse en controladores**. En aplicaciones complejas conviene separar la lógica del dominio, los permisos y las validaciones entre distintos componentes. Nuestro curso reducido no necesita desarrollar toda esa arquitectura: únicamente debe mostrar con claridad que `ModelState` puede recoger diferentes tipos de errores y que la vista puede representarlos de forma consistente.
+
+Una extensión opcional consistiría en estudiar si una regla personalizada merece vivir en un atributo de validación, en un validador específico o en un servicio de dominio. No implementaremos esas tres alternativas aquí, porque desplazarían las tareas esenciales del CRUD del módulo.
+
+## Conexión de P2.3 con el CRUD de P2.4
+
+Al terminar este capítulo, el catálogo sigue funcionando sobre datos de ejemplo, pero la recepción de productos ya dispone de un contrato tipado y reglas de aceptación. Podemos distinguir los errores que corresponden al enlace de modelos de los que corresponden a DataAnnotations, devolver la misma vista con mensajes, conservar la entrada escrita y comprobar la validación tanto en el servidor como, cuando se habilitan y cargan los scripts, en el navegador.
+
+El siguiente cambio será de naturaleza diferente. En **2.4** incorporaremos SQL Server Express LocalDB y EF Core para crear, listar, editar y eliminar productos. Las propiedades de entrada seguirán perteneciendo a `ProductoFormulario`, mientras que las operaciones persistentes actuarán sobre la entidad `Producto`. La regla que hemos aprendido —**no convertir una entrada inválida en un cambio de estado**— se aplicará entonces a operaciones que sí afectan a la base de datos.
+
+No se introducirán migraciones avanzadas, arquitecturas adicionales ni repaso extenso de EF Core, porque ese conocimiento es un requisito previo del curso. La atención se concentrará en la integración del formulario Razor con un CRUD MVC pequeño, así como en la diferencia entre presentar un resultado temporal y persistir un objeto que seguirá disponible después de reiniciar la aplicación.
+
+## Documentación oficial relacionada
+
+- Microsoft Learn, Validación de modelos en MVC y Razor Pages: https://learn.microsoft.com/en-us/aspnet/core/mvc/models/validation?view=aspnetcore-8.0
+- Microsoft Learn, Tutorial MVC con validación de entradas: https://learn.microsoft.com/en-us/aspnet/core/tutorials/first-mvc-app/validation?view=aspnetcore-8.0
+- Microsoft Learn, Model binding en MVC: https://learn.microsoft.com/en-us/aspnet/core/mvc/models/model-binding?view=aspnetcore-8.0
+- Microsoft Learn, Formularios y Tag Helpers: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/working-with-forms?view=aspnetcore-8.0
