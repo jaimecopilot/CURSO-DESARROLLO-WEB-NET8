@@ -583,6 +583,7 @@ public sealed class ProductoFormulario
 
     [Required(ErrorMessage = "Indica el precio.")]
     [Range(typeof(decimal), "0.01", "9999.99",
+        ParseLimitsInInvariantCulture = true,
         ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
     public decimal? Precio { get; set; }
 }
@@ -604,7 +605,7 @@ En el reto opcional aparece un comportamiento interesante: `[Required]` aplicado
 
 El precio se representa con `decimal?`. Cuando no llega un valor, `[Required]` puede detectar su ausencia. Cuando el binder consigue convertir una cantidad numérica, `[Range]` evalúa si pertenece al intervalo permitido, entre 0,01 y 9999,99 en este ejemplo.
 
-La sintaxis `[Range(typeof(decimal), "0.01", "9999.99")]` crea una regla para el tipo decimal a partir de límites escritos con una representación invariante. Es útil distinguir los límites definidos en el atributo de la forma en que el navegador representa las cantidades en distintas culturas. La conversión del dato recibido también depende de la cultura de la solicitud y del mecanismo de model binding. Un problema de separadores decimales no se arregla simplemente aumentando el máximo permitido.
+La sintaxis `[Range(typeof(decimal), "0.01", "9999.99", ParseLimitsInInvariantCulture = true)]` indica expresamente que **los límites textuales del atributo** se interpretan con la cultura invariante, evitando que `0.01` se convierta de forma distinta según la cultura del servidor. Es útil distinguir los límites definidos en el atributo de la forma en que el navegador representa las cantidades en distintas culturas. La conversión del dato recibido también depende de la cultura de la solicitud y del mecanismo de model binding. Un problema de separadores decimales no se arregla simplemente aumentando el máximo permitido.
 
 Un precio igual a 0 es numérico, pero no cumple el intervalo. Un precio igual a -5 tampoco. Un texto como «abc», enviado a la propiedad Precio, tiene un problema de conversión antes incluso de comprobar si está entre los límites. Esto nos conduce a una diferencia esencial: **los errores de model binding y los errores de validación son fuentes distintas de información** que confluyen en `ModelState`.
 
