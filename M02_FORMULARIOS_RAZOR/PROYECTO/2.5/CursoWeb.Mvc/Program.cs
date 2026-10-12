@@ -3,20 +3,25 @@ using CursoWeb.Mvc.Models;
 using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// PASO 2.5.1: coexistencia deliberada de MVC y Razor Pages en UN host.
+// No creamos una segunda WebApplication ni una API auxiliar.
 builder.Services.AddControllersWithViews();
 builder.Services.AddRazorPages();
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Productos")));
+
+// Se conserva la misma base de P2.4, con una cadena configurable.
+var cadena = builder.Configuration.GetConnectionString("Productos")
+    ?? throw new InvalidOperationException("Falta ConnectionStrings:Productos.");
+builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(cadena));
 
 var app = builder.Build();
 
-// P2.4: inicialización didáctica reproducible, sin migraciones avanzadas.
-// EnsureCreated no debe combinarse con migraciones sobre la misma base de datos.
+// P2.4: EnsureCreated para el laboratorio nuevo; no son migraciones.
+// Solo insertar los tres productos iniciales cuando la base acaba de crearse.
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    var baseCreada = db.Database.EnsureCreated();
-    if (baseCreada)
+    if (db.Database.EnsureCreated())
     {
         db.Productos.AddRange(
             new Producto { Nombre = "Cuaderno", Precio = 4.50m },
@@ -28,6 +33,8 @@ using (var scope = app.Services.CreateScope())
 
 app.UseStaticFiles();
 app.UseRouting();
+
+// PASO 2.5.1: habilitar endpoints de Razor Pages y los controladores MVC.
 app.MapRazorPages();
 app.MapControllerRoute(
     name: "default",
