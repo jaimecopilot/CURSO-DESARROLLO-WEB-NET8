@@ -42,3 +42,21 @@ jobs:
       - name: P2.5 - evolución de handlers y navegación HTTP
         shell: pwsh
         run: ./M02_FORMULARIOS_RAZOR/TESTS/2.5_e2e.ps1
+
+  navegador-validacion-p23:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "8.0.x"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Instalar Chromium para Playwright
+        run: |
+          python -m pip install "playwright>=1.50,<2"
+          python -m playwright install --with-deps chromium
+      - name: P2.3 - comprobar JavaScript y envío real en navegador
+        run: python M02_FORMULARIOS_RAZOR/TESTS/2.3_browser.py
