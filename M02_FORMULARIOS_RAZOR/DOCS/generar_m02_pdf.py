@@ -63,7 +63,7 @@ def html_from_md(source,kind):
             .replace("__MD_AUTHOR__",cssq(author)))
     if kind=="PRACTICAS":
         # Evitar que el diagnóstico final quede cortado entre páginas.
-        css+="\nbody > p:last-child { break-inside: avoid; }\n"
+        css+="\nbody {font-size:11.9pt;line-height:1.70;}\np {margin:8.2pt 0 11pt;}\nbody > p:last-child {break-inside:avoid;}\n"
     return ('<!doctype html><html lang="es"><head><meta charset="utf-8">'
        +'<style>'+css+'</style></head><body>'+rendered+'</body></html>')
 
