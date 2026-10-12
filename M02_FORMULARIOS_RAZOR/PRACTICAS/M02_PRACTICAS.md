@@ -231,6 +231,24 @@ La meta de P2.1 es poder explicar el recorrido entero sin confundir entrada HTTP
 
 **Estado final del recorrido esencial:** GET representa el formulario, POST protegido recibe Nombre y Precio y muestra una confirmación. El catálogo todavía contiene tres productos. Ese resultado es correcto y prepara la siguiente práctica.
 
+
+## Cuaderno de profundización opcional P2.1 — Rastrear el contrato completo
+
+Esta actividad no añade acciones MVC ni obliga a cambiar el proyecto. Sirve para practicar la lectura de solicitudes reales una vez que hayas activado el bloque `PASO 2.1.3`. Utiliza el mismo proyecto `PROYECTO/2.1/CursoWeb.Mvc` y la misma dirección de `/Productos/Crear`. Mantén abierta la pestaña **Red** de las herramientas de desarrollo antes de pulsar el botón del formulario.
+
+**Primera observación: la petición que obtiene la página.** Actualiza la dirección por GET y selecciona la solicitud del documento HTML. Identifica la URL y el método. En la respuesta, busca el elemento `form` y comprueba el destino declarado. Localiza después el campo oculto antiforgery; su presencia demuestra que el formulario está preparado para enviar el token, pero no demuestra todavía que se haya aceptado ningún POST. Anota qué parte pertenece al HTML y qué parte pertenece a la solicitud HTTP, evitando describirlas como si fueran lo mismo.
+
+**Segunda observación: valores enviados.** Escribe «Rotulador» y 7, pulsa Enviar y examina el POST. Compara los nombres reales de los campos con las propiedades del objeto de destino. Busca `Nombre` y `Precio` entre los datos de formulario. Si ves un control con un texto correcto en pantalla pero la propiedad correspondiente llega vacía, el primer diagnóstico consiste en revisar el `name`, no en revisar el formato visual de la etiqueta. Revisa la acción del controlador y justifica por qué el objeto de entrada se puede construir sin que cada campo aparezca como parámetro independiente del método.
+
+**Tercera observación: misma URL, distinto verbo.** Vuelve a comentar temporalmente el bloque POST identificado en el proyecto y recompila. El GET deberá seguir ofreciendo el formulario; la operación POST, al no tener el endpoint adecuado, podrá rechazarse como método no permitido. Reactiva el bloque tal como estaba. Este cambio representa una transición explícita del ejercicio, no una modificación permanente del producto. Describe por qué un 405 no se corrige alterando la vista de confirmación y por qué no es equivalente a un 400 por protección antiforgery.
+
+**Cuarta observación: protección independiente del contenido.** Repite el envío desde el navegador y compara la petición legítima con una petición fabricada sin token, como la que ya realizaste en el itinerario principal. La ausencia del token debe impedir alcanzar la acción protegida incluso si `Nombre` y `Precio` tienen valores válidos. Por tanto, *datos válidos* y *solicitud autorizada a llegar a la acción* son preguntas distintas. Si un 400 aparece también al pulsar el formulario normal, comprueba la cookie, el campo oculto y el destino de la petición antes de eliminar protecciones.
+
+**Conclusión razonada.** Dibuja en tu cuaderno cuatro cajas: navegador, endpoint MVC, binder y vista de confirmación. Escribe junto a cada caja una evidencia concreta obtenida del navegador o del código. Debes poder explicar quién genera HTML, quién convierte valores, quién verifica el token y quién crea el objeto representado. El catálogo de productos fijos no debería contener el nombre que acabas de remitir: todavía no hemos introducido persistencia. Esta última consulta al catálogo es necesaria para no confundir «formulario enviado» con «entidad guardada».
+
+**Si algo falla.** Antes de repetir todo el ejercicio, comprueba que el bloque 2.1.3 está activo, que has guardado el archivo y que la aplicación se ha recompilado. Usa un único puerto de Kestrel para evitar revisar respuestas antiguas de otro proceso. Un texto que aparece en una vista de confirmación no basta, por sí solo, para afirmar que el binder recibió todos los valores previstos; comprueba también los campos y el tipo del modelo. Consulta la teoría 2.1, apartado «Profundización aplicada: leer el contrato HTTP».
+
+
 # P2.2. Tag Helpers: construir formularios y enlaces sin duplicar cadenas de rutas
 
 ## Qué vamos a conseguir y cómo se relaciona con P2.1
@@ -243,9 +261,9 @@ Esta decisión es deliberada. Cuando se aprende una técnica nueva, cambiar a la
 
 **Teoría relacionada:** apartado 2.2 del manual teórico del M02, especialmente la distinción entre CSHTML y HTML final, los Tag Helpers incorporados, los atributos generados y el diagnóstico de problemas de enrutamiento.
 
-**Proyecto que debes abrir:** `M02_FORMULARIOS_RAZOR/PROYECTO/2.2/CursoWeb.Mvc/CursoWeb.Mvc.csproj`. Es una instantánea del recorrido central de P2.1; la acción POST ya está activa. No hay que copiar a mano los cambios de otras carpetas ni modificar el M01 aprobado.
+**Proyecto que debes abrir:** `M02_FORMULARIOS_RAZOR/PROYECTO/2.2/CursoWeb.Mvc/CursoWeb.Mvc.csproj`. Es una instantánea del recorrido central de P2.1; la acción POST ya está activa. No hay que copiar a mano los cambios de otras carpetas ni modificar los proyectos de M01.
 
-El recorrido esencial se compone de los pasos **2.2.1 a 2.2.5**. La aplicación autónoma y el reto final permiten practicar el razonamiento sin consumir tiempo del resto de la jornada. Todas las comprobaciones están planteadas para que el alumno pueda realizarlas desde el navegador y Visual Studio, sin ejecutar controles internos del repositorio.
+El recorrido esencial se compone de los pasos **2.2.1 a 2.2.5**. La aplicación autónoma y el reto final permiten practicar el razonamiento sin consumir tiempo del resto de la jornada. Todas las comprobaciones pueden realizarse desde el navegador y Visual Studio.
 
 ### Preparar el entorno
 
@@ -436,6 +454,24 @@ Estas comprobaciones no requieren modificar cuatro archivos simultáneamente. La
 **Resultado de aprendizaje:** sabemos generar formularios y enlaces mediante las capacidades integradas de MVC, pero aún no hemos definido qué datos debe aceptar el servidor. En **P2.3** crearemos un modelo de entrada específico, declararemos reglas mediante DataAnnotations y utilizaremos ModelState para mostrar errores sin perder los valores enviados. En **P2.4** añadiremos las operaciones de persistencia con SQL Server Express LocalDB y Entity Framework Core. La introducción a Razor Pages quedará para **P2.5**.
 
 El formulario de P2.2 termina siendo más mantenible, pero la responsabilidad de aceptar datos válidos continúa estando en el servidor y no en la apariencia del HTML.
+
+
+## Cuaderno de profundización opcional P2.2 — Comparación guiada de HTML y Tag Helpers
+
+Trabaja sobre `PROYECTO/2.2/CursoWeb.Mvc` tras completar los pasos 2.2.1 a 2.2.5. El objetivo es practicar una habilidad diferente de la escritura de sintaxis: **leer el resultado que el servidor entrega al navegador y justificarlo a partir de la vista Razor**. No es necesario crear nuevos archivos ni alterar rutas fuera de las preparadas.
+
+**Analiza el formulario.** Abre `Views/Productos/Crear.cshtml` y localiza el Form Tag Helper. Escribe cuál es la acción lógica indicada en Razor y comprueba en el navegador cuál es el valor final de `action`. En la respuesta HTTP no debe quedar el atributo `asp-action` sin procesar. Observa si la ruta construida coincide con el controlador y acción activos. Explica por qué los atributos de Tag Helper son instrucciones de servidor y no una característica que el navegador tenga que entender.
+
+**Analiza las etiquetas de entrada.** Para cada campo, localiza `asp-for` en la fuente Razor y compara la etiqueta `label` y el `input` generados. El vínculo debe permitir que seleccionar el texto visible de la etiqueta sitúe el foco en el control correspondiente. Examina `id` y `name` por separado. Si únicamente cambias el texto visible de la etiqueta, no deberías modificar el nombre del dato que se envía por POST. Si cambias el contrato de modelo, en cambio, la expresión de `asp-for` debe seguir apuntando a la propiedad correcta.
+
+**Analiza un enlace dinámico.** En la vista parcial `Views/Shared/_TarjetaProducto.cshtml`, localiza el enlace al detalle que preparaste en la aplicación autónoma 2.2.6. Comprueba que el producto mostrado en esa tarjeta determina el valor usado para `asp-route-id`. Visita la ficha del primer producto y la del segundo desde sus tarjetas. Si dos enlaces llevan al mismo Id por error, investiga qué modelo recibió la parcial antes de cambiar el routing global. Repite la observación en `Views/Productos/Index.cshtml` para el reto 2.2 y comprueba que los enlaces de diferentes filas no comparten accidentalmente el mismo identificador.
+
+**Contrasta una ventaja y un límite.** Un atributo `asp-controller` puede hacer más explícito el destino MVC y mantener el enlace integrado con routing. Sin embargo, escribir un nombre de controlador incorrecto sigue siendo un error posible. De manera parecida, `asp-for` puede generar los atributos de entrada, pero no valida automáticamente cualquier dato que llegue a la acción. El criterio útil es identificar *qué problema concreto de mantenimiento o expresividad* resuelve cada helper y qué responsabilidades permanecen en el modelo y el controlador.
+
+**Resultado esperado.** Tu descripción debería relacionar un fragmento Razor con el HTML resultante, el dato de modelo utilizado y la solicitud o navegación observable. No basta una lista de nombres de helpers. Si la pantalla muestra atributos `asp-for` o `asp-route-id` literalmente, revisa `_ViewImports.cshtml` y la configuración del proyecto; si la navegación genera una URL equivocada, inspecciona el destino y el Id recibido, no el estilo CSS.
+
+**Transferencia a P2.3.** En el punto siguiente veremos que los metadatos de validación pueden influir en el marcado de los campos, pero el servidor sigue siendo el responsable de decidir si acepta la operación. Esa relación se entenderá mejor porque ahora sabes diferenciar el código que escribió el desarrollador del HTML que realmente entrega ASP.NET Core.
+
 
 # P2.3. Validar los datos del formulario y representar sus errores
 
@@ -719,6 +755,26 @@ Si has realizado la aplicación autónoma de Display y el reto, comprueba finalm
 Al completar el recorrido esencial, el alumno debe poder describir sin ambigüedad las responsabilidades de cada elemento: **el navegador envía campos; el binder los convierte; DataAnnotations expresa restricciones; ModelState reúne errores; el controlador decide si devuelve el formulario o la confirmación; y Razor representa valores y mensajes**.
 
 El proyecto conserva las reglas activadas y los elementos de validación en el flujo principal. La demostración de scripts y los retos no deben impedir que la jornada avance hacia las operaciones persistentes. **P2.4** incorporará SQL Server Express LocalDB y Entity Framework Core para que crear, editar o eliminar productos produzca cambios reales en el catálogo. Como el alumnado ya conoce EF Core, la atención estará puesta en cómo se combina el modelo de entrada validado con las acciones MVC y las vistas Razor.
+
+
+## Cuaderno de profundización opcional P2.3 — Cuatro causas de fallo diferentes
+
+Conserva el estado de `PROYECTO/2.3/CursoWeb.Mvc` después de activar las anotaciones del paso 2.3.2. El objetivo es diferenciar **ausencia**, **error de conversión**, **regla de negocio** y **ausencia de token**. Las cuatro situaciones pueden impedir un resultado positivo, pero requieren razonamientos distintos. No debes quitar validaciones para que una entrada incorrecta parezca válida.
+
+**Experimento A: nombre ausente.** Desde `/Productos/Crear` envía el campo Nombre vacío y un precio correcto. Si la validación cliente impide enviar, utiliza el procedimiento de 2.3.5 para observar también la respuesta del servidor. Anota el mensaje asociado con `Required` y comprueba que se muestra en la zona de error del campo. El dato ha llegado vacío o no ha proporcionado un valor aceptable, pero el problema no está en SQL Server: P2.3 todavía no inserta productos.
+
+**Experimento B: nombre presente pero demasiado corto.** Envía «X» con precio 7 y observa el mensaje de `StringLength`. Contrasta con una entrada «Ana». Las dos solicitudes tienen un valor de `Nombre` convertible a `string`; lo que cambia es una condición sobre su longitud. La respuesta positiva del segundo caso no implica que se haya ejecutado un INSERT. La utilidad de este contraste es comprobar que el binder y la validación de negocio resuelven preguntas diferentes.
+
+**Experimento C: precio no convertible.** Utiliza la petición de servidor prevista en el punto 2.3 para enviar una cadena alfabética como precio. El navegador podría impedir escribirla en un campo `type="number"`, así que no tomes la restricción de interfaz como prueba suficiente. Cuando el texto no pueda convertirse a `decimal?`, debería existir un error de `ModelState`. Comprueba qué valor del formulario se conserva al volver a presentar la vista y justifica por qué una excepción de conversión no se corrige ampliando el intervalo de `Range`.
+
+**Experimento D: método correcto, protección ausente.** Fabrica un POST con campos válidos pero sin token antiforgery, tal como hiciste en P2.1. El servidor debe rechazarlo antes de considerar la entrada como un formulario válido. No es correcto interpretar ese 400 como el mensaje de `Required` o `Range`. La protección de procedencia y la validación de datos son filtros independientes; una aplicación segura necesita ambos cuando corresponden.
+
+**Interpretación conjunta.** Elabora una tabla propia con cuatro columnas: valor enviado, etapa que detecta el problema, respuesta observable y archivo responsable. Para A y B mirarás el contrato de `ProductoFormulario` y la representación de errores; para C examinarás binder y conversión; para D revisarás el endpoint y su antiforgery. El objetivo no es contar cuántos mensajes existen, sino decidir qué comprobar primero cuando un usuario comunica que «el formulario no funciona».
+
+**Solución razonada del análisis.** A y B pertenecen a validación declarativa, con mensajes distintos porque expresan requisitos distintos; C falla antes de disponer de un precio numérico correcto; D no supera la comprobación de seguridad del POST. En los tres primeros casos, el controlador puede devolver la misma vista y conservar valores; en el cuarto, la solicitud puede rechazarse antes de ejecutar la acción. Esta diferencia también explica por qué un HTTP 200 con errores de formulario y un HTTP 400 no son resultados contradictorios.
+
+**Consolidación:** después de todas las pruebas, vuelve a `/Productos` y comprueba que sigue apareciendo el catálogo fijo. Habremos demostrado la separación entre recibir, convertir y validar, pero aún no la escritura persistente. La teoría 2.3 describe causalmente este mismo recorrido en su apartado de profundización aplicada.
+
 
 # P2.4. Crear, listar, editar y eliminar productos persistentes
 
@@ -1065,6 +1121,28 @@ Al acabar el recorrido esencial, debes poder describir cada operación sin confu
 El punto de llegada no es que aparezca un mensaje diciendo «Guardado», sino que **el dato creado puede consultarse y editarse por su identificador, sobrevive al reinicio, y desaparece cuando se ejecuta una eliminación confirmada**. El alumnado que conoce EF Core debe ser capaz de conectar ese comportamiento con `Add`, cambios de propiedades, `Remove` y `SaveChangesAsync`, pero también con el contrato y las rutas MVC.
 
 El siguiente punto, **P2.5**, utilizará una Razor Page muy pequeña dentro de la misma aplicación para comparar el método de trabajo con un controlador y una vista. No crearemos otro CRUD ni una API adicional: la finalidad es distinguir `PageModel`, `OnGet` y `OnPost` mientras reutilizamos el conocimiento que acabamos de consolidar.
+
+
+## Cuaderno de profundización opcional P2.4 — Reconstruir la historia de un producto
+
+Este recorrido se realiza **después** de los pasos 2.4.3, 2.4.4 y 2.4.5; exige que sus bloques estén activados. No añade un segundo CRUD ni nuevas operaciones de base de datos. Su objetivo es comprobar que distingues los efectos de cada petición y que puedes diagnosticar una incidencia atendiendo al Id y a la persistencia. Trabaja con una base propia y conocida, tal como se explica en 2.4.1.
+
+**Primera etapa: crear con identidad verificable.** Abre `/Productos/Crear` y envía «Carpeta roja» con un precio correcto. Observa a qué dirección redirige el servidor. Anota el identificador que aparece en la ruta de detalle y verifica en esa ficha el nombre y el precio. No inventes un Id esperado: depende de la base concreta y del historial de inserciones. Comprueba que el mismo Id aparece en el listado. La coincidencia entre redirección, ficha y listado es una evidencia más fuerte que el mero mensaje «Producto creado».
+
+**Segunda etapa: edición sobre la misma entidad.** Sigue el enlace Editar asociado a ese Id. Cambia el precio y conserva el nombre. Antes de enviar, identifica cuál es el campo de formulario que transporta el nuevo precio y de dónde procede el identificador. Después comprueba la redirección y la ficha actualizada. El producto debería mantener su Id: queremos cambiar una fila existente, no agregar otra. Si en el listado aparecen dos «Carpeta roja» cuando esperabas una, comprueba si ejecutaste accidentalmente Crear en lugar de Editar o si ya existía un homónimo antes del ejercicio.
+
+**Tercera etapa: un intento inválido sin efecto persistente.** Vuelve a Editar y sustituye temporalmente el nombre por «X», manteniendo un precio correcto. El formulario debe mostrar la longitud inválida y conservar el dato para corregirlo. Sin embargo, al abrir una consulta nueva del detalle, la entidad debe seguir teniendo el nombre válido anterior. En esta etapa la diferencia importante es entre lo que **escribiste en un formulario rechazado** y lo que **está guardado en SQL**. Si ambos cambian, revisa el orden de `ModelState.IsValid` y `SaveChangesAsync` en el controlador.
+
+**Cuarta etapa: confirmar no es borrar.** Abre la página GET de eliminación, lee el producto que se propone eliminar y vuelve al detalle sin aceptar. La entidad debe seguir disponible. Ahora regresa y confirma mediante el POST protegido. Comprueba la redirección al catálogo y prueba la URL del detalle que anotaste anteriormente: debe dejar de encontrar la entidad. Si el enlace simplemente desaparece del listado pero el detalle aún devuelve el producto, no tienes prueba de eliminación real.
+
+**Quinta etapa: reinicio con la misma conexión.** Cierra Kestrel y vuelve a arrancar la aplicación sin modificar `ConnectionStrings__Productos`. Comprueba que la entidad eliminada continúa ausente y que otros productos del catálogo permanecen. Si todos los datos parecen cambiar de forma inesperada, compara primero la cadena de conexión y el nombre de la base, en lugar de borrar archivos o reinstalar LocalDB. El reinicio no debería activar una semilla que reemplace productos existentes; `EnsureCreated` se ha usado para preparar un laboratorio nuevo.
+
+**Interpretación arquitectónica.** Relaciona cada etapa con los métodos de EF Core que ya conoces. En la creación se añade una entidad y se persiste; en la edición se recupera una existente, se modifican propiedades y se guardan los cambios; en la eliminación se localiza y elimina una entidad; en las consultas se proyecta el resultado a una vista. Anota en qué etapas se utiliza GET y en cuáles POST, y explica por qué la comprobación posterior es otra lectura en lugar de confiar ciegamente en la respuesta del POST.
+
+**Diagnóstico de transferencia.** Si un alumno informa que la edición «ha funcionado» porque vio una pantalla sin error, plantea tres preguntas: ¿se redirigió a la ficha del mismo Id?, ¿muestra el nuevo valor tras una consulta?, ¿se conserva después de reiniciar? Si el alumno informa que el borrado «ha funcionado» porque desapareció un botón, plantea otras tres: ¿hubo un POST con token?, ¿el detalle devuelve 404?, ¿continúa ausente tras reiniciar? Las respuestas transforman una impresión visual en evidencia funcional comprensible.
+
+**Límite deliberado.** No usamos este ejercicio para enseñar concurrencia avanzada, migraciones de base de datos o administración de SQL Server. Su profundidad procede de reconstruir con exactitud el ciclo que ya existe, observar los estados y comprender las razones de cada transición. Consulta la profundización teórica 2.4 para relacionar formulario, modelo de entrada, entidad y representación HTML.
+
 
 # P2.5. Comparar MVC y Razor Pages dentro de la misma aplicación
 
