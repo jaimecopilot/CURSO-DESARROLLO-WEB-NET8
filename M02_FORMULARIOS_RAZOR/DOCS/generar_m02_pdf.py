@@ -57,13 +57,22 @@ def html_from_md(source,kind):
     assert n==1,f"{kind}: faltan metadatos de portada"
     rendered=rendered.replace("<h2>Índice del módulo</h2>",
         '<h2 class="toc-heading">Índice del módulo</h2>',1)
+    if kind=="PRACTICAS":
+        # El prólogo, índice y orientaciones ocupan UNA página tras la portada.
+        # La compresión es editorial en el prólogo, no en ejercicios/código.
+        cover_end=rendered.index("</section>")+len("</section>")
+        chapter_start=rendered.index('<h1 class="chapter" id="punto-1">')
+        assert chapter_start>cover_end
+        rendered=(rendered[:cover_end]+'<section class="module-intro">'
+                  +rendered[cover_end:chapter_start]+'</section>'
+                  +rendered[chapter_start:])
     def cssq(s):return s.replace("\\","\\\\").replace('"','\\"').replace("\n"," ")
     css=(CSS.replace("__MD_COURSE__",cssq(course))
             .replace("__MD_TYPE__",cssq(label))
             .replace("__MD_AUTHOR__",cssq(author)))
     if kind=="PRACTICAS":
         # Evitar que el diagnóstico final quede cortado entre páginas.
-        css+="\nbody {font-size:11.9pt;line-height:1.70;}\np {margin:8.2pt 0 11pt;}\nbody > p:last-child {break-inside:avoid;}\n"
+        css+="\nbody {font-size:11.9pt;line-height:1.70;}\np {margin:8.2pt 0 11pt;}\nbody > p:last-child {break-inside:avoid;}\n.module-intro {font-size:10pt;line-height:1.38;}\n.module-intro p {margin:4pt 0 6pt;}\n.module-intro h2 {margin-top:9pt;}\n.module-intro ul {margin:4pt 0 5pt;}\n.module-intro li {margin:1pt 0;}\n"
     return ('<!doctype html><html lang="es"><head><meta charset="utf-8">'
        +'<style>'+css+'</style></head><body>'+rendered+'</body></html>')
 
