@@ -61,6 +61,9 @@ def html_from_md(source,kind):
     css=(CSS.replace("__MD_COURSE__",cssq(course))
             .replace("__MD_TYPE__",cssq(label))
             .replace("__MD_AUTHOR__",cssq(author)))
+    if kind=="PRACTICAS":
+        # Evitar que el diagnóstico final quede cortado entre páginas.
+        css+="\nbody > p:last-child { break-inside: avoid; }\n"
     return ('<!doctype html><html lang="es"><head><meta charset="utf-8">'
        +'<style>'+css+'</style></head><body>'+rendered+'</body></html>')
 
