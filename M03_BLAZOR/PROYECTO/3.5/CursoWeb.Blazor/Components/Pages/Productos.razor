@@ -15,6 +15,11 @@
     }
 </div>
 <p id="cantidad">Total: @productos.Count</p>
+@* RETO INTEGRADOR 3.5.5: activa los dos elementos y el bloque C#.
+   Cambia únicamente AlQuitar="Quitar" por AlQuitar="QuitarConDeshacer"
+   en la tercera variante de la tarjeta. *@
+@* <button id="deshacer" disabled="@(eliminacionPendiente is null)" @onclick="DeshacerEliminacion">Deshacer última eliminación</button> *@
+@* <p id="estado-deshacer">@TextoDeshacer</p> *@
 @code {
     private readonly List<Producto> productos =
     [
@@ -30,6 +35,33 @@
         seleccion = productos.First(p => p.Id == id).Nombre;
     }
     PASO 3.5.2 FIN */
+
+    /* RETO INTEGRADOR 3.5.5 INICIO
+    private (Producto Producto, int Indice)? eliminacionPendiente;
+
+    private string TextoDeshacer => eliminacionPendiente is { } pendiente
+        ? $"Pendiente: {pendiente.Producto.Nombre}"
+        : "Ninguna eliminación pendiente";
+
+    private void QuitarConDeshacer(int id)
+    {
+        var indice = productos.FindIndex(p => p.Id == id);
+        if (indice < 0)
+            return;
+        eliminacionPendiente = (productos[indice], indice);
+        productos.RemoveAt(indice);
+        seleccion = "ninguno";
+    }
+
+    private void DeshacerEliminacion()
+    {
+        if (eliminacionPendiente is not { } anterior)
+            return;
+        if (!productos.Any(p => p.Id == anterior.Producto.Id))
+            productos.Insert(Math.Min(anterior.Indice, productos.Count), anterior.Producto);
+        eliminacionPendiente = null;
+    }
+    RETO INTEGRADOR 3.5.5 FIN */
 
     /* RETO 3.5 INICIO
     private void Quitar(int id)
