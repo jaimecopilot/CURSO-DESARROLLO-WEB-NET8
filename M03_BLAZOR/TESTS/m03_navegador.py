@@ -155,6 +155,59 @@ def verify36(page):
     assert page.locator(".tarjeta").count()==3
     assert page.locator("#estado-carga").inner_text()=="Lista preparada"
 
+
+def t31reto(p):
+    edit(p,"Components/Pages/Interactiva.razor",
+         "private void Incrementar() => contador++;",
+         "private void Incrementar() => contador += 2;")
+def v31reto(page):
+    page.goto(BASE+"/interactiva",wait_until="networkidle")
+    page.locator("#boton-interactivo").click()
+    page.get_by_text("Pulsaciones: 2").wait_for(timeout=12000)
+    page.locator("#boton-interactivo").click()
+    page.get_by_text("Pulsaciones: 4").wait_for(timeout=12000)
+def t32extra(p):
+    t32(p)
+    edit(p,"Components/Pages/Productos.razor",
+        'new(3, "Carpeta", 3.75m)\n',
+        'new(3, "Carpeta", 3.75m),\n        new(4, "Regla", 2.50m)\n')
+def v32extra(page):
+    page.goto(BASE+"/productos",wait_until="networkidle")
+    page.locator("#lista-productos li").nth(3).wait_for(timeout=12000)
+    assert page.locator("#lista-productos li").count()==4
+    assert "Regla" in page.locator("#lista-productos").inner_text()
+def t33reto(p):
+    t33(p)
+    file=p/"Components/TarjetaProducto.razor"
+    s=file.read_text(encoding="utf-8")
+    needle='''@*
+    @if (Producto.Precio > 4m)
+    {
+        <p class="mensaje">Precio superior a 4 euros</p>
+    }
+    *@'''
+    assert s.count(needle)==1
+    s=s.replace(needle,needle.removeprefix("@*\n").removesuffix("\n    *@"))
+    file.write_text(s,encoding="utf-8")
+def v33reto(page):
+    page.goto(BASE+"/productos",wait_until="networkidle")
+    page.locator(".tarjeta").nth(2).wait_for(timeout=12000)
+    assert page.locator(".mensaje").count()==1
+    assert "Cuaderno" in page.locator(".mensaje").locator("..").inner_text()
+def t36vacio(p):
+    t36(p)
+    file=p/"Services/ProductosMemoriaService.cs"
+    s=file.read_text(encoding="utf-8")
+    begin=s.index("        return\n        [")
+    end=s.index("        ];",begin)+len("        ];")
+    s=s[:begin]+"        return Array.Empty<Producto>();"+s[end:]
+    file.write_text(s,encoding="utf-8")
+def v36vacio(page):
+    page.goto(BASE+"/productos")
+    page.get_by_text("Lista preparada").wait_for(timeout=18000)
+    page.locator("#sin-productos").wait_for(timeout=12000)
+    assert page.locator(".tarjeta").count()==0
+
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True)
     build_run(browser,"3.1",verify=verify31)
@@ -163,5 +216,9 @@ with sync_playwright() as p:
     build_run(browser,"3.4",t34,verify34)
     build_run(browser,"3.5",t35,verify35)
     build_run(browser,"3.6",t36,verify36)
+    build_run(browser,"3.1",t31reto,v31reto)
+    build_run(browser,"3.2",t32extra,v32extra)
+    build_run(browser,"3.3",t33reto,v33reto)
+    build_run(browser,"3.6",t36vacio,v36vacio)
     browser.close()
 print("M03: seis escenarios de navegación e interactividad comprobados",flush=True)
