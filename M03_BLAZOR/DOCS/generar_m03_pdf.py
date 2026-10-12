@@ -7,7 +7,7 @@ from io import BytesIO
 import hashlib,json,re,sys,unicodedata
 from bs4 import BeautifulSoup
 ROOT=Path(__file__).resolve().parents[2]
-BASE=ROOT/"M03_FORMULARIOS_RAZOR"
+BASE=ROOT/"M03_BLAZOR"
 sys.path.insert(0,str(ROOT/"M01_MVC"/"DOCS"))
 import generar_m01_pdf as estilo
 from markdown_it import MarkdownIt
@@ -137,7 +137,7 @@ def create(kind):
     writer=PdfWriter()
     writer.append(BytesIO(target.read_bytes()))
     writer.add_metadata({"/Author":"AUTOR: JAIME GALLO",
-       "/Title":f"M03 {kind}: formularios y Razor Pages"})
+       "/Title":f"M03 {kind}: Blazor Web App y componentes"})
     writer.add_attachment(filename=source.name,data=raw)
     buf=BytesIO()
     writer.write(buf)
