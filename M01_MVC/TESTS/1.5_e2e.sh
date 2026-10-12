@@ -92,7 +92,7 @@ for i in (1,2,3): assert f'data-producto-id="{i}"' in html
 PY
   fi
 
-  if [[ "$state" == "detalle-parcial" || "$state" == "reto" ]]; then
+  if [[ "$state" == "detalle-parcial" || "$state" == "aplicacion" || "$state" == "reto" ]]; then
     grep -Fq 'id="tarjeta-detalle"' "$TMP/$state-detalle.html"
     grep -Fq 'data-producto-id="2"' "$TMP/$state-detalle.html"
     grep -Fq 'data-producto-id="1"' "$TMP/$state-detalle1.html"
@@ -117,6 +117,21 @@ PY
     ! grep -Fq 'class="etiqueta-economico"' "$TMP/$state-detalle.html"
   fi
 
+  if [[ "$state" == "aplicacion" ]]; then
+    python3 - "$TMP/$state-index.html" "$TMP/$state-detalle.html" "$TMP/$state-detalle1.html" <<'PY'
+from pathlib import Path
+from html import unescape
+import sys
+index, lapiz, cuaderno=(unescape(Path(p).read_text(encoding="utf-8")) for p in sys.argv[1:])
+assert index.count('class="etiqueta-destacada"') == 1
+assert cuaderno.count('class="etiqueta-destacada"') == 1
+assert lapiz.count('class="etiqueta-destacada"') == 0
+assert 'Producto destacado' in index
+PY
+  else
+    ! grep -Fq 'class="etiqueta-destacada"' "$TMP/$state-index.html"
+    ! grep -Fq 'class="etiqueta-destacada"' "$TMP/$state-detalle1.html"
+  fi
   echo "E2E OK: P1.5 $state, vistas tipadas, layout, secciones y parciales"
   kill "$PID" 2>/dev/null || true
   wait "$PID" 2>/dev/null || true
@@ -136,6 +151,7 @@ for name,condition,section,cards,detail_card,reto in [
     ("seccion",True,True,False,False,False),
     ("tarjetas",True,True,True,False,False),
     ("detalle-parcial",True,True,True,True,False),
+    ("aplicacion",True,True,True,True,False),
     ("reto",True,True,True,True,True),
 ]:
     target=tmp/name
@@ -153,10 +169,15 @@ for name,condition,section,cards,detail_card,reto in [
         content=path.read_text(encoding="utf-8")
         assert content.count(start)==1 and content.count(end)==1, f"Bloque ausente: {path}: {start}"
         if enabled: content=content.replace(start,"").replace(end,"")
+        if name == "aplicacion" and path.name == "_TarjetaProducto.cshtml":
+            marker = '    @* APLICACION 1.5 — Escribe aquí una condición Razor propia: si Model.Precio >= 4m, representa <strong class="etiqueta-destacada">Producto destacado</strong>. La misma parcial se reutiliza en listado y detalle. *@'
+            answer = '    @if (Model.Precio >= 4m)\n    {\n        <strong class="etiqueta-destacada">Producto destacado</strong>\n    }'
+            assert content.count(marker) == 1
+            content = content.replace(marker, answer)
         path.write_text(content,encoding="utf-8")
 PY
 
-for state in condicion seccion tarjetas detalle-parcial reto; do
+for state in condicion seccion tarjetas detalle-parcial aplicacion reto; do
     run_scenario "$TMP/$state" "$state"
 done
-echo "P1.5: seis escenarios E2E superados, incluido el reto."
+echo "P1.5: siete escenarios E2E reales, incluida regla autónoma y reto."
