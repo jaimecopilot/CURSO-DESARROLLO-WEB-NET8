@@ -230,3 +230,209 @@ Si realizaste también la aplicación autónoma anterior, envía un nombre largo
 La meta de P2.1 es poder explicar el recorrido entero sin confundir entrada HTTP, enlace de modelos, selección de la acción, protección antiforgery y presentación Razor. En **P2.2** sustituiremos progresivamente atributos escritos a mano por Tag Helpers (asp-for, asp-action, asp-controller). Conservaremos el mismo formulario conceptual antes de estudiar la validación en P2.3 y la persistencia con LocalDB en P2.4.
 
 **Estado final del recorrido esencial:** GET representa el formulario, POST protegido recibe Nombre y Precio y muestra una confirmación. El catálogo todavía contiene tres productos. Ese resultado es correcto y prepara la siguiente práctica.
+
+# P2.2. Tag Helpers: construir formularios y enlaces sin duplicar cadenas de rutas
+
+## Qué vamos a conseguir y cómo se relaciona con P2.1
+
+La primera práctica del módulo demostró que una vista podía ofrecer un formulario GET, enviar sus campos con POST y presentar el objeto recibido en una página de confirmación. También comprobamos que una solicitud POST sin el token antiforgery válido debe rechazarse. Ahora **mantendremos exactamente ese recorrido funcional** y cambiaremos la manera de escribir sus elementos Razor, introduciendo progresivamente los Tag Helpers de ASP.NET Core MVC.
+
+Esta decisión es deliberada. Cuando se aprende una técnica nueva, cambiar a la vez el modelo, la acción, las rutas, el HTML y la base de datos dificulta identificar por qué algo funciona o falla. En este punto el único componente que vamos a transformar es la **vista**. Conservaremos la misma acción `ProductosController.Crear` y los mismos campos `Nombre` y `Precio`; todavía no guardaremos registros en SQL Server.
+
+**Objetivos concretos:** reconocer el papel de `_ViewImports.cshtml`; sustituir un `form` HTML por un Form Tag Helper; generar las asociaciones de `label` e `input` mediante `asp-for`; utilizar Anchor Tag Helpers para la navegación; comprobar que el token antiforgery y el model binding siguen funcionando; y aplicar las mismas ideas a enlaces de detalle cuyo identificador proviene de un objeto del catálogo.
+
+**Teoría relacionada:** apartado 2.2 del manual teórico del M02, especialmente la distinción entre CSHTML y HTML final, los Tag Helpers incorporados, los atributos generados y el diagnóstico de problemas de enrutamiento.
+
+**Proyecto que debes abrir:** `M02_FORMULARIOS_RAZOR/PROYECTO/2.2/CursoWeb.Mvc/CursoWeb.Mvc.csproj`. Es una instantánea del recorrido central de P2.1; la acción POST ya está activa. No hay que copiar a mano los cambios de otras carpetas ni modificar el M01 aprobado.
+
+El recorrido esencial se compone de los pasos **2.2.1 a 2.2.5**. La aplicación autónoma y el reto final permiten practicar el razonamiento sin consumir tiempo del resto de la jornada. Todas las comprobaciones están planteadas para que el alumno pueda realizarlas desde el navegador y Visual Studio, sin ejecutar controles internos del repositorio.
+
+### Preparar el entorno
+
+Desde la raíz del repositorio puedes iniciar la aplicación con estos comandos:
+
+~~~bash
+cd M02_FORMULARIOS_RAZOR/PROYECTO/2.2/CursoWeb.Mvc
+dotnet restore
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Si existe otro proyecto ejecutándose en el mismo puerto, detenlo antes. Si trabajas desde el perfil de Visual Studio, utiliza la dirección que muestre el navegador o la consola de ejecución. Para que las comprobaciones sean reproducibles, los ejemplos siguientes usan `http://localhost:5091`.
+
+Comprueba primero tres direcciones: `/`, `/Productos` y `/Productos/Crear`. La portada, el catálogo y el formulario deben abrirse. Envía **Nombre = Rotulador, Precio = 7** y verifica que la confirmación muestra los datos, sin añadir un cuarto producto al catálogo. Ese comportamiento es la **línea base** que no debemos alterar.
+
+### Mapa de pasos, archivos y comprobaciones
+
+| Paso | Archivo del proyecto | Trabajo y resultado esperado |
+|---|---|---|
+| 2.2.1 | `Views/_ViewImports.cshtml` y `Views/Productos/Crear.cshtml` | **Observar.** Identificar dónde se habilitan los Tag Helpers y cómo queda el HTML original |
+| 2.2.2 | `Views/Productos/Crear.cshtml` | **Sustituir** la apertura del formulario y retirar el token manual. Conservar un token generado automáticamente |
+| 2.2.3 | `Views/Productos/Crear.cshtml` | **Sustituir** los dos `label`. Verificar `for` para Nombre y Precio |
+| 2.2.4 | `Views/Productos/Crear.cshtml` | **Sustituir** los dos `input`. Verificar `name`, `id`, `type` y envío de datos |
+| 2.2.5 | `Views/Productos/Crear.cshtml` | **Sustituir** el enlace de regreso al catálogo. Comprobar su `href` |
+| Aplicación autónoma 2.2.6 | `Views/Shared/_TarjetaProducto.cshtml` | **Escribir** un Anchor Tag Helper para el producto de la tarjeta |
+| Reto 2.2 | `Views/Productos/Index.cshtml` | **Activar y explicar** tres enlaces dinámicos con `asp-route-id` |
+
+Los comentarios del proyecto contienen los identificadores exactos `PASO 2.2.2` a `PASO 2.2.5`, `APLICACION 2.2.6` y `RETO 2.2`. En los pasos guiados se presenta una alternativa comentada: el alumno debe **sustituir el elemento original**, no añadir otra copia al lado.
+
+## Paso 2.2.1 — Observar cómo Razor transforma el marcado
+
+Abre `Views/_ViewImports.cshtml` y encuentra estas líneas:
+
+~~~cshtml
+@using CursoWeb.Mvc
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+~~~
+
+La segunda directiva hace disponibles los Tag Helpers integrados en el ámbito de las vistas. El archivo `Crear.cshtml` se encuentra debajo de `Views/Productos`, por lo que puede utilizarlos. Esta directiva no establece una ruta HTTP ni añade una acción al controlador; interviene cuando Razor procesa los elementos del archivo CSHTML.
+
+En `Views/Productos/Crear.cshtml` localiza la apertura del formulario original:
+
+~~~cshtml
+<form method="post" action="/Productos/Crear">
+    @Html.AntiForgeryToken()
+~~~
+
+Aquí `method` y `action` son atributos HTML ordinarios. La llamada `Html.AntiForgeryToken()`, en cambio, es un HTML Helper ejecutado por Razor en el servidor. El navegador no ejecuta ese método C#: recibe su **resultado**, que incluye un elemento oculto.
+
+Abre `/Productos/Crear` y utiliza F12 → **Elementos** para encontrar la etiqueta `form`. Identifica su `action`, su `method` y el campo oculto con `name="__RequestVerificationToken"`. Localiza también los controles Nombre y Precio. No copies el valor real del token en el material de clase ni lo confundas con un dato permanente.
+
+**Predicción previa:** ¿qué cambiará en la pantalla al utilizar Form Tag Helper? Posiblemente nada. Nuestro objetivo no es rediseñar la interfaz. Esperamos que el servidor genere un HTML funcionalmente equivalente, pero que el código Razor describa el destino por su controlador y su acción.
+
+Una segunda predicción es más importante: si algún atributo `asp-controller` apareciera literalmente en el HTML final, ¿qué significaría? Que el Tag Helper no habría intervenido como esperamos. La primera comprobación sería el ámbito de `_ViewImports.cshtml` y la forma de escribir el elemento, no modificar al azar `ProductosController`.
+
+## Paso 2.2.2 — Form Tag Helper y continuidad de antiforgery
+
+En `Crear.cshtml` busca **PASO 2.2.2**. Sustituye la apertura del formulario por:
+
+~~~cshtml
+<form asp-controller="Productos" asp-action="Crear" method="post">
+~~~
+
+**Retira también** la línea `@Html.AntiForgeryToken()`, que se utilizaba en el formulario HTML manual. Con Form Tag Helper integrado y el método POST, ASP.NET Core genera la entrada antiforgery correspondiente. La protección no debe desaparecer: ahora la genera otro mecanismo.
+
+Este ejercicio exige precisión: se sustituye una apertura de formulario, se mantiene el contenido interior y se conserva exactamente un cierre `</form>`. No es correcto acabar con dos formularios ni con dos tokens generados por mecanismos distintos.
+
+Detén la aplicación, compila y ejecútala otra vez. Abre `/Productos/Crear` y examina el HTML desde las herramientas de desarrollo. Comprueba que la etiqueta final tiene un `action` relacionado con `/Productos/Crear`, un `method="post"` y **un campo oculto** `__RequestVerificationToken`. Los atributos especiales `asp-controller` y `asp-action` no deberían aparecer sin procesar en el documento final.
+
+Envía **Rotulador, 7**. La confirmación debe aparecer como antes; el controlador no ha cambiado. Después repite la prueba negativa enviando un POST sin token desde PowerShell:
+
+~~~powershell
+curl.exe -i -X POST http://localhost:5091/Productos/Crear --data "Nombre=Rotulador&Precio=7"
+~~~
+
+El servidor debe devolver **400 Bad Request** porque la acción mantiene `[ValidateAntiForgeryToken]`. Si una petición del formulario real devuelve 200 y otra sin token obtiene 400, acabamos de demostrar que el cambio de sintaxis no ha eliminado la protección.
+
+### Diagnóstico de un formulario que dejó de enviar
+
+Un error habitual consiste en quitar `Html.AntiForgeryToken()` pero dejar activo el formulario original sin el nuevo Form Tag Helper. En ese caso falta la generación del campo oculto, y es razonable que la acción protegida rechace el envío normal. Para diagnosticarlo, comprueba primero el HTML recibido por el navegador y después los campos efectivamente transmitidos en F12 → Red.
+
+**No resuelvas un 400 quitando `[ValidateAntiForgeryToken]`.** Eso desactivaría una protección y ocultaría la causa. Tampoco confundas un 405 con un 400: el primero puede indicar que no existe una acción POST compatible, mientras que el segundo puede proceder de antiforgery. Son hipótesis distintas que se verifican mirando las solicitudes y el código.
+
+## Paso 2.2.3 — Label Tag Helper y asociaciones accesibles
+
+Localiza ambos comentarios **PASO 2.2.3** en `Crear.cshtml`. Sustituye los dos elementos `label` por:
+
+~~~cshtml
+<label asp-for="Nombre"></label>
+<label asp-for="Precio"></label>
+~~~
+
+Cada uno debe permanecer junto a su campo. **Todavía no cambies los inputs**, porque queremos observar el efecto del Label Tag Helper de forma aislada.
+
+Después de compilar, inspecciona las etiquetas generadas. Deben producir asociaciones como `for="Nombre"` y `for="Precio"`. Compara esos valores con los `id` existentes en los inputs. Si la asociación es correcta, seleccionar el texto de la etiqueta enfoca el campo correspondiente. Esa relación también aporta información a las tecnologías de asistencia.
+
+La propiedad `Nombre` del modelo no se convierte en una variable JavaScript por usar `asp-for`. El Tag Helper utiliza los metadatos de la vista tipada durante el renderizado. Los campos del formulario siguen enviándose con las mismas claves, y la acción del controlador continúa siendo la misma.
+
+En P2.3 estudiaremos cómo utilizar atributos como `[Display]`, `[Required]` y `[StringLength]` para describir los datos que queremos aceptar. Aquí no necesitamos adelantar esas reglas: basta con comprender **cómo se vincula una etiqueta con una propiedad del modelo**.
+
+## Paso 2.2.4 — Input Tag Helper y contrato de model binding
+
+Busca los dos comentarios **PASO 2.2.4** y reemplaza los inputs originales por sus alternativas:
+
+~~~cshtml
+<input asp-for="Nombre" />
+<input asp-for="Precio" type="number" step="0.01" />
+~~~
+
+No dejes los controles originales junto a los nuevos. Eso podría introducir dos entradas con el mismo `name` y dificultar la interpretación de lo que el navegador envía.
+
+Compila y abre nuevamente el formulario. El resultado HTML debe contener los atributos `name` e `id` apropiados para `Nombre` y `Precio`. El campo Precio conserva el control numérico y el paso de centésimas que hemos indicado explícitamente. El atributo `asp-for` no debe aparecer como parte de la representación HTML final.
+
+Envía primero **Rotulador, 7**. Comprueba que la acción POST recibe el dato y que la vista Confirmacion lo representa. Regresa al catálogo: los tres productos iniciales deben seguir existiendo y no debe haber un producto «Rotulador» añadido automáticamente.
+
+Esta observación demuestra dos ideas complementarias. Por una parte, el Input Tag Helper ha generado los nombres necesarios para el enlace de modelos. Por otra, **nada de esto ha implementado persistencia** ni validación completa. `type="number"` es una indicación útil para la interfaz del navegador; las reglas de aceptación de datos en el servidor serán responsabilidad de P2.3.
+
+### Investigar un precio que no llega correctamente
+
+Si el POST funciona pero el precio recibido no coincide con lo escrito, no modifiques a ciegas el controlador. Comprueba el `name` generado, el valor transmitido en F12 → Red y la cultura utilizada para la conversión. Para el recorrido básico utilizamos un precio entero, 7, precisamente para no añadir el problema independiente de los separadores decimales de distintas culturas.
+
+El hecho de utilizar un Input Tag Helper no transforma un campo inválido en un dato correcto. El model binder puede encontrar problemas de conversión, y la acción debería comprobar `ModelState` cuando se incorporen las reglas de P2.3. **No presentes P2.2 como un formulario de producción plenamente validado**.
+
+## Paso 2.2.5 — Anchor Tag Helper para volver al catálogo
+
+En `Crear.cshtml`, sustituye el enlace original por la alternativa del comentario **PASO 2.2.5**:
+
+~~~cshtml
+<p><a asp-controller="Productos" asp-action="Index">Volver al catálogo</a></p>
+~~~
+
+Inspecciona el HTML generado. El navegador debe recibir un elemento `a` con un `href` adecuado para la lista `/Productos`. Haz clic y comprueba que recuperas el catálogo.
+
+Reflexiona sobre un posible malentendido: tanto la etiqueta `form` como la etiqueta `a` pueden utilizar `asp-action`, pero **no hacen la misma operación**. El formulario se envía con el método indicado, POST en nuestro caso. Un enlace ordinario inicia una nueva navegación GET cuando el usuario lo selecciona.
+
+Con ello queda completado el itinerario esencial de P2.2. El alumno ha mantenido el mismo contrato HTTP y ha mejorado la relación entre el HTML de la vista, las propiedades del modelo y las acciones MVC. Antes de pasar a la ampliación, verifica conjuntamente los elementos principales: el `form` tiene destino correcto, el token existe una vez, las etiquetas están asociadas con los campos, el POST protegido funciona y el enlace regresa al catálogo.
+
+## Aplicación autónoma 2.2.6 — Escribir un enlace dentro de una parcial compartida
+
+El siguiente ejercicio **exige escribir código**, no activar una solución preparada. En `Views/Shared/_TarjetaProducto.cshtml` encontrarás el comentario **APLICACION 2.2.6**, junto al enlace que actualmente utiliza una URL escrita a mano:
+
+~~~cshtml
+<a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
+~~~
+
+Debes sustituirlo por un Anchor Tag Helper propio que indique `Productos` como controlador, `Detalle` como acción y suministre el identificador de `Model.Id` mediante `asp-route-id`. Conserva el texto «Ver detalle de» y el nombre del producto.
+
+**Predice antes de ejecutar:** la parcial es reutilizada por el catálogo de tarjetas y por la ficha individual. Por tanto, modificar **un solo archivo** debe afectar a los enlaces que se generan en ambos lugares. La prueba no consiste únicamente en que el enlace se vea subrayado; hay que comprobar que conduce a la ficha del producto correcto.
+
+Abre `/Productos`, inspecciona la primera tarjeta y comprueba que su enlace conduce a la ficha del producto 1. Repite con las tarjetas 2 y 3. Después abre `/Productos/Detalle/2` y comprueba que la tarjeta insertada en esa página sigue enlazando al detalle de Lápiz.
+
+No introduzcas un enlace fijo con identificador 2 dentro de la parcial. La misma vista se utiliza para varios objetos y la ruta debe depender de `Model.Id`.
+
+### Solución de referencia, solo después de intentarlo
+
+~~~cshtml
+<a asp-controller="Productos"
+   asp-action="Detalle"
+   asp-route-id="@Model.Id">Ver detalle de @Model.Nombre</a>
+~~~
+
+El resultado que debe llegar al navegador es un enlace HTML con un `href` generado a partir de la configuración de routing de MVC. `asp-route-id` suministra el valor del parámetro de ruta denominado `id`; no es un atributo HTML estándar ni guarda información en la base de datos.
+
+## Reto 2.2 — Enlaces dinámicos en el listado principal
+
+En `Views/Productos/Index.cshtml` localiza **RETO 2.2**. El archivo contiene un enlace literal dentro del bucle `foreach`, y una alternativa comentada para reemplazarlo. El reto consiste en activar la alternativa y retirar el enlace anterior.
+
+La alternativa debe expresar el controlador Productos, la acción Detalle y el valor de ruta `id` tomado de `producto.Id`. Como el catálogo tiene tres objetos con identificadores distintos, deben generarse **tres enlaces diferentes**.
+
+~~~cshtml
+<a class="enlace-detalle"
+   asp-controller="Productos"
+   asp-action="Detalle"
+   asp-route-id="@producto.Id">Ver detalle</a>
+~~~
+
+Después de editar, cuenta los enlaces «Ver detalle» dentro del listado: debe existir exactamente uno por elemento. Si aparecen dos por producto, has añadido el nuevo sin retirar el anterior. Si los tres enlazan a la misma ficha, revisa que hayas usado `producto.Id` dentro del bucle en lugar de un número constante.
+
+Navega a cada ficha desde el listado y comprueba que los identificadores, nombres y precios corresponden a Cuaderno, Lápiz y Carpeta. Regresa después al formulario de creación y comprueba que aún admite el POST protegido. Esas comprobaciones muestran que el nuevo uso de Anchor Tag Helpers no ha roto la funcionalidad que ya conocíamos.
+
+## Diagnóstico final y continuidad hacia P2.3
+
+Cuando una página se ve correctamente pero un formulario deja de funcionar, conviene dividir el problema por responsabilidades. Si el botón de envío devuelve 405, inspecciona la ruta y la acción POST disponible. Si devuelve 400, busca el token y su cookie antes de cambiar reglas del modelo. Si devuelve una confirmación con campos vacíos, investiga los atributos `name` generados. Si el enlace al catálogo no funciona, inspecciona el `href` final y su ruta.
+
+Estas comprobaciones no requieren modificar cuatro archivos simultáneamente. La propia progresión de P2.2 —formulario, labels, inputs y enlaces— ayuda a identificar cuál de las transformaciones introdujo un resultado inesperado.
+
+**Resultado de aprendizaje:** sabemos generar formularios y enlaces mediante las capacidades integradas de MVC, pero aún no hemos definido qué datos debe aceptar el servidor. En **P2.3** crearemos un modelo de entrada específico, declararemos reglas mediante DataAnnotations y utilizaremos ModelState para mostrar errores sin perder los valores enviados. En **P2.4** añadiremos las operaciones de persistencia con SQL Server Express LocalDB y Entity Framework Core. La introducción a Razor Pages quedará para **P2.5**.
+
+El formulario de P2.2 termina siendo más mantenible, pero la responsabilidad de aceptar datos válidos continúa estando en el servidor y no en la apariencia del HTML.
