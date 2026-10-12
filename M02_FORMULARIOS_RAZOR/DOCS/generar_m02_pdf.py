@@ -14,10 +14,10 @@ from weasyprint import HTML
 from pypdf import PdfReader,PdfWriter
 import fitz
 CSS=(estilo.CSS_TEMPLATE
-     .replace("font-size: 9.8pt; line-height: 1.46","font-size: 11.2pt; line-height: 1.60")
-     .replace("font-size: 8.2pt; line-height: 1.35","font-size: 9.0pt; line-height: 1.50"))
+     .replace("font-size: 9.8pt; line-height: 1.46","font-size: 11.55pt; line-height: 1.64")
+     .replace("font-size: 8.2pt; line-height: 1.35","font-size: 9.2pt; line-height: 1.52"))
 CSS+=estilo.HTML_FORMATTER.get_style_defs(".highlight")
-CSS += "\np { margin: 7.5pt 0 10pt; }\nh2 { margin-top: 19pt; }\n"
+CSS += "\np { margin: 8pt 0 10.8pt; }\nh2 { margin-top: 19pt; }\n"
 CHAPTER=re.compile(r"^(?:P)?2\.([1-5])\.\s")
 OUT=ROOT/"VERIFICACION_INTERNA"/"M02_PDFS_VALIDACION.md"
 
