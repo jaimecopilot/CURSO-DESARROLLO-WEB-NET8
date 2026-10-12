@@ -68,6 +68,16 @@ public class ProductosController : Controller
         }
         PASO 2.3.3 FIN */
 
+        // RETO 2.3 (ACTIVAR): regla contextual ilustrativa sobre el nombre.
+        // A diferencia de Required/Range, esta regla se añade desde la acción.
+        /* RETO 2.3 INICIO
+        if (entrada.Nombre?.StartsWith("TEST", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            ModelState.AddModelError(nameof(entrada.Nombre),
+                "El nombre no puede comenzar por TEST en este ejemplo.");
+        }
+        RETO 2.3 FIN */
+
         if (!ModelState.IsValid)
         {
             // PASO 2.3.4: devolver el mismo modelo de entrada permite
