@@ -719,3 +719,349 @@ Si has realizado la aplicación autónoma de Display y el reto, comprueba finalm
 Al completar el recorrido esencial, el alumno debe poder describir sin ambigüedad las responsabilidades de cada elemento: **el navegador envía campos; el binder los convierte; DataAnnotations expresa restricciones; ModelState reúne errores; el controlador decide si devuelve el formulario o la confirmación; y Razor representa valores y mensajes**.
 
 El proyecto conserva las reglas activadas y los elementos de validación en el flujo principal. La demostración de scripts y los retos no deben impedir que la jornada avance hacia las operaciones persistentes. **P2.4** incorporará SQL Server Express LocalDB y Entity Framework Core para que crear, editar o eliminar productos produzca cambios reales en el catálogo. Como el alumnado ya conoce EF Core, la atención estará puesta en cómo se combina el modelo de entrada validado con las acciones MVC y las vistas Razor.
+
+# P2.4. Crear, listar, editar y eliminar productos persistentes
+
+## Situación inicial, objetivos y preparación del laboratorio
+
+Durante P2.1 el alumno observó y activó un formulario HTML con POST; en P2.2 lo transformó mediante Tag Helpers; en P2.3 añadió reglas de validación para distinguir un producto aceptable de una entrada incorrecta. Hasta aquí, la confirmación solo mostraba los datos recibidos. La nueva práctica completa el recorrido: **guardar el producto, encontrarlo en el catálogo, modificarlo y eliminarlo**, conservando las reglas de validación y la protección antiforgery.
+
+P2.4 es la práctica central del segundo día. El objetivo esencial es comprender cómo un formulario MVC produce cambios verificables en SQL Server Express LocalDB. El alumnado ya conoce C# y EF Core, por lo que se utilizarán directamente `DbContext`, consultas LINQ, `Add`, `Remove` y `SaveChangesAsync`, sin convertir la jornada en otro curso de persistencia.
+
+**Teoría relacionada:** capítulo 2.4 del manual del módulo. Lee especialmente la diferencia entre `Producto` y `ProductoFormulario`, `EnsureCreated` y migraciones, consultas sin seguimiento, Post/Redirect/Get y la necesidad de editar una entidad existente sin aceptar todas sus propiedades desde el navegador.
+
+**Proyecto a abrir:** `M02_FORMULARIOS_RAZOR/PROYECTO/2.4/CursoWeb.Mvc/CursoWeb.Mvc.csproj`. Es una instantánea específica del catálogo, basada en el recorrido de los puntos anteriores. **No modifiques los proyectos de M01 ni de P2.3.** Los controles de entrada conservan las DataAnnotations que activaste conceptualmente en la práctica anterior, mientras que las operaciones persistentes se incorporarán por etapas.
+
+**Requisitos específicos:** Windows, Visual Studio con carga de ASP.NET y .NET SDK 8, SQL Server Express LocalDB instalado y una cuenta con permisos sobre su instancia local. No necesitas un servidor SQL remoto, contenedores ni infraestructura de identidades. Es preferible que el proyecto se ejecute con un solo proceso Kestrel para que las comprobaciones reflejen siempre la misma aplicación.
+
+Para comprobar que Windows reconoce LocalDB, abre una terminal y ejecuta:
+
+~~~powershell
+sqllocaldb info
+~~~
+
+En una instalación convencional debería aparecer la instancia `MSSQLLocalDB`. Si la instalación no existe, hay que preparar ese componente del laboratorio antes de realizar el CRUD. La ausencia de LocalDB **no es un problema de Razor ni de routing**, por lo que no debemos resolverla cambiando las vistas.
+
+### Mapa completo de la práctica
+
+| Paso | Archivo concreto | Acción principal | Evidencia |
+|---|---|---|---|
+| 2.4.1 | `Program.cs`, `Data/AppDbContext.cs`, `appsettings.json` | **OBSERVAR** conexión, esquema y semilla inicial | Arranque con base y tres productos |
+| 2.4.2 | `Controllers/ProductosController.cs`, `Views/Productos/Index.cshtml`, `Detalle.cshtml` | **OBSERVAR** consultas de lectura desde LocalDB | Lista y ficha desde SQL, 404 para Id inexistente |
+| 2.4.3 | `Controllers/ProductosController.cs`, `Views/Productos/Crear.cshtml` | **ACTIVAR** el POST protegido de creación | 302 a nueva ficha, producto guardado |
+| 2.4.4 | `ProductosController.cs`, `Index.cshtml`, `Editar.cshtml` | **ACTIVAR** GET y POST de edición y su enlace | Nombre/precio modificados en el mismo Id |
+| 2.4.5 | `ProductosController.cs`, `Index.cshtml`, `Eliminar.cshtml` | **ACTIVAR** GET y POST de eliminación y su enlace | GET confirma, POST elimina, detalle pasa a 404 |
+| 2.4.6 | `Program.cs`, todas las acciones de CRUD | **COMPROBAR** persistencia tras reinicio | Cambios permanecen, semilla no se duplica |
+| Aplicación 2.4.7 | `Views/Productos/Index.cshtml` | **ESCRIBIR** aviso para catálogo vacío | Aparece solo si Model.Count == 0 |
+| Reto 2.4 | `ProductosController.cs`, `Index.cshtml` | **ACTIVAR** búsqueda GET por nombre | Listado filtrado sin modificar la base |
+
+Los pasos **2.4.1–2.4.6** constituyen el recorrido esencial de la clase. La aplicación autónoma y el reto son variantes de consolidación, no condiciones para avanzar hacia P2.5. El alumnado debe poder explicar por qué cada operación es una lectura o escritura y qué solicitud HTTP la desencadena.
+
+## Paso 2.4.1 — Crear el contexto y reconocer la base del laboratorio
+
+Desde la raíz del repositorio, entra en el proyecto y compílalo:
+
+~~~powershell
+cd M02_FORMULARIOS_RAZOR/PROYECTO/2.4/CursoWeb.Mvc
+dotnet restore
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+El primer arranque **se conecta a LocalDB antes de escuchar peticiones**. Si la instancia no está disponible, puede aparecer una excepción durante la inicialización y Kestrel no llegará a escuchar. En ese caso, revisa primero `sqllocaldb info`, la cadena de conexión y los mensajes concretos de la consola. No alteres el controlador del catálogo para disimular un fallo de base de datos.
+
+Abre `appsettings.json` y localiza `ConnectionStrings:Productos`. La conexión de ejemplo utiliza `Server=(localdb)\\MSSQLLocalDB` y una base llamada `CursoWebProductos`. La autenticación es integrada. El nombre de la base es parte del escenario local; si necesitas aislarlo de otro ejercicio existente, usa un nombre nuevo. **No borres ni reemplaces una base que puedas haber creado para otro proyecto**.
+
+En `Data/AppDbContext.cs` identifica las piezas esenciales del contexto:
+
+~~~csharp
+public sealed class AppDbContext(DbContextOptions<AppDbContext> options)
+    : DbContext(options)
+{
+    public DbSet<Producto> Productos => Set<Producto>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Producto>()
+            .Property(p => p.Precio).HasPrecision(10, 2);
+    }
+}
+~~~
+
+La propiedad `Productos` representa el conjunto consultable de entidades. La configuración de `Precio` fija la precisión decimal utilizada por el proveedor SQL Server. No hay que reimplementar un almacén en memoria para «facilitar» la práctica; queremos estudiar realmente un dato persistente.
+
+Localiza a continuación en `Program.cs` el **PASO 2.4.1**: lectura de la cadena de conexión, registro del contexto con `AddDbContext`, creación del ámbito y llamada `EnsureCreated()`.
+
+**Pregunta previa:** si `EnsureCreated` crea la base, ¿añadirá también tres productos cada vez que ejecutes la aplicación? Observa que el programa solo ejecuta `AddRange` cuando `baseCreada` es verdadero. Ese resultado corresponde al primer arranque sobre una base nueva, no a los siguientes.
+
+### La semilla inicial y su límite
+
+Cuando la base acaba de crearse, el programa inserta Cuaderno, Lápiz y Carpeta. Esta semilla permite demostrar que un catálogo que en M01 procedía de objetos fijos ahora se obtiene de SQL Server. El mecanismo es deliberadamente simple y **no constituye una estrategia general de migraciones**.
+
+`EnsureCreated` y las migraciones no son intercambiables. La primera opción resulta apropiada para una base nueva de demostración, pero no actualiza automáticamente una base existente cuando modificamos el esquema. No combines después `Migrate()` sobre esta misma base creyendo que estás «completando» el ejemplo.
+
+**Comprobación:** cuando Kestrel comience a escuchar en el puerto 5091, abre `http://localhost:5091/Productos`. Deberías ver tres elementos con los nombres y precios esperados. Detén y arranca de nuevo el proyecto. Comprueba que siguen siendo tres y que no se han duplicado.
+
+### Aislar una base propia sin modificar el repositorio
+
+Si ya existe una base denominada CursoWebProductos que no quieres compartir, utiliza una base de laboratorio distinta suministrando una cadena en una variable de entorno de PowerShell **solo para tu sesión**:
+
+~~~powershell
+$env:ConnectionStrings__Productos = 'Server=(localdb)\MSSQLLocalDB;Database=CursoWebProductosAlumno;Trusted_Connection=True;TrustServerCertificate=True'
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+La doble barra baja en `ConnectionStrings__Productos` corresponde a la jerarquía de configuración de .NET; permite sustituir la cadena del archivo sin cambiar el código. Si vuelves a ejecutar el proyecto sin esa variable, consultarás la base configurada en appsettings.json. Anota conscientemente qué conexión estás utilizando: **comparar bases diferentes puede hacerte pensar que una inserción ha desaparecido**.
+
+## Paso 2.4.2 — Leer productos desde SQL y observar su ficha
+
+En `ProductosController.cs` encuentra el método `Index` marcado como **PASO 2.4.2**. Conserva la acción GET que ya conoces, pero su lista procede de EF Core:
+
+~~~csharp
+[HttpGet]
+public async Task<IActionResult> Index()
+{
+    var productos = await _db.Productos
+        .AsNoTracking()
+        .OrderBy(p => p.Id)
+        .ToListAsync();
+
+    return View(productos);
+}
+~~~
+
+Explica por qué no hay `SaveChangesAsync` en este método. Es una consulta de lectura. `AsNoTracking` evita el seguimiento de objetos que solamente van a mostrarse. `OrderBy` hace explícito un orden de resultados. La vista `Index.cshtml` recibe una colección como en M01, de modo que no hace falta reconstruir su layout, sus tarjetas parciales ni su estructura de navegación.
+
+Visita `/Productos/Detalle/2` y comprueba que devuelve la ficha de Lápiz si esa entidad conserva el identificador 2 en una base recién sembrada. **No presupongas ese número si utilizas una base que ya contenía registros**: en ese caso, selecciona un enlace de detalle del listado para obtener un Id real.
+
+Ahora solicita un identificador positivo inexistente, por ejemplo `/Productos/Detalle/999999`. El resultado esperado es **404 Not Found** si no existe una fila con ese número. Solicita también `/Productos/Detalle/0`: el controlador responde con un error de solicitud por identificador no válido. Distingue ambos casos. Uno representa una entidad ausente; el otro representa un parámetro que la acción rechaza.
+
+**Predicción:** ¿si reiniciamos Kestrel cambiará por sí solo el resultado de `Index`? No. La lectura consulta la misma base local y debe recuperar los datos que permanecen en ella.
+
+## Paso 2.4.3 — Activar Create y comprobar un INSERT real
+
+Hasta aquí hemos leído datos persistentes. El siguiente paso requiere introducir un cambio de estado. Abre `/Productos/Crear`; verás un formulario con `Nombre`, `Precio` y el botón **Guardar producto**. La vista utiliza el mismo `ProductoFormulario` validado en P2.3, con Form, Label e Input Tag Helpers.
+
+Antes de modificar nada, prueba a enviar un producto, por ejemplo **Nombre = Rotulador, Precio = 7**. En el estado inicial de 2.4 la acción POST de creación permanece comentada. No debería producirse una inserción; normalmente el servidor devolverá **405 Method Not Allowed** al no existir la acción POST correspondiente. La página del formulario GET sí está disponible. Comprueba que Rotulador no aparece en `/Productos`.
+
+Abre `Controllers/ProductosController.cs`, localiza **PASO 2.4.3 INICIO** y **PASO 2.4.3 FIN**, y retira solamente los delimitadores `/*` y `*/` del bloque completo. Conserva las condiciones, atributos y comentarios del método. El núcleo activo debe contener:
+
+~~~csharp
+[HttpPost]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> Crear(ProductoFormulario entrada)
+{
+    if (!ModelState.IsValid)
+        return View(entrada);
+
+    var producto = new Producto
+    {
+        Nombre = entrada.Nombre!,
+        Precio = entrada.Precio!.Value
+    };
+
+    _db.Productos.Add(producto);
+    await _db.SaveChangesAsync();
+    return RedirectToAction(nameof(Detalle), new { id = producto.Id });
+}
+~~~
+
+Compila, inicia el proyecto y vuelve a enviar Rotulador, 7 **desde el formulario real**. El resultado esperado ya no es una confirmación temporal de P2.3, sino una redirección hacia la ficha del producto creado. Inspecciona F12 → Red: deberías observar el POST, seguido por un GET al detalle del nuevo identificador.
+
+**No presupongas que el Id nuevo es siempre 4.** Si la base ya contenía productos, EF Core y SQL Server pueden asignar otro valor. Utiliza la dirección de detalle producida por el servidor para identificar la fila recién guardada. Ahora visita `/Productos`: debe aparecer el nuevo producto junto a los existentes.
+
+### Explicar qué línea hace cada trabajo
+
+La comprobación `ModelState.IsValid` protege el paso hacia la persistencia. El objeto de entrada no contiene Id; el controlador crea explícitamente una entidad `Producto`. `Add` indica al contexto que la entidad debe insertarse. `SaveChangesAsync` ejecuta el cambio en SQL Server. Finalmente, `RedirectToAction` utiliza el Id que ya existe para mostrar una página GET.
+
+Si el alumno elimina `SaveChangesAsync`, el hecho de haber ejecutado `Add` en el contexto no bastará para garantizar que exista una fila persistente. Si elimina la condición de validación, una petición inválida podría avanzar hacia la escritura. Si devuelve simplemente la vista `Detalle` después de POST sin redirección, estaría cambiando el patrón de navegación que queremos observar.
+
+### Una creación inválida no puede convertirse en un registro
+
+Envía ahora **Nombre = X, Precio = 7**. La anotación StringLength rechaza el nombre demasiado corto, y la acción debe devolver otra vez la vista Crear con su mensaje. No debe aparecer un nuevo producto de nombre X en el catálogo. Envía después **Nombre = Rotulador inválido, Precio = 0**: la regla de precio rechaza ese importe y tampoco debe producirse una inserción.
+
+En estos ejemplos puede mostrarse una respuesta HTML con estado 200, porque el controlador devuelve de forma válida **la página del formulario con errores**. No se trata de una creación exitosa ni exige una redirección. La evidencia determinante es que `SaveChangesAsync` no se ejecuta y el listado sigue sin contener un registro correspondiente a esos intentos.
+
+Como contraste, haz un POST directo sin token antiforgery válido, manteniendo la acción protegida. Debería rechazarse con **400**. No desactives antiforgery para «facilitar» las pruebas: la inserción en una base real hace aún más importante conservar la protección que ya aprendimos.
+
+## Paso 2.4.4 — Activar Edit y modificar el mismo identificador
+
+La edición introduce una segunda operación persistente: ya no queremos insertar otra entidad, sino localizar **una fila que existe** y modificar sus dos campos editables.
+
+En `ProductosController.cs` localiza el bloque **PASO 2.4.4 INICIO/FIN** y descomenta los métodos GET y POST `Editar` al mismo tiempo. Después abre `Views/Productos/Index.cshtml` y activa el enlace `Editar` señalado como **PASO 2.4.4**. No actives todavía el enlace `Eliminar`.
+
+La acción GET carga desde LocalDB el producto seleccionado y crea un `ProductoFormulario` cuyos campos ya contienen Nombre y Precio. La acción POST recibe el modelo de entrada validado, recupera la entidad existente y asigna solamente las propiedades permitidas:
+
+~~~csharp
+producto.Nombre = entrada.Nombre!;
+producto.Precio = entrada.Precio!.Value;
+await _db.SaveChangesAsync();
+
+return RedirectToAction(nameof(Detalle), new { id });
+~~~
+
+El controlador no debe sustituir la identidad del producto con un valor `Id` enviado desde un formulario arbitrario. La URL contiene el identificador de la entidad que queremos editar, y el método verifica que esa fila existe. Es una continuación del contrato de entrada separado que aprendiste en P2.3.
+
+**Prueba con un registro creado por ti** en el paso anterior, no con un producto de un proyecto ajeno. Abre su enlace Editar y cambia el nombre a **Rotulador azul** y el precio a **8**. Guarda. Comprueba que el navegador llega a la misma ficha de identificador y que los nuevos valores aparecen tanto allí como en `/Productos`.
+
+No tiene que existir un segundo registro «Rotulador azul» con otro Id: estamos modificando la fila existente. Si aparecen dos, revisa que hayas activado la acción Editar y que no estés enviando el formulario a Crear.
+
+### La edición también puede fallar por un dato inválido
+
+Vuelve a Editar ese mismo producto e introduce un nombre de un solo carácter. Debe mostrarse el formulario con error y conservarse el Id de la URL para que puedas corregirlo. En el código del controlador observa la línea:
+
+~~~csharp
+ViewData["ProductoId"] = id;
+return View(entrada);
+~~~
+
+Ésta es una diferencia respecto del POST de creación. La vista `Editar.cshtml` necesita un Id para generar su propia acción de envío, porque la modificación opera sobre un registro existente. Si el controlador devolviera la vista inválida sin restaurar el Id, el formulario podría generar una URL incorrecta para un segundo intento.
+
+Después corrige el nombre a Rotulador azul y el precio a 8. La segunda petición válida debe actualizar la **misma** entidad. Para confirmar el resultado, vuelve a la ficha mediante el enlace del catálogo; no te limites a leer un mensaje de éxito sin comprobar el valor persistido.
+
+### Cuando la fila no existe
+
+Prueba una dirección de edición con un Id positivo que no exista en la base. La acción GET debe devolver **404**. Lo mismo ocurre si la fila desaparece antes de procesar un POST de edición: el controlador comprueba la existencia al recibir el envío. No debemos transformar una edición de un registro ausente en una creación automática.
+
+Este ejercicio no implementa control de concurrencia entre varios usuarios. Su objetivo es comprender el recorrido GET → formulario prellenado → POST validado → entidad seguida → SaveChangesAsync → GET de detalle. No presentaremos ese comportamiento como solución universal para conflictos de escritura simultánea.
+
+## Paso 2.4.5 — Activar Delete: confirmar con GET y borrar con POST
+
+El recorrido de eliminación debe distinguir expresamente **abrir la página de confirmación** de **ejecutar un borrado**. En el controlador encontrarás los métodos de eliminación dentro de las marcas **PASO 2.4.5 INICIO/FIN**. Descomenta el bloque y activa a continuación el enlace `Eliminar` de `Views/Productos/Index.cshtml`.
+
+Desde el catálogo abre Eliminar para el **producto creado durante esta práctica**. La página `Eliminar.cshtml` muestra su nombre e identificador y ofrece un botón «Sí, eliminar». Todavía no pulses el botón. Regresa al catálogo y comprueba que el producto sigue presente: **la solicitud GET no debe modificar LocalDB**.
+
+La vista tiene un formulario generado mediante Form Tag Helper, con `method="post"` y `asp-route-id` para el producto seleccionado. El botón origina un POST a la acción lógica `Eliminar`. En el controlador el método C# se llama `EliminarConfirmado`, pero el atributo `[ActionName("Eliminar")]` lo expone con ese nombre de acción:
+
+~~~csharp
+[HttpPost, ActionName("Eliminar")]
+[ValidateAntiForgeryToken]
+public async Task<IActionResult> EliminarConfirmado(int id)
+{
+    if (id <= 0) return BadRequest();
+    var producto = await _db.Productos
+        .FirstOrDefaultAsync(p => p.Id == id);
+    if (producto is null) return NotFound();
+
+    _db.Productos.Remove(producto);
+    await _db.SaveChangesAsync();
+    return RedirectToAction(nameof(Index));
+}
+~~~
+
+La acción exige token antiforgery, comprueba la existencia del producto, ejecuta la eliminación mediante EF Core y redirige al listado. No implementes la operación con un enlace GET que borre directamente el registro: eso convertiría una navegación ordinaria en un cambio destructivo.
+
+**Prueba completa:** anota el Id del producto propio. Abre Eliminar, comprueba que sigue existiendo antes de confirmar y pulsa «Sí, eliminar». Debes regresar al catálogo y ya no ver ese producto. Si solicitas el detalle de su antiguo Id, el resultado esperado es **404 Not Found**. La ausencia del nombre en un único elemento visual es una evidencia más débil que comprobar también la URL de detalle.
+
+### Un POST de borrado sin token no debe funcionar
+
+Desde una terminal PowerShell puedes enviar deliberadamente un POST sin token a la ruta de un producto de prueba:
+
+~~~powershell
+curl.exe -i -X POST http://localhost:5091/Productos/Eliminar/999999
+~~~
+
+Con el método POST activo y protegido, el servidor debe rechazar la solicitud normalmente con **400**, antes de ejecutar la operación. Utilizamos un Id inexistente para que la comprobación no comprometa ningún producto de laboratorio, pero no debemos confiar solamente en eso: la protección relevante es el token. No repitas pruebas destructivas sobre identificadores de registros ajenos.
+
+Al terminar el paso, los tres productos iniciales deberían continuar disponibles si solo has eliminado el producto creado para el ejercicio. No necesitas borrar la semilla para demostrar el funcionamiento de Delete.
+
+## Paso 2.4.6 — Verificar persistencia tras reiniciar Kestrel
+
+Una aplicación puede representar una página correcta aunque sus datos vivan solamente en memoria. Por eso la validación final de P2.4 debe incluir **detener y reiniciar el servidor**.
+
+Antes del reinicio, crea un producto adicional de laboratorio: **Nombre = Bloc de dibujo, Precio = 12**. Comprueba que su ficha tiene un Id propio. Edita su precio a **14** y visita el detalle otra vez. Debe mostrar ese precio modificado. Si has eliminado previamente Rotulador azul, comprueba también que su antiguo Id devuelve 404.
+
+Detén Kestrel de forma normal. Vuelve a arrancar **el mismo proyecto con la misma cadena de conexión**. Abre el listado, la ficha de Bloc de dibujo y la antigua dirección del producto eliminado. El nuevo producto debe conservarse con precio 14, y el eliminado debe continuar ausente.
+
+**No cambies de base de datos entre las dos ejecuciones.** Si utilizaste `ConnectionStrings__Productos` para trabajar con una base aislada, debes mantenerla al reiniciar. De lo contrario puedes observar un catálogo diferente y creer erróneamente que se han perdido o restaurado datos.
+
+Comprueba además que los productos iniciales no aparecen duplicados. El bloque de `EnsureCreated()` incluye una condición para sembrarlos únicamente cuando la base acaba de ser creada, no cada vez que ejecutamos el proyecto. La permanencia de cambios y la ausencia de reinserciones son dos caras del mismo comportamiento persistente.
+
+### Qué demuestra y qué no demuestra esta secuencia
+
+La secuencia demuestra que el estado de la base de datos **no depende de que el proceso Kestrel permanezca vivo**. No demuestra, sin embargo, que el CRUD tenga permisos empresariales, auditoría de operaciones, control de concurrencia, resistencia frente a caídas de red o una estrategia de evolución de esquemas. Es un laboratorio MVC con LocalDB diseñado para identificar la responsabilidad de cada componente.
+
+En la práctica con seis horas, podemos efectuar un recorrido compacto: crear un registro, editarlo, verificar el nuevo estado, eliminarlo, crear otro y comprobar su persistencia tras el reinicio. Las actividades siguientes sirven para ampliar el aprendizaje sin impedir que el aula avance hacia Razor Pages.
+
+## Aplicación autónoma 2.4.7 — Representar una colección vacía
+
+Una lista de productos puede quedar vacía de manera legítima. No debemos confundir ese estado con la ausencia del modelo `null` ni mostrar siempre un mensaje de «error de catálogo».
+
+Abre `Views/Productos/Index.cshtml` y encuentra **APLICACION 2.4.7 (ESCRIBIR)**. Allí hay una indicación, pero no una solución activada. Debes escribir un bloque Razor que, cuando `Model` sea una colección válida y `Model.Count == 0`, represente exactamente el elemento:
+
+~~~html
+<p id="catalogo-vacio">No hay productos guardados.</p>
+~~~
+
+No debe aparecer cuando existen uno o más productos. Sitúa la condición dentro de la rama que ya ha comprobado que `Model` no es `null`; así evitas tratar como equivalentes dos estados que tienen causas diferentes.
+
+Para probarlo de forma segura es preferible una **base de laboratorio aislada**. Si necesitas dejar la colección vacía para estudiar el resultado, utiliza solamente datos de prueba propios y no elimines de manera indiscriminada un catálogo que quieras conservar. Puedes razonar primero el resultado con una colección vacía sin efectuar ningún borrado: la finalidad es dominar la vista, no destruir el escenario compartido.
+
+### Solución de referencia tras intentar el ejercicio
+
+~~~cshtml
+@if (Model.Count == 0)
+{
+    <p id="catalogo-vacio">No hay productos guardados.</p>
+}
+~~~
+
+Este fragmento presupone que está dentro del bloque `else` que ya garantiza que `Model` no es nulo. Su posición es parte de la solución: si lo colocas fuera de una comprobación de nulabilidad, deberías adaptar la condición para que no se evalúe Count sobre un objeto nulo.
+
+## Reto 2.4 — Buscar productos sin modificar la base
+
+El reto consiste en reutilizar lo aprendido de routing, model binding y consultas de EF Core para implementar una **búsqueda GET**. El objetivo es filtrar productos por una parte de su nombre y mostrar el resultado mediante la misma vista Index.
+
+En `ProductosController.cs` encontrarás el bloque **RETO 2.4 INICIO/FIN**, inicialmente comentado. Su acción recibe un parámetro simple `string? nombre` desde la query string:
+
+~~~csharp
+[HttpGet("/catalogo/buscar")]
+public async Task<IActionResult> Buscar(string? nombre)
+{
+    var consulta = _db.Productos.AsNoTracking();
+
+    if (!string.IsNullOrWhiteSpace(nombre))
+        consulta = consulta.Where(p => p.Nombre.Contains(nombre));
+
+    var encontrados = await consulta.OrderBy(p => p.Id).ToListAsync();
+    return View("Index", encontrados);
+}
+~~~
+
+Después de activarlo, abre `Views/Productos/Index.cshtml` y localiza el formulario GET comentado como **RETO 2.4**. Actívalo también. La etiqueta del campo permite escribir un nombre, y el formulario envía `nombre` como parámetro de consulta, no como un nuevo producto.
+
+Prueba `/catalogo/buscar?nombre=Car` después de confirmar que Carpeta existe en tu base. El catálogo filtrado debería mostrar los productos cuyo nombre cumpla el criterio según la intercalación configurada en SQL Server. Prueba también una cadena que no aparezca en ningún nombre y comprueba que obtienes una colección vacía, no un error de base de datos.
+
+Este ejemplo usa `Contains` dentro de una consulta EF Core traducible por el proveedor SQL Server. La sensibilidad a mayúsculas, minúsculas y acentos puede depender de la **collation** de la base: no asumas que se comporta de forma idéntica en cualquier instalación. La actividad no implementa búsqueda de texto completo ni presupone índices especializados.
+
+**Comprobación de que no hay escritura:** ejecuta la búsqueda, vuelve al catálogo y verifica que los registros siguen iguales. No debe existir un `SaveChangesAsync` en la acción Buscar. Una consulta GET no tiene por qué convertir el resultado en una entidad nueva ni modificar el precio de ningún producto.
+
+## Cuaderno de diagnóstico de P2.4
+
+El objetivo del diagnóstico es decidir **qué archivo y qué componente** explican un resultado, sin modificar simultáneamente controlador, base de datos y vista.
+
+**La aplicación ni siquiera inicia.** Si aparece una excepción en `EnsureCreated`, comprueba LocalDB y la cadena de conexión antes de mirar el routing. `Program.cs` ejecuta la inicialización antes de escuchar peticiones.
+
+**El catálogo muestra cero elementos en una base que ya existía.** Averigua si estás utilizando la base esperada. La semilla se aplica al crear la base por primera vez; no es una operación de restauración automática. No borres bases de terceros para forzar que vuelvan a aparecer los tres datos de demostración.
+
+**El formulario Crear abre, pero Enviar devuelve 405.** Comprueba si has activado el bloque POST de 2.4.3. En el estado inicial del proyecto se entrega comentado para permitir observar esa diferencia. El GET puede funcionar perfectamente aunque todavía no exista POST.
+
+**La creación muestra mensajes pero no aparece el producto.** Investiga `ModelState.IsValid`: una entrada inválida debe devolver Crear sin llamar a `SaveChangesAsync`. El estado 200 de una vista de error no significa que se haya persistido un registro.
+
+**El POST sin token devuelve 400.** Es el comportamiento previsto cuando está activo `ValidateAntiForgeryToken`. Si el formulario normal también obtiene 400, inspecciona el token generado por Form Tag Helper y las cookies del navegador antes de retirar protecciones.
+
+**Editar abre pero al corregir un dato inválido cambia de destino.** Revisa si el POST repone `ViewData["ProductoId"]` antes de devolver `View(entrada)`. La vista necesita ese valor para construir la ruta de la siguiente tentativa.
+
+**Eliminar desaparece de la pantalla, pero el detalle antiguo sigue respondiendo 200.** Examina si realmente se ejecutó el POST de eliminación, si se llamó a `SaveChangesAsync` y si el proceso utiliza la misma base. Ocultar un enlace en la vista no elimina una fila.
+
+**Después de reiniciar aparecen productos diferentes.** Comprueba el nombre de base, la variable `ConnectionStrings__Productos` y el archivo appsettings utilizado. Un cambio inadvertido de conexión puede parecer un fallo de persistencia.
+
+**No encuentro un producto por una búsqueda de texto que parecía equivalente.** Revisa el contenido exacto de la base y las reglas de comparación de cadenas del proveedor SQL Server. El método `Contains` no promete una comparación universal e independiente de collation.
+
+## Cierre: un catálogo MVC con estado persistente
+
+Al acabar el recorrido esencial, debes poder describir cada operación sin confundir capas. El navegador envía un formulario; el binder construye un `ProductoFormulario`; DataAnnotations y ModelState permiten rechazar una entrada incorrecta; el controlador localiza o construye la entidad `Producto`; EF Core ejecuta la operación sobre LocalDB; y MVC redirige a una página de lectura que representa el estado resultante.
+
+El punto de llegada no es que aparezca un mensaje diciendo «Guardado», sino que **el dato creado puede consultarse y editarse por su identificador, sobrevive al reinicio, y desaparece cuando se ejecuta una eliminación confirmada**. El alumnado que conoce EF Core debe ser capaz de conectar ese comportamiento con `Add`, cambios de propiedades, `Remove` y `SaveChangesAsync`, pero también con el contrato y las rutas MVC.
+
+El siguiente punto, **P2.5**, utilizará una Razor Page muy pequeña dentro de la misma aplicación para comparar el método de trabajo con un controlador y una vista. No crearemos otro CRUD ni una API adicional: la finalidad es distinguir `PageModel`, `OnGet` y `OnPost` mientras reutilizamos el conocimiento que acabamos de consolidar.
