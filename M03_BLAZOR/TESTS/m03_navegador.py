@@ -5,7 +5,7 @@ Activa los comentarios didácticos sobre copias temporales, nunca sobre fuentes.
 from __future__ import annotations
 import contextlib, os, re, shutil, subprocess, tempfile, time
 from pathlib import Path
-from playwright.sync_api import sync_playwright
+from playwright.sync_api import sync_playwright, expect
 
 ROOT=Path(__file__).resolve().parents[2]
 SRC=ROOT/"M03_BLAZOR"/"PROYECTO"
@@ -262,12 +262,11 @@ def v34filtros(page):
     assert page.locator(".tarjeta").count()==3
     assert page.locator(".tarjeta").first.get_attribute("data-producto-id")=="2"
     page.locator("#alternar-orden").click()
-    page.locator('[data-producto-id="1"]').first.wait_for(timeout=12000)
-    assert page.locator(".tarjeta").first.get_attribute("data-producto-id")=="1"
+    expect(page.locator(".tarjeta").first).to_have_attribute("data-producto-id","1",timeout=12000)
     page.locator("#buscar").fill("láp")
     page.get_by_text("Mostrando 1 de 3 productos").wait_for(timeout=12000)
     assert page.locator(".tarjeta").count()==1
-    assert page.locator(".tarjeta").first.get_attribute("data-producto-id")=="2"
+    expect(page.locator(".tarjeta").first).to_have_attribute("data-producto-id","2",timeout=12000)
     page.locator("#precio-maximo").fill("1")
     page.locator("#precio-maximo").blur()
     page.get_by_text("Mostrando 0 de 3 productos").wait_for(timeout=12000)
