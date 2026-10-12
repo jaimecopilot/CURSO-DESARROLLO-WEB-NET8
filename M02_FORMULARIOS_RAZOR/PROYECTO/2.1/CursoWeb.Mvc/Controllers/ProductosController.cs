@@ -51,14 +51,21 @@ public class ProductosController : Controller
     [HttpGet]
     public IActionResult Crear() => View(new Producto());
 
+    // PASO 2.1.3: comparar un formulario visible (GET) con su envío (POST).
+    // Quita solo los delimitadores del bloque al completar P2.1.3;
+    // conserva [ValidateAntiForgeryToken]. Los datos todavía no se guardan.
+    /* PASO 2.1.3 INICIO
     [HttpPost]
     [ValidateAntiForgeryToken]
     public IActionResult Crear(Producto producto)
     {
-        // Todavía no se guarda: la persistencia se introduce en P2.4.
-        // El enlace de modelos utiliza las propiedades Nombre y Precio.
+        // Model binding crea y rellena Producto desde los campos Nombre y Precio.
+        // Id sigue siendo 0, porque la vista no envía un identificador.
+        // P2.3 añadirá un modelo de entrada específico y comprobará ModelState.
+        // P2.4 introducirá la persistencia EF Core/LocalDB.
         return View("Confirmacion", producto);
     }
+    PASO 2.1.3 FIN */
 
     // El reto 1.4 permanece identificado como variante histórica.
     // P1.5 trabaja específicamente con presentación Razor y vistas parciales.
