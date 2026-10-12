@@ -256,7 +256,7 @@ def document_html(markdown: str, title: str, kind: str) -> str:
         raise ValueError(f"TIPO de documento distinto a su carpeta: {kind_label}")
     # Las referencias bibliográficas se mantienen literales y se convierten
     # a hipervínculos PDF; no se modifican ni resumen las fuentes Markdown.
-    markdown_html = re.sub(r"(?m)^(-\s+[^\n]*?:\s*)(https?://[^\s<>]+)", lambda m: m.group(1) + "<" + m.group(2) + ">", markdown)
+    markdown_html = re.sub(r"(?m)^(-\s+[^\n]*?:\s*)(https?://[^\s<>]+)", lambda m: m.group(1) + "[Consultar fuente](" + m.group(2) + ")", markdown)
     md=MarkdownIt("commonmark",{"html":True}).enable("table").enable("strikethrough")
 
     md.renderer.rules["fence"]=fence_render
