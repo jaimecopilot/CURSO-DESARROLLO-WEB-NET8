@@ -7,7 +7,7 @@ Se comprueba la existencia de los cinco capítulos, retos, contenido fundamental
 
 | Archivo | Palabras MD | Caracteres MD | Páginas PDF | Diagramas SVG |
 |---|---:|---:|---:|---:|
-| TEORIA | 35483 | 242162 | 84 | 6 |
+| TEORIA | 35618 | 243279 | 84 | 6 |
 | PRACTICAS | 28397 | 198117 | 75 | 0 |
 
 ## Autor procedente del Markdown
@@ -19,7 +19,7 @@ El texto repetido en la cabecera se toma de la línea canónica del Markdown cor
 
 | Documento | SHA-256 del MD que está incrustado en el PDF | Coincidencia byte por byte |
 |---|---|---|
-| TEORIA | `80d5b8b27c1050e2f03502833530b87eeb82282e3ea2781a4d42a0d640a8b582` | True |
+| TEORIA | `fcf078fa41e48185a0be0a3830bbdc74530dfca0f00c718c93d31c047d6cd119` | True |
 | PRACTICAS | `16704ad6c64a3dc54b734867c095009e8a438a56d9aa6035835b8712f80d3cd2` | True |
 
 ## Alcance y límites
