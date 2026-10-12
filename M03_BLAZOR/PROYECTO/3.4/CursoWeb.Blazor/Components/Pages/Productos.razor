@@ -12,6 +12,8 @@
             <p>@producto.Precio.ToString("0.00") €</p>
             @* PASO 3.4.2 (ACTIVAR): descomenta este botón al activar Seleccionar. *@
             @* <button @onclick="() => Seleccionar(producto.Id)">Seleccionar</button> *@
+            @* PASO 3.4.5: sustituir el botón anterior, no añadir un segundo. *@
+            @* <button @onclick="() => SeleccionarParaEditar(producto.Id)">Seleccionar</button> *@
         </article>
     }
 </div>
@@ -19,9 +21,6 @@
 @* <label>Nombre nuevo: <input id="nombre-nuevo" @bind="nuevoNombre" /></label> *@
 @* PASO 3.4.4 (ACTIVAR): descomenta el botón tras activar Agregar. *@
 @* <button id="agregar" @onclick="Agregar">Añadir producto</button> *@
-@* PASO 3.4.5: después de activar Seleccionar, sustituye su botón por esta variante.
-   El nuevo manejador conserva el Id y prepara el editor, sin buscar por nombre. *@
-@* <button @onclick="() => SeleccionarParaEditar(producto.Id)">Seleccionar</button> *@
 @* PASO 3.4.5: activa juntos el campo y el botón tras activar el método de edición. *@
 @* <label>Editar nombre: <input id="editar-nombre" @bind="nombreEditado" /></label> *@
 @* <button id="guardar-cambio" @onclick="GuardarCambio">Guardar nombre</button> *@
