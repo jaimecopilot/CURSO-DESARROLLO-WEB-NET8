@@ -208,12 +208,44 @@ def v36vacio(page):
     page.locator("#sin-productos").wait_for(timeout=12000)
     assert page.locator(".tarjeta").count()==0
 
+
+def t34editor(p):
+    t34(p)
+    f="Components/Pages/Productos.razor"
+    enable_block(p,f,"PASO 3.4.5")
+    edit(p,f,
+       '<button @onclick="() => Seleccionar(producto.Id)">Seleccionar</button>',
+       '@* <button @onclick="() => Seleccionar(producto.Id)">Seleccionar</button> *@')
+    edit(p,f,
+       '@* <button @onclick="() => SeleccionarParaEditar(producto.Id)">Seleccionar</button> *@',
+       '<button @onclick="() => SeleccionarParaEditar(producto.Id)">Seleccionar</button>')
+    edit(p,f,
+       '@* <label>Editar nombre: <input id="editar-nombre" @bind="nombreEditado" /></label> *@',
+       '<label>Editar nombre: <input id="editar-nombre" @bind="nombreEditado" /></label>')
+    edit(p,f,
+       '@* <button id="guardar-cambio" @onclick="GuardarCambio">Guardar nombre</button> *@',
+       '<button id="guardar-cambio" @onclick="GuardarCambio">Guardar nombre</button>')
+def v34editor(page):
+    page.goto(BASE+"/productos",wait_until="networkidle")
+    page.locator('[data-producto-id="2"] button').click()
+    page.get_by_text("Seleccionado: Lápiz").wait_for(timeout=12000)
+    assert page.locator("#editar-nombre").input_value()=="Lápiz"
+    page.locator("#editar-nombre").fill("Lápiz rojo")
+    page.locator("#guardar-cambio").click()
+    page.get_by_text("Seleccionado: Lápiz rojo").wait_for(timeout=12000)
+    assert "Lápiz rojo" in page.locator('[data-producto-id="2"]').inner_text()
+    assert page.locator(".tarjeta").count()==3
+    page.locator("#editar-nombre").fill("  ")
+    page.locator("#guardar-cambio").click()
+    assert "Lápiz rojo" in page.locator('[data-producto-id="2"]').inner_text()
+
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True)
     build_run(browser,"3.1",verify=verify31)
     build_run(browser,"3.2",t32,verify32)
     build_run(browser,"3.3",t33,verify33)
     build_run(browser,"3.4",t34,verify34)
+    build_run(browser,"3.4",t34editor,v34editor)
     build_run(browser,"3.5",t35,verify35)
     build_run(browser,"3.6",t36,verify36)
     build_run(browser,"3.1",t31reto,v31reto)
