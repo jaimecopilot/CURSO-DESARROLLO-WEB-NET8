@@ -296,7 +296,7 @@ En la sección de información general observamos la URL y el código de estado.
 
 Después repetimos el procedimiento para `/css/site.css`. Debemos observar un recurso diferente, con tipo de contenido CSS. La cabecera que se añadió dentro del controlador Home no se espera en esa solicitud, pues corresponde a otro mecanismo de atención.
 
-**¿Qué información no necesitamos memorizar?.**
+**Qué información no necesitamos memorizar.**
 
 El navegador puede incluir múltiples cabeceras y datos de temporización, almacenamiento en caché y seguridad. No es necesario explicarlos todos para comprender el primer recorrido MVC. Nuestro criterio docente es seleccionar un conjunto pequeño de evidencias que responda a preguntas concretas: ¿qué se pidió?, ¿quién lo atendió?, ¿qué respondió el servidor? y ¿qué parte del contenido cambió después de editar el código?
 
@@ -659,6 +659,17 @@ Al finalizar el capítulo, el alumno debe poder identificar sin ambigüedades la
 En el punto 1.1 observamos una acción `HomeController.Index()` que devolvía una vista. En el 1.2 incorporamos una pieza que aún faltaba: un **modelo de producto**. Usaremos un catálogo con tres objetos en memoria para evitar que el aprendizaje de MVC quede oculto tras una base de datos. El acceso mediante EF Core llegará en M02.
 
 ## Modelo, vista y controlador: responsabilidades
+
+**Situación de partida: la página responde, pero todavía no representa datos del catálogo.**
+
+Al cerrar 1.1 sabemos localizar una acción MVC, seguir una petición `GET /` y distinguir la cabecera HTTP del HTML. Ese conocimiento resuelve el transporte de la página, pero no la siguiente necesidad: mostrar tres productos que puedan cambiar sin editar el marcado de cada línea.
+
+Imagina un catálogo cuyo controlador contiene, además de las decisiones sobre la petición, una cadena HTML con los nombres y precios. Si un producto cambia de nombre, debemos revisar la lógica de la petición y el marcado a la vez. Esa dificultad no se corrige creando más rutas, sino separando **qué información existe**, **qué resultado seleccionamos** y **cómo la representamos**.
+
+Vamos a resolver el mismo problema tres veces de manera conceptual: primero identificaremos la mezcla de responsabilidades, luego presentaremos la clase `Producto` y, por último, recorreremos el camino entre `ProductosController.Index()` y `Views/Productos/Index.cshtml`. En la práctica P1.2 no crearemos una base de datos: el controlador construirá una lista en memoria y la entregará a una vista tipada. Esto permite comprobar el efecto de cada pieza sin introducir EF Core antes de tiempo.
+
+La pregunta que guiará el capítulo es concreta: **si cambiamos Cuaderno por Bloc, ¿qué archivo debe cambiar, cuál debe permanecer igual y por qué?**
+
 
 **El problema de una aplicación que mezcla todas las responsabilidades.**
 
@@ -1091,6 +1102,15 @@ Este capítulo permitirá al alumno **orientarse dentro de un proyecto MVC real 
 Partimos de `CursoWeb.Mvc` en su estado completo del punto 1.2: la ruta `/Productos` ya muestra tres productos y dispone de navegación. El ejercicio de 1.3 no vuelve a construir el catálogo, sino que analiza cómo se organiza y se inicia y añade ejemplos mínimos de configuración y archivos estáticos. Reservamos el diseño de rutas más avanzado y las acciones con parámetros para el punto 1.4.
 
 ## Leer el proyecto y sus archivos
+
+**Situación de partida: sabemos qué hace MVC, pero necesitamos encontrar cada responsabilidad.**
+
+En P1.2 ya hemos visto que un controlador construye el modelo y una vista representa la lista. El siguiente obstáculo habitual no es conceptual: es localizar de forma fiable el archivo responsable cuando una página no aparece, un estilo no se aplica o una configuración produce un resultado inesperado.
+
+Un proyecto ASP.NET Core MVC contiene código C#, vistas Razor, archivos estáticos y configuración. Pertenecen a la misma aplicación, pero **no recorren el mismo mecanismo**. Una URL de controlador no es una ruta a una carpeta del disco; un archivo bajo `wwwroot` puede publicarse sin crear una acción; y un archivo de configuración no se convierte en público porque lo lea `Program.cs`.
+
+Por eso P1.3 parte del catálogo que ya funciona. Primero leeremos el árbol del proyecto y su arranque; después seguiremos un valor de `appsettings.json` hasta un mensaje de registro; por último compararemos la solicitud de una hoja CSS, de un archivo público y de otro situado fuera de `wwwroot`. Cada observación ayudará a decidir **dónde mirar cuando algo falle**, evitando cambiar el controlador para resolver una incidencia de recursos estáticos.
+
 
 **De un proyecto C# a una aplicación web.**
 
@@ -1564,13 +1584,7 @@ El layout compartido reduce duplicación. Si todas las páginas deben presentar 
 
 **«El archivo de configuración incluye valores seguros porque no está en wwwroot».** Esto no justifica guardar contraseñas en un repositorio. Los recursos y las políticas de despliegue deben distinguirse del control de acceso al código fuente.
 
-**Preparación para la práctica y el punto 1.4.**
-
-La práctica `P1.3` parte de una página `/Productos` ya funcional, sigue el árbol de archivos, activa un registro de configuración, incorpora una hoja CSS, habilita un enlace a un documento estático y resuelve un reto sobre publicación de recursos.
-
-El alumno debe terminar explicando **en qué carpeta se modifica una cosa y por qué**, además de haber comprobado cada resultado. Esta capacidad permite avanzar al punto `1.4`, donde los controladores atenderán nuevas acciones, parámetros y rutas.
-
-
+### Aplicación diagnóstica: localizar antes de editar
 
 **Una estrategia de diagnóstico basada en carpetas.**
 
@@ -1587,6 +1601,14 @@ Imaginemos que un alumno abre el proyecto de `PROYECTO/1.2` en una ventana y eje
 La primera comprobación no debe ser reescribir el código. Debemos identificar el directorio de ejecución y el archivo que se ha modificado. Después detener y volver a lanzar la copia correspondiente. Esta incidencia es especialmente probable en un curso que conserva estados autónomos, de modo que la práctica incorpora explícitamente la ubicación de cada versión.
 
 Si se producen dos intentos de arranque sobre el mismo puerto, el segundo puede fallar porque ya existe un proceso escuchando. No debe diagnosticarse automáticamente como un error de MVC ni del controlador: es una condición del entorno de ejecución.
+
+**Preparación para la práctica y el punto 1.4.**
+
+La práctica `P1.3` parte de una página `/Productos` ya funcional, sigue el árbol de archivos, activa un registro de configuración, incorpora una hoja CSS, habilita un enlace a un documento estático y resuelve un reto sobre publicación de recursos.
+
+El alumno debe terminar explicando **en qué carpeta se modifica una cosa y por qué**, además de haber comprobado cada resultado. Esta capacidad permite avanzar al punto `1.4`, donde los controladores atenderán nuevas acciones, parámetros y rutas.
+
+
 
 **Referencias de Microsoft Learn.**
 
@@ -1606,6 +1628,15 @@ Al finalizar este punto, el alumno sabrá **seguir una URL hasta su acción MVC*
 Se trabaja sobre el proyecto 1.4, continuación funcional del 1.3. El listado de productos y su navegación ya funcionan. Construiremos una acción de estado, un detalle tipado y otra dirección para la misma clase de información. El reto final devolverá una respuesta JSON breve desde un controlador MVC para conectar con los conocimientos previos de Web API.
 
 ## Acciones, rutas convencionales y rutas por atributos
+
+**Situación de partida: el catálogo existe, pero todavía no podemos consultar una ficha concreta.**
+
+En el punto 1.3 hemos localizado el controlador y distinguido recursos públicos de rutas MVC. Ahora la necesidad cambia: el usuario quiere abrir la ficha de un producto desde el listado. La dirección `/Productos` por sí sola no expresa **cuál** debe mostrarse; necesitamos asociar una URL con una acción que reciba un identificador y elija un resultado.
+
+Empezaremos por las rutas convencionales que ya utiliza `Program.cs`. A partir de ellas crearemos una acción `Detalle(int id)` que reciba el número de la dirección y seleccione un `Producto` de la lista en memoria. Después estudiaremos tres comportamientos diferentes: un identificador válido con producto existente, un identificador inválido y otro bien formado que no coincide con ningún producto. El servidor no debe dar la misma respuesta en las tres situaciones.
+
+La práctica P1.4 ampliará el controlador de manera incremental: texto sin vista, detalle con modelo tipado, ruta por atributos y enlaces desde el listado. Concluiremos comparando el HTML con el JSON devuelto por el reto. Así se entenderá el enrutamiento como **selección de comportamiento**, no como una colección de URLs para memorizar.
+
 
 **Qué es una acción MVC y cómo se selecciona.**
 
@@ -2302,15 +2333,7 @@ Para un desarrollador que conoce Web API, esto confirma que **MVC comparte los t
 
 **«El navegador recibe un objeto Producto cuando abre el detalle».** No directamente: `View(producto)` usa el objeto en el servidor para producir HTML. En el reto `Ok(new { ... })` sí se serializa un objeto a JSON.
 
-**Relación con P1.4 y continuidad.**
-
-La práctica comienza inspeccionando el controlador existente y la lista compartida; activa `Estado()` y observa texto plano; activa `Detalle(int id)` y comprueba 200/400/404; incorpora una ruta por atributos; añade enlaces por producto en la vista; y realiza el reto JSON, igualmente comentado en el proyecto.
-
-La batería de pruebas compila y ejecuta **cada estado solicitado** y verifica sus respuestas reales a través de HTTP, sin reemplazar la comprensión manual de la navegación. Se preservan también las pruebas de regresión de los capítulos 1.1 a 1.3.
-
-El capítulo siguiente, **1.5**, profundizará en la sintaxis Razor, la composición de vistas, los layouts y las vistas parciales usando las páginas y el detalle funcional de este capítulo.
-
-
+### Aplicación integrada: observar una acción y su resultado
 
 **Activación incremental y regresión.**
 
@@ -2350,6 +2373,16 @@ Cada respuesta debe hacer referencia a un archivo o línea real del proyecto, no
 
 El capítulo 1.5 reutilizará esos resultados de detalle para profundizar en cómo Razor compone la presentación. Por eso es importante cerrar antes esta distinción: **las rutas seleccionan acciones, las acciones eligen resultados y las vistas representan datos**.
 
+**Relación con P1.4 y continuidad.**
+
+La práctica comienza inspeccionando el controlador existente y la lista compartida; activa `Estado()` y observa texto plano; activa `Detalle(int id)` y comprueba 200/400/404; incorpora una ruta por atributos; añade enlaces por producto en la vista; y realiza el reto JSON, igualmente comentado en el proyecto.
+
+La batería de pruebas compila y ejecuta **cada estado solicitado** y verifica sus respuestas reales a través de HTTP, sin reemplazar la comprensión manual de la navegación. Se preservan también las pruebas de regresión de los capítulos 1.1 a 1.3.
+
+El capítulo siguiente, **1.5**, profundizará en la sintaxis Razor, la composición de vistas, los layouts y las vistas parciales usando las páginas y el detalle funcional de este capítulo.
+
+
+
 **Fuentes y referencias.**
 
 - Microsoft Learn, enrutamiento a acciones de controlador: https://learn.microsoft.com/en-us/aspnet/core/mvc/controllers/routing?view=aspnetcore-8.0
@@ -2370,6 +2403,15 @@ Al terminar, el alumno podrá interpretar las directivas y expresiones básicas 
 No adelantaremos los formularios y los Tag Helpers de entrada de datos de M02. El dominio sigue siendo un pequeño catálogo de tres productos y no necesita una base de datos.
 
 ## Razor y modelos fuertemente tipados
+
+**Situación de partida: las acciones ya seleccionan correctamente un producto; falta mantener su presentación.**
+
+Tras P1.4 tenemos un listado, una ficha, varias formas de llegar a ella y resultados HTTP diferentes. Sin embargo, el HTML que representa un producto puede repetirse. Si cambiamos cómo aparece el precio, no debería ser necesario localizar y corregir cada copia del mismo fragmento.
+
+El capítulo avanza desde el dato hasta la composición de la página. Primero distinguiremos el tipo declarado mediante `@model` y el objeto que recibe `Model`; después utilizaremos una condición Razor para decidir qué contenido aparece. A continuación estudiaremos el layout como marco compartido y las secciones como una aportación específica de una página. Finalmente construiremos una tarjeta en una vista parcial para que **la misma representación de producto** pueda utilizarse en el catálogo y en el detalle.
+
+La práctica P1.5 conserva los datos en memoria y no introduce formularios. Su pregunta central es esta: **si una regla visual de precio debe aplicarse en varias pantallas, ¿en qué archivo conviene escribirla para mantener una sola decisión?** La respuesta se comprobará en el HTML de ambas vistas, no solamente viendo si la aplicación compila.
+
 
 **Qué es Razor y dónde se ejecuta.**
 
@@ -2869,13 +2911,7 @@ Con ello se demuestra directamente el valor de la reutilización: **una modifica
 
 **«El Tag Helper `<partial>` es un componente Blazor».** No. Ambos pueden compartir sintaxis Razor, pero las vistas parciales MVC se renderizan como fragmentos de una respuesta HTML; los componentes Blazor tienen otro modelo de ejecución que veremos en M03.
 
-**Continuidad y alcance del módulo M01.**
-
-La práctica 1.5 reproduce los conceptos en estados pequeños y observables: vistas tipadas ya existentes, condición Razor, layout con sección opcional, tarjeta parcial en el listado, reutilización de la tarjeta en el detalle y reto de etiqueta según precio. Cada estado se compila y se prueba contra Kestrel mediante HTTP real.
-
-Con esta práctica se completa el **contenido funcional previsto de M01**: desde la primera petición hasta un catálogo con listados y fichas Razor reutilizables. Los **formularios, model binding de POST, validación con DataAnnotations y EF Core** se incorporarán en el M02, no en este módulo.
-
-Para afianzar lo aprendido, recorre las cinco etapas del módulo con los proyectos incluidos y comprueba que cada cambio de código corresponde a un comportamiento observable. La práctica ofrece los procedimientos necesarios para continuar el desarrollo del catálogo.
+### Aplicación integrada: una única decisión visual
 
 **El reto como prueba de reutilización real.**
 
@@ -2915,6 +2951,14 @@ Si el usuario selecciona un enlace de detalle, se produce otra solicitud HTTP, s
 Este recorrido prepara el siguiente módulo. Cuando M02 incorpore formularios y persistencia, no será necesario reaprender qué son un controlador, una vista, un resultado HTTP o un modelo tipado. La arquitectura y las convenciones seguirán siendo reconocibles.
 
 El aprendizaje central no es memorizar sintaxis aislada de Razor, sino comprender **cómo los datos llegan a una representación coherente y reutilizable**, y cómo una modificación localizada debe conservar el comportamiento previo de la aplicación.
+
+**Continuidad y alcance del módulo M01.**
+
+La práctica 1.5 reproduce los conceptos en estados pequeños y observables: vistas tipadas ya existentes, condición Razor, layout con sección opcional, tarjeta parcial en el listado, reutilización de la tarjeta en el detalle y reto de etiqueta según precio. Cada estado se compila y se prueba contra Kestrel mediante HTTP real.
+
+Con esta práctica se completa el **contenido funcional previsto de M01**: desde la primera petición hasta un catálogo con listados y fichas Razor reutilizables. Los **formularios, model binding de POST, validación con DataAnnotations y EF Core** se incorporarán en el M02, no en este módulo.
+
+Para afianzar lo aprendido, recorre las cinco etapas del módulo con los proyectos incluidos y comprueba que cada cambio de código corresponde a un comportamiento observable. La práctica ofrece los procedimientos necesarios para continuar el desarrollo del catálogo.
 
 **Referencias técnicas.**
 
