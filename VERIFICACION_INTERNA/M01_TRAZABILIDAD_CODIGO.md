@@ -5,13 +5,13 @@ La correspondencia estática verifica archivos, marcas de activación y fragment
 
 | Punto | Pasos y reto en MD | Correspondencias de código | E2E |
 |---|---|---:|---|
-| P1.1 | 6 etapas distintas, incluido reto | 7 | 6 escenarios |
+| P1.1 | 6 etapas distintas, incluido reto | 8 | 7 escenarios |
 | P1.2 | 5 etapas distintas, incluido reto | 5 | 5 escenarios |
 | P1.3 | 6 etapas distintas, incluido reto | 8 | 5 escenarios |
 | P1.4 | 6 etapas distintas, incluido reto | 7 | 6 escenarios |
 | P1.5 | 6 etapas distintas, incluido reto | 9 | 6 escenarios |
 
-**Total: 36 correspondencias de código comprobadas.**
+**Total: 37 correspondencias de código comprobadas.**
 
 ## Matriz detallada paso → archivo → comprobación
 
@@ -22,6 +22,7 @@ La correspondencia estática verifica archivos, marcas de activación y fragment
 | 1.1.3 | `PROYECTO/1.1/CursoWeb.Mvc/Program.cs` | `PASO 1.1.3` | 2 |
 | 1.1.4 | `PROYECTO/1.1/CursoWeb.Mvc/Controllers/HomeController.cs` | `PASO 1.1.4` | 1 |
 | 1.1.5 | `PROYECTO/1.1/CursoWeb.Mvc/Views/Home/Index.cshtml` | `PASO 1.1.5` | 1 |
+| 1.1.5 | `PROYECTO/1.1/CursoWeb.Mvc/Views/Home/Index.cshtml` | `APLICACIÓN 1.1.5` | 1 |
 | RETO 1.1 | `PROYECTO/1.1/CursoWeb.Mvc/Controllers/HomeController.cs` | `RETO 1.1` | 1 |
 | RETO 1.1 | `PROYECTO/1.1/CursoWeb.Mvc/Views/Home/Index.cshtml` | `RETO 1.1` | 1 |
 | 1.2.2 | `PROYECTO/1.2/CursoWeb.Mvc/Models/Producto.cs` | `class Producto` | 3 |
