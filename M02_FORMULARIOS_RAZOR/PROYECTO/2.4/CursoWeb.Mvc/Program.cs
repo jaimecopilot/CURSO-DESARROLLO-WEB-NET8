@@ -4,17 +4,29 @@ using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllersWithViews();
-builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlServer(builder.Configuration.GetConnectionString("Productos")));
+
+// PASO 2.4.1 — Elegimos SQL Server Express LocalDB a través de configuración.
+// ConnectionStrings__Productos permite aislar una base de laboratorio
+// sin cambiar archivos del alumno. LocalDB exige Windows y la instancia instalada.
+var cadena = builder.Configuration.GetConnectionString("Productos")
+    ?? throw new InvalidOperationException("Falta ConnectionStrings:Productos.");
+builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(cadena));
 
 var app = builder.Build();
 
-// P2.4: inicialización didáctica reproducible, sin migraciones avanzadas.
-// EnsureCreated no debe combinarse con migraciones sobre la misma base de datos.
+// PASO 2.4.1 — Inicialización mínima para una práctica nueva.
+// EnsureCreated crea el esquema solo si todavía NO existe esta base;
+// no constituye un sistema de migraciones y NO debe combinarse con
+// Database.Migrate() sobre la misma base. El alumno conoce EF Core;
+// aquí interesa el resultado observado desde MVC.
+//
+// Se añaden tres productos únicamente al CREAR la base por primera vez.
+// Si después el alumno elimina todos los productos, reiniciar NO los
+// reinsertará: así la persistencia puede observarse también en el borrado.
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    var baseCreada = db.Database.EnsureCreated();
+    bool baseCreada = db.Database.EnsureCreated();
     if (baseCreada)
     {
         db.Productos.AddRange(
@@ -25,6 +37,7 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
+// PASO 2.4.2 — MVC, enrutamiento y vistas son los mismos conceptos de M01.
 app.UseStaticFiles();
 app.UseRouting();
 app.MapControllerRoute(
