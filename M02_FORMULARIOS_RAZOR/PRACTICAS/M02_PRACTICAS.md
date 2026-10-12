@@ -436,3 +436,285 @@ Estas comprobaciones no requieren modificar cuatro archivos simultáneamente. La
 **Resultado de aprendizaje:** sabemos generar formularios y enlaces mediante las capacidades integradas de MVC, pero aún no hemos definido qué datos debe aceptar el servidor. En **P2.3** crearemos un modelo de entrada específico, declararemos reglas mediante DataAnnotations y utilizaremos ModelState para mostrar errores sin perder los valores enviados. En **P2.4** añadiremos las operaciones de persistencia con SQL Server Express LocalDB y Entity Framework Core. La introducción a Razor Pages quedará para **P2.5**.
 
 El formulario de P2.2 termina siendo más mantenible, pero la responsabilidad de aceptar datos válidos continúa estando en el servidor y no en la apariencia del HTML.
+
+# P2.3. Validar los datos del formulario y representar sus errores
+
+## Objetivo y relación con las prácticas anteriores
+
+Hasta ahora el alumno ha conseguido obtener un formulario mediante GET, enviarlo con un POST protegido y representar la respuesta mediante Razor. Además, en P2.2 ha sustituido las asociaciones HTML escritas a mano por Tag Helpers. Nuestro siguiente problema es diferente: **no basta con que el navegador envíe datos y el servidor sepa recibirlos; deben cumplir unas reglas antes de convertirse en un producto válido**.
+
+En P2.3 aprenderás a separar el contrato de entrada del modelo que representa la entidad; activarás reglas DataAnnotations, investigarás cómo registra MVC los errores de conversión y validación en `ModelState`, mostrarás mensajes junto a los campos sin borrar lo que ya había escrito el usuario y compararás la validación de servidor con la anticipada de cliente. Mantendremos expresamente **desactivada la persistencia**: en el catálogo seguirán Cuaderno, Lápiz y Carpeta, sin un cuarto elemento nuevo.
+
+El recorrido troncal de esta práctica comprende los pasos **2.3.1 a 2.3.4**. La activación de scripts en 2.3.5 se hará como demostración breve, cuando la conectividad del laboratorio lo permita; el ejercicio de presentación 2.3.6 y el reto son ampliaciones que pueden completarse después. Así respetamos el horario del día sin renunciar a que el manual sea un recurso de aprendizaje profundo.
+
+**Teoría relacionada:** punto 2.3 del manual del módulo. Si un resultado sorprende, vuelve a consultar la distinción entre model binding, validación declarativa y visualización de errores.
+
+**Proyecto a abrir:** `M02_FORMULARIOS_RAZOR/PROYECTO/2.3/CursoWeb.Mvc/CursoWeb.Mvc.csproj`. No modifiques el M01 aprobado ni las carpetas de 2.1 o 2.2. La carpeta 2.3 es el punto de partida propio de este ejercicio y conserva los mecanismos HTML y Tag Helpers estudiados antes.
+
+### Arranque reproducible
+
+Desde la raíz del repositorio:
+
+~~~bash
+cd M02_FORMULARIOS_RAZOR/PROYECTO/2.3/CursoWeb.Mvc
+dotnet restore
+dotnet build
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Detén cualquier aplicación anterior que siga ocupando el puerto 5091. Abre `http://localhost:5091/Productos/Crear`; debe mostrarse el formulario con dos campos, «Nombre» y «Precio», y el botón **Validar producto**. Comprueba también `/Productos`, donde aparecen los mismos tres productos del módulo anterior.
+
+No necesitas SQL Server Express LocalDB para esta práctica. Aunque estudiaremos qué ocurre con una entrada inválida, no habrá ninguna escritura persistente que se deba deshacer: esta separación permite investigar el formulario sin introducir una segunda fuente de errores.
+
+### Correspondencia completa entre pasos, archivos y resultados
+
+| Paso | Archivo concreto | Intervención | Comprobación prevista |
+|---|---|---|---|
+| 2.3.1 | `Models/ProductoFormulario.cs`, `Controllers/ProductosController.cs`, `Views/Productos/Crear.cshtml` | Observar la separación entre entrada y entidad | No llega Id desde el formulario; la confirmación sigue disponible |
+| 2.3.2 | `Models/ProductoFormulario.cs` | Descomentar cuatro DataAnnotations | Los valores ausentes, demasiado cortos y fuera de rango producen errores |
+| 2.3.3 | `Controllers/ProductosController.cs` | Inspeccionar `ModelState.IsValid`; activar diagnóstico comentado opcional | Entrada incorrecta vuelve a Crear; en la depuración se identifican campos |
+| 2.3.4 | `Views/Productos/Crear.cshtml` | Observar `asp-validation-for` y comparar `ModelOnly` con `All` | Mensajes visibles junto al campo, valor válido conservado |
+| 2.3.5 | `Crear.cshtml`, `_Layout.cshtml`, `_ValidationScriptsPartial.cshtml` | Activar una sección Razor comentada | Validación cliente opcional; la del servidor sigue funcionando |
+| 2.3.6 | `Models/ProductoFormulario.cs`, `Crear.cshtml` | Escribir `Display(Name=...)` en el modelo de entrada | La etiqueta cambia sin cambiar la clave HTTP `Nombre` |
+| Reto 2.3 | `Controllers/ProductosController.cs` | Activar un bloque `ModelState.AddModelError` | Nombres que comienzan por TEST se rechazan aunque tengan longitud válida |
+
+Los comentarios `PASO 2.3.2`, `PASO 2.3.3`, `PASO 2.3.4`, `PASO 2.3.5`, `APLICACION 2.3.6` y `RETO 2.3` permiten localizar directamente el código correspondiente. Cada intervención tiene su propia comprobación observable. No actives todos los comentarios simultáneamente antes de observar sus efectos.
+
+## Paso 2.3.1 — Observar el nuevo modelo de entrada
+
+Abre `Models/ProductoFormulario.cs` y compáralo con `Models/Producto.cs`. El modelo de dominio posee `Id`, `Nombre` y `Precio`; el de entrada se reduce a los dos campos que el usuario debe rellenar.
+
+~~~csharp
+public sealed class ProductoFormulario
+{
+    public string? Nombre { get; set; }
+    public decimal? Precio { get; set; }
+}
+~~~
+
+**Predicción previa:** ¿qué sucederá con el identificador del producto si alguien añade a mano `Id=99` en la petición de creación? La acción POST utiliza `ProductoFormulario`, que no expone esa propiedad. Por tanto, el binder de ese parámetro no tiene un campo Id en el contrato de entrada que deba completar. Más tarde el controlador construye explícitamente un `Producto` de demostración; no interpreta el valor Id del cliente como identificador definitivo.
+
+Localiza en `ProductosController.cs` la acción GET de creación:
+
+~~~csharp
+[HttpGet]
+public IActionResult Crear() => View(new ProductoFormulario());
+~~~
+
+La vista `Crear.cshtml` también declara `@model CursoWeb.Mvc.Models.ProductoFormulario`. Así, el objeto que se utiliza para construir los campos y el que recibe la acción POST comparten contrato. En P2.2 trabajábamos directamente con `Producto`; ahora hemos evitado aceptar desde el formulario una propiedad que corresponde al sistema.
+
+Inspecciona los atributos de entrada que genera la vista. Deben conservar `name="Nombre"` y `name="Precio"`. El tipo C# de destino ha cambiado, pero el navegador continúa enviando los mismos pares de claves y valores. Esto demuestra que **el contrato HTTP y la representación interna de la entidad no necesitan ser la misma clase**.
+
+### Estado inicial antes de activar reglas de negocio
+
+Observa que las cuatro anotaciones de validación están comentadas en `ProductoFormulario.cs`. Por ahora una entrada como Nombre = «X», Precio = 7 puede llegar a la confirmación, porque la longitud mínima no se ha activado. El controlador mantiene una salvaguarda provisional para datos ausentes, de forma que ese estado de aprendizaje no intente desreferenciar un precio nulo; esa salvaguarda todavía no sustituye una validación declarativa adecuada.
+
+**Ejecuta una comprobación controlada:** con las anotaciones sin activar, envía Nombre = X y Precio = 7. Si recibes una confirmación, has demostrado que **recibir correctamente el valor no equivale a considerarlo válido según una regla que todavía no existe**. Después activaremos StringLength y repetiremos exactamente los mismos campos.
+
+No intentes resolver la diferencia insertando un `if` nuevo en cada vista o sustituyendo Precio por un string. El cambio docente previsto consiste en declarar reglas claras dentro del modelo de entrada.
+
+## Paso 2.3.2 — Activar Required, StringLength y Range
+
+Abre de nuevo `Models/ProductoFormulario.cs`. Encontrarás las reglas precedidas por comentarios de una línea `//`, junto a las marcas **PASO 2.3.2**. Quita los prefijos de comentario de **las cuatro anotaciones**, no de las explicaciones que las acompañan. El resultado debe ser:
+
+~~~csharp
+using System.ComponentModel.DataAnnotations;
+
+public sealed class ProductoFormulario
+{
+    [Required(ErrorMessage = "Indica el nombre.")]
+    [StringLength(60, MinimumLength = 2,
+        ErrorMessage = "El nombre debe tener entre 2 y 60 caracteres.")]
+    public string? Nombre { get; set; }
+
+    [Required(ErrorMessage = "Indica el precio.")]
+    [Range(typeof(decimal), "0.01", "9999.99",
+        ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
+    public decimal? Precio { get; set; }
+}
+~~~
+
+El ejemplo omite el espacio de nombres de la clase porque estamos destacando las reglas. En el archivo real **conserva** `namespace CursoWeb.Mvc.Models;` y la declaración completa. Debes cambiar únicamente las anotaciones indicadas.
+
+Compila de nuevo, ejecuta el formulario y repite la entrada Nombre = X, Precio = 7. Ahora el resultado es diferente: aparece el formulario nuevamente con un error junto a Nombre. En el archivo de modelo puedes encontrar el mismo mensaje que acaba de mostrarse. La acción no ha cambiado su nombre ni su ruta; ha cambiado el criterio utilizado para aceptar la entrada.
+
+### Cuatro experimentos en los que cambia una sola variable
+
+Primero envía **Nombre vacío y Precio 7**. Debe aparecer el mensaje «Indica el nombre». Comprueba que el precio se conserva al volver a representar la página. Un error en un campo no debe obligar a escribir otra vez el resto de información que sí era correcta.
+
+Después envía **Nombre X y Precio 7**. Esta vez Nombre no está ausente, pero tiene menos de dos caracteres. Debe mostrarse el mensaje de `StringLength`. Explica por qué no sería apropiado diagnosticar el problema como un fallo del model binder: el binder puede representar perfectamente «X» como string.
+
+En el tercer envío utiliza **Nombre Rotulador y Precio 0**. El precio existe y puede convertirse a decimal, pero está por debajo del mínimo 0,01 definido en `Range`. El mensaje debe aparecer junto al campo Precio. Con **Precio 7** la misma entrada nominal debería ser aceptada.
+
+Por último, comprueba el caso de **Nombre Rotulador y Precio vacío**. El tipo `decimal?` permite expresar un valor ausente antes de aplicar las reglas, y `[Required]` lo considera inválido. Es distinto de un cero fuera de rango. **No confundas tipo anulable y campo de negocio opcional:** hemos elegido una propiedad anulable precisamente para poder representar y diagnosticar la ausencia en la entrada HTTP.
+
+| Entrada | Regla que debe intervenir | Resultado del formulario |
+|---|---|---|
+| Nombre vacío, Precio 7 | `Required` de Nombre | Se repite Crear con mensaje |
+| Nombre X, Precio 7 | `StringLength` de Nombre | Se repite Crear con mensaje |
+| Nombre Rotulador, Precio 0 | `Range` de Precio | Se repite Crear con mensaje |
+| Nombre Rotulador, Precio vacío | `Required` de Precio | Se repite Crear con mensaje |
+| Nombre Rotulador, Precio 7 | Todas se cumplen | Se muestra Confirmacion |
+
+Los primeros cuatro casos son negativos, pero **no son fallos de ejecución del proyecto**. La aplicación debe representarlos de forma comprensible, permitir su corrección y no tratarlos como productos válidos.
+
+### Una condición que el navegador puede impedir escribir
+
+Cuando un input tiene `type="number"`, algunos navegadores impiden introducir letras ordinarias en el control. Eso no demuestra que el servidor sea invulnerable a `Precio=abc`. Puedes estudiar la variante usando la pestaña Red y una herramienta de repetición de peticiones que te permita modificar el contenido del POST, siempre manteniendo el token antiforgery real obtenido de una carga actual del formulario.
+
+La entrada `Precio=abc` no se convierte en un decimal. ModelState registra un **error de conversión**, diferente del mensaje de `Range` que corresponde a un número real fuera de los límites. No desactives antiforgery para simplificar la prueba: si el POST no incluye un token válido, recibirás 400 por otro motivo y dejarás de estudiar model binding.
+
+## Paso 2.3.3 — Comprender y observar ModelState
+
+En `Controllers/ProductosController.cs` localiza la acción POST. Ahora recibe un `ProductoFormulario entrada` y consulta el estado del enlace y de la validación:
+
+~~~csharp
+[HttpPost]
+[ValidateAntiForgeryToken]
+public IActionResult Crear(ProductoFormulario entrada)
+{
+    if (!ModelState.IsValid)
+    {
+        return View(entrada);
+    }
+
+    // Construir Producto y mostrar Confirmacion...
+}
+~~~
+
+Este fragmento es la parte esencial del método, no una sustitución literal de todo el archivo. En el código real hay comentarios, una salvaguarda del estado inicial sin anotaciones y la conversión posterior al tipo de dominio. Conserva esos elementos.
+
+**Predicción:** si `Nombre="X"`, `ModelState.IsValid` será falso después de activar `StringLength`. La acción ejecutará `return View(entrada)`, sin construir el Producto de confirmación. Si en cambio el nombre es Rotulador y el precio 7, ambas propiedades pueden validarse y el controlador construye el modelo de dominio.
+
+Coloca un punto de interrupción en Visual Studio sobre `if (!ModelState.IsValid)`. Envía primero los datos correctos y después los incorrectos. Observa la propiedad `IsValid` y examina la colección de errores del estado del modelo. No necesitas aprender cada miembro de la API: basta con entender que el estado contiene claves asociadas a los campos y mensajes recogidos durante el procesamiento de la solicitud.
+
+El controlador entrega también un bloque opcional **PASO 2.3.3 INICIO/FIN** que recorre `ModelState` y escribe la clave y el texto de sus errores mediante `Debug.WriteLine`. Si quieres estudiar ese recorrido, quita los delimitadores del comentario C#, compila y envía Nombre = X. Comprueba que el diagnóstico identifica un error asociado a Nombre. Después, desactiva otra vez el bloque si ya no lo necesitas.
+
+**No confundas observar con corregir.** Un mensaje escrito en la ventana de depuración no modifica la validez de los datos. La decisión de la acción sigue determinada por ModelState. El control de flujo que devuelve la vista es lo que impide que los datos inválidos se traten como aceptados.
+
+### ¿Por qué aquí no devolvemos automáticamente HTTP 400?
+
+Quien conoce Web API puede recordar el comportamiento de un controlador con `[ApiController]`, donde una entrada inválida puede recibir automáticamente un error HTTP 400. Este formulario MVC devuelve normalmente **200 con el HTML de Crear** cuando la acción hace `return View(entrada)`. El usuario puede ver los mensajes de validación y corregir sus datos.
+
+Eso no significa que el dato inválido haya sido aceptado. La respuesta 200 pertenece a la **representación correcta del formulario con errores**, no a la creación de un producto. Contrástalo con el fallo de antiforgery de P2.1: una petición sin token obtiene 400 antes de ejecutar el procesamiento previsto en la acción. Los dos escenarios tienen objetivos distintos.
+
+## Paso 2.3.4 — Mostrar errores sin perder lo que se escribió
+
+Abre `Views/Productos/Crear.cshtml`. Los controles mantienen los Tag Helpers de P2.2, pero ahora el modelo se llama `ProductoFormulario`, y la página contiene elementos para visualizar mensajes:
+
+~~~cshtml
+<div asp-validation-summary="ModelOnly" class="text-danger"></div>
+
+<div>
+    <label asp-for="Nombre"></label>
+    <input asp-for="Nombre" />
+    <span asp-validation-for="Nombre" class="text-danger"></span>
+</div>
+
+<div>
+    <label asp-for="Precio"></label>
+    <input asp-for="Precio" type="number" step="0.01" />
+    <span asp-validation-for="Precio" class="text-danger"></span>
+</div>
+~~~
+
+Envía **Nombre = Carpeta grande, Precio = -2**. La página debe representar un error asociado al precio, pero no debe borrar «Carpeta grande». En el HTML generado, inspecciona el input Nombre para comprobar que mantiene el valor anterior. El servidor volvió a presentar la vista con `View(entrada)`, y los Tag Helpers pueden utilizar el estado de los valores intentados para reconstruir el formulario.
+
+Ahora cambia temporalmente `asp-validation-summary="ModelOnly"` por `asp-validation-summary="All"`. Repite la misma prueba. Con All, los errores de propiedades pueden mostrarse también dentro del resumen general; con ModelOnly, en cambio, es normal que se vean junto a sus campos sin repetirse arriba. Compara el comportamiento y **restaura ModelOnly** después del experimento.
+
+La validación no depende de que un error sea visualmente rojo. La clase CSS `text-danger` ayuda a distinguir el mensaje, pero la causa es el estado que produce ASP.NET Core cuando comprueba la entrada. Si quitas el span `asp-validation-for`, el error puede seguir existiendo en ModelState aunque el usuario deje de verlo junto al campo. Por eso importan ambas partes: **la regla y su presentación**.
+
+### Un mensaje que no es de Range
+
+Envía una cantidad numérica pero fuera de rango, por ejemplo `-5`: debes obtener el mensaje configurado en la anotación Range. Después estudia, si tu herramienta HTTP lo permite, el envío de `Precio=abc` con un token válido. El valor no puede convertirse a decimal; el error es de **model binding**, no de la restricción `Range`.
+
+Anota ambas causas. Cambiar el texto del mensaje de Range no explica un error de conversión. Si el navegador impide introducir letras en el campo numérico, eso no hace innecesaria la validación del servidor, porque otro cliente puede construir directamente una solicitud HTTP.
+
+## Paso 2.3.5 — Comparar validación de servidor y validación de navegador
+
+El servidor ya sabe representar los errores. Ahora vamos a añadir, como demostración breve, una mejora de experiencia de usuario: mostrar restricciones en el navegador sin necesitar enviar cada petición inválida.
+
+Abre `Views/Shared/_Layout.cshtml` y observa que contiene `@await RenderSectionAsync("Scripts", required: false)`. Esa sección opcional permite a una página declarar sus propios recursos JavaScript sin obligar a que las demás vistas del catálogo los incluyan.
+
+En `Views/Productos/Crear.cshtml` localiza **PASO 2.3.5 (ACTIVAR)**. El bloque está dentro de un comentario Razor. Quita las marcas de comentario para habilitar lo siguiente:
+
+~~~cshtml
+@section Scripts
+{
+    <partial name="_ValidationScriptsPartial" />
+}
+~~~
+
+La parcial `Views/Shared/_ValidationScriptsPartial.cshtml` incluye referencias a tres bibliotecas en orden: **jQuery**, **jQuery Validation** y **jQuery Validation Unobtrusive**. El proyecto usa una CDN, de manera que **necesita conectividad** para completar esta demostración. Un entorno sin Internet debe recibir una copia local preparada de esos recursos; no atribuyas un fallo de descarga a una regla incorrecta del modelo.
+
+Recarga el formulario con F12 → Red abierto y comprueba que los tres scripts se han descargado correctamente. Inspecciona los inputs: sus atributos `data-val` describen reglas derivadas de DataAnnotations. Esos atributos no ejecutan validación por sí solos: necesitan las bibliotecas correspondientes.
+
+Intenta enviar **Nombre = X, Precio = 7**. Si los scripts están cargados y la validación cliente interviene, el navegador puede impedir el POST y mostrar el error sin recorrer el servidor. Comprueba en la pestaña Red si realmente ha existido una nueva petición POST, en vez de deducirlo del aspecto de la pantalla.
+
+### Repetir la prueba con JavaScript deshabilitado
+
+Deshabilita temporalmente JavaScript para esa página mediante las herramientas de desarrollo del navegador y recarga el formulario. Repite la entrada inválida. Aunque ya no actúen las bibliotecas cliente, el servidor debe recibir el POST protegido, evaluar ModelState y volver a mostrar Crear con sus mensajes. **La validación de servidor permanece obligatoria.**
+
+Vuelve a habilitar JavaScript después del experimento para evitar confusiones durante el resto del curso. Si alguna biblioteca no puede descargarse, comprueba la consola del navegador y el estado de cada solicitud de script. El comportamiento del servidor sigue siendo el resultado principal, independientemente de la disponibilidad de esa CDN.
+
+No hagas una regla duplicada y contradictoria en JavaScript. Las DataAnnotations representan la definición central de estas restricciones. El cliente proporciona una experiencia más inmediata cuando puede interpretar sus metadatos, pero no es una frontera de confianza.
+
+## Paso 2.3.6 — Aplicación autónoma: modificar una etiqueta sin cambiar el contrato HTTP
+
+Hasta ahora has observado y activado código preparado. En esta actividad debes **escribir una anotación propia**. Abre `Models/ProductoFormulario.cs` y localiza **APLICACION 2.3.6**. Coloca sobre la propiedad `Nombre` el atributo que permite mostrar la etiqueta «Nombre del producto»:
+
+~~~csharp
+[Display(Name = "Nombre del producto")]
+~~~
+
+No cambies el identificador de la propiedad C#. Sigue llamándose `Nombre` y el controlador seguirá recibiéndola con esa clave. Compila, recarga Crear y comprueba que el Label Tag Helper muestra el nuevo texto. Inspecciona el input y verifica que el atributo `name` sigue correspondiendo a `Nombre`.
+
+Este ejercicio exige explicar **dos resultados diferentes**. Visualmente puede cambiar el texto de la etiqueta, porque se ha añadido un metadato de presentación. Funcionalmente no debe cambiar el contrato que utiliza el model binder: el campo de entrada sigue siendo Nombre y las reglas Required y StringLength siguen aplicándose a la misma propiedad.
+
+Envía Rotulador y 7. Si llega a Confirmacion, puedes concluir que el nuevo metadato de presentación no ha roto el flujo POST. Repite Nombre = X para confirmar que continúa funcionando el error de longitud mínima. Si los mensajes aparecen, la propiedad no ha sido renombrada ni la validación se ha eliminado.
+
+La anotación Display no sustituye Required, StringLength o Range. Expresa cómo se presenta un campo, no si el usuario está obligado a rellenarlo.
+
+## Reto 2.3 — Una regla adicional introducida desde el controlador
+
+El controlador incluye un bloque comentado **RETO 2.3 INICIO/FIN**. Este ejemplo añade un error específico a ModelState cuando el nombre comienza por `TEST`, ignorando mayúsculas y minúsculas. El objetivo es comprender que la acción puede aportar un error contextual que se presenta con el mismo mecanismo de la vista.
+
+Activa únicamente ese bloque y compila. Envía `Nombre=TESTProducto`, `Precio=7`. El nombre tiene longitud suficiente y el precio cumple el intervalo, pero la acción debe añadir un error y devolver Crear. A continuación, envía `Nombre=Rotulador`, `Precio=7` y verifica que se representa Confirmacion.
+
+El bloque preparado incluye el núcleo:
+
+~~~csharp
+if (entrada.Nombre?.StartsWith("TEST", StringComparison.OrdinalIgnoreCase) == true)
+{
+    ModelState.AddModelError(nameof(entrada.Nombre),
+        "El nombre no puede comenzar por TEST en este ejemplo.");
+}
+~~~
+
+No coloques la llamada a AddModelError **después** del `if (!ModelState.IsValid)` si esperas que ese mismo control la detecte. La condición del reto se evalúa antes de tomar la decisión sobre IsValid; el orden es parte de lo que debes razonar.
+
+Este ejemplo demuestra una posibilidad técnica, no una invitación a escribir todas las reglas empresariales dentro de controladores. Para un sistema amplio, la ubicación de esas reglas requiere diseño. En este curso nos interesa comprender que los errores de las anotaciones, los errores de conversión y los añadidos por la acción pueden terminar en la misma presentación Razor.
+
+### Probar el resultado conjunto sin falsear la persistencia
+
+Si has realizado la aplicación autónoma de Display y el reto, comprueba finalmente que el catálogo de M01 conserva sus tres productos. Un POST válido todavía devuelve Confirmacion sin guardar, mientras que los POST inválidos se quedan en el formulario. La representación, la protección antiforgery y la validación funcionan conjuntamente sin necesidad de una base de datos.
+
+## Diagnóstico de los problemas más habituales
+
+**Aparece un 400 antes de que el controlador llegue al bloque de validación.** Confirma que la petición contiene un token antiforgery válido y que se dirige a la acción correcta. No deshabilites ValidateAntiForgeryToken para estudiar Required o Range. De lo contrario, habrás cambiado la causa del error que querías observar.
+
+**Aparece un 200 pero no hay página de confirmación.** Comprueba si el controlador ha devuelto la vista Crear debido a un ModelState inválido. La respuesta 200 puede ser el HTML correcto del formulario con mensajes; no significa que un producto se haya aceptado.
+
+**Los mensajes no aparecen junto a los campos.** Comprueba las reglas activadas, `ModelState.IsValid` y los `span asp-validation-for` de la vista. Si utilizas `ModelOnly` en el resumen, recuerda que los errores de propiedades pueden no aparecer allí. Prueba temporalmente `All` para estudiar la diferencia.
+
+**El precio se borra o no conserva lo escrito.** Observa el valor recibido, los atributos que genera Input Tag Helper, la conversión decimal y el contenido de ModelState. Si un formato no puede convertirse, el valor intentado puede conservarse en el estado de enlace; no reemplaces a ciegas el modelo entero por un Producto nuevo al devolver la vista.
+
+**La validación funciona con JavaScript, pero deja de hacerlo al desconectarse de Internet.** Diferencia los dos mecanismos. La CDN afecta a los scripts de cliente. Una entrada inválida que se envía al servidor con token válido debe seguir siendo detectada mediante ModelState. Investiga por separado la descarga del JavaScript y la ejecución del POST.
+
+**Un producto inválido llega a Confirmacion.** Comprueba si quedaron comentadas las DataAnnotations del modelo o si algún cambio ha omitido la comprobación de IsValid. Una regla que existe solo como comentario no valida nada. Y un Input Tag Helper no crea de forma automática reglas de negocio que nunca declaramos.
+
+## Resultado final de P2.3 y puente hacia P2.4
+
+Al completar el recorrido esencial, el alumno debe poder describir sin ambigüedad las responsabilidades de cada elemento: **el navegador envía campos; el binder los convierte; DataAnnotations expresa restricciones; ModelState reúne errores; el controlador decide si devuelve el formulario o la confirmación; y Razor representa valores y mensajes**.
+
+El proyecto conserva las reglas activadas y los elementos de validación en el flujo principal. La demostración de scripts y los retos no deben impedir que la jornada avance hacia las operaciones persistentes. **P2.4** incorporará SQL Server Express LocalDB y Entity Framework Core para que crear, editar o eliminar productos produzca cambios reales en el catálogo. Como el alumnado ya conoce EF Core, la atención estará puesta en cómo se combina el modelo de entrada validado con las acciones MVC y las vistas Razor.
