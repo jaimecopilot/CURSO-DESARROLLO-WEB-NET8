@@ -760,6 +760,137 @@ Abre la página local /productos. Debe continuar operativa, porque mantenemos IP
 
 La evidencia final no es simplemente que un archivo compiló. Es que el comportamiento visible se mantiene y que el componente dejó de conocer detalles HTTP. Al cumplir ambas condiciones hemos efectuado un refactor que el alumno puede justificar.
 
+
+### P4.2 — Taller adicional: demostrar la DI cambiando una implementación
+
+Hasta ahora sabemos que CatalogoRemoto.razor no debería conocer detalles HTTP después del refactor. Vamos a comprobar esa propiedad con un experimento distinto de los anteriores: **sustituir el origen de los productos sin tocar el componente**. La finalidad no es crear otra aplicación de negocios, sino poner a prueba el significado de una interfaz inyectada.
+
+Trabaja en una copia del proyecto 4.2, conservando intacto el estado que consume la API real. En la carpeta Services crea ProductosApiSimuladoService.cs. La clase implementará los mismos dos métodos de IProductosApiService, pero no tendrá HttpClient, rutas ni serialización JSON. Inicialmente ofrecerá dos objetos conocidos: Libreta simulada y Bolígrafo simulado.
+
+Esta implementación debe utilizar los mismos DTO públicos que espera la página, incluido un identificador asignado al crear otro elemento. De ese modo la UI no distingue los datos por su tipo C#, sino por el origen de la implementación que resuelve la interfaz.
+
+#### Paso S1. Escribir la clase que satisface el contrato
+
+El código siguiente también está disponible como archivo docente en el proyecto 4.2, pero debes introducirlo en la copia de trabajo para comprobar cómo la interfaz obliga a proporcionar las firmas correctas.
+
+
+~~~csharp
+using CursoWeb.Blazor.Models;
+
+namespace CursoWeb.Blazor.Services;
+
+// RETO DOCENTE P4.2: implementación alternativa sin comunicación HTTP.
+// Se mantiene sin registrar por defecto; la app sigue usando ProductosApiService.
+// Para activarla se sustituye temporalmente el registro de IProductosApiService
+// en Program.cs; NO se registran las dos implementaciones a la vez.
+public sealed class ProductosApiSimuladoService : IProductosApiService
+{
+    private readonly List<ProductoDto> productos =
+    [
+        new ProductoDto(101, "Libreta simulada", 4.25m),
+        new ProductoDto(102, "Bolígrafo simulado", 1.10m)
+    ];
+
+    private int siguienteId = 102;
+
+    public Task<IReadOnlyList<ProductoDto>> ObtenerAsync()
+    {
+        IReadOnlyList<ProductoDto> resultado = productos.ToArray();
+        return Task.FromResult(resultado);
+    }
+
+    public Task<ProductoDto> CrearAsync(CrearProductoDto solicitud)
+    {
+        if (string.IsNullOrWhiteSpace(solicitud.Nombre) || solicitud.Precio <= 0)
+            throw new ArgumentException("Nombre y precio deben ser válidos.");
+
+        var creado = new ProductoDto(
+            Interlocked.Increment(ref siguienteId),
+            solicitud.Nombre.Trim(),
+            solicitud.Precio);
+        productos.Add(creado);
+        return Task.FromResult(creado);
+    }
+}
+
+~~~
+
+
+No confundas el nombre ProductosApiSimuladoService con una API adicional. Esta clase no publica HTTP; vive dentro del host Blazor, igual que el componente. Su finalidad es responder a la misma abstracción sin consumir una red.
+
+#### Paso S2. Cambiar solamente el registro
+
+En Program.cs localiza el registro del cliente tipado. Coméntalo temporalmente y registra en su lugar:
+
+~~~csharp
+builder.Services.AddScoped<IProductosApiService, ProductosApiSimuladoService>();
+~~~
+
+Mantén AddRazorComponents, AddInteractiveServerComponents y el servicio IProductosMemoriaService del módulo 3. No sustituyas todos los registros por una implementación distinta; solo cambia la asignación de IProductosApiService.
+
+La elección AddScoped permite que la instancia de demostración mantenga una colección propia mientras dura el ámbito correspondiente. No es un almacenamiento persistente. En Blazor Interactive Server la duración del ámbito está ligada al circuito y no debe equipararse a una base de datos compartida por todos los navegadores.
+
+#### Paso S3. Consultar sin arrancar la API
+
+Detén el proceso de la API auxiliar y arranca únicamente Blazor desde esta copia. Abre /catalogo-remoto. Ahora deben aparecer Libreta simulada y Bolígrafo simulado, no Cuaderno y Lápiz. La pantalla sigue mostrando su lista y su formulario, pero el origen es otro.
+
+Este resultado es una demostración de desacoplamiento. El componente no ha cambiado la ruta, no ha introducido un condicional especial ni ha tenido que conocer la clase concreta. El contenedor ha proporcionado una implementación diferente de la misma interfaz.
+
+#### Paso S4. Crear un producto con la implementación simulada
+
+Escribe Agenda simulada y precio 6,40. El botón sigue ejecutando CrearAsync desde el componente, pero la implementación del contrato trabaja sobre su lista local. Debe generar un identificador de demostración y devolver un ProductoDto con el nombre y el precio normalizados.
+
+La página debe añadir el objeto recibido y presentar el mensaje de confirmación. Observa qué no ha ocurrido: no existe petición a /api/productos ni respuesta 201. Este experimento valida el acoplamiento del componente a una interfaz, **no** sustituye las pruebas HTTP realizadas con el servidor real.
+
+#### Paso S5. Restaurar la comunicación remota
+
+Retira el registro simulado y restaura el registro tipado:
+
+~~~csharp
+builder.Services.AddHttpClient<IProductosApiService, ProductosApiService>(
+    cliente =>
+    {
+        cliente.BaseAddress = new Uri(
+            builder.Configuration["ProductosApi:BaseUrl"]
+            ?? "http://localhost:5081/");
+        cliente.Timeout = TimeSpan.FromSeconds(10);
+    });
+~~~
+
+Arranca de nuevo la API y después Blazor. El catálogo debe volver a mostrar Cuaderno y Lápiz. Verifica que la clase simulada sigue existiendo como variante pedagógica pero no está registrada por defecto.
+
+#### Paso S6. Provocar un defecto de DI que no sea HTTP
+
+Comenta temporalmente ambos registros de IProductosApiService y ejecuta la aplicación. Al cargar un componente que solicita esa interfaz, el host no puede resolver su dependencia. Eso es distinto de recibir 404 o una excepción por conexión; ni siquiera hemos llegado a iniciar una solicitud HTTP.
+
+Restablece el registro real y comprueba que la página vuelve a funcionar. Este contraste permite clasificar incidencias: clase no registrada, cliente configurado con puerto incorrecto, servidor que devuelve un rechazo y cuerpo JSON incompatible.
+
+#### Paso S7. Explicar por qué el comportamiento no demuestra persistencia
+
+Crea un producto con el servicio simulado y abre la página desde otra sesión o reinicia Blazor. No presupongas que aparecerá la misma colección. El servicio simulado utiliza una lista en memoria dentro de la instancia que ha proporcionado DI. No comparte automáticamente una base de datos y no se ha diseñado como almacenamiento global.
+
+El objetivo de este paso es comprender que sustituir el servicio mantiene la interfaz, pero puede modificar la procedencia, duración y consistencia de los datos. La abstracción define operaciones y tipos; no convierte por sí sola todas las implementaciones en equivalentes bajo cualquier condición de persistencia.
+
+### P4.2 — Interpretar las cuatro pruebas de desacoplamiento
+
+| Ensayo | Fuente que resuelve IProductosApiService | Necesita API HTTP | Resultado visible |
+|---|---|---|---|
+| Estado habitual | ProductosApiService | Sí | Cuaderno y Lápiz |
+| Variante simulada | ProductosApiSimuladoService | No | Libreta y Bolígrafo simulados |
+| Sin registrar interfaz | Ninguna | No llega a usarla | Error de resolución de dependencia |
+| Registro real con puerto incorrecto | ProductosApiService | Intenta usarla | Error de comunicación |
+
+Tras completar la tabla, vuelve a la implementación real. Debes poder explicar que el objetivo de P4.2 no era eliminar la comunicación HTTP, sino ponerla en una clase dedicada que puede intercambiarse sin reescribir la página.
+
+### P4.2 — Reconstruir mentalmente la cadena de llamadas
+
+Cuando el usuario abre /catalogo-remoto, Blazor activa el componente que solicita IProductosApiService. El contenedor consulta su configuración, crea o resuelve ProductosApiService y proporciona un HttpClient con la dirección base configurada. El componente invoca ObtenerAsync, el servicio realiza GET, la API devuelve el JSON y el componente actualiza la colección.
+
+Cuando sustituimos el registro, las dos primeras decisiones son diferentes: el contenedor entrega ProductosApiSimuladoService, que construye la lista local y la devuelve de inmediato. El componente sigue llamando al mismo método. Por eso conserva el código de representación de tarjetas, mensajes y botones.
+
+Esa narración deja claro que la inyección de dependencias no es una tecnología aislada del comportamiento. Se utiliza para definir quién decide qué implementación proporciona los productos. Esa decisión permite refactorizar, enseñar y probar separadamente componentes y comunicación.
+
+
 ### Consolidación
 
 El resultado de P4.2 no es una pantalla nueva, sino una frontera de responsabilidades: el componente presenta y gestiona el estado; `IProductosApiService` expresa las operaciones que necesita; `ProductosApiService` resuelve el transporte; y la API mantiene las reglas del servidor. En P4.3 estudiaremos y modificaremos esta última.
