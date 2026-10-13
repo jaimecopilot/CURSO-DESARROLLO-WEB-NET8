@@ -559,6 +559,84 @@ La comprobación decisiva no es que exista una clase nueva: es que, tras sustitu
 
 En P4.3 abriremos la implementación de la API que ya proporcionamos al comenzar 4.1. De ese modo el alumno ya conoce el consumo y puede comprender ahora el origen de las respuestas sin introducir otra aplicación ajena al laboratorio.
 
+
+### 4.2.7. Diseñar una interfaz a partir del comportamiento y no de la tecnología
+
+La interfaz IProductosApiService es una decisión arquitectónica pequeña y deliberada. Si se llamara IClienteHttp, la presentación seguiría pensando en tecnología de comunicación en vez de operaciones sobre productos. Los métodos ObtenerAsync y CrearAsync expresan lo que necesita la pantalla, mientras que la implementación ProductosApiService conoce las rutas, la serialización, el tiempo de espera y la interpretación de respuestas HTTP.
+
+Una buena comprobación de este diseño es leer el componente después del refactor. Si contiene literales de rutas como api/productos o crea un HttpClient mediante IHttpClientFactory, la extracción está incompleta. Si solo usa la interfaz y mantiene la lógica de presentación, la frontera es visible.
+
+**No toda clase necesita una interfaz.** Aquí tiene valor porque ya hemos enseñado el antes y el después: podemos comparar cómo queda el componente y por qué la comunicación queda localizada. No se debe convertir este ejercicio en una regla dogmática que obligue a crear interfaces vacías para todos los objetos de una aplicación.
+
+### 4.2.8. Inyección de dependencias: quién crea realmente el objeto
+
+Una clase necesita poder obtener sus colaboradores. Sin inyección, el componente podría construir una implementación concreta, crear su HttpClient y escribir la URL del servidor. Así conocería muchos detalles que no pertenecen a una vista.
+
+Con inyección, el contenedor ASP.NET Core mantiene un conjunto de registros. Al solicitar IProductosApiService resuelve ProductosApiService y le suministra un cliente configurado. El componente recibe el contrato, no una lista de instrucciones de construcción.
+
+~~~csharp
+builder.Services.AddHttpClient<IProductosApiService, ProductosApiService>(
+    cliente =>
+    {
+        cliente.BaseAddress = new Uri(
+            builder.Configuration["ProductosApi:BaseUrl"]
+            ?? "http://localhost:5081/");
+        cliente.Timeout = TimeSpan.FromSeconds(10);
+    });
+~~~
+
+Este registro combina dos ideas diferentes: la relación entre una interfaz y una clase concreta, y la configuración del cliente HTTP que esa clase recibe. Una modificación del puerto afecta a la configuración y no al código de la página. Una nueva implementación que obtuviera datos de otra fuente podría satisfacer la misma interfaz mientras mantuviera sus operaciones y significados.
+
+### 4.2.9. Por qué no construimos HttpClient en cada pulsación
+
+HttpClient administra mecanismos de conexión que conviene reutilizar. La fábrica de clientes gestiona adecuadamente los manejadores subyacentes y facilita una configuración centralizada. Eso evita que cada componente resuelva por su cuenta cómo mantener conexiones o cuánto debe esperar una respuesta.
+
+En el primer punto utilizamos un cliente con nombre porque queríamos visualizar cada llamada. En este segundo punto empleamos un cliente tipado porque su configuración aparece asociada a ProductosApiService. Ambos enfoques son válidos, pero muestran grados distintos de encapsulación.
+
+La mejora no consiste en ganar velocidad visible por cambiar una única línea. Consiste en reducir la cantidad de lugares que deben conocer decisiones de infraestructura y permitir que la página conserve únicamente las responsabilidades de presentación.
+
+### 4.2.10. Evaluar un refactor mediante invariantes
+
+Un refactor cambia organización interna sin buscar modificar el comportamiento observable. Si después del cambio el catálogo deja de cargar, desaparece la validación o el botón ya no muestra el resultado de un POST, algo ha salido mal. No basta con que la aplicación compile.
+
+Para razonar sobre la preservación del comportamiento definimos invariantes: al abrir /catalogo-remoto con la API disponible se muestran los productos; un alta válida añade exactamente el recurso confirmado; un alta inválida presenta un mensaje sin añadir elementos; una API apagada produce un error visible; la pantalla no conoce ya rutas HTTP.
+
+Las primeras cuatro invariantes hablan de experiencia y comportamiento. La última habla de organización del código. Una comprobación completa necesita ambas categorías: una página puede conservar la UI y seguir mal acoplada, o separar perfectamente las clases y haber introducido una regresión funcional.
+
+### 4.2.11. No confundir responsabilidad con ubicación física
+
+Extraer una clase de servicio no significa que la comunicación se traslade a otro servidor. ProductosApiService sigue viviendo en el proceso Blazor, igual que el componente; simplemente concentra la implementación del cliente HTTP. La API auxiliar permanece en su propio proceso y responde a las peticiones.
+
+La separación conceptual es útil incluso cuando dos clases comparten un ensamblado. Un servicio de aplicación no se convierte automáticamente en microservicio por llamarse servicio. Del mismo modo, llamar a una API no obliga a introducir colas, autenticación externa o una arquitectura distribuida compleja.
+
+### 4.2.12. Manejar errores sin esconder información relevante
+
+Nuestro servicio lanza excepciones cuando no puede completar HTTP o deserializar datos. El componente las transforma en mensajes comprensibles. Otra alternativa sería devolver un tipo resultado que indicara explícitamente éxito o error; no lo implementaremos porque el objetivo de la jornada no es diseñar una biblioteca general de gestión de resultados.
+
+Sí necesitamos comprender que convertir todas las excepciones en una lista vacía sería un error semántico. El consumidor ya no sabría si existe un catálogo vacío o si la API se ha detenido. La interfaz podría afirmar «No hay productos» en una situación en la que en realidad no logró consultar el servidor.
+
+El punto donde se traduce un fallo técnico a un mensaje de usuario es una decisión de arquitectura. En este curso el servicio conserva información sobre HTTP y el componente decide qué expresar en pantalla. El alumno debe poder explicar dónde observa cada clase de problema.
+
+### 4.2.13. Prueba mental de sustitución
+
+Imaginemos que mañana el docente reemplaza la API de prueba por la API que construye un alumno. La dirección cambia temporalmente, pero ambas respetan GET y POST, las rutas y los DTO. Con la separación de 4.2 solo debe revisarse la configuración del cliente y comprobarse el contrato remoto.
+
+Si en cambio la API devuelve una forma distinta, la interfaz por sí sola no puede reparar mágicamente el desacuerdo. La capa de servicio es el lugar apropiado para estudiar una posible adaptación de datos, pero el ejercicio evita esa complejidad para mantener visible el contrato original.
+
+El valor didáctico del refactor queda así conectado con 4.3: construir otro servidor que cumpla el contrato es una prueba práctica de que las responsabilidades están bien ubicadas.
+
+### 4.2.14. Lista razonada de errores de implementación
+
+**Error de registro:** el componente solicita IProductosApiService pero el contenedor no tiene una implementación. La página puede fallar al activarse. La corrección consiste en registrar el servicio, no en capturar una excepción HTTP que todavía no ha ocurrido.
+
+**Error de URL:** el servicio se resuelve y ejecuta, pero el cliente apunta a un puerto incorrecto. Ahora sí nos encontramos ante un problema de configuración o comunicación.
+
+**Error de contrato:** la API responde con JSON incompatible. No es un problema de DI; debemos comparar la forma del JSON y los tipos del DTO.
+
+**Error de estado:** el servicio devuelve productos, pero la interfaz continúa mostrando cargando. Debemos revisar el código del componente.
+
+La razón para separar estas cuatro categorías es que cada una se manifiesta en un límite distinto. Cuando el alumno aprende a situar el fallo, empieza a poder investigar aplicaciones que no conoce de antemano.
+
 ## 4.3. Comprender y modificar la API auxiliar de Productos
 
 ### Por qué estudiamos ahora el servidor
