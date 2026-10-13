@@ -615,6 +615,160 @@ Al terminar 4.1, el alumnado debe poder describir con sus palabras al menos cuat
 
 
 
+
+### Ampliación 4.1 — Diseñar un cliente HTTP que informe sin confundir al usuario
+
+En la primera versión del catálogo aprendimos a consumir JSON mediante métodos convenientes. Un objetivo posterior, especialmente útil cuando el servicio remoto no está bajo nuestro control, consiste en **distinguir explícitamente las situaciones de error**. La finalidad no es escribir más condiciones por escribirlas, sino construir un comportamiento que el usuario pueda interpretar y el desarrollador pueda investigar.
+
+El diseño de un cliente comienza por una decisión semántica: ¿qué considera el componente un resultado válido? En nuestro catálogo, una respuesta 200 con una lista vacía es válida. Una respuesta 200 con un objeto que no puede convertirse en lista no lo es. Una respuesta 400 tras un POST significa que el servidor rechazó datos; no significa que el servidor esté apagado. Si se rompe la conexión, ni siquiera disponemos de un código de estado del servidor remoto.
+
+#### Una clasificación de resultados independiente de los textos visuales
+
+Podemos modelar las observaciones con un tipo pequeño y explícito:
+
+~~~csharp
+public enum TipoFalloRemoto
+{
+    Ninguno,
+    RechazoHttp,
+    Conexion,
+    TiempoAgotado,
+    ContenidoIncompatible
+}
+
+public sealed record FalloRemoto(
+    TipoFalloRemoto Tipo,
+    int? CodigoHttp,
+    string Descripcion);
+~~~
+
+Este tipo no obliga a utilizar excepciones como texto de la interfaz. Permite hablar del problema en términos que pertenecen a la comunicación: código HTTP, conectividad, espera y contrato. La pantalla puede elegir después un mensaje apropiado.
+
+El código HTTP se guarda como nullable porque en una desconexión o un timeout puede no haber un código de respuesta de la API. Atribuirles arbitrariamente 404 o 500 sería engañoso. Los valores 404 y 500 solo deberían mostrarse como tales cuando realmente se hayan recibido de un servidor.
+
+No necesitamos convertir este pequeño modelo en una biblioteca genérica de resultados. Lo usamos para explicar una separación conceptual: **lo que se observó en la comunicación no es necesariamente el texto que se enseñará al usuario**.
+
+#### Leer primero el estado y después el contenido
+
+Para estudiar el protocolo con mayor detalle podemos escribir un método que reciba un HttpClient ya configurado y devuelva una colección únicamente cuando la respuesta haya sido satisfactoria:
+
+~~~csharp
+public static async Task<List<ProductoDto>> ObtenerCatalogoExplicitoAsync(
+    HttpClient cliente,
+    CancellationToken cancelacion = default)
+{
+    using var respuesta = await cliente.GetAsync(
+        "api/productos", cancelacion);
+
+    if (!respuesta.IsSuccessStatusCode)
+    {
+        throw new HttpRequestException(
+            $"La API devolvió {(int)respuesta.StatusCode}.",
+            null,
+            respuesta.StatusCode);
+    }
+
+    var productos = await respuesta.Content
+        .ReadFromJsonAsync<List<ProductoDto>>(
+            cancellationToken: cancelacion);
+
+    return productos ?? [];
+}
+~~~
+
+El método realiza tres operaciones separadas: obtiene una respuesta HTTP, comprueba que su estado es satisfactorio y convierte el cuerpo a un tipo C#. En las versiones compactas de GetFromJsonAsync esos pasos están reunidos; aquí aparecen desglosados para explicar su responsabilidad.
+
+La comprobación IsSuccessStatusCode evita intentar convertir un cuerpo de error en una lista de productos. Sin embargo, no garantiza que el JSON sea compatible; la deserialización todavía puede fallar. Por eso ambos tipos de error deben pensarse por separado.
+
+El parámetro CancellationToken también merece una explicación. Permite expresar que el consumidor ya no necesita seguir esperando una operación. No debe confundirse con una orden universal que deshace todo lo que el servidor remoto pudiera estar haciendo. Si cancelamos una lectura, el efecto es distinto de cancelar una creación después de que el servidor haya cambiado su estado.
+
+#### Evitar un error frecuente con los códigos de respuesta
+
+Supongamos que el servicio realiza GET y la API devuelve 404. El componente puede recibir una HttpRequestException con StatusCode cuando se usa la familia de métodos que valida estados de éxito. Si capturamos esa excepción sin estudiar su código, perdemos la diferencia entre ruta equivocada y red desconectada.
+
+Una alternativa de interfaz es mostrar una frase comprensible mientras registramos por separado el tipo de incidencia. Por ejemplo, el usuario puede ver «No se ha podido consultar el catálogo», y el diagnóstico técnico puede expresar «HTTP 404 en /api/productos». No es necesario mostrar detalles internos del servidor, nombres de clases o trazas de excepción en una aplicación pública.
+
+En el laboratorio docente sí tiene sentido permitir que el alumno vea el código HTTP, porque su objetivo es aprender a distinguir situaciones. Esa es la razón de haber creado una pantalla opcional de diagnóstico diferente de la página que utilizaría un usuario de negocio.
+
+#### Por qué no debemos reintentar automáticamente cualquier operación
+
+Los errores temporales invitan a introducir reintentos. En un GET de catálogo, repetir una lectura tras una desconexión breve podría ser razonable, siempre que se establezcan límites y condiciones. En un POST de creación, la decisión es más delicada: el servidor podría haber creado el recurso y perderse únicamente la respuesta.
+
+Imaginemos esta cronología:
+
+~~~text
+Cliente                      Servidor
+   | POST Regla                  |
+   |--------------------------->|
+   |                             | crea ID 3
+   |       (respuesta perdida)    |
+   |<------ conexión interrumpida |
+   | reintenta POST Regla         |
+   |--------------------------->|
+   |                             | crea ID 4
+~~~
+
+El cliente puede interpretar que la primera operación no quedó confirmada, pero no sabe que el servidor creó un producto. Si aplica una repetición ciega, puede terminar con dos. Este ejemplo explica la diferencia entre éxito del servidor y conocimiento del éxito por parte del cliente.
+
+Un sistema real puede resolver situaciones semejantes mediante identificadores de solicitud o claves de idempotencia, cuya interpretación y almacenamiento corresponden al contrato del servidor. No las añadimos automáticamente al laboratorio porque diseñar ese mecanismo implica decisiones de persistencia que no forman parte de M04.
+
+La conclusión no es «nunca repetir HTTP», sino **no equiparar un fallo al recibir la confirmación con la certeza de que no se ejecutó la operación**.
+
+#### Timeout y cancelación: dos razones distintas para dejar de esperar
+
+Un timeout definido al configurar HttpClient expresa un límite máximo de espera para la operación. Se utiliza para evitar que una petición permanezca pendiente indefinidamente. Un CancellationToken suele representar una señal externa de cancelación, por ejemplo que el usuario abandonó una operación o que el componente ya no necesita el resultado.
+
+Ambos pueden manifestarse como finalización cancelada desde el punto de vista de ciertas APIs. El código de captura debe evitar prometer al usuario que el servidor «canceló el alta» si no dispone de esa evidencia. Podemos informar de que se agotó la espera y permitir comprobar el estado real del catálogo antes de volver a crear el producto.
+
+Consideremos el caso de una pantalla que carga la lista mientras el usuario navega hacia otra página. Una implementación avanzada podría cancelar la operación pendiente cuando desaparece el componente. En este curso la versión obligatoria usa un flujo más sencillo; la lectura sobre cancelación sirve para entender las decisiones posteriores sin exigir un sistema nuevo de gestión de tareas.
+
+#### Un criterio de diagnóstico basado en evidencias
+
+Cuando el catálogo no funciona, no cambiamos componentes y puertos al azar. Seguimos un orden:
+
+1. Consultamos directamente la API desde un cliente HTTP, sin Blazor.
+2. Confirmamos que el host y puerto son los que aparecen en la configuración del servicio.
+3. Comprobamos el método y la ruta real de la solicitud.
+4. Leemos el código de estado recibido, si existe.
+5. Comparamos el cuerpo JSON con el DTO esperado.
+6. Estudiamos el estado de presentación del componente.
+
+Si el primer paso falla por conexión, todavía no tenemos evidencia de un defecto en el DTO. Si la API responde 200 con una lista correcta pero la página muestra un error, la investigación debe desplazarse al cliente o al componente. Si responde 400 a un POST inválido, la regla del servidor está funcionando como se diseñó.
+
+Este procedimiento es transferible a otras integraciones. No depende de que la tecnología remota sea exactamente nuestra Minimal API de .NET 8, porque las observaciones relevantes pertenecen al protocolo y al contrato de datos.
+
+#### Ejemplo razonado: la lista del componente no es la base de datos
+
+El componente mantiene una List<ProductoDto> porque necesita representar el catálogo. Esa lista es una instantánea local del estado que obtuvo de la API; no es una fuente de verdad universal.
+
+Si otro cliente envía un POST válido, la API crea un producto. La pantalla ya abierta no recibe automáticamente una notificación de cambio. Hasta que vuelva a consultar el servidor o implemente una estrategia de actualización, puede mostrar una lista anterior. Esto no demuestra que GET falle ni que el DTO esté mal; demuestra que estamos observando dos estados en instantes diferentes.
+
+Podríamos añadir un botón «Actualizar» que llame de nuevo a ObtenerAsync. La operación no tiene por qué reconstruir el componente entero: puede cargar datos nuevos, actualizar la colección y representar el resultado. En P4.2 ese botón se escribiría contra IProductosApiService, sin reintroducir detalles de URL en la pantalla.
+
+En una aplicación empresarial habría que decidir si se usan actualizaciones periódicas, avisos de cambio o una caché con caducidad. No necesitamos implantarlas para enseñar el principio: **una respuesta HTTP es una representación obtenida en un momento, no una conexión mágica que sincroniza todos los consumidores**.
+
+#### Qué significa realmente garantizar la compatibilidad de JSON
+
+El tipo ProductoDto de Blazor contiene tres campos conocidos. La API los envía como propiedades del JSON. Si añadimos una nueva propiedad opcional en la respuesta, algunos consumidores podrán ignorarla sin problemas, mientras que otros podrían imponer reglas estrictas. Si cambiamos la raíz de una lista a un objeto, nuestro cliente actual dejará de corresponder a la respuesta.
+
+Por tanto, no basta con que los cuerpos sean JSON válido ni con que ambas aplicaciones utilicen C#. Lo que las hace interoperables es que acuerden métodos, rutas, tipos, estructura, códigos de estado y significados. El servicio tipado de 4.2 concentra ese conocimiento técnico en un lugar, pero no elimina la obligación de respetar el contrato remoto.
+
+La API reconstruida en 4.3 permitirá comprobar esta idea de manera directa: dos proyectos escritos de forma independiente pueden trabajar juntos mientras mantienen el contrato, aunque no compartan sus clases concretas.
+
+#### Sobre errores y mensajes de detalle en producción
+
+Un cliente HTTP que recibe un error debe poder informar al usuario sin revelar información que no necesita conocer. No sería apropiado mostrar automáticamente todos los detalles de una excepción interna, una cadena de conexión o una traza del servidor en una página pública.
+
+En el entorno de desarrollo, los mensajes técnicos son útiles para el aprendizaje y la depuración. En un entorno publicado, la gestión de errores debe estar diseñada para aportar una referencia diagnóstica sin exponer datos internos. Esta diferencia también explica por qué la demostración de seguridad del punto 4.4 restringe ciertas rutas a Development.
+
+No convertimos aquí el módulo en un curso de observabilidad, pero sí establecemos un hábito profesional: distinguir el mensaje que orienta al usuario de la información que necesita un desarrollador para investigar el fallo.
+
+#### Síntesis de la ampliación HTTP
+
+Un cliente robusto no es el que contiene más bloques catch, sino el que conserva correctamente el significado de las situaciones que encuentra. En nuestro laboratorio eso significa diferenciar lectura vacía y error, consulta y creación, código HTTP y desconexión, éxito del servidor y confirmación recibida, contrato JSON y estado visual.
+
+La interfaz seguirá siendo sencilla. El valor añadido de este desarrollo teórico es que ahora podemos justificar cada una de sus decisiones y reconocer por qué una implementación aparentemente corta puede ser correcta o engañosa según lo que haga con las respuestas.
+
 ## 4.2. Extraer el consumo HTTP a una capa de servicio
 
 ### De un componente que hace todo a dos responsabilidades
