@@ -540,7 +540,7 @@ footer { text-align: center; font-size: 0.9rem; color: #4b5563; padding: 2rem; }
 
 **Archivo íntegro:** `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc/README.md`
 
-~~~markdown
+~~~~markdown
 # Proyecto ejecutable del punto 1.1
 
 **AUTOR: JAIME GALLO**
@@ -566,7 +566,7 @@ Abrir http://localhost:5091. Detener con Ctrl+C.
 - **RETO 1.1:** en `Controllers/HomeController.cs` descomentar la asignación `X-Curso-Reto`. En `Views/Home/Index.cshtml` retirar los delimitadores del comentario `RETO 1.1` para hacer visible el párrafo `reto-1-1`. El reto dispone de código completo y explicación en P1.1, apartado G.
 
 Las explicaciones y el recorrido completo se encuentran en la sección 1.1 de ../../../PRACTICAS/M01_PRACTICAS.md .
-~~~
+~~~~
 
 **Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
 
@@ -1313,7 +1313,7 @@ RETO 1.1 (fin) *@
 
 **Responsabilidad y lectura guiada.** Guía de ejecución y activación del estado 1.2. El archivo acompaña al alumno y no se compila. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
 
-~~~markdown
+~~~~markdown
 # Punto 1.2 — Evolución reproducible de MVC
 
 **AUTOR: JAIME GALLO**
@@ -1345,7 +1345,7 @@ dotnet run --no-launch-profile --urls http://localhost:5091
 Detener y volver a ejecutar para observar los cambios de cada estado.
 
 La práctica completa está en `../../../PRACTICAS/M01_PRACTICAS.md`, sección P1.2.
-~~~
+~~~~
 
 **Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.2. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
 
@@ -2083,7 +2083,7 @@ else
 
 **Responsabilidad y lectura guiada.** Guía del laboratorio que describe estructura, recursos y decisiones de publicación, sin lógica compilada. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
 
-~~~markdown
+~~~~markdown
 # Punto 1.3 — Estructura y convenciones MVC
 
 **AUTOR: JAIME GALLO**
@@ -2113,7 +2113,7 @@ Abrir `/` y `/Productos`. Ambos muestran sus páginas previas. No se utilizan se
 **Importante:** los archivos de texto y CSS ya existen, incluso cuando el enlace que permite descubrirlos en la navegación sigue comentado. Quitar un enlace del layout **no protege ni oculta** un archivo dentro de `wwwroot`. Esta distinción es parte del reto.
 
 Consulta [la práctica P1.3](../../../PRACTICAS/M01_PRACTICAS.md) para el desarrollo completo y la comprobación en el navegador.
-~~~
+~~~~
 
 **Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
 
@@ -2974,7 +2974,7 @@ else
 
 **Por qué se necesita este archivo.** Describe los casos HTTP que se ensayan y qué alternativas están comentadas. Es apoyo docente y no define un endpoint. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
 
-~~~markdown
+~~~~markdown
 # P1.4 — Controladores, acciones, parámetros y routing
 
 **AUTOR: JAIME GALLO**
@@ -3002,7 +3002,7 @@ En el estado inicial funcionan `/` y `/Productos`, pero aún no se han habilitad
 - **RETO 1.4:** retirar las líneas delimitadoras de `RETO 1.4` en el controlador; `GET /catalogo/resumen/2` devuelve JSON; `/catalogo/resumen/99` devuelve 404. Un segmento no entero tampoco coincide con la plantilla.
 
 Los bloques están **incluidos en este proyecto** y se explican con el código completo en la sección P1.4 de `../../../PRACTICAS/M01_PRACTICAS.md`.
-~~~
+~~~~
 
 **Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.4. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
 
@@ -4102,7 +4102,7 @@ footer { text-align: center; font-size: 0.9rem; color: #4b5563; padding: 2rem; }
 
 **Por qué se necesita este archivo.** Documenta la evolución 1.5 y las actividades autónomas para continuar sin perder el recorrido básico del módulo. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
 
-~~~markdown
+~~~~markdown
 # P1.5 — Vistas Razor, layouts y vistas parciales
 
 **AUTOR: JAIME GALLO**
@@ -4127,7 +4127,7 @@ dotnet run --no-launch-profile --urls http://localhost:5091
 - **RETO 1.5:** abrir `Views/Shared/_TarjetaProducto.cshtml` y eliminar las **dos líneas delimitadoras** del bloque Razor `RETO 1.5`. La condición `@if (Model.Precio < 3m)` añade `Precio económico` **solo a Lápiz** tanto en la lista de tarjetas como en su detalle.
 
 En `../../../PRACTICAS/M01_PRACTICAS.md` (sección P1.5) se explican todas las instrucciones, el código exacto, su comportamiento y los resultados esperados.
-~~~
+~~~~
 
 **Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
 
