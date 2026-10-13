@@ -2297,7 +2297,33 @@ La finalidad de este recorrido no consiste en convertir seis horas de clase en u
 
 
 
-### 5.5.19. Conclusión del curso
+
+### 5.5.41. Caso integrador: tres respuestas distintas no significan que el curso tenga datos contradictorios
+
+Al concluir el recorrido, imaginemos una demostración simultánea en el aula. Una persona abre el catálogo remoto de Blazor B y ve **Cuaderno y Lápiz**; otra abre el catálogo de MVC A desde Visual Studio y ve los productos almacenados en **SQL Server Express LocalDB**; una tercera consulta la ruta `/Productos` de la publicación MVC ejecutada en Docker y obtiene **503 Service Unavailable**. ¿Cuál de las tres observaciones es correcta?
+
+Las tres pueden serlo. Para demostrarlo no debemos empezar modificando datos, sino identificando de dónde procede cada respuesta.
+
+En **Blazor B**, el componente utiliza el servicio HTTP tipado para consultar la API auxiliar. Esa API mantiene productos en memoria y los devuelve mediante JSON. Una recarga de la página vuelve a pedir una representación a ese servidor; detener y reiniciar la API recrea sus valores iniciales. Nada de ello modifica automáticamente el catálogo de MVC A.
+
+En **MVC A bajo Windows**, la acción que representa productos utiliza el contexto EF Core configurado con SQL Server Express LocalDB. Si la instancia existe y el usuario dispone de acceso, los productos pueden persistir entre ejecuciones del host. La interfaz HTML se genera mediante controladores y vistas Razor, sin utilizar el servicio de productos de Blazor B.
+
+En **Docker Linux**, se ejecuta esa misma MVC A con `Despliegue:SinLocalDb=true`. El contenedor puede servir la portada y los recursos estáticos, pero la ruta CRUD recibe un 503 deliberado porque no se ha trasladado LocalDB al entorno Linux. La respuesta no ofrece una tercera colección de productos: declara que esa funcionalidad no participa en el ensayo.
+
+| Observación | Proceso responsable | Origen de datos o condición | Interpretación correcta |
+|---|---|---|---|
+| Blazor muestra dos productos | Blazor B consulta su API HTTP | Diccionario en memoria de la API | Estado remoto recibido por el componente |
+| MVC muestra registros | Host MVC A en Windows | EF Core y SQL Server Express LocalDB | Vista generada a partir de consultas SQL |
+| MVC Docker devuelve 503 | Host MVC A dentro del contenedor | Modo explícito sin LocalDB | Hospedaje disponible, CRUD no comprobado |
+
+El caso pone de manifiesto una competencia transversal: **dos pantallas pueden compartir el nombre «Productos» sin compartir almacenamiento, proceso ni ciclo de vida**. Tampoco dos respuestas HTTP de una misma DLL acreditan las mismas dependencias.
+
+Si el alumno comprende este contraste, estará en condiciones de explicar por qué debe consultar la API directamente al depurar Blazor, por qué necesita comprobar LocalDB al estudiar el CRUD MVC y por qué una prueba satisfactoria de IIS o Docker no sustituye una prueba real de persistencia.
+
+La conclusión técnica no depende del número de comandos ejecutados: depende de poder reconstruir para cada resultado la secuencia **cliente → proceso → ruta → dependencia → respuesta**, sin confundir el contenido mostrado con la infraestructura que lo produjo.
+
+
+### 5.5.42. Conclusión del curso
 
 Tras M05 el alumno habrá recorrido dos ideas complementarias: una aplicación Blazor que se comunica correctamente con una API y una aplicación MVC que puede ser publicada y ejecutada en distintas modalidades de hospedaje. Habrá aprendido a distinguir compilación de ejecución, respuesta HTTP de funcionamiento completo, interfaz de servidor, y estado temporal de persistencia.
 
