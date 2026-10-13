@@ -1541,6 +1541,143 @@ Este diagrama muestra la ruta de éxito. En la primera etapa, los campos del for
 Podemos comparar ese recorrido con el de una creación rechazada. Si el servidor devuelve 400, el servicio no obtiene un ProductoDto creado; su comprobación de estado genera una excepción que el componente transforma en mensaje de error. La lista no debería añadir un producto que el servidor nunca confirmó. La diferencia entre ambas rutas no está en el botón, sino en la respuesta que la API emitió.
 
 
+
+### Ampliación 4.3 — Un recurso también puede modificarse y eliminarse
+
+El recorrido esencial del curso se limita a consultar y crear. Aun así, para comprender qué significa un contrato REST completo conviene estudiar cómo evolucionaría la API si el catálogo tuviera que aceptar cambios sobre recursos existentes. Esta ampliación es de lectura y experimentación autónoma: no forma parte de los cuarenta y cinco minutos inicialmente reservados a la construcción mínima del servidor.
+
+Hasta ahora identificábamos un producto mediante su ID y obteníamos su representación con GET /api/productos/{id}. Para modificarlo necesitamos decidir qué recurso recibe la operación, qué datos nuevos son admisibles y cuál será la respuesta si ese recurso ya no existe. Es importante separar esas decisiones del formulario Blazor: la API también podría recibir una actualización desde PowerShell, una aplicación de escritorio o un cliente escrito en otro lenguaje.
+
+#### Un contrato de actualización sin confundir el identificador con los datos
+
+Para este ejemplo elegimos PUT /api/productos/{id}. El identificador aparece en la ruta, mientras que los nuevos atributos editables viajan en el cuerpo. Definimos un tipo de entrada que no incorpora el ID:
+
+~~~csharp
+record ActualizarProductoApi(string Nombre, decimal Precio);
+~~~
+
+¿Por qué no reutilizamos directamente ProductoApi, que sí incluye Id? Porque no queremos plantear dos identificadores potencialmente distintos, uno en la URL y otro en el JSON. La URL designa el recurso que vamos a modificar y el cuerpo describe el nuevo nombre y precio. Un contrato diferente podría exigir un identificador también en el cuerpo y comprobar su coincidencia, pero eso añadiría una regla que no necesitamos aquí.
+
+El cliente envía, por ejemplo:
+
+~~~http
+PUT /api/productos/1 HTTP/1.1
+Host: localhost:5081
+Content-Type: application/json
+
+{"nombre":"Cuaderno A4","precio":3.20}
+~~~
+
+Si la operación es correcta, devolvemos 200 y el objeto actualizado. Elegimos esa respuesta porque facilita observar el resultado desde un cliente HTTP; también existen diseños que responden 204 sin cuerpo, pero nuestro caso mantiene la continuidad pedagógica con POST y GET.
+
+#### Implementar PUT a partir de los contratos existentes
+
+En la API de memoria disponemos de un diccionario por ID. Debemos comprobar la entrada, verificar que existe un recurso y actualizarlo. Para un laboratorio que no aborda transacciones complejas, la solución puede escribirse de manera contenida:
+
+~~~csharp
+app.MapPut("/api/productos/{id:int}",
+    (int id, ActualizarProductoApi entrada) =>
+{
+    if (string.IsNullOrWhiteSpace(entrada.Nombre) ||
+        entrada.Precio <= 0)
+        return Results.BadRequest("Nombre y precio deben ser válidos.");
+
+    if (!productos.ContainsKey(id))
+        return Results.NotFound();
+
+    var actualizado = new ProductoApi(
+        id, entrada.Nombre.Trim(), entrada.Precio);
+    productos[id] = actualizado;
+    return Results.Ok(actualizado);
+});
+~~~
+
+Este código permite explicar el recorrido de una solicitud y los tres estados de salida. Una entrada inválida se rechaza con 400. Un identificador desconocido produce 404. Una actualización correcta devuelve 200 y el producto con el mismo ID. La modificación afecta a la representación que GET devolverá posteriormente.
+
+Hay, sin embargo, una limitación concreta de concurrencia que no debemos ocultar. Entre comprobar ContainsKey y asignar el nuevo valor, otra operación podría haber eliminado el producto. Si necesitáramos que «actualizar solo si todavía existe» fuera una operación atómica, deberíamos utilizar un mecanismo que garantizara esa condición. En el mismo ConcurrentDictionary existe TryUpdate, pero requiere comparar el valor anterior. Aquí dejamos visible la limitación del ejemplo básico en vez de afirmar que proporciona garantías que no se han implementado.
+
+Podemos mejorar ese punto con un bucle de actualización condicional:
+
+~~~csharp
+app.MapPut("/api/productos/{id:int}/condicional",
+    (int id, ActualizarProductoApi entrada) =>
+{
+    if (string.IsNullOrWhiteSpace(entrada.Nombre) ||
+        entrada.Precio <= 0)
+        return Results.BadRequest("Datos de actualización inválidos.");
+
+    while (productos.TryGetValue(id, out var anterior))
+    {
+        var nuevo = new ProductoApi(
+            id, entrada.Nombre.Trim(), entrada.Precio);
+
+        if (productos.TryUpdate(id, nuevo, anterior))
+            return Results.Ok(nuevo);
+    }
+    return Results.NotFound();
+});
+~~~
+
+Esta variante compara el valor observado con el valor que todavía existe en el diccionario. Si otro consumidor modificó el producto antes, el bucle vuelve a leer y reintenta con la nueva instantánea. No constituye por sí sola un sistema general de control de versiones de entidades: simplemente muestra cómo pensar sobre una operación concurrente al utilizar memoria compartida.
+
+En la práctica adicional podremos elegir una de las dos versiones como ejercicio de razonamiento. No se activan simultáneamente dos rutas de actualización para sustituir un contrato obligatorio: la ruta condicional utiliza una dirección separada.
+
+#### Eliminar un recurso con DELETE
+
+Para eliminarlo publicamos DELETE /api/productos/{id}. El cuerpo de solicitud no necesita describir de nuevo el producto: la URL identifica lo que queremos quitar.
+
+~~~csharp
+app.MapDelete("/api/productos/{id:int}", (int id) =>
+    productos.TryRemove(id, out _)
+        ? Results.NoContent()
+        : Results.NotFound());
+~~~
+
+TryRemove comprueba y elimina una entrada como operación del diccionario. Cuando encuentra el recurso, elegimos 204 No Content. El cliente sabe que se ha completado la eliminación sin esperar un objeto en la respuesta. Si el recurso ya no existe, este contrato devuelve 404.
+
+El significado de idempotencia merece una explicación precisa. Que DELETE sea idempotente significa que repetir una operación debería dejar el servidor en el mismo estado final que ejecutarla una sola vez; no exige necesariamente que todas las respuestas HTTP tengan el mismo código. En nuestro ejemplo, la primera eliminación de ID 1 produce 204 y la segunda produce 404. Tras ambas, el diccionario continúa sin contener ese ID.
+
+Con POST de creación ocurre algo diferente: repetir la petición puede producir dos recursos, cada uno con un nuevo identificador. Por eso no debemos aplicar indiscriminadamente reintentos automáticos de POST sin diseñar cómo evitaremos duplicaciones.
+
+#### Comparar las cuatro operaciones sobre el mismo recurso
+
+| Operación | Qué expresa | Entrada principal | Resultado habitual |
+|---|---|---|---|
+| GET /api/productos | Consulta colección | Ninguna | 200 con arreglo |
+| GET /api/productos/1 | Consulta detalle | ID en ruta | 200 o 404 |
+| POST /api/productos | Crea recurso | Nombre y precio | 201 o 400 |
+| PUT /api/productos/1 | Modifica recurso | ID y nuevos valores | 200, 400 o 404 |
+| DELETE /api/productos/1 | Elimina recurso | ID en ruta | 204 o 404 |
+
+La tabla es una simplificación del contrato que hemos elegido para el laboratorio. No afirma que todas las APIs reales deban utilizar exactamente esas respuestas en cualquier situación. Su propósito es que el alumno reconozca cómo método, ruta, entrada y estado cooperan para describir una operación.
+
+#### Cómo afecta una ampliación del servidor al cliente tipado
+
+El servicio actual de Blazor solo expone ObtenerAsync y CrearAsync, y eso es correcto porque son las operaciones requeridas por la pantalla. Que el servidor incorpore PUT y DELETE no obliga al cliente a empezar a utilizarlas: ampliar una API no implica actualizar todos sus consumidores.
+
+Si más adelante quisiéramos ofrecer edición remota, podríamos definir en IProductosApiService una operación ActualizarAsync que recibiera ID y datos. La implementación de infraestructura utilizaría PutAsJsonAsync o enviaría una solicitud equivalente, y el componente decidiría cuándo mostrar el resultado. El punto clave es conservar la separación aprendida: la UI no introduce rutas HTTP directamente porque necesita un nuevo botón.
+
+De forma análoga, un método EliminarAsync podría ejecutar DELETE y comprobar si el estado es 204, 404 u otro resultado. El componente mostraría una confirmación solo después de recibir una respuesta satisfactoria y actualizaría su lista a partir de la operación confirmada.
+
+No estamos obligados a construir aquí una pantalla de administración completa. El alumno debe entender qué nuevo contrato sería necesario, qué tipos circularían entre capas y por qué los controles visuales no sustituyen las validaciones del servidor.
+
+#### Recurso inexistente, entrada inválida y conflicto son conceptos diferentes
+
+Imaginemos que se recibe PUT con precio cero sobre un ID que no existe. Hemos escrito la validación antes de la búsqueda, de modo que la respuesta será 400 por entrada inválida. Si quisiéramos priorizar 404, tendríamos que cambiar el orden de las comprobaciones y definir explícitamente esa regla en el contrato.
+
+Ninguna de esas elecciones es una consecuencia automática de HTTP. Son decisiones del diseño de la API que los consumidores necesitan conocer. Lo importante es que las respuestas sean coherentes, estén documentadas y puedan comprobarse.
+
+Un problema distinto aparecería si dos usuarios editaran un recurso basándose en versiones distintas. En un sistema real podrían utilizarse tokens de concurrencia, ETag o condiciones como If-Match, que permiten prevenir la pérdida silenciosa de cambios. No incorporamos ese mecanismo completo al módulo, pero sí identificamos la razón de su existencia: comprobar que el estado sobre el que actuamos sigue siendo el esperado.
+
+La enseñanza formativa de esta ampliación es aprender a hacer visibles esas preguntas antes de escribir una solución. Un endpoint mínimo puede compilar y, aun así, no tener definidas las garantías de concurrencia que una aplicación de negocio necesitaría.
+
+#### Cierre de la ampliación: qué se debe conservar
+
+Después de estudiar PUT y DELETE, el contrato obligatorio del módulo sigue intacto: GET de catálogo y detalle, POST de creación y las ampliaciones de resumen y búsqueda. El nuevo código no obliga a modificar CatalogoRemoto.razor ni el servicio utilizado por la jornada presencial. Esta independencia es una señal de que la API ha podido crecer mediante operaciones nuevas sin romper el trabajo realizado.
+
+El alumno debe poder explicar por qué el ID forma parte de la ruta de modificación, por qué el objeto de entrada carece de ID, por qué DELETE puede devolver 204, por qué una actualización concurrente necesita más atención y por qué el componente Blazor no incorpora directamente detalles del protocolo.
+
+
 ### Síntesis del punto 4.3
 
 Un endpoint es una asociación entre método HTTP, ruta y ejecución de código. Los DTO establecen el contrato; los resultados HTTP indican éxito o rechazo; el estado en memoria explica la duración de los datos. Hemos añadido una operación de resumen sin romper las rutas existentes, y disponemos de una API reproducible que se puede observar tanto directamente como desde Blazor.
