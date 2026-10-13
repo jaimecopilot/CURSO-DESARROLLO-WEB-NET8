@@ -38,7 +38,7 @@ Se eliminaron las explicaciones genéricas repetidas que aparecían después de 
 | P2.4 | `M02_FORMULARIOS_RAZOR/TESTS/2.4_e2e.ps1` | Windows/LocalDB aislada, Read, Create, errores, Edit, Delete, antiforgery, PRG y persistencia después de reiniciar |
 | P2.5 | `M02_FORMULARIOS_RAZOR/TESTS/2.5_e2e.ps1` | Razor Pages GET/POST, antiforgery, DataAnnotations, navegación MVC-Pages, aplicación autónoma, segundo handler y catálogo MVC conservado |
 
-El workflow `.github/workflows/m02-ci.yml` ejecuta P2.1-P2.3 en Ubuntu y P2.4-P2.5 en Windows, donde se comprueba la presencia de SQL Server Express LocalDB.
+Los workflows vigentes son `.github/workflows/m02-verificacion.yml`, que ejecuta P2.1-P2.3 en Ubuntu, P2.5 en Windows con LocalDB y una prueba real de navegador Chromium para P2.3, y `.github/workflows/m02-p24-ci.yml`, que ejecuta P2.4 en Windows con LocalDB. Durante esta auditoría se creó temporalmente un workflow combinado para comprobar de una sola vez los cinco scripts; su run `38362703907` terminó SUCCESS y el workflow se eliminó después por ser redundante con la infraestructura ya existente.
 
 ## Límites del estado actual
 
