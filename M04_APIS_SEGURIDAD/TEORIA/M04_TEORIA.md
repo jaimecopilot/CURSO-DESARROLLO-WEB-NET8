@@ -2726,18 +2726,18 @@ El almacenamiento será **SQL Server Express LocalDB**, instalado con Visual Stu
 
 El usuario tiene Email, UserName, Id y propiedades de control de identidad. El identificador no se deriva necesariamente de su correo: la clase IdentityUser define un Id propio. La contraseña no forma parte del perfil que enviamos como JSON al cliente. Podemos consultar un perfil autenticado sin publicar jamás el hash almacenado.
 
-En este laboratorio utilizamos `EnsureCreatedAsync` para crear rápidamente las tablas de Identity en una base de SQL Server Express LocalDB exclusiva de la práctica. **No es una política de evolución de esquemas para producción.** Una solución mantenida utilizaría migraciones, configuración de persistencia y procedimientos de despliegue adecuados. La base se llama `CursoWeb_M04_IdentityJwt` y se aloja en la instancia `(localdb)\\MSSQLLocalDB` de Windows. No se genera un fichero SQLite dentro de `.work`; puede inspeccionarse con el Explorador de objetos SQL Server de Visual Studio.
+En este laboratorio utilizamos `EnsureCreatedAsync` para crear rápidamente las tablas de Identity en una base de SQL Server Express LocalDB exclusiva de la práctica. **No es una política de evolución de esquemas para producción.** Una solución mantenida utilizaría migraciones, configuración de persistencia y procedimientos de despliegue adecuados. La base se llama `CursoWeb_M04_IdentityJwt` y se aloja en la instancia `(localdb)\MSSQLLocalDB` de Windows. No se genera un fichero SQLite dentro de `.work`; puede inspeccionarse con el Explorador de objetos SQL Server de Visual Studio.
 
 #### SQL Server Express LocalDB de Visual Studio: conexión y persistencia
 
-La instancia de desarrollo es `(localdb)\\MSSQLLocalDB`. **LocalDB no es SQLite**, sino una modalidad ligera de SQL Server Express para Windows y desarrollo local. Se integra en Visual Studio mediante las herramientas de datos. Antes de ejecutar el laboratorio, comprueba que la característica SQL Server Express LocalDB está instalada y que puedes conectarte desde el Explorador de objetos de SQL Server.
+La instancia de desarrollo es `(localdb)\MSSQLLocalDB`. **LocalDB no es SQLite**, sino una modalidad ligera de SQL Server Express para Windows y desarrollo local. Se integra en Visual Studio mediante las herramientas de datos. Antes de ejecutar el laboratorio, comprueba que la característica SQL Server Express LocalDB está instalada y que puedes conectarte desde el Explorador de objetos de SQL Server.
 
 La aplicación declara una cadena de conexión en `appsettings.json`, sin nombre de usuario ni contraseña SQL, porque utiliza autenticación integrada de Windows:
 
 ~~~json
 {
   "ConnectionStrings": {
-    "IdentityDb": "Server=(localdb)\\\\MSSQLLocalDB;Database=CursoWeb_M04_IdentityJwt;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true"
+    "IdentityDb": "Server=(localdb)\\MSSQLLocalDB;Database=CursoWeb_M04_IdentityJwt;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true"
   }
 }
 ~~~
