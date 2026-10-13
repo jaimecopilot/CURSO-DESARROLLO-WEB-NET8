@@ -658,167 +658,242 @@ Redacta una explicación de un máximo de una página que siga «escribir Regla 
 
 # P3.5. Comunicación padre–hijo mediante EventCallback
 
-## Objetivo y preparación
+## Laboratorio principal acumulativo P3.5 — El mismo catálogo con comunicación padre–hijo
 
-En P3.4 el botón estaba en el mismo componente que poseía la lista. Ahora queremos que cada `TarjetaProducto` muestre su propio botón, pero que sea `Productos.razor` quien actualice la selección o quite el elemento. Esta diferencia nos obliga a expresar un **contrato de evento del hijo hacia el padre**. El proyecto se encuentra en `M03_BLAZOR/PROYECTO/3.5/CursoWeb.Blazor/`.
+**Objetivo.** La aplicación P3.4 ya permite seleccionar, crear, editar, buscar, filtrar y ordenar productos en memoria. En P3.5 **nada de eso desaparece**. El único cambio de responsabilidad obligatorio es que la tarjeta comunica la selección desde un botón propio al padre. Después incorporaremos la intención de quitar y un deshacer de una operación. El padre seguirá siendo dueño del catálogo y del editor.
 
-El estado inicial ya compila con tres tarjetas, «Seleccionado: ninguno» y «Total: 3». Los dos archivos que cambiarán son `Components/TarjetaProducto.razor` y `Components/Pages/Productos.razor`. Evita introducir una colección global o compartir campos a través de un singleton; para esta relación directa basta `EventCallback<int>`.
+### 3.5.1 — Reconocer lo que se conserva del capítulo anterior
 
-### 3.5.1. Inspeccionar la propiedad de los datos
+Abre M03_BLAZOR/PROYECTO/3.5/CursoWeb.Blazor. Ejecuta la ruta /productos **antes de activar los callbacks**. Comprueba que el listado procede de TarjetaProducto, que puedes renombrar Lápiz, añadir Regla y filtrar los resultados, y que el menú conserva la entrada Productos. El botón Seleccionar todavía está en el padre. Debes poder explicar por qué el componente hijo muestra el nombre y el precio sin modificar la lista por sí mismo.
 
-Detén P3.4, abre 3.5, compila y ejecuta. Comprueba el estado inicial. Abre `Productos.razor` y señala dónde se crea la lista. Abre `TarjetaProducto.razor` y localiza:
+La diferencia respecto a P3.4 será la ubicación del origen del clic, no el tipo de dato, la ruta ni el almacenamiento. La función SeleccionarParaEditar(int id) seguirá operando sobre la lista de la página. En lugar de llamarla desde un botón externo, el hijo solicitará que el padre la ejecute.
 
-~~~csharp
-[Parameter, EditorRequired] public Producto Producto { get; set; } = default!;
-~~~
+### 3.5.2 — Estudiar el código completo de la tarjeta
 
-Esta propiedad recibe un dato desde el padre. Ahora queremos otro contrato: el hijo comunicará un Id, pero **no será dueño de la lista que el padre representa**. Antes de activar código, dibuja el flujo: parámetro Producto desde padre a hijo; evento de selección desde hijo a padre.
-
-### 3.5.2. Declarar el callback en la tarjeta
-
-En `Components/TarjetaProducto.razor` activa el bloque C# delimitado por `PASO 3.5.2 INICIO / FIN`:
-
-~~~csharp
-[Parameter] public EventCallback<int> AlSeleccionar { get; set; }
-
-private Task NotificarSeleccion() =>
-    AlSeleccionar.InvokeAsync(Producto.Id);
-~~~
-
-Activa también el botón Razor señalado por `PASO 3.5.2 (ACTIVAR)`:
+En Components/TarjetaProducto.razor se entrega el siguiente código completo. Lee los comentarios y las propiedades antes de activar nada:
 
 ~~~razor
-<button @onclick="NotificarSeleccion">Seleccionar</button>
-~~~
+<article class="tarjeta" data-producto-id="@Producto.Id">
+    <h2>@Producto.Nombre</h2>
+    <p>Precio: @Producto.Precio.ToString("0.00") €</p>
+    <small>Referencia @Producto.Id</small>
+    @* PASO 3.5.2 (ACTIVAR) al declarar AlSeleccionar: *@
+    @* <button @onclick="NotificarSeleccion">Seleccionar</button> *@
+    @* RETO 3.5 (ACTIVAR) al declarar AlQuitar: *@
+    @* <button @onclick="NotificarQuitar">Quitar</button> *@
+</article>
+@code {
+    [Parameter, EditorRequired] public Producto Producto { get; set; } = default!;
 
-El botón invoca un método del propio hijo; ese método notifica al callback mediante `InvokeAsync`. De momento no has cambiado el padre. La unidad funcional completa requiere conectar el callback al método que modificará la selección.
+    /* PASO 3.5.2 INICIO
+    [Parameter] public EventCallback<int> AlSeleccionar { get; set; }
+    private Task NotificarSeleccion() => AlSeleccionar.InvokeAsync(Producto.Id);
+    PASO 3.5.2 FIN */
 
-### 3.5.3. Conectar el callback al padre
-
-En `Components/Pages/Productos.razor` activa el bloque C# `PASO 3.5.2 INICIO / FIN`:
-
-~~~csharp
-private void Seleccionar(int id)
-{
-    seleccion = productos.First(p => p.Id == id).Nombre;
+    /* RETO 3.5 INICIO
+    [Parameter] public EventCallback<int> AlQuitar { get; set; }
+    private Task NotificarQuitar() => AlQuitar.InvokeAsync(Producto.Id);
+    RETO 3.5 FIN */
 }
 ~~~
 
-Busca la línea que representa cada tarjeta:
+La entrada Producto está marcada con Parameter y EditorRequired: el padre suministra un Producto concreto. La salida AlSeleccionar, todavía comentada, es EventCallback<int>: la tarjeta envía el Id, no un objeto mutable ni una referencia al contenedor. NotificarSeleccion utiliza InvokeAsync(Producto.Id), que ejecuta el callback vinculado. AlQuitar y NotificarQuitar constituyen la variante posterior de eliminación.
+
+Retira los delimitadores C# de PASO 3.5.2 e incorpora el botón Razor NotificarSeleccion. Una vez hecho esto, el hijo puede emitir una intención, pero aún necesitamos conectar la salida con el método que modifica el estado del padre.
+
+### 3.5.3 — Entender el archivo completo del padre y cambiar solo el contrato de selección
+
+En Components/Pages/Productos.razor aparece el catálogo heredado, el editor, la consulta y la futura acción de recuperar una eliminación. El código completo del estado inicial del capítulo es:
 
 ~~~razor
-<TarjetaProducto Producto="producto" />
-~~~
+@page "/productos"
+@rendermode InteractiveServer
+<PageTitle>Catálogo y comunicación</PageTitle>
+<h1>P3.5 | El mismo catálogo, ahora con EventCallback</h1>
+<p>Conservamos selección, alta, edición y consulta de P3.4. En este punto, trasladamos el evento de la tarjeta al hijo sin trasladar la propiedad de la lista.</p>
+<p id="seleccion">Seleccionado: @seleccion</p>
 
-El proyecto contiene debajo una variante comentada. **Sustituye la línea activa** por:
+<section aria-label="Consultar catálogo">
+    <label>Buscar por nombre: <input id="buscar" @bind="busqueda" @bind:event="oninput" /></label>
+    <label>Precio máximo: <input id="precio-maximo" type="number" min="0" step="0.5" @bind="precioMaximo" /></label>
+    <button id="alternar-orden" @onclick="AlternarOrden">Invertir orden por precio</button>
+    <p id="resumen-filtrado">Mostrando @ProductosVisibles.Count() de @productos.Count productos</p>
+</section>
 
-~~~razor
-<TarjetaProducto Producto="producto" AlSeleccionar="Seleccionar" />
-~~~
+<div class="tarjetas" id="tarjetas-productos">
+    @foreach (var producto in ProductosVisibles)
+    {
+        <div class="tarjeta-con-acciones" data-elemento-id="@producto.Id">
+            @* PASO 3.5.2: pasa la selección desde el botón del padre al callback del hijo.
+               Activa AlSeleccionar en TarjetaProducto y reemplaza la etiqueta siguiente.
+               No mantengas simultáneamente el botón seleccionar-padre. *@
+            <TarjetaProducto Producto="producto" />
+            @* <TarjetaProducto Producto="producto" AlSeleccionar="SeleccionarParaEditar" /> *@
+            @* RETO 3.5: reemplaza por esta variante tras activar AlQuitar en el hijo. *@
+            @* <TarjetaProducto Producto="producto" AlSeleccionar="SeleccionarParaEditar" AlQuitar="Quitar" /> *@
+            <button class="seleccionar-padre" @onclick="() => SeleccionarParaEditar(producto.Id)">Seleccionar</button>
+        </div>
+    }
+</div>
+<p id="cantidad">Total: @productos.Count</p>
 
-No debes dejar activas ambas versiones, porque obtendrías seis tarjetas. Guarda, compila y abre `/productos`. Pulsa Seleccionar en Lápiz. Debe aparecer «Seleccionado: Lápiz» en el componente padre. Pulsa Carpeta y comprueba que cambia el texto.
+<section aria-label="Crear y editar productos">
+    <label>Nombre nuevo: <input id="nombre-nuevo" @bind="nuevoNombre" /></label>
+    <button id="agregar" @onclick="Agregar">Añadir producto</button>
+    <label>Editar nombre: <input id="editar-nombre" @bind="nombreEditado" /></label>
+    <button id="guardar-cambio" @onclick="GuardarCambio">Guardar nombre</button>
+    <button id="limpiar" @onclick="Limpiar">Limpiar selección</button>
+</section>
 
-**Explicación:** el hijo no modifica directamente `seleccion`. Comunica el identificador con `EventCallback<int>`; el padre recibe el dato, busca el nombre y cambia un campo propio. Esa separación permite reutilizar TarjetaProducto sin acoplarlo a una única pantalla.
+@* RETO INTEGRADOR 3.5.5: tras conectar AlQuitar a QuitarConDeshacer,
+   activa estos controles y el bloque C# de recuperación. *@
+@* <button id="deshacer" disabled="@(eliminacionPendiente is null)" @onclick="DeshacerEliminacion">Deshacer última eliminación</button> *@
+@* <p id="estado-deshacer">@TextoDeshacer</p> *@
 
-### 3.5.4. Reconstruir la comunicación desde el navegador
+@code {
+    // Estado de P3.4 conservado en P3.5: no se reinicia al cambiar de capítulo.
+    private readonly List<Producto> productos =
+    [
+        new(1, "Cuaderno", 4.50m),
+        new(2, "Lápiz", 1.20m),
+        new(3, "Carpeta", 3.75m)
+    ];
 
-Sigue un clic con puntos de interrupción en Visual Studio si lo deseas. El orden debe ser: botón de la tarjeta → `NotificarSeleccion` → `AlSeleccionar.InvokeAsync(Producto.Id)` → método `Seleccionar(int)` del padre → campo `seleccion` → texto actualizado. No hay un nuevo controlador ni una nueva acción POST como en M02.
+    private string seleccion = "ninguno";
+    private string nuevoNombre = string.Empty;
+    private int siguienteId = 4;
+    private int? idEnEdicion;
+    private string nombreEditado = string.Empty;
 
-Como caso negativo de código, si la propiedad `AlSeleccionar` está comentada en la tarjeta pero el padre intenta pasar ese parámetro, puedes obtener un error de compilación o de parámetro desconocido. Si el botón no aparece, revisa el comentario Razor. Si aparecen duplicados, revisa las dos variantes de TarjetaProducto en el padre.
+    private void SeleccionarParaEditar(int id)
+    {
+        var producto = productos.First(p => p.Id == id);
+        idEnEdicion = id;
+        seleccion = producto.Nombre;
+        nombreEditado = producto.Nombre;
+    }
 
-### Reto 3.5 — Solicitar que se quite una tarjeta
+    private void GuardarCambio()
+    {
+        if (idEnEdicion is null || string.IsNullOrWhiteSpace(nombreEditado))
+            return;
+        var indice = productos.FindIndex(p => p.Id == idEnEdicion.Value);
+        if (indice < 0)
+            return;
+        productos[indice] = productos[indice] with { Nombre = nombreEditado.Trim() };
+        seleccion = productos[indice].Nombre;
+    }
 
-**Enunciado:** cada tarjeta tendrá un botón «Quitar». Al pulsarlo, la tarjeta **solicita** al padre que elimine ese Id de la lista en memoria. No debe modificar una colección privada del padre por acceso oculto.
+    private void Agregar()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoNombre))
+            return;
+        productos.Add(new Producto(siguienteId++, nuevoNombre.Trim(), 5m));
+        nuevoNombre = string.Empty;
+    }
 
-En `Components/TarjetaProducto.razor` activa el bloque `RETO 3.5 INICIO / FIN`:
+    private void Limpiar()
+    {
+        seleccion = "ninguno";
+        idEnEdicion = null;
+        nombreEditado = string.Empty;
+    }
 
-~~~csharp
-[Parameter] public EventCallback<int> AlQuitar { get; set; }
+    private string busqueda = string.Empty;
+    private decimal? precioMaximo;
+    private bool ordenAscendente = true;
 
-private Task NotificarQuitar() =>
-    AlQuitar.InvokeAsync(Producto.Id);
-~~~
+    private IEnumerable<Producto> ProductosVisibles =>
+        (ordenAscendente
+            ? productos.OrderBy(p => p.Precio).ThenBy(p => p.Id)
+            : productos.OrderByDescending(p => p.Precio).ThenBy(p => p.Id))
+        .Where(p =>
+            (string.IsNullOrWhiteSpace(busqueda) ||
+             p.Nombre.Contains(busqueda.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+            (precioMaximo is null || p.Precio <= precioMaximo.Value));
 
-Y activa el botón del reto:
+    private void AlternarOrden() => ordenAscendente = !ordenAscendente;
 
-~~~razor
-<button @onclick="NotificarQuitar">Quitar</button>
-~~~
+    /* RETO 3.5 INICIO
+    private void Quitar(int id)
+    {
+        productos.RemoveAll(p => p.Id == id);
+        Limpiar();
+    }
+    RETO 3.5 FIN */
 
-En `Components/Pages/Productos.razor` activa el bloque `RETO 3.5 INICIO / FIN`:
+    /* RETO INTEGRADOR 3.5.5 INICIO
+    private (Producto Producto, int Indice)? eliminacionPendiente;
 
-~~~csharp
-private void Quitar(int id)
-{
-    productos.RemoveAll(p => p.Id == id);
-    seleccion = "ninguno";
+    private string TextoDeshacer => eliminacionPendiente is { } pendiente
+        ? $"Pendiente: {pendiente.Producto.Nombre}"
+        : "Ninguna eliminación pendiente";
+
+    private void QuitarConDeshacer(int id)
+    {
+        var indice = productos.FindIndex(p => p.Id == id);
+        if (indice < 0)
+            return;
+        eliminacionPendiente = (productos[indice], indice);
+        productos.RemoveAt(indice);
+        Limpiar();
+    }
+
+    private void DeshacerEliminacion()
+    {
+        if (eliminacionPendiente is not { } anterior)
+            return;
+        if (!productos.Any(p => p.Id == anterior.Producto.Id))
+            productos.Insert(Math.Min(anterior.Indice, productos.Count), anterior.Producto);
+        eliminacionPendiente = null;
+    }
+    RETO INTEGRADOR 3.5.5 FIN */
 }
 ~~~
 
-Por último, **reemplaza** la versión activa de TarjetaProducto por la tercera variante preparada en el proyecto:
+En el bucle ProductosVisibles se crea TarjetaProducto y a su lado un botón con la clase seleccionar-padre. **La transición de este paso consiste en sustituir la etiqueta sin callback por la versión con AlSeleccionar y comentar o eliminar el botón externo**. El resultado debe dejar exactamente una tarjeta reutilizable y un único botón Seleccionar por producto, ahora dentro del hijo.
+
+El padre vincula el callback al método que ya utilizaba el editor:
+
+~~~razor
+<TarjetaProducto Producto="producto" AlSeleccionar="SeleccionarParaEditar" />
+~~~
+
+No añadas otra definición de SeleccionarParaEditar. Conserva la ya existente, que rellena idEnEdicion, seleccion y nombreEditado, porque esa es la ventaja del cambio: el padre es dueño del estado mientras la tarjeta se convierte en origen del clic.
+
+**Prueba positiva:** pulsa Seleccionar en Lápiz; el texto del padre cambia y el editor recibe su nombre. Renombra a «Lápiz azul» y guarda. La tarjeta de Id 2 cambia de nombre sin perder precio. **Prueba de continuidad:** añade otro producto con Nombre nuevo, filtra por un fragmento del nuevo nombre e invierte el orden. Son acciones de P3.4 y deben continuar disponibles en P3.5.
+
+### 3.5.4 — Incorporar eliminación sin modificar directamente la lista desde el hijo
+
+Activa en TarjetaProducto el bloque C# RETO 3.5 y su botón NotificarQuitar. En la página padre activa también el método Quitar del bloque RETO 3.5 y sustituye la variante del componente por otra que conecte ambos callbacks:
 
 ~~~razor
 <TarjetaProducto Producto="producto"
-                AlSeleccionar="Seleccionar"
+                AlSeleccionar="SeleccionarParaEditar"
                 AlQuitar="Quitar" />
 ~~~
 
-Compila y ejecuta. Selecciona Lápiz y comprueba que el padre refleja su nombre. Ahora pulsa Quitar en esa tarjeta: el total debe pasar de tres a dos y la tarjeta de Lápiz debe desaparecer. Además, la selección vuelve a «ninguno».
+El cuerpo de Quitar busca por Id, retira el elemento de productos y limpia el editor para no dejar seleccionado un objeto que acaba de desaparecer. El hijo **no** recibe toda la lista ni llama a RemoveAll. Pulsa Quitar en Lápiz: el total debe bajar de tres a dos y el subconjunto representado debe reconstruirse. Después añade Regla y verifica que las tarjetas restantes, el alta y los filtros siguen operando correctamente.
 
-**Caso negativo:** al recargar completamente el componente pueden volver los tres productos, porque la lista es local. No interpretes esta operación como un DELETE de SQL Server. La persistencia no es el objetivo de P3.5.
+### 3.5.5 — Recuperar la última eliminación en su posición exacta
 
-**Solución razonada:** la tarjeta comunica únicamente una intención y el Id del producto. El padre es dueño de la lista, por lo que decide cómo aplicar `RemoveAll`. Esta solución es coherente con el flujo de datos padre→hijo mediante `[Parameter]` y la notificación hijo→padre mediante `EventCallback<int>`. La teoría 3.5 contiene la explicación de ambos contratos.
-
-### 3.5.5. Reto integrador — Quitar y deshacer sin perder la posición original
-
-**Encargo.** El usuario puede retirar una tarjeta del catálogo por error. Añade una acción que permita **deshacer la última eliminación** y recuperar exactamente el objeto retirado, en la misma posición en la que aparecía. La tarjeta seguirá emitiendo un EventCallback con el Id y será el padre quien decida qué guardar, borrar o recuperar. El ejercicio no consiste en añadir otra colección al hijo ni en implementar un historial ilimitado de operaciones.
-
-**Preparación.** Termina el paso 3.5.2 y el reto de eliminación de 3.5. Deben funcionar el botón Seleccionar y el botón Quitar de cada tarjeta; el elemento padre debe mostrar tres productos y un contador. Comprueba que solo hay una etiqueta TarjetaProducto activa en cada iteración del foreach, con los parámetros Producto, AlSeleccionar y AlQuitar.
-
-**Paso 1 — Definir qué información se pierde al quitar.** Comienza con Cuaderno, Lápiz y Carpeta. Si pulsas Quitar en Lápiz, no basta con recordar el nombre «Lápiz»: queremos recuperar su Id 2, su precio de 1,20 € y su posición intermedia. Escribe por qué no resolvería el problema limitarse a aumentar el contador o ejecutar productos.Add. Este último método insertaría al final, por lo que no restituiría necesariamente el orden que había antes de quitar.
-
-**Paso 2 — Activar el bloque del padre.** En Components/Pages/Productos.razor localiza las marcas RETO INTEGRADOR 3.5.5 INICIO y FIN y retira únicamente las líneas delimitadoras del comentario C#. El bloque introduce:
-
-~~~csharp
-private (Producto Producto, int Indice)? eliminacionPendiente;
-~~~
-
-También incluye TextoDeshacer, QuitarConDeshacer(int id) y DeshacerEliminacion(). El primer método busca el índice mediante FindIndex, guarda en eliminacionPendiente la pareja producto/posición, retira el objeto de la lista y limpia el texto de selección. El segundo comprueba que existe una eliminación pendiente, reintroduce el producto en la posición guardada y anula el registro para que no se pueda deshacer dos veces. No cambies la declaración de EventCallback<int> del hijo.
-
-**Paso 3 — Redirigir una intención, no alterar el contrato del hijo.** Dentro del foreach encontrarás la variante de la tarjeta que activaste en el reto anterior:
+Localiza RETO INTEGRADOR 3.5.5 en el padre. Activa el bloque C# completo, que contiene eliminacionPendiente, TextoDeshacer, QuitarConDeshacer y DeshacerEliminacion. En la misma página descomenta el botón id="deshacer" y el texto id="estado-deshacer". Cambia **solo el manejador AlQuitar** para que apunte a QuitarConDeshacer en lugar de Quitar:
 
 ~~~razor
 <TarjetaProducto Producto="producto"
-                AlSeleccionar="Seleccionar"
-                AlQuitar="Quitar" />
-~~~
-
-Sustituye exclusivamente el valor de AlQuitar por QuitarConDeshacer:
-
-~~~razor
-<TarjetaProducto Producto="producto"
-                AlSeleccionar="Seleccionar"
+                AlSeleccionar="SeleccionarParaEditar"
                 AlQuitar="QuitarConDeshacer" />
 ~~~
 
-Conserva el parámetro AlSeleccionar y mantén una sola tarjeta por vuelta del bucle. Observa que Components/TarjetaProducto.razor no necesita saber si el padre está guardando un historial, un único registro o ningún registro: su función continúa siendo notificar el Id.
+El padre memoriza una tupla con el objeto y el índice que ocupaba, por lo que no tiene que construir un Producto de sustitución. Para recuperar ejecuta Insert sobre el índice guardado (siempre dentro del rango) y descarta la eliminación pendiente. No aparece un historial ilimitado: un segundo borrado antes de deshacer sobrescribe el registro anterior.
 
-**Paso 4 — Activar la interfaz de recuperación.** En la página padre descomenta los dos elementos Razor del reto: el botón id="deshacer", que llama a DeshacerEliminacion y está deshabilitado cuando eliminacionPendiente es null, y el párrafo id="estado-deshacer" que muestra TextoDeshacer. El texto permite saber **qué producto se podría recuperar**, no únicamente que existe alguna operación pendiente. Si el compilador no encuentra uno de esos miembros, comprueba que el bloque C# también esté activo.
+Prueba este recorrido completo: inicialmente Cuaderno–Lápiz–Carpeta, con botón Deshacer deshabilitado; elimina Lápiz; observa dos tarjetas y el texto pendiente; pulsa Deshacer; recupera Cuaderno–Lápiz–Carpeta y el Id 2. Después modifica el nombre del producto recuperado y confirma que el editor y el buscador continúan funcionando, igual que antes de añadir callbacks.
 
-**Paso 5 — Recorrer un caso completo con un estado esperado.** Al entrar, el botón «Deshacer última eliminación» debe estar deshabilitado y el texto debe indicar que no hay eliminación pendiente. Pulsa Quitar en Lápiz. Ahora el contador debe ser 2, las tarjetas visibles serán Cuaderno y Carpeta, el botón de recuperación quedará habilitado y el texto pendiente identificará Lápiz. Púlsalo una vez. Deben reaparecer las tres tarjetas en este orden: Cuaderno, Lápiz, Carpeta. Verifica que Lápiz conserva el Id 2 seleccionándolo: el padre debe mostrar «Seleccionado: Lápiz». El botón Deshacer vuelve a quedar deshabilitado.
+### 3.5.6 — Diagnosticar comportamientos sin simplificar el proyecto
 
-**Paso 6 — Explorar los límites de esta solución.** Quita primero Cuaderno y después Carpeta antes de utilizar Deshacer. Predice qué ocurrirá: solo se conserva la eliminación más reciente. Después del deshacer quedarán recuperados los datos de Carpeta, pero no los de Cuaderno. Esto es deliberado y demuestra el alcance de **una única eliminación pendiente**, no de una pila de deshacer. Para recuperar el ejercicio inicial, vuelve a cargar /productos y empieza con tres productos. No prometas al usuario del caso un historial ilimitado que no has programado.
+Si aparecen dos botones Seleccionar, el alumno ha mantenido el botón externo y el nuevo botón del hijo. Si aparecen seis tarjetas, ha dejado dos variantes de TarjetaProducto activas. Si al eliminar una tarjeta los filtros desaparecen, ha sustituido el componente completo por un ejemplo mínimo en lugar de evolucionar el existente. Si deshacer coloca Lápiz al final, ha utilizado Add en lugar de Insert; si lo recupera dos veces, no ha limpiado eliminacionPendiente.
 
-**Diagnóstico de tres fallos plausibles.** Si tras deshacer Lápiz aparece al final, comprueba que no sustituiste Insert por Add. Si aparece duplicado, revisa la comprobación de Id antes de insertar y que no dejaste dos handlers conectados. Si el botón de recuperación nunca se habilita, revisa el método asociado a AlQuitar: tal vez sigues llamando al antiguo Quitar, que borra sin rellenar eliminacionPendiente. Aclara cuál es la diferencia entre desactivar el botón por estado y proteger el método con un retorno temprano.
-
-**Pregunta de diseño.** ¿Por qué mantenemos la tupla en Productos.razor y no en TarjetaProducto.razor? Responde describiendo qué componente es propietario de la colección, quién conoce la posición de cada artículo y quién puede reconstruir el orden. Esta explicación es tan importante como la ejecución del caso: demuestra que utilizas los parámetros y EventCallback para respetar una responsabilidad, no solo para pasar una función entre archivos.
-
-
-### Diagnóstico y consolidación
-
-Si al activar el reto el proyecto falla, revisa que el parámetro `AlQuitar` exista en el hijo y que el método `Quitar` exista en el padre. Si se elimina otro elemento, revisa qué Id envía la tarjeta y qué predicado emplea `RemoveAll`. Si un botón de selección no cambia el texto, sigue la cadena `NotificarSeleccion` → `InvokeAsync` → `Seleccionar`. Si se dibujan seis tarjetas, desactiva las variantes de componente que dejaste duplicadas.
-
-El aprendizaje principal no es memorizar una sintaxis: es mantener una correspondencia clara entre **quién posee el dato**, **quién recibe un parámetro** y **quién comunica una intención**. Esta misma separación será útil cuando M04 conecte la interfaz a una API remota.
+**Entrega del punto:** una página con la misma ruta, modelo, navegación, tarjetas, editor y consulta de P3.4, ahora con callbacks de selección y eliminación y una recuperación local reversible. Este estado será el punto de partida de P3.6. Los resultados no se guardan todavía en base de datos.
 
 ## Laboratorio de profundización P3.5 — Dos contratos y un dueño del estado
 
