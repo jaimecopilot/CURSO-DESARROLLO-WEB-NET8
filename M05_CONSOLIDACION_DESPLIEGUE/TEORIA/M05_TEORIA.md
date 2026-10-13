@@ -760,6 +760,117 @@ Lo que sí cambia es cómo se inicia el proceso, cómo llega la petición y qué
 
 El alumno debe ser capaz de publicar a carpeta, identificar los componentes IIS necesarios, crear un sitio con binding local, comprobar una ruta y distinguir un error de IIS/ANCM de uno causado por una dependencia como LocalDB.
 
+
+### 5.4.8. Un sitio IIS no es una aplicación compilada ni una base de datos
+
+Cuando hablamos de «publicar en IIS» estamos conectando tres objetos con responsabilidades diferentes: un directorio que contiene una publicación ASP.NET Core, un sitio de IIS que recibe solicitudes y un mecanismo de hospedaje capaz de iniciar la aplicación. Una base de datos SQL Server, si hace falta, constituye una dependencia adicional y no está incluida implícitamente en ninguno de esos tres objetos.
+
+La carpeta publicada se genera con `dotnet publish`. IIS no compila el código C# de la solución durante una petición. El sitio asocia una ruta física con un enlace de escucha. El ASP.NET Core Module participa en la puesta en marcha y el tratamiento del tráfico hacia la aplicación.
+
+Es posible que un sitio figure como «Started» en el administrador IIS y que la aplicación ASP.NET Core no consiga iniciarse. El estado administrativo del sitio no equivale a una respuesta HTTP correcta de Home/Index. Para afirmarlo necesitamos abrir la URL que corresponde al binding y comprobar el resultado real.
+
+También puede suceder lo contrario: una publicación arranca perfectamente como proceso Kestrel independiente, pero falla bajo IIS. Eso no demuestra que la aplicación MVC contenga un error de lógica. El hospedaje IIS añade su módulo, identidad de proceso, configuración y permisos, todos ellos relevantes para el diagnóstico.
+
+### 5.4.9. La relación entre sitio, binding, pool y carpeta física
+
+El **sitio** es una unidad de configuración administrada por IIS. El **binding** indica en qué combinación de protocolo, dirección, puerto y, cuando corresponde, nombre de host acepta solicitudes. La **ruta física** indica dónde se encuentran los archivos publicados. El **Application Pool** define el contexto de ejecución y las condiciones bajo las que se procesan las solicitudes.
+
+En el laboratorio elegimos `http://localhost:8091/`. El número 8091 no surge de ASP.NET Core ni de un controlador: es el puerto que decidimos vincular al sitio. Para solicitar esa dirección, IIS debe tener un binding compatible y el navegador debe conectar al host correcto.
+
+La misma DLL podría copiarse a otra carpeta, pero si el sitio sigue apuntando a la carpeta anterior continuará utilizando los artefactos anteriores. Este es el origen de una situación frecuente: «he publicado la versión nueva y sigo viendo la antigua». No hay que reescribir el controlador para resolverlo; se debe verificar la carpeta física que está utilizando el sitio.
+
+Respecto al Application Pool, **No Managed Code** significa que no seleccionamos un CLR tradicional de .NET Framework para ejecutar la aplicación ASP.NET Core. No significa «aplicación sin .NET», ni autoriza a omitir el Hosting Bundle. El sistema moderno de hospedaje ASP.NET Core requiere sus propios componentes.
+
+### 5.4.10. Por qué el Hosting Bundle importa y cómo reconocer su ausencia
+
+Una instalación de IIS preparada únicamente para páginas o aplicaciones tradicionales no dispone necesariamente del módulo requerido para hospedar ASP.NET Core 8. El Hosting Bundle incorpora los componentes necesarios para que IIS pueda iniciar una aplicación publicada para ese entorno, incluido ANCM.
+
+La instalación de Visual Studio en el equipo de desarrollo no prueba que el servidor IIS de otro equipo tenga ese bundle. Tampoco basta con copiar una DLL o `web.config`. La máquina que recibe las solicitudes debe estar preparada de forma explícita, y la versión de runtime disponible debe ser compatible con la aplicación que se pretende ejecutar.
+
+Cuando se instala IIS y después el Hosting Bundle, puede ser necesario reiniciar los servicios para que detecten el módulo. Si se instaló el bundle antes de habilitar IIS, el procedimiento de preparación del entorno puede requerir reparar su instalación. Lo importante para el alumno no es memorizar cada pantalla del instalador, sino entender **qué capacidad proporciona cada pieza**.
+
+Si el módulo de hospedaje falta, el problema aparece antes de que los controladores MVC puedan atender normalmente sus rutas. Por eso una página de error de arranque bajo IIS debe llevarnos primero a revisar el hosting, la versión de runtime y los registros de inicio, no directamente a cambiar `Views/Home/Index.cshtml`.
+
+### 5.4.11. Dos modelos de hospedaje, una misma responsabilidad MVC
+
+En ASP.NET Core con IIS distinguimos los modelos *in-process* y *out-of-process*. En el primero, la aplicación se hospeda en el proceso trabajador IIS mediante el mecanismo correspondiente. En el segundo, IIS actúa delante de un proceso ASP.NET Core separado que atiende solicitudes mediante Kestrel.
+
+Esta distinción es suficiente para interpretar diagramas y errores. No es necesario construir dos laboratorios distintos con sus configuraciones de rendimiento; eso convertiría una práctica elemental en un curso de administración de IIS.
+
+Lo que debe permanecer estable en ambos conceptos es el papel de nuestra aplicación MVC. Los controladores siguen transformando solicitudes en resultados; las vistas siguen produciendo HTML; `wwwroot` sigue proporcionando recursos estáticos. El mecanismo de alojamiento cambia cómo se inicia y conecta ese código con el servidor externo.
+
+**Afirmación a evitar:** «En IIS todo el tráfico debe pasar siempre por un proceso Kestrel externo». Solo describe de forma aproximada el hospedaje fuera de proceso y no el modelo in-process. La teoría debe permitir reconocer esa diferencia sin convertirla en un problema que el alumno tenga que configurar durante los 270 minutos de prácticas de M05.
+
+### 5.4.12. Una lectura conceptual de `web.config`
+
+En una publicación ASP.NET Core orientada a IIS, podemos encontrar instrucciones de hospedaje como las siguientes, presentadas aquí de forma ilustrativa:
+
+~~~xml
+<configuration>
+  <system.webServer>
+    <handlers>
+      <add name="aspNetCore"
+           path="*"
+           verb="*"
+           modules="AspNetCoreModuleV2"
+           resourceType="Unspecified" />
+    </handlers>
+    <aspNetCore processPath="dotnet"
+                arguments=".\CursoWeb.Mvc.dll"
+                hostingModel="inprocess" />
+  </system.webServer>
+</configuration>
+~~~
+
+El archivo concreto lo genera la publicación según las propiedades del proyecto. No debemos sustituirlo por esta transcripción sin comprobar su contexto: aquí estudiamos **la función de sus elementos**, no una edición manual obligatoria. `AspNetCoreModuleV2` identifica el módulo. El ensamblado indicado representa la aplicación publicada. El modo de hospedaje informa cómo se ejecuta con IIS.
+
+El alumno puede utilizar esta lectura para comprender por qué un `web.config` que apunta a otro ensamblado, una ruta física incorrecta o un módulo no instalado impedirían arrancar la aplicación. Pero la corrección no consiste en modificar a ciegas el XML: la salida generada y las condiciones reales del servidor son la referencia inicial.
+
+### 5.4.13. Identidad del proceso y acceso a recursos externos
+
+El Application Pool utiliza una identidad concreta. Esa identidad necesita acceso de lectura a los archivos publicados. Si el sitio no puede leer su carpeta, los fallos se sitúan en permisos de sistema de archivos o configuración de IIS, no en la sintaxis del controlador MVC.
+
+SQL Server Express LocalDB introduce una segunda dimensión. Una instancia utilizada por el desarrollador al ejecutar Visual Studio suele pertenecer a su sesión o contexto de usuario. El proceso IIS puede utilizar otra identidad y, por tanto, **no compartir automáticamente la posibilidad de acceder a esa instancia**. Una cadena de conexión idéntica en `appsettings.json` no elimina esa diferencia.
+
+El recorrido principal del curso separa estos problemas: verificamos el hospedaje IIS con páginas y rutas sin SQL, y dejamos el CRUD con LocalDB para el contexto Windows en que fue preparado y probado. No se instala otra base, no se asignan permisos globales a todos los usuarios como solución indiscriminada y no se finge que los endpoints de productos funcionan sin infraestructura.
+
+Este criterio no empobrece la demostración. La hace precisa: un alumno puede afirmar «he servido por IIS una aplicación ASP.NET Core real» si ha solicitado sus rutas y recursos y ha observado la respuesta. No puede afirmar «he desplegado el CRUD persistente» si no ha comprobado la base, sus permisos y operaciones.
+
+### 5.4.14. Diagnóstico de una página inicial que no aparece
+
+Imaginemos que IIS tiene un sitio configurado y el navegador devuelve un error en lugar del HTML esperado. La estrategia de diagnóstico puede ordenarse así:
+
+Primero, confirmar la URL, el puerto y el binding. Una solicitud a otro puerto podría estar llegando a un sitio distinto o no llegar a ninguno.
+
+Segundo, confirmar que la ruta física apunta **a la publicación** y no a la carpeta de código fuente o a una publicación antigua. La existencia de `CursoWeb.Mvc.dll` y los demás artefactos es una condición que debemos comprobar.
+
+Tercero, revisar que IIS conoce el ASP.NET Core Module y que está instalado el runtime requerido. Si la aplicación ni siquiera se inicia, estudiar primero sus dependencias de hospedaje.
+
+Cuarto, verificar los permisos mínimos de acceso a la carpeta. Una identidad sin permiso de lectura puede impedir el funcionamiento aunque todos los archivos estén presentes.
+
+Quinto, si la aplicación ha iniciado pero una ruta particular falla, analizar su código y dependencias. Una página inicial que responde no demuestra que las rutas CRUD puedan comunicarse con LocalDB.
+
+Por último, comprobar que se está visitando la versión recién publicada. Si la aplicación parece antigua, comparar el binding, la ruta física y la fecha de los artefactos. Esta comprobación es mejor que volver a compilar repetidamente sin saber qué publicación está ejecutando IIS.
+
+### 5.4.15. Caso explicado: IIS sirve la portada, pero no el catálogo
+
+Un alumno termina el ensayo y presenta las siguientes observaciones:
+
+| Recurso | Resultado observado |
+|---|---|
+| `/` | HTTP 200, página MVC |
+| `/css/site.css` | HTTP 200, hoja de estilos |
+| `/Productos/Estado` | HTTP 200, texto esperado |
+| `/Productos` | HTTP 503 |
+
+La interpretación es precisa: IIS recibe solicitudes, ANCM hospeda la aplicación, el enrutamiento y los recursos estáticos funcionan, y la aplicación rechaza intencionadamente las rutas de datos en el modo sin LocalDB.
+
+No corresponde «arreglar» esa última respuesta habilitando una base inventada ni editando la acción de listado para devolver siempre una colección fija. Eso haría parecer que el CRUD funciona y borraría precisamente la diferencia que se está enseñando. Para demostrar el CRUD de M02 deberíamos elegir un entorno con SQL Server Express LocalDB real y probar operaciones reales bajo una identidad autorizada.
+
+Esta disciplina de separar hechos comprobados y capacidades no comprobadas es transferible a cualquier tecnología de hospedaje. Una portada disponible es una evidencia limitada; una operación de base funcional sería una evidencia distinta.
+
+
+
 ## 5.5. Docker: ejecutar la misma aplicación MVC en un contenedor Linux
 
 ### 5.5.1. Imagen, contenedor y aplicación no son lo mismo
