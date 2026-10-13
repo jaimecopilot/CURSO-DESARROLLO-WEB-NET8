@@ -4151,8 +4151,3 @@ La página anterior /seguridad mantiene su cookie de demostración. Una cookie d
 | JWT modificado o caducado | 401 |
 
 El ejemplo sirve para aprender autenticación y autorización, no para publicar un proveedor de identidad propio. No incluye MFA, recuperación, tokens de renovación ni revocación centralizada. Para acceso real se requiere HTTPS y un diseño de identidad adecuado.
-
-
-### Cierre
-
-Hemos observado autenticación por cookie, autorización y representación visual de la identidad. La ampliación P4.4.6 añade Identity real con SQL Server Express LocalDB, emisión de JWT firmados y una API protegida con JwtBearer. No reutilices credenciales ni secretos de laboratorio en un despliegue público; ambos ejemplos requieren un diseño de identidad de producción distinto.
