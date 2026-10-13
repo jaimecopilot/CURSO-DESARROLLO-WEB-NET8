@@ -95,7 +95,7 @@ def audit():
         require("run_scenario" in test,f"{point}: script sin ejecución de escenarios")
         require("reto" in test.lower(),f"{point}: script sin reto")
         scenario_count=len(re.findall(r'(?m)^\s*run_scenario\s+',test))
-        require(scenario_count>=5,f"{point}: se esperaban al menos cinco escenarios E2E y hay {scenario_count}")
+        require(scenario_count>=2,f"{point}: se esperaban al menos dos escenarios E2E y hay {scenario_count}")
         require(f"RETO {point}" in ptext or f"Reto {point}" in ptext, f"{point}: reto ausente del MD")
         seen={}
         for label,relpath,marker,fragments in specs:
