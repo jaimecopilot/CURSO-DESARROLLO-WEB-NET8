@@ -247,3 +247,72 @@ Como variante de exploración, cambia solo esa ruta por `"api/no-existe"`, ejecu
 ### Consolidación
 
 El resultado de P4.2 no es una pantalla nueva, sino una frontera de responsabilidades: el componente presenta y gestiona el estado; `IProductosApiService` expresa las operaciones que necesita; `ProductosApiService` resuelve el transporte; y la API mantiene las reglas del servidor. En P4.3 estudiaremos y modificaremos esta última.
+
+## P4.3 — Abrir la API existente y añadir un resumen sin romper Blazor
+
+### Objetivo y material inicial
+
+Partimos de **la API entregada en 4.1**, \`PROYECTO/4.1/CursoWeb.ProductosApi\`, y hacemos una copia acumulativa en \`PROYECTO/4.3/CursoWeb.ProductosApi\`. Para la interfaz usamos el proyecto refactorizado de 4.2; lo conservaremos en \`PROYECTO/4.3/CursoWeb.Blazor\`. No se crea una API alternativa sin relación con lo aprendido.
+
+Al terminar, la nueva API seguirá ofreciendo GET, POST, respuestas 400/404 y una operación adicional \`GET /api/productos/resumen\`. El cliente Blazor seguirá consultando \`/api/productos\` sin cambiar su código HTTP.
+
+### Paso 4.3.1. Identificar las piezas del proceso servidor
+
+Abre \`CursoWeb.ProductosApi/Program.cs\` e identifica el \`WebApplication.CreateBuilder\`, \`Build\`, \`MapGet\`, \`MapPost\` y \`Run\`. Localiza los registros Cuaderno y Lápiz que se cargan al arrancar, y observa que se guardan en \`ConcurrentDictionary<int, ProductoApi>\`, no en una base de datos.
+
+Ejecuta la API:
+
+\`\`\`powershell
+dotnet run --project M04_APIS_SEGURIDAD/PROYECTO/4.3/CursoWeb.ProductosApi/CursoWeb.ProductosApi.csproj --urls http://localhost:5081
+\`\`\`
+
+Si otra instancia usa 5081, detén esa instancia antes de iniciar la de 4.3. Abre \`http://localhost:5081/api/productos\` y verifica que aparecen dos productos.
+
+### Paso 4.3.2. Seguir un GET y un POST
+
+En el código, localiza \`Results.Ok\` y \`Results.Created\`. Consulta \`/api/productos/999\` para obtener 404. Envía un POST con nombre «Regla» y precio 1,75 usando un cliente HTTP (por ejemplo, \`curl.exe\` con un fichero JSON para evitar problemas de comillas):
+
+\`\`\`json
+{ "nombre": "Regla", "precio": 1.75 }
+\`\`\`
+
+Observa la respuesta 201, el identificador asignado y la cabecera \`Location\`. Envía ahora un nombre vacío y precio cero para obtener 400. Comprueba que un producto inválido no aparece en la lista GET.
+
+### Paso 4.3.3. Añadir una ruta de resumen
+
+Antes del \`app.Run();\` añade este endpoint, cuya finalidad y contrato se explican en teoría 4.3.4:
+
+\`\`\`csharp
+// PASO 4.3.3 — activar al llegar aquí.
+app.MapGet("/api/productos/resumen", () =>
+{
+    var actuales = productos.Values.ToArray();
+    return Results.Ok(new
+    {
+        cantidad = actuales.Length,
+        precioTotal = actuales.Sum(p => p.Precio)
+    });
+});
+\`\`\`
+
+El proyecto de laboratorio incluye el bloque **comentado** con marca \`PASO 4.3.3\`, para que puedas descomentarlo antes de ejecutarlo. Tras arrancar desde datos iniciales, \`GET /api/productos/resumen\` debe devolver \`cantidad\` 2 y \`precioTotal\` 3,30. Crea Regla y vuelve a consultar: los valores deberían ser 3 y 5,05. Si antes añadiste otros productos, reinicia el proceso para reproducir el estado de partida.
+
+### Paso 4.3.4. Conectar la API ampliada con la pantalla del paso 4.2
+
+Ejecuta \`CursoWeb.Blazor\` del punto 4.3 en otro puerto; la API permanece en 5081. Abre \`/catalogo-remoto\` y crea un producto. Comprueba que sigue apareciendo en el listado y que \`/api/productos/resumen\` refleja la creación **si has activado** el bloque del paso anterior. Observa que no hemos tenido que editar el \`IProductosApiService\`: el nuevo endpoint es una capacidad del servidor que no interfiere con el contrato utilizado por el cliente.
+
+### Paso 4.3.5. Reto: un segundo criterio de resumen
+
+A partir del endpoint de resumen, añade la propiedad \`hayProductos\` con valor booleano:
+
+\`\`\`csharp
+hayProductos = actuales.Length > 0
+\`\`\`
+
+La variante está incluida como bloque \`RETO 4.3.5\` comentado en el proyecto. Para activarla, reemplaza el bloque de \`PASO 4.3.3\` por el bloque completo del reto: **no actives ambas versiones simultáneamente**, porque intentarían asignar la misma ruta GET.
+
+Haz otra llamada a \`/api/productos/resumen\` y comprueba que aparece \`"hayProductos": true\`. Explica por qué es un campo de un JSON distinto de \`ProductoDto\` y por qué el cliente de 4.2 no necesita cambios.
+
+### Resultado del ejercicio
+
+Ahora puedes recorrer una petición desde Blazor hasta la API y viceversa, interpretar sus códigos HTTP y añadir un endpoint nuevo sin modificar rutas existentes. La API continúa funcionando en memoria: al reiniciarla se pierde todo lo creado durante la ejecución.

@@ -463,3 +463,128 @@ Esta separación facilita pruebas: un componente puede recibir una implementaci�
 La comprobación decisiva no es que exista una clase nueva: es que, tras sustituir el acceso directo, `/catalogo-remoto` siga listando Cuaderno y Lápiz, permita crear Regla, notifique un rechazo o un servidor apagado y mantenga funcional la página local `/productos` de M03. En esta práctica modificamos la organización del código sin cambiar el contrato HTTP ni la API.
 
 En P4.3 abriremos la implementación de la API que ya proporcionamos al comenzar 4.1. De ese modo el alumno ya conoce el consumo y puede comprender ahora el origen de las respuestas sin introducir otra aplicación ajena al laboratorio.
+
+## 4.3. Comprender y modificar la API auxiliar de Productos
+
+### Por qué estudiamos ahora el servidor
+
+En 4.1 y 4.2 hemos consumido una API que ya estaba disponible: primero desde el componente Razor, después mediante \`IProductosApiService\`. Sabemos que \`GET /api/productos\` devuelve un catálogo y \`POST /api/productos\` crea una entrada, pero todavía no hemos seguido esa petición dentro del servidor. En este punto abriremos **el mismo proyecto** que se entregó al comenzar M04. No escribiremos una API empresarial ni repetiremos el temario previo de Web API: queremos entender las piezas que hacen posible el contrato que Blazor ya utiliza.
+
+El recorrido completo es:
+
+\`\`\`text
+Blazor /catalogo-remoto
+  → IProductosApiService
+  → ProductosApiService (HttpClient)
+  → GET o POST http://localhost:5081/api/productos
+  → aplicación API: endpoint y reglas
+  → respuesta HTTP + JSON
+  → servicio cliente
+  → estado de la pantalla
+\`\`\`
+
+La API del laboratorio funciona en un proceso separado. Su modelo \`ProductoApi\` es propio; el cliente utiliza \`ProductoDto\`. Coinciden las propiedades públicas del contrato HTTP, pero no comparten necesariamente el mismo ensamblado.
+
+### 4.3.1. El host mínimo en Program.cs
+
+La API se inicia con el patrón habitual de .NET 8:
+
+\`\`\`csharp
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+// Aquí se declaran rutas mediante app.MapGet y app.MapPost.
+app.Run();
+\`\`\`
+
+\`CreateBuilder\` prepara configuración y servicios; \`Build\` crea la aplicación; \`MapGet\` y \`MapPost\` asocian un método HTTP y una ruta a un delegado que procesa la petición; \`Run\` mantiene el servidor atendiendo solicitudes. Este proyecto es pequeño porque el alumno ya conoce Web API: **Minimal APIs** nos permiten mostrar el contrato y las reglas sin añadir controladores y capas que no aportan aprendizaje a M04.
+
+### 4.3.2. Qué devuelve realmente GET
+
+La colección se crea en memoria al arrancar:
+
+\`\`\`csharp
+var productos = new ConcurrentDictionary<int, ProductoApi>();
+productos[1] = new ProductoApi(1, "Cuaderno", 2.50m);
+productos[2] = new ProductoApi(2, "Lápiz", 0.80m);
+\`\`\`
+
+\`ConcurrentDictionary\` permite accesos concurrentes seguros a las operaciones de diccionario que usamos. Los registros iniciales son datos del laboratorio, no datos de SQL Server. Esta línea publica el catálogo:
+
+\`\`\`csharp
+app.MapGet("/api/productos", () =>
+    Results.Ok(productos.Values.OrderBy(p => p.Id)));
+\`\`\`
+
+\`Results.Ok\` devuelve **200 OK**. ASP.NET Core serializa la colección en JSON: los nombres de propiedades se exponen en *camelCase* bajo las opciones web habituales. \`OrderBy\` evita presentar el orden interno de un diccionario concurrente como si fuera un criterio estable de listado.
+
+Si consultamos \`/api/productos/999\`, el endpoint de detalle devuelve \`Results.NotFound()\`. **404 no es una excepción de C# obligatoria**: es una decisión explícita de protocolo que el cliente debe interpretar.
+
+### 4.3.3. Cómo procesa POST la entrada
+
+La API recibe un objeto de entrada:
+
+\`\`\`csharp
+record CrearProductoApi(string Nombre, decimal Precio);
+\`\`\`
+
+Ese contrato **no tiene Id**: el identificador lo asigna el servidor. El delegado de POST valida nombre y precio:
+
+\`\`\`csharp
+if (string.IsNullOrWhiteSpace(entrada.Nombre) || entrada.Precio <= 0)
+    return Results.BadRequest("Nombre y precio deben ser válidos.");
+\`\`\`
+
+Si los datos cumplen las reglas, se ejecuta:
+
+\`\`\`csharp
+var id = Interlocked.Increment(ref siguienteId);
+var creado = new ProductoApi(id, entrada.Nombre.Trim(), entrada.Precio);
+productos[id] = creado;
+return Results.Created($"/api/productos/{id}", creado);
+\`\`\`
+
+\`Interlocked.Increment\` produce IDs distintos aunque dos peticiones se procesen simultáneamente. \`Results.Created\` devuelve **201 Created**, el cuerpo del producto creado y una cabecera \`Location\` que apunta a su recurso. Por eso nuestra API expone también \`GET /api/productos/{id}\`.
+
+El cliente no debe inventar el ID ni tratar una respuesta 400 como creación satisfactoria. La validación previa de la página Blazor facilita la experiencia de usuario, pero la API siempre vuelve a validar: el servidor no puede confiar en que todas las llamadas provienen de nuestro formulario.
+
+### 4.3.4. Modificar una respuesta de forma controlada
+
+Vamos a añadir una operación de lectura que no cambie el contrato que ya consume Blazor: \`GET /api/productos/resumen\`. Responderá con el número de productos y el valor agregado de sus precios.
+
+\`\`\`csharp
+app.MapGet("/api/productos/resumen", () =>
+{
+    var actuales = productos.Values.ToArray();
+    return Results.Ok(new
+    {
+        cantidad = actuales.Length,
+        precioTotal = actuales.Sum(p => p.Precio)
+    });
+});
+\`\`\`
+
+El material devuelve, por ejemplo:
+
+\`\`\`json
+{ "cantidad": 2, "precioTotal": 3.30 }
+\`\`\`
+
+Tras crear Regla a 1,75, el resumen indicará tres productos y un precio total de 5,05. Son valores ilustrativos que dependen de partir del estado inicial de la API. **No cambiaremos** \`GET /api/productos\`, porque 4.1 y 4.2 dependen de que esa ruta siga devolviendo una lista. Esta es la idea del ejercicio: ampliar sin romper un cliente existente.
+
+La ruta literal \`/api/productos/resumen\` no se confunde con \`/api/productos/{id:int}\`, porque esta última exige un parámetro entero. El resultado de resumen tiene su propia forma JSON; no debe deserializarse como \`ProductoDto\`.
+
+### 4.3.5. Diferencias entre JSON válido, reglas de negocio y persistencia
+
+Una petición puede tener JSON sintácticamente válido y, sin embargo, incumplir las reglas: \`{"nombre":"","precio":0}\` contiene JSON legible, pero no un producto aceptable. Una petición de JSON incompatible con el DTO puede producir una respuesta de error antes de que el delegado de POST ejecute su comprobación. Nuestro ejemplo no pretende normalizar todos los mensajes de error posibles.
+
+Tampoco basta con que un POST devuelva 201 para afirmar que existe persistencia: **la información vive en memoria del proceso**. Al reiniciar la API se restauran Cuaderno y Lápiz; el producto añadido desaparece. La persistencia ya fue estudiada con EF Core en el contexto previo del alumnado; reintroducirla aquí impediría concentrarse en la comunicación Blazor–API.
+
+### 4.3.6. Probar el contrato sin depender de la pantalla
+
+Para diagnosticar una integración conviene separar observaciones. Primero ejecutamos la API y probamos GET, POST y errores con un cliente HTTP independiente. Después abrimos Blazor para comprobar que conserva su comportamiento. Si el GET directo funciona, pero la página falla, investigaremos URL configurada, puerto, servicio tipado, DTO o estado del componente. Si el GET directo también falla, examinaremos el proceso API y sus rutas.
+
+En este punto **no** implantamos autenticación sobre el catálogo; la demostración limitada de seguridad corresponde a 4.4. Una API sin protección no se vuelve segura por el mero hecho de que la interfaz oculte un botón. La autorización debe comprobarse en el servidor del recurso protegido.
+
+### Síntesis del punto 4.3
+
+Un endpoint es una asociación entre método HTTP, ruta y ejecución de código. Los DTO establecen el contrato; los resultados HTTP indican éxito o rechazo; el estado en memoria explica la duración de los datos. Hemos añadido una operación de resumen sin romper las rutas existentes, y disponemos de una API reproducible que se puede observar tanto directamente como desde Blazor.
