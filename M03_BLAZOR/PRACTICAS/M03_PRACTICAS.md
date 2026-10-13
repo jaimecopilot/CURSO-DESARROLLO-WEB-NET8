@@ -954,166 +954,327 @@ Redacta en tu cuaderno dos frases distintas: «El padre entrega el producto por 
 
 # P3.6. OnInitializedAsync, servicio en memoria y estados de carga
 
-## Objetivo y punto de partida
+## Laboratorio principal acumulativo P3.6 — Los datos se cargan de forma asíncrona sin perder el editor
 
-Hasta ahora, la página creaba directamente una colección de productos. En esta práctica aprenderemos a pedirlos a un **servicio en memoria asíncrono** mediante inyección de dependencias. El servicio no realiza HTTP ni utiliza base de datos: esa complejidad se introducirá de forma controlada en M04. El proyecto de trabajo es `M03_BLAZOR/PROYECTO/3.6/CursoWeb.Blazor/`.
+La aplicación del capítulo anterior ya contiene un catálogo reutilizable, selección por EventCallback, alta, edición, filtros, ordenación, eliminación y deshacer. No vamos a sustituirlo por una página que **solo** sabe mostrar una lista. El nuevo aprendizaje es obtener los **datos iniciales** desde un servicio en memoria, representar la espera y distinguir un resultado vacío de un fallo conocido.
 
-La página inicial compila y muestra «Servicio pendiente de activar», pero todavía no llama al servicio porque el bloque de `OnInitializedAsync` permanece comentado. De esa manera puedes observar el estado anterior a la carga, activar un cambio identificado y comprobar su efecto en la interfaz.
+### 3.6.1 — Localizar las cinco piezas que intervienen
 
-### 3.6.1. Localizar el servicio y su registro
+El trabajo sigue en la ruta /productos del proyecto M03_BLAZOR/PROYECTO/3.6/CursoWeb.Blazor. Abre Program.cs, Services/IProductosMemoriaService.cs, Services/ProductosMemoriaService.cs, Components/TarjetaProducto.razor y Components/Pages/Productos.razor. Los dos últimos contienen todavía el catálogo y los callbacks del capítulo anterior; los tres primeros introducen el contrato, la implementación y el registro del servicio.
 
-Abre `Services/IProductosMemoriaService.cs`. La interfaz declara:
-
-~~~csharp
-Task<IReadOnlyList<Producto>> ObtenerAsync();
-~~~
-
-La implementación `Services/ProductosMemoriaService.cs` devuelve una colección de Cuaderno, Lápiz y Carpeta después de `await Task.Delay(700)`. Esta espera simula una operación asíncrona para poder ver la transición de estados; no representa acceso a una API externa.
-
-En `Program.cs` comprueba el registro:
+El archivo Program.cs completo del estado de este ejercicio es:
 
 ~~~csharp
+using CursoWeb.Blazor.Components;
+using CursoWeb.Blazor.Services;
+
+var builder = WebApplication.CreateBuilder(args);
+// Servicios necesarios para componentes Razor y circuitos Interactive Server.
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+// PASO 3.6.1: inyección por interfaz. No existe HttpClient ni API aún.
 builder.Services.AddScoped<IProductosMemoriaService, ProductosMemoriaService>();
+var app = builder.Build();
+if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/error");
+app.UseStaticFiles();
+app.UseAntiforgery();
+// El modo Interactive Server necesita tanto servicios como endpoint.
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+app.Run();
+public partial class Program { }
 ~~~
 
-Y en `Components/Pages/Productos.razor` localiza:
+La llamada AddScoped registra la implementación detrás de la interfaz; la página puede solicitar IProductosMemoriaService mediante @inject. El resto del host no se descarta: conserva los componentes Razor, Interactive Server, antiforgery y el mapeo de endpoints que ya se introdujeron en 3.1.
 
-~~~razor
-@inject IProductosMemoriaService Catalogo
-~~~
-
-El componente solicita una dependencia por interfaz y la recibe del contenedor de ASP.NET Core. El alumno ya conoce el concepto de inyección de dependencias de otros ámbitos de .NET; ahora observa cómo participa en un componente Razor.
-
-### 3.6.2. Ejecutar el estado inicial sin activar el método
-
-Detén P3.5, abre 3.6, compila y ejecuta. Abre `/productos`. Debes encontrar el texto «Servicio pendiente de activar» y ninguna tarjeta. Observa los campos en `@code`:
+El contrato completo del servicio, IProductosMemoriaService.cs, se entrega así:
 
 ~~~csharp
-private IReadOnlyList<Producto> productos = Array.Empty<Producto>();
-private bool cargando = true;
-private string estado = "Servicio pendiente de activar";
-~~~
-
-Este estado inicial no está «mal hecho»: la interfaz no llama aún al servicio y, por tanto, no tiene datos que representar. La finalidad del paso es comprobar que el alumno entiende la diferencia entre **un componente existente** y **un componente que ya cargó sus datos**.
-
-### 3.6.3. Activar OnInitializedAsync
-
-En `Components/Pages/Productos.razor` retira los delimitadores C# del bloque `PASO 3.6.2 INICIO / FIN`. El método activo debe quedar:
-
-~~~csharp
-protected override async Task OnInitializedAsync()
+using CursoWeb.Blazor.Models;
+namespace CursoWeb.Blazor.Services;
+public interface IProductosMemoriaService
 {
-    estado = "Cargando productos...";
-    productos = await Catalogo.ObtenerAsync();
-    cargando = false;
-    estado = "Lista preparada";
+    Task<IReadOnlyList<Producto>> ObtenerAsync();
+    /* RETO INTEGRADOR 3.6.7 INICIO
+    Task<IReadOnlyList<Producto>> ObtenerConErrorAsync(bool simularError);
+    RETO INTEGRADOR 3.6.7 FIN */
 }
 ~~~
 
-Guarda, compila y recarga `/productos`. Primero debe aparecer «Cargando productos...»; cuando el servicio termine, debe mostrarse «Lista preparada» y tres tarjetas. Si no alcanzas a leer el primer mensaje por la velocidad del equipo, recuerda que la espera controlada se encuentra en el servicio y no en la vista.
+La interfaz promete obtener una lista tipada de forma asíncrona. El contrato no prescribe si el origen es una base de datos o un array local; la implementación de este módulo no utiliza red ni EF Core. El segundo método está preparado como reto de error y reintento, pero permanece comentado hasta el paso correspondiente.
 
-El método no lo llama el alumno desde un botón: **Blazor lo invoca durante la inicialización del componente**. Tampoco es el handler `OnGet` de una Razor Page; esos nombres pertenecen a modelos diferentes. La propiedad `productos` se llena después del `await` y el estado de la interfaz cambia.
+La clase ProductosMemoriaService.cs implementa ese contrato y devuelve tres productos tras una pequeña espera:
 
-### 3.6.4. Interpretar el marcado condicional
-
-En la misma página encontrarás:
-
-~~~razor
-<p id="estado-carga">@estado</p>
-@if (!cargando && productos.Count > 0)
+~~~csharp
+using CursoWeb.Blazor.Models;
+namespace CursoWeb.Blazor.Services;
+/// <summary>Servicio de laboratorio sin HTTP, EF Core ni base externa.</summary>
+public sealed class ProductosMemoriaService : IProductosMemoriaService
 {
-    <div class="tarjetas" id="tarjetas-productos">
-        @foreach (var producto in productos)
-        {
-            <TarjetaProducto Producto="producto" />
-        }
-    </div>
+    public async Task<IReadOnlyList<Producto>> ObtenerAsync()
+    {
+        await Task.Delay(700);
+        // RETO 3.6 (alternativa): sustituye el bloque return siguiente por:
+        // return Array.Empty<Producto>();
+        return
+        [
+            new Producto(1, "Cuaderno", 4.50m),
+            new Producto(2, "Lápiz", 1.20m),
+            new Producto(3, "Carpeta", 3.75m)
+        ];
+    }
+    /* RETO INTEGRADOR 3.6.7 INICIO
+    public async Task<IReadOnlyList<Producto>> ObtenerConErrorAsync(bool simularError)
+    {
+        await Task.Delay(350);
+        if (simularError)
+            throw new InvalidOperationException("Fallo controlado del servicio local.");
+        return await ObtenerAsync();
+    }
+    RETO INTEGRADOR 3.6.7 FIN */
+
 }
 ~~~
 
-La bandera `cargando` impide representar tarjetas mientras la operación no ha terminado. El valor de `productos.Count` determina si existe algo que mostrar. Esta separación permite razonar sobre estados reales y no sobre una pantalla que «a veces aparece y a veces no».
+Task.Delay es una simulación temporal para hacer visible el estado de carga. No representa un requisito de producción. Cuando el método devuelve Array.Empty<Producto>() en la alternativa indicada, es un **éxito sin elementos** y no una excepción.
 
-**Caso negativo reversible:** comenta temporalmente la asignación `cargando = false`, recompila y observa que, aun después de que el servicio devuelva objetos, la condición de la página no permite representar tarjetas. Restablece la asignación. El resultado ilustra que obtener datos y habilitar su representación son dos operaciones conectadas, pero distintas.
+### 3.6.2 — Confirmar que conservamos TarjetaProducto y EventCallback
 
-### 3.6.5. Comprender la elección de prerenderizado
-
-En la cabecera de `Productos.razor` aparece:
+El componente de tarjeta continúa completo, incluyendo los dos contratos de notificación que aprendimos en P3.5:
 
 ~~~razor
+<article class="tarjeta" data-producto-id="@Producto.Id">
+    <h2>@Producto.Nombre</h2>
+    <p>Precio: @Producto.Precio.ToString("0.00") €</p>
+    <small>Referencia @Producto.Id</small>
+    <button @onclick="NotificarSeleccion">Seleccionar</button>
+    <button @onclick="NotificarQuitar">Quitar</button>
+</article>
+@code {
+    [Parameter, EditorRequired] public Producto Producto { get; set; } = default!;
+    [Parameter] public EventCallback<int> AlSeleccionar { get; set; }
+    [Parameter] public EventCallback<int> AlQuitar { get; set; }
+    private Task NotificarSeleccion() => AlSeleccionar.InvokeAsync(Producto.Id);
+    private Task NotificarQuitar() => AlQuitar.InvokeAsync(Producto.Id);
+}
+~~~
+
+AlSeleccionar y AlQuitar comunican intenciones por Id. La carga asíncrona no altera la responsabilidad del hijo. El padre continuará gestionando todos los cambios de los objetos, porque posee la colección cargada.
+
+### 3.6.3 — Estudiar el archivo completo de la página y activar la carga inicial
+
+El código completo del estado inicial entregado para P3.6 está a continuación. Su longitud es necesaria porque **incluye los comportamientos acumulados**, no porque hayamos creado otro catálogo reducido.
+
+~~~razor
+@page "/productos"
 @rendermode @(new InteractiveServerRenderMode(prerender: false))
-~~~
-
-La página desactiva el prerenderizado para facilitar una observación controlada de la carga y evitar una ejecución duplicada durante las fases de prerenderizado e inicialización interactiva. No lo interpretes como recomendación general para producción: el prerenderizado puede ser útil para presentar contenido antes de que la interactividad esté conectada.
-
-En la teoría 3.6 se explica que `OnInitializedAsync` puede ejecutarse dos veces con prerenderizado. La práctica principal no implementa persistencia de estado de prerenderizado ni estrategias avanzadas de caché; basta comprender la razón de esta elección y saber localizarla.
-
-### Reto 3.6 — Lista vacía después de una carga correcta
-
-**Enunciado:** muestra una indicación legible cuando el servicio ha terminado pero no hay productos. La pantalla debe distinguir «cargando» de «terminado con lista vacía».
-
-Activa el comentario Razor `RETO 3.6 (ACTIVAR)`:
-
-~~~razor
-@if (!cargando && productos.Count == 0)
+@inject IProductosMemoriaService Catalogo
+<PageTitle>Catálogo asíncrono</PageTitle>
+<h1>P3.6 | Catálogo acumulativo y OnInitializedAsync</h1>
+<p>Conservamos la selección, el alta, la edición, los filtros y la recuperación de P3.5. Ahora los datos iniciales proceden de un servicio.</p>
+<p id="estado-carga">@estado</p>
+@* RETO INTEGRADOR 3.6.7: error controlado y botón de reintento.
+   Activa junto con la nueva versión de OnInitializedAsync y el servicio. *@
+@* <label>Simular fallo: <input id="simular-error" type="checkbox" @bind="simularError" /></label> *@
+@* <button id="recargar-productos" disabled="@cargando" @onclick="RecargarAsync">Recargar catálogo</button> *@
+@* @if (!string.IsNullOrEmpty(errorCarga)) { <p role="alert" id="error-carga">@errorCarga</p> } *@
+@if (!cargando)
 {
-    <p id="sin-productos">No hay productos para mostrar.</p>
+    <section aria-label="Consultar catálogo">
+        <label>Buscar por nombre: <input id="buscar" @bind="busqueda" @bind:event="oninput" /></label>
+        <label>Precio máximo: <input id="precio-maximo" type="number" min="0" step="0.5" @bind="precioMaximo" /></label>
+        <button id="alternar-orden" @onclick="AlternarOrden">Invertir orden por precio</button>
+        <p id="resumen-filtrado">Mostrando @ProductosVisibles.Count() de @productos.Count productos</p>
+    </section>
+
+    @if (productos.Count > 0)
+    {
+        <div class="tarjetas" id="tarjetas-productos">
+            @foreach (var producto in ProductosVisibles)
+            {
+                <TarjetaProducto Producto="producto"
+                                AlSeleccionar="SeleccionarParaEditar"
+                                AlQuitar="QuitarConDeshacer" />
+            }
+        </div>
+    }
+    <p id="cantidad">Total: @productos.Count</p>
+
+    @* RETO 3.6: condición para una colección vacía tras una carga correcta. *@
+    @* @if (productos.Count == 0 && estado == "Lista preparada") { <p id="sin-productos">No hay productos para mostrar.</p> } *@
+
+    <section aria-label="Crear y editar productos">
+        <label>Nombre nuevo: <input id="nombre-nuevo" @bind="nuevoNombre" /></label>
+        <button id="agregar" @onclick="Agregar">Añadir producto</button>
+        <label>Editar nombre: <input id="editar-nombre" @bind="nombreEditado" /></label>
+        <button id="guardar-cambio" @onclick="GuardarCambio">Guardar nombre</button>
+        <button id="limpiar" @onclick="Limpiar">Limpiar selección</button>
+    </section>
+
+    <button id="deshacer" disabled="@(eliminacionPendiente is null)" @onclick="DeshacerEliminacion">Deshacer última eliminación</button>
+    <p id="estado-deshacer">@TextoDeshacer</p>
+}
+
+@code {
+    // P3.6: se deja vacía al empezar; el servicio cargará el catálogo inicial.
+    private List<Producto> productos = [];
+    private bool cargando = true;
+    private string estado = "Servicio pendiente de activar";
+
+    // P3.4: estado del editor, el alta y los filtros, conservado.
+    private string seleccion = "ninguno";
+    private string nuevoNombre = string.Empty;
+    private int siguienteId = 4;
+    private int? idEnEdicion;
+    private string nombreEditado = string.Empty;
+    private string busqueda = string.Empty;
+    private decimal? precioMaximo;
+    private bool ordenAscendente = true;
+
+    private IEnumerable<Producto> ProductosVisibles =>
+        (ordenAscendente
+            ? productos.OrderBy(p => p.Precio).ThenBy(p => p.Id)
+            : productos.OrderByDescending(p => p.Precio).ThenBy(p => p.Id))
+        .Where(p =>
+            (string.IsNullOrWhiteSpace(busqueda) ||
+             p.Nombre.Contains(busqueda.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+            (precioMaximo is null || p.Precio <= precioMaximo.Value));
+
+    private void AlternarOrden() => ordenAscendente = !ordenAscendente;
+
+    private void SeleccionarParaEditar(int id)
+    {
+        var producto = productos.First(p => p.Id == id);
+        idEnEdicion = id;
+        seleccion = producto.Nombre;
+        nombreEditado = producto.Nombre;
+    }
+
+    private void GuardarCambio()
+    {
+        if (idEnEdicion is null || string.IsNullOrWhiteSpace(nombreEditado))
+            return;
+        var indice = productos.FindIndex(p => p.Id == idEnEdicion.Value);
+        if (indice < 0)
+            return;
+        productos[indice] = productos[indice] with { Nombre = nombreEditado.Trim() };
+        seleccion = productos[indice].Nombre;
+    }
+
+    private void Agregar()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoNombre))
+            return;
+        productos.Add(new Producto(siguienteId++, nuevoNombre.Trim(), 5m));
+        nuevoNombre = string.Empty;
+    }
+
+    private void Limpiar()
+    {
+        seleccion = "ninguno";
+        idEnEdicion = null;
+        nombreEditado = string.Empty;
+    }
+
+    // P3.5: la tarjeta comunica intención; el padre gestiona la lista y el deshacer.
+    private (Producto Producto, int Indice)? eliminacionPendiente;
+    private string TextoDeshacer => eliminacionPendiente is { } pendiente
+        ? $"Pendiente: {pendiente.Producto.Nombre}"
+        : "Ninguna eliminación pendiente";
+
+    private void QuitarConDeshacer(int id)
+    {
+        var indice = productos.FindIndex(p => p.Id == id);
+        if (indice < 0)
+            return;
+        eliminacionPendiente = (productos[indice], indice);
+        productos.RemoveAt(indice);
+        Limpiar();
+    }
+
+    private void DeshacerEliminacion()
+    {
+        if (eliminacionPendiente is not { } anterior)
+            return;
+        if (!productos.Any(p => p.Id == anterior.Producto.Id))
+            productos.Insert(Math.Min(anterior.Indice, productos.Count), anterior.Producto);
+        eliminacionPendiente = null;
+    }
+
+    /* PASO 3.6.2 INICIO
+    protected override async Task OnInitializedAsync()
+    {
+        estado = "Cargando productos...";
+        productos = (await Catalogo.ObtenerAsync()).ToList();
+        cargando = false;
+        estado = "Lista preparada";
+    }
+    PASO 3.6.2 FIN */
+
+    /* RETO INTEGRADOR 3.6.7 INICIO
+    private bool simularError;
+    private string? errorCarga;
+
+    // Sustituye el método de PASO 3.6.2 por esta versión al llegar al reto.
+    protected override Task OnInitializedAsync() => RecargarAsync();
+
+    private async Task RecargarAsync()
+    {
+        cargando = true;
+        errorCarga = null;
+        estado = "Cargando productos...";
+        productos = [];
+        try
+        {
+            productos = (await Catalogo.ObtenerConErrorAsync(simularError)).ToList();
+            siguienteId = Math.Max(4, productos.Select(p => p.Id).DefaultIfEmpty(3).Max() + 1);
+            estado = "Lista preparada";
+        }
+        catch (InvalidOperationException)
+        {
+            errorCarga = "No se pudo cargar el catálogo de demostración.";
+            estado = "Carga fallida";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+    RETO INTEGRADOR 3.6.7 FIN */
 }
 ~~~
 
-Para probar el caso negativo, abre `Services/ProductosMemoriaService.cs` y sustituye temporalmente el bloque de retorno de tres productos por:
+En el comienzo aparece @inject IProductosMemoriaService Catalogo. La directiva de renderizado utiliza InteractiveServerRenderMode(prerender: false) para observar de forma controlada la carga en el circuito. En @code, productos empieza como List<Producto> vacía; no contiene por segunda vez los tres productos literales. El resto del estado conserva el editor, las variables de filtro y los métodos de eliminación del punto anterior.
 
-~~~csharp
-return Array.Empty<Producto>();
-~~~
+Localiza PASO 3.6.2 INICIO y FIN en la parte final del archivo. Retira los dos delimitadores de comentario C#, dejando activo OnInitializedAsync. El método cambia estado a «Cargando productos...», espera Catalogo.ObtenerAsync, convierte el resultado a List<Producto> para que el padre pueda añadir/quitar/editar y finalmente desactiva cargando y muestra «Lista preparada».
 
-**Importante:** reemplaza la instrucción `return` original, no añadas otra después de ella. Compila, abre `/productos` y observa que la carga termina con «Lista preparada» y el mensaje «No hay productos para mostrar», sin tarjetas. Esto no es un error de HTTP ni una excepción: el servicio ha devuelto una colección vacía válida.
+Arranca el proyecto en Kestrel y abre /productos: en unos instantes deben aparecer tres tarjetas. A diferencia de P3.5, los objetos ya no se inicializan con un literal en el componente. Mientras cargando es true, los controles operativos se ocultan; cuando la carga finaliza, reaparecen las mismas funciones de búsqueda, alta y edición, con los callbacks del componente hijo.
 
-**Resultado positivo complementario:** restaura la lista original del servicio y recarga. Deben volver a mostrarse tres tarjetas y el mensaje de lista vacía no debe aparecer. La solución es una condición Razor dependiente de `cargando` y del número de elementos; no se necesita una API ni un nuevo componente.
+### 3.6.4 — Confirmar la continuidad funcional después del await
 
-### 3.6.7. Reto integrador — Simular un error de carga y recuperar el catálogo
+Esta comprobación es el corazón del ejercicio. Selecciona Lápiz usando el botón **del componente hijo**, cambia su nombre por «Lápiz recuperado», guarda y búscalo por «recuperado». Borra la búsqueda y añade Regla: el catálogo debe tener cuatro tarjetas. Quita Lápiz recuperado y utiliza Deshacer. Comprueba que se recupera el Id y el nombre editado. Alterna la ordenación; los datos no deben perderse.
 
-**Encargo.** El catálogo ya obtiene sus productos de forma asíncrona desde un servicio en memoria. Amplía el ejercicio para que el usuario pueda simular un fallo, reconocer que la carga no terminó correctamente y **reintentar** hasta recuperar las tarjetas. Hay que conseguirlo con el servicio local existente; todavía no se utilizarán HttpClient, Web API, SQL ni persistencia.
+Si cualquiera de esas operaciones desaparece en P3.6, el proyecto no es una evolución válida del capítulo anterior aunque el método OnInitializedAsync funcione. Hay que reparar la pérdida de funcionalidad, no eliminar los ejemplos para simplificar el laboratorio.
 
-**Estado de partida.** Trabaja en M03_BLAZOR/PROYECTO/3.6/CursoWeb.Blazor con los pasos de carga de P3.6 ya realizados. Al abrir /productos aparecen «Lista preparada» y tres tarjetas. Guarda una copia de este estado o utiliza la carpeta original limpia si has modificado el servicio para ensayar el resultado vacío. Un servicio que devuelve intencionadamente cero productos haría menos clara la comprobación de la recuperación tras error.
+### 3.6.5 — Representar una carga correcta sin elementos
 
-**Paso 1 — Identificar el recorrido completo.** Abre Services/IProductosMemoriaService.cs, Services/ProductosMemoriaService.cs y Components/Pages/Productos.razor. En los tres existe un bloque RETO INTEGRADOR 3.6.7 INICIO / FIN. El contrato anuncia una nueva operación asíncrona; la clase del servicio la implementa; el componente solicita esa operación y transforma el resultado en mensajes y tarjetas. No basta con activar solo el último archivo: la interfaz y la implementación forman parte de la misma compilación.
+El marcado incluye una condición comentada con RETO 3.6 para mostrar el párrafo id="sin-productos" cuando la carga ha terminado y la lista es vacía. Actívala retirando sus delimitadores Razor. Cambia temporalmente el retorno de ObtenerAsync por Array.Empty<Producto>() y recarga el navegador. Tras la espera, aparece «Lista preparada» y el mensaje de lista vacía. Esto demuestra que terminar una operación sin elementos **no es lo mismo** que entrar en catch.
 
-**Paso 2 — Activar el contrato y la implementación.** En IProductosMemoriaService.cs retira los delimitadores del bloque indicado para que declare:
+Restaura después el retorno original de tres productos antes del reto siguiente. No mantengas dos return consecutivos ni cambies la interfaz por un servicio HTTP inexistente.
 
-~~~csharp
-Task<IReadOnlyList<Producto>> ObtenerConErrorAsync(bool simularError);
-~~~
+### 3.6.6 — Extender el servicio para un fallo controlado
 
-En ProductosMemoriaService.cs activa el método homónimo. El método espera brevemente, lanza InvalidOperationException cuando simularError es true y, cuando es false, obtiene el catálogo habitual mediante ObtenerAsync(). Antes de continuar, justifica el parámetro booleano: permite reproducir el error a voluntad y comprobar tanto el comportamiento fallido como el correcto sin hacer depender la práctica de un servidor remoto.
+Activa en la interfaz y el servicio los bloques C# RETO INTEGRADOR 3.6.7. El nuevo método ObtenerConErrorAsync(bool simularError) espera brevemente, lanza InvalidOperationException si simularError es true y, en caso contrario, obtiene la lista normal. El objetivo es poder forzar tanto el error como la recuperación **sin depender de una API externa**.
 
-**Paso 3 — Sustituir el método inicial, no duplicarlo.** En la página Productos.razor activa el bloque C# del reto 3.6.7. Dentro encontrarás la nueva definición:
+En Productos.razor activa el bloque C# del mismo reto, pero **sustituye** el OnInitializedAsync anterior por el nuevo que delega en RecargarAsync. Es importante que exista una sola definición activa de OnInitializedAsync. RecargarAsync cambia las banderas y el mensaje de espera, limpia el error previo y vacía la lista visible, intenta cargar, informa de la excepción conocida y desactiva la bandera dentro de finally. Activa también la casilla simular-error, el botón recargar-productos y el párrafo condicional error-carga.
 
-~~~csharp
-protected override Task OnInitializedAsync() => RecargarAsync();
-~~~
+### 3.6.7 — Fallar, recuperar y volver a utilizar el catálogo
 
-Este método **reemplaza** al OnInitializedAsync que activaste en PASO 3.6.2. Elimina del archivo la definición anterior (puedes mantener las instrucciones históricas como comentarios si no duplican código activo). Si dejas dos métodos con la misma firma, el proyecto no compilará. El nuevo OnInitializedAsync llama a RecargarAsync para que la carga inicial y la carga solicitada con el botón compartan la misma lógica.
+Con el servicio correcto, espera las tres tarjetas. Marca Simular fallo y pulsa Recargar catálogo: debe aparecer «Carga fallida», un aviso textual y ninguna tarjeta del intento anterior. Desmarca la casilla, pulsa de nuevo el botón y observa cómo vuelve «Lista preparada» con los tres productos.
 
-**Paso 4 — Leer la lógica de recuperación.** El método RecargarAsync establece cargando = true, limpia errorCarga, muestra «Cargando productos...» y deja una colección vacía mientras realiza la nueva petición al servicio. Dentro de try espera ObtenerConErrorAsync(simularError). Con éxito, asigna productos y cambia el estado a «Lista preparada». En catch (InvalidOperationException), genera un texto comprensible y cambia el estado a «Carga fallida». Finalmente, el bloque finally asigna cargando = false. ¿Qué sucedería si el método dejase la bandera en true después de capturar la excepción? Razona la respuesta mirando las condiciones Razor y el atributo disabled del botón.
+Tras la recuperación, ejecuta **otra vez** las operaciones del apartado 3.6.4: selección desde la tarjeta hija, edición por Id, alta de otro producto, filtros y deshacer. Un resultado de recarga que dibuja tres tarjetas pero deja de permitir editar no cumple el objetivo de este capítulo.
 
-**Paso 5 — Activar los controles del navegador.** Descomenta las tres líneas Razor preparadas junto a la lista: la casilla id="simular-error" enlazada a simularError; el botón id="recargar-productos" que ejecuta RecargarAsync y se deshabilita durante una carga; y el párrafo condicional id="error-carga" con role="alert". Esta última condición solo representa el mensaje cuando errorCarga no está vacío. Conserva también el texto existente id="estado-carga"; son elementos diferentes, uno indica el estado general y el otro explica un error concreto.
+### 3.6.8 — Explicar qué se ha construido
 
-**Paso 6 — Ensayo de éxito y fallo.** Compila y abre /productos sin marcar la casilla. Espera a que aparezcan «Lista preparada» y tres tarjetas. Marca «Simular fallo», pulsa «Recargar catálogo» y espera a leer «Carga fallida». Debe verse «No se pudo cargar el catálogo de demostración.» y no deben aparecer tarjetas antiguas como si correspondieran a este nuevo intento. Comprueba que el botón vuelve a estar disponible: la excepción no debe dejar la interfaz atrapada en estado de carga.
-
-**Paso 7 — Recuperación sin reiniciar el sitio.** Desmarca «Simular fallo», pulsa de nuevo «Recargar catálogo» y espera el resultado. El texto deberá volver a «Lista preparada», el mensaje de error desaparecerá y se mostrarán tres tarjetas. Esta recuperación ocurre en **el mismo componente**, después de un fallo conocido. No ha sido necesario editar datos, reiniciar dotnet ni ejecutar una API externa.
-
-**Paso 8 — Diferenciar tres síntomas.** Repite el razonamiento con tres situaciones: (a) servicio correcto con tres elementos; (b) servicio correcto con lista vacía, como en el reto 3.6 anterior; (c) servicio que lanza la excepción simulada. En el caso (b) se terminó correctamente, por lo que corresponde un mensaje de vacío, no el mensaje de fallo. En el caso (c) la llamada no produjo una lista válida y se entra en catch. Explica por qué una bandera cargando no es suficiente para describir los tres resultados.
-
-**Incidencias que debes poder solucionar.** Una declaración duplicada de OnInitializedAsync revela que no sustituiste el método previo. Un error «no contiene una definición para ObtenerConErrorAsync» obliga a revisar el contrato y la implementación. Un mensaje de fallo que permanece después del éxito obliga a revisar dónde se restablece errorCarga. Una pantalla sin tarjetas durante toda la ejecución exige comprobar si cargando pasa a false o si la llamada nunca termina. No soluciones estos síntomas añadiendo código JavaScript: la información relevante está en el ciclo de vida, el estado y el contrato de servicio.
-
-**Conclusión.** Resume con tus palabras cuál es la responsabilidad de la página y cuál la del servicio. Identifica dónde sucede la espera, dónde se decide mostrar el mensaje de error y qué hace posible volver a intentarlo. Al terminar, el componente sabe recuperar una carga controlada; en M04 podrá aprender a usar una API real sin confundir un fallo de red con la mecánica elemental del estado de Blazor.
-
-
-### Cierre y transferencia a M04
-
-Al terminar M03 debes poder explicar un recorrido completo de Blazor: una ruta selecciona un componente, un parámetro entrega datos a una tarjeta, un evento modifica estado, un callback notifica al padre, un servicio se obtiene mediante inyección y `OnInitializedAsync` carga una colección. Las pruebas realizadas deben relacionar cada comportamiento con sus archivos concretos; no basta con decir que los seis proyectos compilan.
-
-En M04 sustituiremos o complementaremos el servicio en memoria por llamadas `HttpClient` a una API auxiliar suministrada por el curso. Precisamente por eso no adelantamos HTTP en P3.6: necesitamos que el alumno comprenda antes los componentes, su ciclo de vida y sus estados.
+Identifica para cada funcionalidad el archivo responsable: Program.cs registra servicios; la interfaz define operaciones; ProductosMemoriaService implementa la obtención; Productos.razor conserva lista, filtros, edición y estados de carga; TarjetaProducto recibe Producto y emite callbacks. Relaciona cada mecanismo con los ejemplos de teoría 3.3–3.6. El resultado no es un CRUD remoto: los cambios permanecen en memoria y volver a cargar los datos del servicio reinicia el catálogo local.
 
 ## Laboratorio de profundización P3.6 — Carga asíncrona, resultado vacío y diagnóstico
 
