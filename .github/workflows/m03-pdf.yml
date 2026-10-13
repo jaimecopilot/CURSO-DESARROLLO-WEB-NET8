@@ -27,6 +27,8 @@ jobs:
           python -m pip install "markdown-it-py>=3,<5" "pygments>=2.17,<3" "weasyprint>=63,<69" "pypdf>=5,<8" "pymupdf>=1.24,<2" "beautifulsoup4>=4.12,<5"
           sudo apt-get update -qq
           sudo apt-get install -y graphviz fonts-dejavu-core
+      - name: Verificar trazabilidad de código completo por capítulo
+        run: python M03_BLAZOR/DOCS/verificar_codigo_en_practicas.py
       - name: Generar PDF completos desde los Markdown
         run: python M03_BLAZOR/DOCS/generar_m03_pdf.py
       - name: Rasterizar todas las páginas
