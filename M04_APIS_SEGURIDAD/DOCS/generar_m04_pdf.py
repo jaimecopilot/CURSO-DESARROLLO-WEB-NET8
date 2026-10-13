@@ -14,11 +14,9 @@ from markdown_it import MarkdownIt
 from weasyprint import HTML
 from pypdf import PdfReader,PdfWriter
 import fitz
-CSS=(estilo.CSS_TEMPLATE
-     .replace("font-size: 9.8pt; line-height: 1.46","font-size: 12.0pt; line-height: 1.66")
-     .replace("font-size: 8.2pt; line-height: 1.35","font-size: 9.35pt; line-height: 1.54"))
-CSS+=estilo.HTML_FORMATTER.get_style_defs(".highlight")
-CSS += "\np { margin: 8pt 0 10.8pt; }\nh2 { margin-top: 19pt; }\n"
+# Misma escala que M01: texto 9.8 pt y código 8.2 pt.
+# No aumentar fuentes ni interlineado para inflar la extensión.
+CSS=estilo.CSS_TEMPLATE + estilo.HTML_FORMATTER.get_style_defs(".highlight")
 CHAPTER=re.compile(r"^(?:P)?4\.([1-4])(?:\.|\s)")
 OUT=ROOT/"VERIFICACION_INTERNA"/"M04_PDFS_VALIDACION.md"
 
@@ -71,9 +69,6 @@ def html_from_md(source,kind):
     css=(CSS.replace("__MD_COURSE__",cssq(course))
             .replace("__MD_TYPE__",cssq(label))
             .replace("__MD_AUTHOR__",cssq(author)))
-    if kind=="PRACTICAS":
-        # Evitar que el diagnóstico final quede cortado entre páginas.
-        css+="\nbody {font-size:12.3pt;line-height:1.71;}\np {margin:8.7pt 0 11.4pt;}\nbody > p:last-child {break-inside:avoid;}\n.module-intro {font-size:10pt;line-height:1.38;}\n.module-intro p {margin:4pt 0 6pt;}\n.module-intro h2 {margin-top:9pt;}\n.module-intro ul {margin:4pt 0 5pt;}\n.module-intro li {margin:1pt 0;}\n"
     return ('<!doctype html><html lang="es"><head><meta charset="utf-8">'
        +'<style>'+css+'</style></head><body>'+rendered+'</body></html>')
 
