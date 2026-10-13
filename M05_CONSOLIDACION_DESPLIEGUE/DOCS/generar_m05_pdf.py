@@ -7,7 +7,7 @@ from io import BytesIO
 import hashlib,json,re,sys,unicodedata
 from bs4 import BeautifulSoup
 ROOT=Path(__file__).resolve().parents[2]
-BASE=ROOT/"M05_APIS_SEGURIDAD"
+BASE=ROOT/"M05_CONSOLIDACION_DESPLIEGUE"
 sys.path.insert(0,str(ROOT/"M01_MVC"/"DOCS"))
 import generar_m01_pdf as estilo
 from markdown_it import MarkdownIt
