@@ -1152,6 +1152,203 @@ Con la página Productos cargada, reproduce el recorrido usando los archivos del
 
 **Resultado esperado:** debes poder identificar el archivo que interviene en cada una de estas etapas. No es suficiente decir «lo hace MVC»: hay que diferenciar qué pieza hace qué trabajo.
 
+## Construcción integral P1.2 — archivos completos y explicación del cambio
+
+La teoría MVC explica modelo, acción y vista. En P1.2 construimos esas piezas sobre el host, el layout y la portada de P1.1; no abrimos otra aplicación. Los siguientes son **todos los archivos nuevos o modificados respecto a la instantánea anterior**. Los que no cambian se mantienen exactamente como ya fueron explicados, por lo que el alumno puede reconstruir la aplicación de forma acumulativa.
+
+### P1.2 — Controllers/ProductosController.cs
+
+**Responsabilidad y lectura guiada.** Acción y obtención de los productos: localiza el método que entrega una colección a la vista y separa decisión HTTP de presentación HTML. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~csharp
+using CursoWeb.Mvc.Models;
+using Microsoft.AspNetCore.Mvc;
+
+namespace CursoWeb.Mvc.Controllers;
+
+public class ProductosController : Controller
+{
+    [HttpGet]
+    public IActionResult Index()
+    {
+        // PASO 1.2.3: quitar los delimitadores del comentario de datos y
+        // comentar el 'return View();' de la última línea de esta acción.
+        /* PASO 1.2.3 INICIO
+        var productos = new List<Producto>
+        {
+            new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+            // RETO 1.2 — Comentar la línea de Cuaderno y descomentar la siguiente:
+            // new() { Id = 1, Nombre = "Bloc", Precio = 4.50m },
+            new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+            new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+        };
+
+        return View(productos);
+        PASO 1.2.3 FIN */
+
+        return View(); // PASO 1.2.3: comentar al activar el envío de datos.
+    }
+}
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.2. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.2 — Models/Producto.cs
+
+**Responsabilidad y lectura guiada.** Contrato de datos Id, Nombre y Precio: comprueba que los tipos y propiedades coinciden con lo que solicita el controlador y lee Razor. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~csharp
+namespace CursoWeb.Mvc.Models;
+
+/// <summary>
+/// PASO 1.2.2: el modelo representa datos del dominio sin conocer HTTP ni HTML.
+/// No accede a base de datos; se usan datos fijos hasta M02.
+/// </summary>
+public sealed class Producto
+{
+    public int Id { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public decimal Precio { get; set; }
+}
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.2. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.2 — Views/Productos/Index.cshtml
+
+**Responsabilidad y lectura guiada.** Vista tipada de una colección: recorre los objetos recibidos y genera HTML sin inventar los productos en el propio marcado. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+@{
+    ViewData["Title"] = "Productos y responsabilidades MVC";
+}
+
+<h1>1.2 | Modelo, Vista y Controlador</h1>
+<p id="proposito-vista">La vista decide cómo presentar los datos, pero no inventa el catálogo.</p>
+
+@if (Model is null)
+{
+    <p id="sin-modelo">El controlador todavía no ha entregado una lista a la vista.</p>
+}
+else
+{
+    <p id="numero-productos">El controlador ha enviado <strong>@Model.Count</strong> productos.</p>
+
+    @* APLICACION 1.2.4: escribe aquí una condición @if (Model.Count > 0) y muestra el Nombre del primer producto dentro de un <p id="primer-producto">. No modifiques el controlador ni sustituyas el modelo por texto fijo. *@
+
+    @* PASO 1.2.4 (inicio)
+    <ul id="listado-productos">
+    @foreach (var producto in Model)
+    {
+        <li data-id="@producto.Id">@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+    }
+    </ul>
+    PASO 1.2.4 (fin) *@
+}
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.2. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.2 — Views/Home/Index.cshtml
+
+**Responsabilidad y lectura guiada.** Portada conservada con navegación hacia el nuevo catálogo; no crea otro controlador ni duplica el listado. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~cshtml
+@{
+    ViewData["Title"] = "Primer recorrido MVC";
+}
+
+<h1>1.1 | Primer recorrido MVC</h1>
+<p>Esta página HTML ha sido generada en el servidor mediante una acción MVC.</p>
+<p id="resultado-inicial">Respuesta HTTP correcta: aplicación MVC disponible.</p>
+
+@* PASO 1.1.5 (inicio)
+<section id="marca-paso-1-1-5">
+    <h2>Contenido añadido durante la práctica</h2>
+    <p>El navegador ha recibido una nueva versión de la vista Razor.</p>
+</section>
+PASO 1.1.5 (fin) *@
+
+@* RETO 1.1 (inicio)
+<p id="reto-1-1">El servidor genera el HTML y envía las cabeceras HTTP por separado.</p>
+RETO 1.1 (fin) *@
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.2. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.2 — Views/Shared/_Layout.cshtml
+
+**Responsabilidad y lectura guiada.** Menú compartido de la aplicación: permite llegar a Productos sin repetir la cabecera o el HTML base en todas las vistas. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~cshtml
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Curso Web .NET 8</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+</head>
+<body>
+    <header>
+        <nav aria-label="Navegación principal">
+            <a href="/">Inicio</a>
+            @* PASO 1.2.5 (inicio)
+            <a href="/Productos">Productos</a>
+            PASO 1.2.5 (fin) *@
+        </nav>
+    </header>
+    <main class="container">
+        @RenderBody()
+    </main>
+    <footer>Curso ASP.NET Core MVC · .NET 8</footer>
+</body>
+</html>
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.2. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.2 — README.md
+
+**Responsabilidad y lectura guiada.** Guía de ejecución y activación del estado 1.2. El archivo acompaña al alumno y no se compila. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~markdown
+# Punto 1.2 — Evolución reproducible de MVC
+
+**AUTOR: JAIME GALLO**
+
+Este proyecto es la **continuación autónoma** del proyecto del punto 1.1. Se conserva su página inicial y se añaden los archivos `Models/Producto.cs`, `Controllers/ProductosController.cs` y `Views/Productos/Index.cshtml`.
+
+## Iniciar
+
+Abrir `CursoWeb.Mvc.csproj` desde esta misma carpeta, o ejecutar:
+
+~~~bash
+dotnet restore
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+- `http://localhost:5091/`: portada del capítulo anterior.
+- `http://localhost:5091/Productos`: vista inicial de 1.2, sin modelo.
+- `http://localhost:5091/Productos/Index`: ruta equivalente.
+
+## Activación por pasos
+
+1. **1.2.2:** identificar `Models/Producto.cs`; ya está activo y es independiente de HTTP, controladores y vistas.
+2. **1.2.3:** en `Controllers/ProductosController.cs`, retirar las dos líneas delimitadoras `/* PASO 1.2.3 INICIO` y `PASO 1.2.3 FIN */` sin modificar el bloque interior; comentar el `return View();` situado al final de la acción. El proyecto compila; el controlador envía tres objetos a la vista y aparece su cantidad.
+3. **1.2.4:** en `Views/Productos/Index.cshtml`, eliminar las dos líneas del comentario Razor `@* PASO 1.2.4 (inicio)` y `PASO 1.2.4 (fin) *@`. Aparecen tres filas de productos.
+4. **1.2.5:** en `Views/Shared/_Layout.cshtml`, quitar los delimitadores del comentario Razor del paso para habilitar el enlace de navegación `Productos`.
+
+5. **RETO 1.2:** con los pasos 1.2.3–1.2.5 activos, comentar la línea de producto `Cuaderno` y descomentar la línea ya proporcionada de `Bloc` dentro de `ProductosController.Index()`. El recuento sigue siendo 3; la vista muestra Bloc en lugar de Cuaderno. El código, su explicación y la comprobación están en P1.2, apartado G.
+
+Detener y volver a ejecutar para observar los cambios de cada estado.
+
+La práctica completa está en `../../../PRACTICAS/M01_PRACTICAS.md`, sección P1.2.
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.2. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
 ## Aplicación autónoma P1.2 — el primer producto sin duplicar sus datos
 
 Los pasos 1.2.3 y 1.2.4 construyen un catálogo en memoria y lo representan mediante una vista. Ahora resolverás una necesidad nueva, **escribiendo tu propio código**: mostrar el nombre del primer producto por encima del listado, sin cambiar el controlador, repetir datos ni añadir una ruta.
@@ -1648,6 +1845,277 @@ Reiniciar la aplicación, abrir `/Productos` y comprobar que ahora hay un enlace
 **Observación decisiva:** prueba también la URL directa `/recursos/guia-publica.txt` antes de descomentar el enlace, si deseas comparar estados. El recurso ya era accesible. Habilitar el enlace facilita encontrarlo en la interfaz, pero **no cambia la configuración de publicación estática**.
 
 Aquí no hemos creado ninguna clase nueva ni un método de controlador. El trabajo ya lo hace el middleware de archivos estáticos.
+
+## Construcción integral P1.3 — archivos completos y explicación del cambio
+
+P1.3 estudia organización y puesta en marcha sin eliminar el catálogo MVC ya construido. Las modificaciones de estos archivos muestran la frontera entre host, configuración, vista y archivos estáticos. Los siguientes son **todos los archivos nuevos o modificados respecto a la instantánea anterior**. Los que no cambian se mantienen exactamente como ya fueron explicados, por lo que el alumno puede reconstruir la aplicación de forma acumulativa.
+
+### P1.3 — Program.cs
+
+**Responsabilidad y lectura guiada.** Host MVC que configura servicios, recursos estáticos y rutas; identifica la diferencia entre registrar middleware y ejecutar una acción de catálogo. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// PASO 1.1.2 — Servicios para controladores con vistas.
+builder.Services.AddControllersWithViews();
+
+var app = builder.Build();
+
+// PASO 1.3.3 — La configuración puede leerse desde appsettings.json.
+// Descomentar la siguiente línea y observar el mensaje al arrancar.
+// app.Logger.LogInformation("P1.3 configuracion: {Nombre}", app.Configuration["Curso:Nombre"]);
+
+// PASO 1.1.3 — Middleware de archivos estáticos y enrutamiento.
+app.UseStaticFiles();
+app.UseRouting();
+
+// La ruta convencional permite que "/" corresponda a HomeController.Index.
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+// Kestrel atiende las solicitudes; ASP.NET Core procesa cada petición HTTP.
+app.Run();
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.3 — appsettings.json
+
+**Responsabilidad y lectura guiada.** Secciones de configuración leídas por el host: no son objetos Producto ni código Razor. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "Curso": {
+    "Nombre": "Curso MVC de productos",
+    "Edicion": "Laboratorio NET8"
+  }
+}
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.3 — Views/Shared/_Layout.cshtml
+
+**Responsabilidad y lectura guiada.** Layout que enlaza el CSS del catálogo y conserva las rutas del menú y RenderBody. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~cshtml
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Curso Web .NET 8</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+    @* PASO 1.3.4 (inicio)
+    <link rel="stylesheet" href="/css/catalogo.css" />
+    PASO 1.3.4 (fin) *@
+</head>
+<body>
+    <header>
+        <nav aria-label="Navegación principal">
+            <a href="/">Inicio</a>
+            <a href="/Productos">Productos</a>
+            @* PASO 1.3.5 (inicio)
+            <a href="/recursos/guia-publica.txt">Guía pública</a>
+            PASO 1.3.5 (fin) *@
+            @* APLICACION 1.3.5: escribe aquí tu propio enlace <a> al recurso /recursos/ejercicio-publicacion.txt. Debe quedar junto a los enlaces de la navegación. *@
+            @* RETO 1.3 (inicio)
+            <a href="/recursos/aviso-laboratorio.txt">Aviso de laboratorio</a>
+            RETO 1.3 (fin) *@
+        </nav>
+    </header>
+    <main class="container">
+        @RenderBody()
+    </main>
+    <footer>Curso ASP.NET Core MVC · .NET 8</footer>
+</body>
+</html>
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.3 — wwwroot/css/catalogo.css
+
+**Responsabilidad y lectura guiada.** CSS público: sus clases modifican cómo se presentan productos sin crear un endpoint C#. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~css
+/* PASO 1.3.4: recurso estático independiente de los controladores. */
+/* La regla está activa en este archivo; el alumno activa su enlace en _Layout.cshtml. */
+main.container {
+    border-left: 5px solid #2d635d;
+    padding-left: 1.5rem;
+}
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.3 — wwwroot/recursos/guia-publica.txt
+
+**Responsabilidad y lectura guiada.** Fichero dentro de wwwroot servido como estático; permite estudiar la correspondencia URL/ruta física. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~text
+PASO 1.3.5 - Guia publica del curso ASP.NET Core MVC.
+Este archivo se sirve desde wwwroot mediante UseStaticFiles.
+No es necesario crear un controlador para atender esta URL.
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.3 — wwwroot/recursos/aviso-laboratorio.txt
+
+**Responsabilidad y lectura guiada.** Otro recurso público para comparar con ficheros privados que no deben ser expuestos. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~text
+RETO 1.3 - Aviso de laboratorio.
+El documento esta dentro de wwwroot y puede solicitarse como recurso estatico.
+El enlace de navegacion del reto se activa por separado en _Layout.cshtml.
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.3 — DOCUMENTACION/nota-interna.txt
+
+**Responsabilidad y lectura guiada.** Archivo deliberadamente fuera de wwwroot; tenerlo en disco no lo publica por HTTP. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~text
+Nota didactica interna del proyecto (datos ficticios).
+Al estar fuera de wwwroot, UseStaticFiles no la publica de forma predeterminada.
+No colocar secretos reales en el repositorio: esta nota solo ilustra una convencion.
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.3 — DOCUMENTACION/ejercicio-publicacion.txt
+
+**Responsabilidad y lectura guiada.** Documento didáctico temporal que permite ensayar qué se hace público; no permanece en todos los estados. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~text
+EJERCICIO DE PUBLICACIÓN — P1.3
+
+Este documento es un recurso de laboratorio sin datos privados.
+Inicialmente está fuera de wwwroot; no debe estar disponible desde una URL pública.
+
+Cópialo a wwwroot/recursos/ejercicio-publicacion.txt para observar cómo
+UseStaticFiles expone el recurso sin añadir un controlador MVC.
+
+No publiques contraseñas, claves, datos personales ni documentación interna real.
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.3 — Controllers/ProductosController.cs
+
+**Responsabilidad y lectura guiada.** El controlador sigue seleccionando datos; sus rutas son independientes de la entrega de CSS y ficheros estáticos. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~csharp
+using CursoWeb.Mvc.Models;
+using Microsoft.AspNetCore.Mvc;
+
+namespace CursoWeb.Mvc.Controllers;
+
+public class ProductosController : Controller
+{
+    [HttpGet]
+    public IActionResult Index()
+    {
+        // PASO 1.2.3: quitar los delimitadores del comentario de datos y
+        // comentar el 'return View();' de la última línea de esta acción.
+        var productos = new List<Producto>
+        {
+            new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+            // RETO 1.2 — Comentar la línea de Cuaderno y descomentar la siguiente:
+            // new() { Id = 1, Nombre = "Bloc", Precio = 4.50m },
+            new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+            new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+        };
+
+        return View(productos);
+
+        // return View(); // PASO 1.2.3 completado: ya se entregan los datos
+    }
+}
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.3 — Views/Productos/Index.cshtml
+
+**Responsabilidad y lectura guiada.** Vista tipada heredada del catálogo cuya representación se adapta a este punto. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+@{
+    ViewData["Title"] = "Productos y responsabilidades MVC";
+}
+
+<h1>1.2 | Modelo, Vista y Controlador</h1>
+<p id="proposito-vista">La vista decide cómo presentar los datos, pero no inventa el catálogo.</p>
+
+@if (Model is null)
+{
+    <p id="sin-modelo">El controlador todavía no ha entregado una lista a la vista.</p>
+}
+else
+{
+    <p id="numero-productos">El controlador ha enviado <strong>@Model.Count</strong> productos.</p>
+
+    <ul id="listado-productos">
+    @foreach (var producto in Model)
+    {
+        <li data-id="@producto.Id">@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+    }
+    </ul>
+}
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+
+### P1.3 — README.md
+
+**Responsabilidad y lectura guiada.** Guía del laboratorio que describe estructura, recursos y decisiones de publicación, sin lógica compilada. Recorre sus declaraciones y comentarios antes de activar los pasos de este capítulo. Cada bloque comentado con etiqueta PASO o RETO es parte del trabajo del alumno y no debe habilitarse indiscriminadamente.
+
+~~~markdown
+# Punto 1.3 — Estructura y convenciones MVC
+
+**AUTOR: JAIME GALLO**
+
+Esta carpeta es un **estado de continuidad ya funcional del 1.2**: se han activado las acciones, el bucle de listado y la navegación a Productos. El código de los puntos 1.1 y 1.2 queda conservado en sus carpetas anteriores; aquí se prepara la fase 1.3.
+
+## Inicio
+
+Desde esta carpeta:
+
+~~~bash
+dotnet restore
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Abrir `/` y `/Productos`. Ambos muestran sus páginas previas. No se utilizan servicios externos ni EF Core todavía.
+
+## Bloques de 1.3
+
+- **1.3.1:** inspeccionar `CursoWeb.Mvc.csproj`, carpetas `Controllers`, `Models`, `Views`, `wwwroot`, `Properties`; sin cambiar código.
+- **1.3.2:** seguir `Program.cs` (servicios, middleware, ruta y `Run()`); no descomentar fragmentos.
+- **1.3.3:** `appsettings.json` ya contiene la sección `Curso`. En `Program.cs`, descomentar la línea `app.Logger.LogInformation(...)`. Al iniciar aparece `P1.3 configuracion: Curso MVC de productos` en el log.
+- **1.3.4:** habilitar el `<link rel="stylesheet" href="/css/catalogo.css" />` retirando los dos delimitadores de comentario Razor `PASO 1.3.4` en `Views/Shared/_Layout.cshtml`. El navegador pedirá además `/css/catalogo.css`, ya presente bajo `wwwroot`.
+- **1.3.5:** habilitar el enlace **Guía pública** quitando los delimitadores Razor `PASO 1.3.5` del mismo layout. El fichero `wwwroot/recursos/guia-publica.txt` ya existe.
+- **RETO 1.3:** habilitar el enlace **Aviso de laboratorio** quitando los delimitadores Razor `RETO 1.3` del layout. Comparar el recurso público `/recursos/aviso-laboratorio.txt` (200) con `/DOCUMENTACION/nota-interna.txt` (404). El archivo interior sirve solo para razonar sobre la diferencia entre raíz del proyecto y raíz web; no contiene información sensible real.
+
+**Importante:** los archivos de texto y CSS ya existen, incluso cuando el enlace que permite descubrirlos en la navegación sigue comentado. Quitar un enlace del layout **no protege ni oculta** un archivo dentro de `wwwroot`. Esta distinción es parte del reto.
+
+Consulta [la práctica P1.3](../../../PRACTICAS/M01_PRACTICAS.md) para el desarrollo completo y la comprobación en el navegador.
+~~~
+
+**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
 
 ## Reto: aplicación de los pasos
 
