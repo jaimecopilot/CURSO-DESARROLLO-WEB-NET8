@@ -527,6 +527,42 @@ La restauración forma parte de la competencia práctica: permite repetir el mis
 
 
 
+
+### 5.1.25. Diferenciar un error de transporte de una respuesta 404
+
+Una conexión rechazada y una respuesta HTTP 404 no son el mismo resultado. En el primer caso puede no existir respuesta HTTP porque el proceso está detenido o porque la dirección no resulta accesible. En el segundo, un servidor ha recibido la petición y ha respondido que el recurso solicitado no existe.
+
+El servicio HTTP de la aplicación utiliza `GetFromJsonAsync`. Si recibe un código HTTP no satisfactorio, puede producir una `HttpRequestException` cuyo campo `StatusCode` identifica el estado de la respuesta. Cuando no se ha obtenido una respuesta HTTP, esa propiedad puede ser nula.
+
+Podemos tratar primero el caso conocido y después conservar una respuesta general para el resto:
+
+~~~csharp
+catch (HttpRequestException ex)
+    when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+{
+    error = "La API respondió 404: no existe la ruta del catálogo.";
+}
+catch (HttpRequestException)
+{
+    error = "No se pudo obtener el catálogo remoto.";
+}
+~~~
+
+El orden es importante. Una captura general situada antes capturaría también la excepción 404 y nunca se alcanzaría la condición especializada. Estos bloques presuponen el método de consulta y el campo `error` del componente ya explicados. No constituyen otro proyecto.
+
+### 5.1.26. Comparar cuatro resultados sin inventar la causa
+
+| Resultado | Qué sabemos | Qué no debemos afirmar |
+|---|---|---|
+| Conexión rechazada | No se obtuvo una respuesta HTTP útil | Que el servidor contestó 404 |
+| HTTP 404 | La ruta o recurso solicitado no existe en ese servidor | Que no había ningún servidor escuchando |
+| HTTP 500 | El servidor no completó satisfactoriamente la solicitud | Que el cuerpo JSON estaba necesariamente mal formado |
+| HTTP 200 con JSON inválido | La respuesta HTTP fue satisfactoria | Que la deserialización tuvo éxito |
+
+La mejora en el componente es limitada y pedagógica: permite explicar el caso 404 con mayor precisión. No pretende deducir automáticamente cualquier causa de un error 500. Para ello se necesitarían los mensajes y el contexto del servidor.
+
+
+
 ## 5.2. Ejecutar, compilar y publicar una aplicación ASP.NET Core MVC
 
 ### 5.2.1. ¿Por qué compilar no equivale a publicar?
