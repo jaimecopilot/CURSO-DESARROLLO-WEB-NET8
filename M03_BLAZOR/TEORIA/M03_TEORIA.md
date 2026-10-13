@@ -355,6 +355,61 @@ Elabora un recorrido escrito que empiece con `http://localhost:5092/productos` y
 Después describe qué archivo modificarías si: deseas cambiar el título de la ventana, quieres añadir un enlace de menú, necesitas crear una ruta nueva, deseas cambiar el precio de Lápiz en el estado fijo o quieres modificar el estilo de todos los elementos. La respuesta correcta será diferente en cada caso, porque se trata de responsabilidades diferentes. Esta reflexión prepara la extracción de componentes de P3.3.
 
 
+## Demostración completa: una ruta, tres productos y un menú
+
+Antes de abstraer el componente de tarjeta hay que entender por qué existen tres clases de archivos: el modelo define datos; la página declara una ruta y utiliza Razor para representar esos datos; el layout ofrece navegación. El siguiente modelo es válido como archivo completo Models/Producto.cs:
+
+~~~csharp
+namespace CursoWeb.Blazor.Models;
+
+public sealed record Producto(int Id, string Nombre, decimal Precio);
+~~~
+
+El record permite identificar productos por Id, presentar Nombre y Precio, y más adelante sustituir un valor mediante la expresión with sin crear una identidad distinta. El decimal del precio se inicializa con sufijo m, como 4.50m.
+
+Esta es una página completa y autónoma para presentar los tres productos, sin servicios ni persistencia:
+
+~~~razor
+@page "/productos"
+@rendermode InteractiveServer
+<PageTitle>Productos</PageTitle>
+<h1>Catálogo</h1>
+<ul>
+    @foreach (var producto in productos)
+    {
+        <li>@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+    }
+</ul>
+@code {
+    private readonly List<Producto> productos =
+    [
+        new(1, "Cuaderno", 4.50m),
+        new(2, "Lápiz", 1.20m),
+        new(3, "Carpeta", 3.75m)
+    ];
+}
+~~~
+
+Cuando el navegador solicita /productos, la directiva de ruta selecciona esta página. El bucle recorre objetos C#, y el renderizador produce elementos HTML li. El navegador no ejecuta el código C#. El modo InteractiveServer está configurado porque evolucionaremos hacia eventos; el simple listado no requiere que el usuario interaccione.
+
+En el layout se agrega un acceso independiente de la colección:
+
+~~~razor
+@inherits LayoutComponentBase
+<header>
+    <nav>
+        <NavLink href="/" Match="NavLinkMatch.All">Inicio</NavLink>
+        <NavLink href="/estatica">SSR estático</NavLink>
+        <NavLink href="/interactiva">SSR interactivo</NavLink>
+        <NavLink href="/productos">Productos</NavLink>
+    </nav>
+</header>
+<main>@Body</main>
+~~~
+
+La declaración NavLink no define la ruta; únicamente produce navegación a una dirección ya declarada por la página. El layout debe conservar las páginas de demostración de P3.1 al añadir Productos. Es la primera manifestación del carácter acumulativo del laboratorio.
+
+
 # 3.3. Parámetros, reutilización y composición de componentes
 
 ## Por qué extraer una tarjeta del listado
@@ -504,6 +559,40 @@ Al describir ambas técnicas, evita frases ambiguas como «Blazor es lo mismo qu
 Supongamos que quieres mostrar los tres productos en dos ubicaciones: una página de catálogo y un pequeño resumen informativo. ¿Qué reutilizarías? La tarjeta puede formar parte de ambas composiciones si recibe el mismo contrato de producto. ¿Qué no debería hacer la tarjeta? No debería decidir qué productos existen, ni consultar por sí misma la base de datos del M02, ni asumir que siempre forma parte de una página denominada `/productos`.
 
 En tu respuesta, nombra los datos de entrada, la salida visual y cualquier dependencia que sería innecesaria. Si puedes defender por qué el hijo conoce un producto pero no la lista completa, has comprendido el fundamento de la composición que usaremos en los eventos de P3.5.
+
+
+## Demostración completa: construir y conservar un componente reutilizable
+
+La interfaz de un producto se extrae a Components/TarjetaProducto.razor. Este archivo completo recibe un objeto concreto y expone únicamente las propiedades que necesita representar:
+
+~~~razor
+<article class="tarjeta" data-producto-id="@Producto.Id">
+    <h2>@Producto.Nombre</h2>
+    <p>Precio: @Producto.Precio.ToString("0.00") €</p>
+    <small>Referencia @Producto.Id</small>
+</article>
+@code {
+    [Parameter, EditorRequired]
+    public Producto Producto { get; set; } = default!;
+}
+~~~
+
+El parámetro se suministra desde la página padre. EditorRequired expresa la intención de que el consumidor entregue Producto y default! evita inventar un producto sin datos reales solo para inicializar la propiedad. En el laboratorio la página mantiene la colección completa, mientras la tarjeta recibe un único Producto.
+
+La representación pasa a ser:
+
+~~~razor
+<div class="tarjetas" id="tarjetas-productos">
+    @foreach (var producto in productos)
+    {
+        <TarjetaProducto Producto="producto" />
+    }
+</div>
+~~~
+
+Cada iteración produce una instancia distinta del mismo componente reutilizable. El componente no necesita conocer la ruta /productos, el menú ni la colección completa. Si en el futuro el diseño de la tarjeta añade una etiqueta o reorganiza el precio, la modificación se realiza en un único archivo.
+
+**Esta decisión debe mantenerse en P3.4, P3.5 y P3.6.** Colocar de nuevo el article completo en Productos.razor para añadir eventos supondría perder la composición que acaba de aprenderse. En P3.4, el padre puede colocar provisionalmente un botón junto a la tarjeta; en P3.5 ese botón se traslada al hijo y se comunica mediante EventCallback. La aplicación crece, pero el componente no se descarta.
 
 
 # 3.4. Eventos, enlace de datos y estado de componente
@@ -847,6 +936,81 @@ De aquí surge una regla aplicable a interfaces mayores: **la posición de una t
 El módulo no enseña todavía almacenamiento persistente ni búsquedas paginadas en servidor. Ese límite es intencionado. Antes de llevar la consulta a una API, el alumno debe demostrar que comprende cuáles son los datos originales, cuáles son los criterios de visualización y por qué un cambio de estado provoca una nueva representación de los componentes.
 
 
+## Demostración completa: selección, alta y edición sin perder las tarjetas reutilizables
+
+La página padre sigue siendo dueña de la lista. La tarjeta dibuja nombre, precio e identidad; los cambios que corresponden a la colección se realizan en el padre. Estos campos y métodos constituyen un ejemplo completo de estado local en el bloque @code de Productos.razor:
+
+~~~csharp
+private readonly List<Producto> productos =
+[
+    new(1, "Cuaderno", 4.50m),
+    new(2, "Lápiz", 1.20m),
+    new(3, "Carpeta", 3.75m)
+];
+
+private string seleccion = "ninguno";
+private string nuevoNombre = string.Empty;
+private string nombreEditado = string.Empty;
+private int siguienteId = 4;
+private int? idEnEdicion;
+
+private void SeleccionarParaEditar(int id)
+{
+    var producto = productos.First(p => p.Id == id);
+    idEnEdicion = id;
+    seleccion = producto.Nombre;
+    nombreEditado = producto.Nombre;
+}
+
+private void Agregar()
+{
+    if (string.IsNullOrWhiteSpace(nuevoNombre))
+        return;
+    productos.Add(new Producto(siguienteId++, nuevoNombre.Trim(), 5m));
+    nuevoNombre = string.Empty;
+}
+
+private void GuardarCambio()
+{
+    if (idEnEdicion is null || string.IsNullOrWhiteSpace(nombreEditado))
+        return;
+    var indice = productos.FindIndex(p => p.Id == idEnEdicion.Value);
+    if (indice < 0)
+        return;
+    productos[indice] = productos[indice] with
+    {
+        Nombre = nombreEditado.Trim()
+    };
+    seleccion = productos[indice].Nombre;
+}
+~~~
+
+La selección identifica un elemento por Id, no por el texto de su nombre ni por el índice de presentación. Agregar crea un objeto nuevo, valida el campo y actualiza el siguiente Id. GuardarCambio reemplaza el record encontrado, preserva la identidad y el precio y actualiza el nombre de selección. Los tres manejadores modifican estado local: no ejecutan operaciones HTTP ni escriben en SQL.
+
+Su representación también puede demostrarse con código Razor completo del área de listado y controles:
+
+~~~razor
+<div class="tarjetas" id="tarjetas-productos">
+    @foreach (var producto in productos)
+    {
+        <div class="tarjeta-con-acciones">
+            <TarjetaProducto Producto="producto" />
+            <button @onclick="() => SeleccionarParaEditar(producto.Id)">
+                Seleccionar
+            </button>
+        </div>
+    }
+</div>
+<p>Seleccionado: @seleccion</p>
+<label>Nombre nuevo: <input @bind="nuevoNombre" /></label>
+<button @onclick="Agregar">Añadir producto</button>
+<label>Editar nombre: <input @bind="nombreEditado" /></label>
+<button @onclick="GuardarCambio">Guardar nombre</button>
+~~~
+
+El botón transmite el Id del producto concreto de cada iteración. No hay que copiar el article de la tarjeta, ni inventar una segunda lista de datos. El editor recibe el nombre actual después de seleccionar, permite sustituirlo y evita multiplicar tarjetas al guardar. En el capítulo siguiente no se renuncia a estas operaciones: la selección se notificará desde el hijo, pero el mismo método y la misma lista seguirán disponibles.
+
+
 # 3.5. Comunicación padre–hijo: parámetros y EventCallback
 
 ## Cuando el botón está dentro del hijo, pero el dato pertenece al padre
@@ -1048,6 +1212,61 @@ Antes de llamar a RemoveAt, la página registra el objeto y su índice. Al recup
 La tarjeta no necesita modificarse. Únicamente se cambia el método al que el padre vincula AlQuitar: en lugar de Quitar, utiliza QuitarConDeshacer. Esta es una consecuencia concreta de diseñar el callback como comunicación de una **intención** y no como una implementación fija de la operación.
 
 La solución tiene un límite declarado: solo recuerda la última eliminación. Si se retiran dos productos consecutivos, la segunda operación reemplaza la información pendiente de la primera. Un historial completo necesitaría una estructura y reglas diferentes, pero no añade valor imprescindible al alcance de esta sesión. Lo que sí debe comprobarse es que quitar Lápiz y recuperarlo mantiene el orden Cuaderno–Lápiz–Carpeta, el Id 2 y el funcionamiento del botón Seleccionar.
+
+
+## Demostración completa: el hijo notifica intenciones, el padre mantiene los datos
+
+En P3.5 se sustituye el botón externo por eventos de la tarjeta. Este es el componente TarjetaProducto.razor con sus contratos de entrada y salida:
+
+~~~razor
+<article class="tarjeta" data-producto-id="@Producto.Id">
+    <h2>@Producto.Nombre</h2>
+    <p>Precio: @Producto.Precio.ToString("0.00") €</p>
+    <small>Referencia @Producto.Id</small>
+    <button @onclick="NotificarSeleccion">Seleccionar</button>
+    <button @onclick="NotificarQuitar">Quitar</button>
+</article>
+@code {
+    [Parameter, EditorRequired]
+    public Producto Producto { get; set; } = default!;
+
+    [Parameter] public EventCallback<int> AlSeleccionar { get; set; }
+    [Parameter] public EventCallback<int> AlQuitar { get; set; }
+
+    private Task NotificarSeleccion() =>
+        AlSeleccionar.InvokeAsync(Producto.Id);
+
+    private Task NotificarQuitar() =>
+        AlQuitar.InvokeAsync(Producto.Id);
+}
+~~~
+
+El hijo no recibe la colección ni la modifica por su cuenta. Cada botón comunica una intención y el Id del producto representado. El padre enlaza el contrato a un método existente para seleccionar, y a un método de eliminación que actúa sobre su lista:
+
+~~~razor
+<div class="tarjetas" id="tarjetas-productos">
+    @foreach (var producto in ProductosVisibles)
+    {
+        <TarjetaProducto Producto="producto"
+                        AlSeleccionar="SeleccionarParaEditar"
+                        AlQuitar="Quitar" />
+    }
+</div>
+~~~
+
+~~~csharp
+private void Quitar(int id)
+{
+    productos.RemoveAll(p => p.Id == id);
+    seleccion = "ninguno";
+    idEnEdicion = null;
+    nombreEditado = string.Empty;
+}
+~~~
+
+La propiedad ProductosVisibles es una consulta calculada a partir de la colección y los filtros del capítulo anterior. El cambio a EventCallback no requiere renunciar al editor, el alta, los filtros ni la ordenación. Si el usuario edita el nombre, el record se reemplaza y el hijo recibe el valor actualizado. Si el usuario elimina Lápiz, desaparece su tarjeta y el resto permanece en la lista. Si añade Regla, aparece otra tarjeta creada a partir del mismo componente.
+
+El reto de deshacer conserva el contrato AlQuitar y cambia solamente el método del padre asociado a ese contrato. Esta comparación demuestra por qué separar entrada, notificación y propiedad del estado permite evolucionar una aplicación sin rehacer lo anterior.
 
 
 # 3.6. OnInitializedAsync y ciclo de vida esencial de un componente
