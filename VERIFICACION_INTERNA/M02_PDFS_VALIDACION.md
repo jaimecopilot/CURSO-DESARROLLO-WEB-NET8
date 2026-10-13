@@ -26,7 +26,7 @@ La inspección visual humana página a página no se sustituye por estas comprob
       ]
     ],
     "caracteres_md": 173196,
-    "bytes_pdf": 551001,
+    "bytes_pdf": 551000,
     "sha256_md": "f484c33b985bfd623111f47e2c44d0387845b290cda2c2268bb7f9e4a727ec63",
     "fuente_md_incrustada_identica": true,
     "capitulos_inicio": {
@@ -57,7 +57,7 @@ La inspección visual humana página a página no se sustituye por estas comprob
       ]
     ],
     "caracteres_md": 239964,
-    "bytes_pdf": 735233,
+    "bytes_pdf": 735234,
     "sha256_md": "3afeeb54b084a3cc90a71bdfef01b58044b0b474d0a7d3df9ffe5e3261bf5c8c",
     "fuente_md_incrustada_identica": true,
     "capitulos_inicio": {
