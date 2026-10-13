@@ -2722,11 +2722,44 @@ Hasta aquí hemos estudiado una cookie local de demostración y una política de
 
 ASP.NET Core Identity proporciona componentes para gestionar usuarios, credenciales, hashes de contraseña, roles, reglas de acceso, bloqueo y almacenamiento. En la API adicional utilizaremos IdentityUser, UserManager, SignInManager y RoleManager. No guardaremos las contraseñas directamente en una columna de texto: UserManager.CreateAsync utiliza la infraestructura de hashing de Identity y las comprobaciones de contraseña se realizan a través de SignInManager.
 
-El almacenamiento será una base de datos SQLite gestionada con Entity Framework Core mediante un contexto que hereda de IdentityDbContext<IdentityUser>. Eso permite crear tablas reales de usuarios y roles: AspNetUsers, AspNetRoles y sus tablas de relaciones, entre otras. Aunque el alumnado ya conoce EF Core, aquí nos interesa observar qué información persiste y cuáles son las responsabilidades del sistema de identidad.
+El almacenamiento será **SQL Server Express LocalDB**, instalado con Visual Studio en Windows, utilizando el proveedor `Microsoft.EntityFrameworkCore.SqlServer` y un contexto derivado de `IdentityDbContext<IdentityUser>`. Eso permite crear tablas reales de usuarios y roles: AspNetUsers, AspNetRoles y sus tablas de relaciones, entre otras. Aunque el alumnado ya conoce EF Core, aquí nos interesa observar qué información persiste y cuáles son las responsabilidades del sistema de identidad.
 
 El usuario tiene Email, UserName, Id y propiedades de control de identidad. El identificador no se deriva necesariamente de su correo: la clase IdentityUser define un Id propio. La contraseña no forma parte del perfil que enviamos como JSON al cliente. Podemos consultar un perfil autenticado sin publicar jamás el hash almacenado.
 
-En este laboratorio utilizamos EnsureCreatedAsync para obtener rápidamente una base SQLite de desarrollo a partir del modelo. **No es una política de evolución de esquemas para producción.** Una solución mantenida utilizaría migraciones, configuración de persistencia y procedimientos de despliegue adecuados. El directorio .work del proyecto se ignora en Git y conserva la base local de ensayo.
+En este laboratorio utilizamos `EnsureCreatedAsync` para crear rápidamente las tablas de Identity en una base de SQL Server Express LocalDB exclusiva de la práctica. **No es una política de evolución de esquemas para producción.** Una solución mantenida utilizaría migraciones, configuración de persistencia y procedimientos de despliegue adecuados. La base se llama `CursoWeb_M04_IdentityJwt` y se aloja en la instancia `(localdb)\\MSSQLLocalDB` de Windows. No se genera un fichero SQLite dentro de `.work`; puede inspeccionarse con el Explorador de objetos SQL Server de Visual Studio.
+
+#### SQL Server Express LocalDB de Visual Studio: conexión y persistencia
+
+La instancia de desarrollo es `(localdb)\\MSSQLLocalDB`. **LocalDB no es SQLite**, sino una modalidad ligera de SQL Server Express para Windows y desarrollo local. Se integra en Visual Studio mediante las herramientas de datos. Antes de ejecutar el laboratorio, comprueba que la característica SQL Server Express LocalDB está instalada y que puedes conectarte desde el Explorador de objetos de SQL Server.
+
+La aplicación declara una cadena de conexión en `appsettings.json`, sin nombre de usuario ni contraseña SQL, porque utiliza autenticación integrada de Windows:
+
+~~~json
+{
+  "ConnectionStrings": {
+    "IdentityDb": "Server=(localdb)\\\\MSSQLLocalDB;Database=CursoWeb_M04_IdentityJwt;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true"
+  }
+}
+~~~
+
+La doble barra dentro de JSON representa una única barra invertida de la instancia. En una cadena C# literal precedida por `@` se escribiría `@"Server=(localdb)\MSSQLLocalDB;Database=CursoWeb_M04_IdentityJwt;Trusted_Connection=True;"`. El proveedor de EF Core es `Microsoft.EntityFrameworkCore.SqlServer` y la configuración correspondiente utiliza `UseSqlServer`:
+
+~~~csharp
+var conexion = builder.Configuration.GetConnectionString("IdentityDb")
+    ?? throw new InvalidOperationException("Falta la conexión IdentityDb.");
+
+builder.Services.AddDbContext<IdentidadDbContext>(opciones =>
+    opciones.UseSqlServer(conexion));
+~~~
+
+No se utiliza `UseSqlite`, no se crea `identity-m04.db` y no se sustituye LocalDB por una base InMemory en las pruebas. La instancia debe estar accesible desde el usuario de Windows que ejecuta Visual Studio o el proceso ASP.NET Core.
+
+Al ejecutar por primera vez el proyecto docente, `EnsureCreatedAsync` crea el esquema de Identity en una **base de prácticas exclusiva**. En el Explorador de objetos de SQL Server verás tablas `AspNetUsers`, `AspNetRoles` y `AspNetUserRoles`. El hash de contraseña se almacena en `PasswordHash`, nunca se devuelve al cliente.
+
+`EnsureCreatedAsync` se limita aquí a un modelo sencillo de inicio. **No se mezcla con un historial de migraciones**: para aplicaciones en evolución deberíamos utilizar migraciones EF Core, y para entornos publicados, un proceso controlado de despliegue. Para reiniciar desde cero, detén la API y elimina exclusivamente la base `CursoWeb_M04_IdentityJwt` desde las herramientas de SQL Server; no borres otras bases existentes en la instancia.
+
+Las pruebas automáticas de esta ampliación también necesitan un entorno Windows con LocalDB. Por tanto, se ejecutan en un runner Windows que arranca `MSSQLLocalDB`, crea una base aislada por ejecución y valida SQL Server real. Las verificaciones de Blazor que no utilizan Identity pueden seguir funcionando en otras plataformas, pero no demostrarían persistencia LocalDB.
+
 
 #### La diferencia entre Identity y la autenticación JWT
 
@@ -2806,7 +2839,7 @@ En el ejemplo el token expira quince minutos después de su emisión. El tiempo 
 | Estado de identidad | Principal reconocido por host Blazor | Claims en token firmado validado por API |
 | Transporte habitual | Cookie gestionada por navegador | Cabecera Authorization: Bearer |
 | Credencial de entrada | Código local fijo de laboratorio | Contraseña comprobada por Identity |
-| Persistencia de usuarios | No, identidad construida al entrar | Usuarios y roles en SQLite |
+| Persistencia de usuarios | No, identidad construida al entrar | Usuarios y roles en SQL Server Express LocalDB |
 | Autorización | Recurso /demo/privado | Recursos /api/identidad/yo y /formador |
 | Fin de sesión del cliente | SignOutAsync invalida cookie del navegador | El cliente descarta su copia del JWT |
 | Aplicación en producción | No: código fijo de ensayo | No: emisión manual de JWT docente |
