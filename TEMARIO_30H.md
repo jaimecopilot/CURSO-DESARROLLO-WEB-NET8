@@ -71,13 +71,13 @@ T = explicación en minutos; P = trabajo práctico en minutos. A = aplicación M
 |---|---|---|---:|---:|
 | **4.1** HttpClient, GET/POST, DTO, JSON, async y fallos HTTP | P4.1: configurar HttpClient; consultar catálogo remoto, publicar producto y mostrar error de petición | B + API disponible | 30 | 80 |
 | **4.2** capa de servicio e inyección de dependencias | P4.2: extraer llamadas HTTP de componentes a IProductosApiService e inyectarlo | B | 20 | 55 |
-| **4.3** API auxiliar pequeña | P4.3: ejecutar y entender API de Productos (GET/POST, datos en memoria); modificar respuesta simple | API | 15 | 45 |
+| **4.3** API auxiliar pequeña | P4.3: construir desde plantilla vacía una API GET/POST compatible con la entregada para P4.1; comprobar 200/201/400/404 y conectar Blazor | API | 15 | 45 |
 | **4.4** autenticación/autorización, Identity introductorio, roles/claims conceptual, AuthorizeView | P4.4: usar demo local preconfigurada de inicio de sesión y página protegida; comprobar usuario anónimo/autenticado | B, demo de seguridad limitada | 25 | 60 |
 | **Subtotal** | +30 min de repaso y dudas | | **90** | **240** |
 
-**Dependencia resuelta:** el docente entrega al inicio de M04 la API auxiliar ya funcional para P4.1 (no se presupone aprendizaje de un proyecto externo). En P4.3 se recorre su implementación y se realizan modificaciones controladas; en P4.2 se extrae y reorganiza el consumo. La entrega de API es material del curso.
+**Dependencia resuelta:** el docente entrega al inicio de M04 una API auxiliar ejecutable para P4.1 y P4.2. En P4.3 el alumno crea desde cero, en una carpeta de trabajo propia, otra API que cumple el mismo contrato GET/POST; después conecta el cliente Blazor y compara el resultado con la API de referencia. Los endpoints de resumen, búsqueda, PUT y DELETE son ampliaciones voluntarias. La API inicial permanece disponible y no se presenta como código que el alumno deba copiar.
 
-**Estado de salida:** Blazor consume GET/POST y muestra errores; la seguridad se observa en una demostración reproducible, sin enseñar Identity desde cero ni convertirla en requisito del CRUD.
+**Estado de salida:** Blazor consume GET/POST y muestra errores; el alumno puede construir y sustituir una API compatible; la seguridad se observa en una demostración reproducible con cookies. La ampliación autónoma P4.4.6 desarrolla Identity, roles y JWT auténticos sobre SQL Server Express LocalDB desde cero, fuera de los 360 minutos presenciales, sin convertirlos en requisito del CRUD.
 
 ### M05 — Consolidación y despliegue elemental
 
@@ -97,7 +97,7 @@ T = explicación en minutos; P = trabajo práctico en minutos. A = aplicación M
 - P1.1 → P1.2 → P1.3 → P1.4 → P1.5 (creación de estructura, modelos, rutas y vistas).
 - P1.5 → P2.1 → P2.2 → P2.3 → P2.4; P2.5 es una comparación breve que reutiliza el host MVC.
 - P3.1 → P3.2 → P3.3 → P3.4 → P3.5 → P3.6 (Blazor B independiente de MVC A).
-- P3.6 + API suministrada → P4.1 → P4.2; P4.3 explica y modifica la API ya suministrada. P4.4 es demostración aislable.
+- P3.6 + API suministrada → P4.1 → P4.2; P4.3 construye una segunda API compatible desde cero y la conecta al cliente existente; P4.4 es una demostración aislable con cookies. P4.4.6 (Identity/JWT con LocalDB) es una ampliación autónoma, no un prerrequisito de M05.
 - P4.2 + P4.3 → P5.1; P2.4 → P5.2 → P5.3/P5.4/P5.5.
 - La secuencia escrita mantiene la numeración del temario; la API necesaria para P4.1 aparece completa como recurso inicial de M04, no como proyecto oculto.
 
