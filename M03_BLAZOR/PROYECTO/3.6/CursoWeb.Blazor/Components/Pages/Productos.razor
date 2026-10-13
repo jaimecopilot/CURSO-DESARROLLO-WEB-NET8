@@ -157,6 +157,8 @@
         errorCarga = null;
         estado = "Cargando productos...";
         productos = [];
+        Limpiar();
+        eliminacionPendiente = null;
         try
         {
             productos = (await Catalogo.ObtenerConErrorAsync(simularError)).ToList();
