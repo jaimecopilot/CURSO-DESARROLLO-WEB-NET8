@@ -179,3 +179,325 @@ La diferencia entre error de red, error HTTP, error de serialización, error de 
 ### 5.1.9. Síntesis
 
 El resultado formativo es una aplicación Blazor que consulta, crea, valida, informa de fallos y permite refrescar sus datos. Más importante todavía: el alumno es capaz de identificar quién mantiene cada estado y cuál es el origen de una respuesta. Esa comprensión permite pasar de «la pantalla funciona» a «sé por qué funciona y cómo repararla».
+
+
+## 5.2. Ejecutar, compilar y publicar una aplicación ASP.NET Core MVC
+
+### 5.2.1. ¿Por qué compilar no equivale a publicar?
+
+Durante los módulos anteriores utilizamos Visual Studio o `dotnet run` para ejecutar las aplicaciones desde sus proyectos. Eso permite modificar el código, detenerlo con facilidad y observar la consola. Pero un directorio de proyecto incluye archivos de desarrollo, dependencias y un contexto que no se debería presuponer en el equipo que hospedará una aplicación.
+
+**Compilar** transforma código fuente y recursos en artefactos utilizables. **Ejecutar** inicia un proceso. **Publicar** prepara los archivos que necesitaremos para llevar la aplicación a otro directorio o equipo compatible. No son sinónimos: un programa puede compilar correctamente y, sin embargo, fallar durante su arranque porque carece de una configuración o de una base a la que acceder.
+
+Observemos tres instrucciones distintas:
+
+~~~powershell
+dotnet build -c Release
+dotnet run --no-launch-profile --urls http://localhost:5091
+dotnet publish -c Release -o .\publicado
+~~~
+
+La primera crea ensamblados en un directorio de salida de compilación. La segunda inicia el host ASP.NET Core desde el proyecto (aunque internamente compile si se necesita). La tercera prepara una carpeta con ensamblados, recursos, dependencias, configuración y archivos necesarios para el despliegue. No debemos confundir la carpeta `bin/Release/net8.0/` con la salida controlada de `dotnet publish`: tienen usos y garantías distintas.
+
+El modificador `-c Release` selecciona una configuración de compilación. No desactiva por sí mismo validaciones del servidor, no hace segura la aplicación y tampoco impide que su entorno de ejecución se configure como `Development`; son conceptos diferentes. El parámetro `-o` establece una salida explícita que facilita inspeccionar exactamente los archivos publicados.
+
+### 5.2.2. Qué contiene la carpeta publicada
+
+Un proyecto web típico de .NET 8 con despliegue dependiente del framework genera, entre otros, los siguientes elementos (los nombres exactos dependen del proyecto y de sus dependencias):
+
+| Elemento | Función habitual |
+|---|---|
+| `CursoWeb.Mvc.dll` | Ensamblado de la aplicación |
+| `CursoWeb.Mvc.deps.json` | Dependencias de ejecución |
+| `CursoWeb.Mvc.runtimeconfig.json` | Información del runtime requerido |
+| `appsettings.json` | Configuración distribuida con la aplicación |
+| `web.config` | Configuración del módulo ASP.NET Core para despliegue IIS cuando corresponde |
+| `wwwroot/` | Archivos estáticos que la aplicación sirve |
+
+Un archivo DLL no es una «página web». Es código que el host ejecuta y que, junto con el routing y los controladores, produce respuestas HTTP. Una vista Razor no tiene por qué aparecer como archivo `.cshtml` independiente después de la publicación: dependiendo de la configuración, se compila como parte de los ensamblados. Por eso la comprobación correcta no consiste únicamente en contar archivos, sino en iniciar la salida publicada y solicitar páginas reales.
+
+### 5.2.3. Dos modos de publicación y su diferencia
+
+Para un despliegue **dependiente del framework**, el equipo de destino debe disponer de un runtime ASP.NET Core compatible. Podemos ejecutar la salida con:
+
+~~~powershell
+dotnet .\publicado\CursoWeb.Mvc.dll
+~~~
+
+En un despliegue **autocontenido**, la publicación incorpora los componentes del runtime para una plataforma concreta, con mayor tamaño y opciones diferentes de ejecución. Es un concepto útil, pero no hace falta utilizarlo para entender el laboratorio. El itinerario emplea la publicación dependiente del framework en Windows y las imágenes oficiales .NET 8 en Docker. No mezclaremos distintas modalidades en un mismo experimento sin explicar sus requisitos.
+
+La arquitectura y el sistema operativo también importan. Los recursos de publicación para Windows y Linux no pueden considerarse idénticos en todas las dependencias nativas, aunque el mismo código C# pueda compilar para ambas plataformas. En nuestros ejemplos no introduciremos paquetes nativos adicionales.
+
+### 5.2.4. Configuración separada del programa
+
+La aplicación MVC A incluye una cadena de conexión de SQL Server Express LocalDB. Una publicación copia la configuración correspondiente, pero no copia una instancia SQL Server ni los registros de la base. Si se ejecuta en otro equipo Windows sin LocalDB, las páginas dependientes del CRUD pueden fallar durante una consulta o incluso al arrancar si la aplicación inicializa la base en el inicio.
+
+Consideremos una configuración didáctica alternativa:
+
+~~~json
+{
+  "Despliegue": {
+    "SinLocalDb": true
+  }
+}
+~~~
+
+El significado no es «usar otra base», sino **ejecutar solo las rutas que no la necesitan** en un ensayo de despliegue. La aplicación de prácticas conserva la configuración original de SQL Server para el CRUD de Windows; el modo especial se selecciona explícitamente cuando se necesita comprobar el hospedaje sin disponer de LocalDB.
+
+Las variables de entorno de .NET pueden sobrescribir claves de configuración mediante el separador `__`:
+
+~~~powershell
+$env:Despliegue__SinLocalDb = "true"
+~~~
+
+Es una técnica didáctica válida para aislar una configuración del proceso. Debemos cerrar o restablecer esa variable antes de probar el CRUD persistente en Windows; si permaneciera activada, el experimento dejaría de estar midiendo el mismo comportamiento.
+
+### 5.2.5. Compilación correcta frente a aplicación funcional
+
+Un caso habitual: `dotnet publish` termina con código de salida cero y después `dotnet .\publicado\CursoWeb.Mvc.dll` falla. No implica que la compilación hubiera mentido; significa que la comprobación de compilación no cubría una condición de arranque. Puede faltar una cadena de conexión, estar ocupado un puerto o no estar instalado el runtime.
+
+Conviene trabajar con evidencias diferenciadas:
+
+| Comprobación | Qué demuestra | Qué no demuestra |
+|---|---|---|
+| `dotnet build` finaliza correctamente | El proyecto compila con las dependencias disponibles | Que pueda llegar a LocalDB |
+| `dotnet publish` genera salida | Existen artefactos de publicación | Que el sitio responda HTTP |
+| Iniciar la DLL publicada | El proceso arranca con esa configuración | Que todas las rutas funcionen |
+| Solicitar `/` y `/Productos/Estado` | Hay respuesta desde rutas sin base | Que las operaciones CRUD estén disponibles |
+| Crear un producto en Windows/LocalDB | El recorrido MVC → EF Core → SQL funciona | Que el mismo CRUD funcione en Docker Linux |
+
+### 5.2.6. Síntesis
+
+La transición de ejecutar a publicar se entiende cuando el alumno reconoce qué archivos se han producido, cuáles son las dependencias del destino y qué evidencia requiere un programa que arranca fuera de Visual Studio. Esos conocimientos son prerrequisitos de Kestrel, IIS y Docker.
+
+## 5.3. Kestrel: proceso, dirección y respuesta HTTP
+
+### 5.3.1. Qué es Kestrel y qué hace
+
+Kestrel es el servidor web multiplataforma utilizado por ASP.NET Core. Cuando iniciamos una aplicación con `dotnet run` o ejecutamos una DLL publicada como aplicación web, un host ASP.NET Core puede abrir un socket y escuchar peticiones HTTP mediante Kestrel. El navegador no ejecuta C#: envía solicitudes a una dirección que el proceso atiende. Un controlador MVC decide qué hacer con cada ruta y devuelve la respuesta correspondiente.
+
+En nuestro laboratorio bastará con ejecutar una publicación desde una carpeta concreta, establecer una dirección local y observar la respuesta. No necesitamos configurar balanceadores, proxies corporativos, certificados de producción ni límites avanzados.
+
+El recorrido conceptual puede describirse así:
+
+~~~mermaid
+flowchart TD
+A["Iniciar proceso dotnet"] --> B["Construir host ASP.NET Core"]
+B --> C["Configurar servicios y middleware"]
+C --> D["Kestrel escucha un puerto"]
+D --> E["Navegador solicita una URL"]
+E --> F["Routing selecciona endpoint MVC"]
+F --> G["Acción produce respuesta HTTP"]
+~~~
+
+El dibujo diferencia el arranque (una vez por proceso) de las peticiones (tantas como el servidor pueda atender). No debemos atribuir la creación de un nuevo proceso `dotnet` a cada petición.
+
+### 5.3.2. Dirección de escucha, host y puerto
+
+Supongamos esta orden:
+
+~~~powershell
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5091
+~~~
+
+`localhost` indica que se pretende escuchar en la máquina local. `5091` es el puerto elegido para el experimento; no es un número obligatorio de ASP.NET Core. En el navegador usaremos `http://localhost:5091/`. Si el comando muestra una dirección distinta porque otra configuración tiene mayor prioridad, debemos atender a la URL efectiva publicada por el host.
+
+No mezclemos sin explicación tres direcciones diferentes: la de la aplicación MVC, la de Blazor y la de la API de productos. Durante 5.3 usamos solamente MVC. El proceso publica recursos HTML; no necesita que funcione la API de productos del otro laboratorio.
+
+### 5.3.3. ¿Qué sucede si el puerto está ocupado?
+
+Dos procesos no suelen poder escuchar simultáneamente la misma combinación de dirección y puerto. Si la aplicación MVC sigue ejecutándose desde Visual Studio y tratamos de arrancar una segunda copia de la publicación en ese puerto, el segundo proceso puede terminar con error de enlace a la dirección. No es un problema del código de una vista ni de Entity Framework Core.
+
+La estrategia de diagnóstico consiste en comprobar si hay otro proceso escuchando y elegir: detenerlo o utilizar otro puerto.
+
+~~~powershell
+Get-NetTCPConnection -LocalPort 5091 -ErrorAction SilentlyContinue
+~~~
+
+La orden pertenece a PowerShell en Windows y muestra conexiones asociadas al puerto cuando la plataforma la admite. Puede requerirse interpretar estados y procesos. Alternativamente cambiamos temporalmente la prueba a un puerto libre, por ejemplo 5094, y confirmamos qué URL anunció Kestrel.
+
+### 5.3.4. Una respuesta de una ruta no acredita todas las rutas
+
+Si `/` funciona y `/Productos/Estado` devuelve texto, hemos demostrado que Kestrel, el routing y esas acciones responden. Pero el CRUD de productos de M02 puede necesitar LocalDB. No debemos presentar «la página inicial abre» como si probara automáticamente las operaciones de crear, editar y eliminar.
+
+El código HTTP que observamos se compone de una línea de estado, cabeceras y un cuerpo opcional. Podemos consultar desde el navegador o desde una terminal:
+
+~~~powershell
+curl.exe -i http://localhost:5091/Productos/Estado
+~~~
+
+Una respuesta 200 con texto esperado es un resultado concreto; si se obtiene 503 para `/Productos` bajo el modo sin LocalDB, eso representa una limitación **deliberada y documentada**, no un CRUD funcional.
+
+### 5.3.5. Detención del proceso y restauración del entorno
+
+En una terminal interactiva, `Ctrl+C` suele solicitar el apagado del proceso. Es importante cerrar la aplicación que ya estaba escuchando antes de iniciar otra modalidad de hospedaje. Una terminación limpia facilita liberar el puerto y evita atribuir una respuesta al proceso equivocado.
+
+Kestrel no es exclusivo de `dotnet run`. La publicación ASP.NET Core también puede atender peticiones mediante Kestrel, por lo que la diferencia formativa no reside en «servidor de desarrollo frente a servidor real», sino en los artefactos, su configuración y el modo en que se hospeda y administra el proceso.
+
+### 5.3.6. Síntesis
+
+El alumno podrá explicar qué proceso recibe las solicitudes, cómo conoce su puerto, qué sucede ante una colisión de dirección y cómo demostrar con una petición HTTP que una ruta concreta funciona.
+
+## 5.4. Publicación elemental de ASP.NET Core en IIS
+
+### 5.4.1. El problema que IIS resuelve
+
+En Windows, IIS ofrece mecanismos para administrar sitios, enlaces de direcciones, procesos trabajadores y configuración de hospedaje. No reemplaza el código MVC ni convierte los controladores en páginas estáticas. En un hospedaje ASP.NET Core habitual, IIS trabaja con el **ASP.NET Core Module (ANCM)** y una aplicación publicada.
+
+El esquema se puede simplificar así:
+
+~~~mermaid
+flowchart TD
+A["Navegador"] --> B["IIS: sitio y binding"]
+B --> C["ASP.NET Core Module"]
+C --> D["Aplicación ASP.NET Core"]
+D --> E["Routing y controlador MVC"]
+E --> F["Respuesta HTML/HTTP"]
+~~~
+
+El modelo de hospedaje concreto puede ser **in-process** u **out-of-process**. En el primero, la aplicación ASP.NET Core se hospeda dentro del proceso trabajador IIS; en el segundo, IIS reenvía solicitudes a un proceso ASP.NET Core que utiliza Kestrel. Es importante no afirmar que *siempre* existe el mismo proceso Kestrel externo cuando utilizamos IIS. Para esta jornada basta con reconocer que ANCM conecta el mundo IIS con ASP.NET Core.
+
+### 5.4.2. Hosting Bundle y ASP.NET Core Module
+
+Instalar IIS en Windows no garantiza que conozca cómo iniciar una aplicación ASP.NET Core .NET 8. El **ASP.NET Core Hosting Bundle** instala o proporciona los componentes de hospedaje requeridos, incluido el módulo ANCM y los runtimes correspondientes. Si el bundle se instaló antes de habilitar IIS o el servicio no detecta el módulo, puede ser necesario reparar la instalación y reiniciar los servicios según las instrucciones del producto.
+
+Un error habitual es confundir el SDK para desarrollar con el runtime/Hosting Bundle del servidor. El servidor IIS del laboratorio necesita componentes de hospedaje, no necesariamente Visual Studio. Tampoco basta con copiar una carpeta de código fuente al directorio del sitio.
+
+### 5.4.3. Sitio, ruta física y binding
+
+Un sitio IIS asocia una carpeta física de contenido publicado con uno o varios bindings. En el laboratorio utilizaremos HTTP local en un puerto concreto; por ejemplo, `localhost:8091`. En un escenario empresarial se requeriría tratar HTTPS y exposición pública, pero no forma parte de esta práctica introductoria.
+
+El `Application Pool` proporciona un contexto de proceso e identidad. Para aplicaciones ASP.NET Core se configura habitualmente con **No Managed Code** respecto al CLR de .NET Framework; ello no significa que la aplicación carezca de código administrado .NET 8. Significa que el runtime moderno lo gestiona el mecanismo de hospedaje ASP.NET Core, no la configuración tradicional del CLR de .NET Framework del pool.
+
+Los permisos del directorio publicado son otra condición de ejecución. Una identidad que no puede leer la carpeta o sus archivos impedirá iniciar o servir correctamente la aplicación. No concederemos permisos globales a todo el equipo como solución improvisada; delimitaremos los permisos necesarios para la identidad del sitio de ensayo.
+
+### 5.4.4. La trampa de LocalDB bajo una identidad distinta
+
+El CRUD MVC A fue desarrollado desde Visual Studio bajo la sesión interactiva del alumno. **SQL Server Express LocalDB está asociado a un usuario de Windows**, por lo que el hecho de disponer de una instancia desde Visual Studio no garantiza que el proceso de IIS, ejecutado bajo una identidad de Application Pool, pueda acceder a esa misma base.
+
+Tenemos dos objetivos distintos:
+
+1. Comprobar el mecanismo elemental de publicación y hospedaje IIS, para lo cual bastan rutas MVC sin base de datos.
+2. Comprobar CRUD y persistencia LocalDB, lo cual exige permisos, usuario y configuración de la instancia adecuados; esa preparación excede la comparación mínima de hospedajes de M05.
+
+Por eso el laboratorio utiliza rutas sin dependencias SQL para la prueba elemental de IIS. **No reemplazamos la base de datos ni eliminamos el CRUD**. En Windows/Kestrel puede utilizarse la configuración normal para demostrar la persistencia; en IIS, la práctica se concentra en mostrar la aplicación y navegar rutas independientes de LocalDB.
+
+### 5.4.5. Reconocer los fallos típicos
+
+| Síntoma | Qué comprobar primero | Qué no debemos concluir |
+|---|---|---|
+| IIS devuelve una página de error de hospedaje | Hosting Bundle, ANCM y logs | Que el controlador Index contiene un error |
+| El sitio responde en un puerto diferente | Binding y conflicto con otro sitio | Que publicar cambia automáticamente el puerto |
+| Error de acceso a los archivos | Carpeta física e identidad del pool | Que hay que dar control total a todos los usuarios |
+| Página inicial funciona, CRUD falla | LocalDB, identidad y conexión | Que la publicación MVC está completamente rota |
+| IIS muestra una versión antigua | Carpeta física y artefactos realmente publicados | Que basta actualizar el código fuente de Visual Studio |
+
+En un entorno de validación sin Windows/IIS es posible comprobar la estructura de la publicación y el archivo `web.config`, pero **no afirmar que el despliegue IIS funciona**. Una prueba de Kestrel no sustituye esta evidencia.
+
+### 5.4.6. Una comparación explicativa
+
+La aplicación MVC construida desde M01 no cambia sus controladores al desplegarse. Si la acción Home/Index devolvía una vista durante `dotnet run`, seguirá devolviéndola cuando reciba una petición válida bajo IIS, siempre que la configuración de hospedaje sea correcta. Esa independencia es precisamente una ventaja del framework: el código HTTP de ASP.NET Core no se reescribe para cada mecanismo elemental de hospedaje.
+
+Lo que sí cambia es cómo se inicia el proceso, cómo llega la petición y qué identidad y recursos tiene el host. Por ello, una comparación correcta evalúa esas condiciones, manteniendo estable la aplicación que recibe las solicitudes.
+
+### 5.4.7. Síntesis
+
+El alumno debe ser capaz de publicar a carpeta, identificar los componentes IIS necesarios, crear un sitio con binding local, comprobar una ruta y distinguir un error de IIS/ANCM de uno causado por una dependencia como LocalDB.
+
+## 5.5. Docker: ejecutar la misma aplicación MVC en un contenedor Linux
+
+### 5.5.1. Imagen, contenedor y aplicación no son lo mismo
+
+Una **imagen** es una plantilla de capas con el sistema de archivos y la configuración necesarios para iniciar una aplicación. Un **contenedor** es una instancia de ejecución creada a partir de una imagen. Un Dockerfile describe cómo construir esa imagen; no es por sí mismo una aplicación ejecutándose.
+
+No confundamos estos términos con una máquina virtual completa. El contenedor comparte el kernel del host mediante mecanismos de aislamiento, con las particularidades de Docker Desktop en Windows, que utiliza una infraestructura de virtualización/WSL para ejecutar contenedores Linux.
+
+La aplicación MVC continúa siendo ASP.NET Core. Docker no sustituye el servidor HTTP: el proceso `dotnet CursoWeb.Mvc.dll` inicia ASP.NET Core y su servidor dentro del contenedor. Docker proporciona un entorno de ejecución empaquetado, configuración de red y control del ciclo de vida.
+
+### 5.5.2. El papel de un Dockerfile multietapa
+
+Para un proyecto ASP.NET Core .NET 8 resulta instructivo separar la etapa de compilación, que usa el SDK, de la etapa final de ejecución, que usa un runtime ASP.NET Core más pequeño:
+
+~~~dockerfile
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS compilacion
+WORKDIR /src
+COPY . .
+RUN dotnet restore CursoWeb.Mvc.csproj
+RUN dotnet publish CursoWeb.Mvc.csproj -c Release --no-restore -o /app/publicada
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS ejecucion
+WORKDIR /app
+COPY --from=compilacion /app/publicada .
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "CursoWeb.Mvc.dll"]
+~~~
+
+`FROM` determina una imagen base. `WORKDIR` fija el directorio de trabajo. `COPY` incorpora archivos. `RUN` ejecuta instrucciones **durante la construcción** de la imagen. `ENTRYPOINT` establece el proceso que arrancará **al ejecutar** un contenedor. Confundir ambas fases explica por qué no basta con añadir un `RUN dotnet publish` para servir una página web.
+
+La etapa final no requiere el SDK completo. El ejemplo presupone que ejecutamos `docker build` desde la carpeta que contiene el `.csproj`, porque `COPY . .` depende del **contexto de construcción** que pasamos a Docker. Lanzar el comando desde una carpeta distinta sin adaptar rutas puede producir un error «proyecto no encontrado» aunque el Dockerfile sea correcto.
+
+### 5.5.3. Puerto interno y puerto del host
+
+En una imagen ASP.NET Core 8, el puerto de escucha que utilizaremos es **8080 dentro del contenedor**. La orden:
+
+~~~powershell
+docker run --rm -p 8081:8080 cursoweb-mvc:m05
+~~~
+
+publica el puerto 8080 del contenedor en el puerto 8081 del host. Desde el navegador de Windows pedimos `http://localhost:8081/`. `EXPOSE 8080` documenta el puerto previsto, pero no realiza por sí mismo la publicación hacia el host. Para acceder desde la máquina utilizamos `-p`.
+
+Al confundir los dos números, alguien puede pedir `http://localhost:8080/` y no ver la aplicación, aunque esté respondiendo correctamente en el puerto 8081 del host. El diagnóstico empieza por revisar el mapeo configurado, no por modificar el controlador MVC.
+
+### 5.5.4. ¿Por qué no usamos LocalDB dentro del contenedor?
+
+La aplicación A de M02 utiliza SQL Server Express LocalDB, instalado en Windows y ligado a una cuenta de usuario. **No existe de modo ordinario dentro de una imagen Linux ASP.NET Core**. Copiar `appsettings.json` no instala SQL Server ni traslada la instancia existente.
+
+Sería técnicamente posible diseñar una arquitectura de contenedores y un SQL Server accesible externamente, con gestión de conexiones y persistencia. Pero ello introduciría conceptos ajenos al objetivo elemental de esta sesión, además de romper la simplificación del temario. Tampoco sería correcto cambiarla sin explicaciones a SQLite: alteraríamos el proveedor y la semántica del ejemplo.
+
+El laboratorio opta por una separación explícita: en el ensayo Docker se activa `Despliegue:SinLocalDb=true`. Esto omite únicamente la inicialización de base del arranque y rechaza con 503 las rutas de productos que dependen de SQL Server. Las páginas y recursos estáticos independientes siguen sirviéndose. La aplicación original conserva su CRUD para Windows y se puede volver a ejecutar allí sin esa opción.
+
+La diferencia entre **servicio HTTP disponible** y **funcionalidad CRUD disponible** debe hacerse observable y explicarse, no ocultarse.
+
+### 5.5.5. Construcción, ejecución y observación
+
+La secuencia mínima que da sentido al Dockerfile es:
+
+~~~powershell
+docker build -t cursoweb-mvc:m05 .
+docker images cursoweb-mvc
+docker run --name cursoweb-m05 --rm `
+  -e Despliegue__SinLocalDb=true `
+  -p 8081:8080 cursoweb-mvc:m05
+~~~
+
+El comando `docker build` crea una imagen. `docker images` permite comprobar que existe. `docker run` inicia una instancia. La variable de entorno define el modo del ensayo sin alterar el repositorio. Desde otra terminal, `docker ps` informa de contenedores activos; `docker logs cursoweb-m05` permite observar la salida de la aplicación. El comando `docker stop cursoweb-m05` solicita detenerla; `--rm` ordena eliminar el contenedor una vez terminado.
+
+Si el puerto del host está ocupado, modificar temporalmente el primer número de `-p` puede resolver el conflicto. Cambiar el puerto interno sin modificar el servidor que escucha en 8080 no lo hará.
+
+### 5.5.6. Ciclo de vida y ausencia de persistencia añadida
+
+Los archivos que genera una aplicación dentro del contenedor no deberían considerarse persistentes por defecto. Cuando se elimina el contenedor, su sistema de archivos de escritura puede desaparecer. El curso no introduce volúmenes ni bases externas en este experimento: basta con entender por qué el resultado es adecuado para demostrar ejecución, pero no para almacenar el catálogo MVC.
+
+Los contenedores también tienen logs y estado de salida. Que `docker build` tenga éxito no implica que `docker run` mantenga el proceso activo. Para investigar si el proceso termina inmediatamente, leeríamos `docker logs`, comprobaríamos que la DLL existe y revisaríamos la configuración. Un navegador mostrando error de conexión puede indicar que no hay un contenedor ejecutándose; no demuestra por sí solo que la imagen se construyó mal.
+
+### 5.5.7. Comparación final de Kestrel, IIS y Docker
+
+| Dimensión | Kestrel en Windows | IIS en Windows | Docker Linux |
+|---|---|---|---|
+| Aplicación docente | MVC A | La misma MVC A | La misma MVC A |
+| Artefactos | Salida `dotnet publish` | Carpeta publicada | Imagen multietapa |
+| Inicio | Proceso `dotnet` | IIS + ASP.NET Core Module | `docker run` inicia `dotnet` |
+| Puerto de ejemplo | 5091 | 8091 | Host 8081 → contenedor 8080 |
+| LocalDB | Disponible si la instancia está preparada | Limitada por identidad del pool | No disponible de forma ordinaria |
+| Rutas verificadas mínimas | Inicio y estado sin base | Inicio y estado sin base | Inicio y estado sin base |
+| CRUD completo | Solo tras comprobar LocalDB real | No forma parte del ensayo IIS elemental | No forma parte del ensayo Linux |
+
+La intención no es declarar ganadora a una modalidad, sino reconocer que **la misma aplicación puede publicarse de diferentes formas mientras cambian sus condiciones de ejecución**. La capa MVC sigue recibiendo solicitudes HTTP, pero varían los procesos, los permisos y los mecanismos de exposición del puerto.
+
+### 5.5.8. Conclusión del curso
+
+Tras M05 el alumno habrá recorrido dos ideas complementarias: una aplicación Blazor que se comunica correctamente con una API y una aplicación MVC que puede ser publicada y ejecutada en distintas modalidades de hospedaje. Habrá aprendido a distinguir compilación de ejecución, respuesta HTTP de funcionamiento completo, interfaz de servidor, y estado temporal de persistencia.
+
+El criterio de éxito no es reproducir un comando aislado. Es poder explicar **qué proceso se está ejecutando, qué recurso sirve, qué dependencias utiliza y qué evidencia demuestra realmente que funciona**.
+
