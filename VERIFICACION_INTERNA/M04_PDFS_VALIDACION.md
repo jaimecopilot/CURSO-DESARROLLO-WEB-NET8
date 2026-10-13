@@ -5,8 +5,8 @@ Cada PDF incluye su Markdown completo, adjunto idéntico byte por byte.
 
 | Documento | Palabras MD | Páginas PDF |
 |---|---:|---:|
-| TEORIA | 31683 | 81 |
-| PRACTICAS | 28603 | 80 |
+| TEORIA | 33672 | 85 |
+| PRACTICAS | 30000 | 86 |
 
 ## Detalle de comprobaciones
 
@@ -16,13 +16,13 @@ La inspección visual humana página a página no se sustituye por estas comprob
 [
   {
     "tipo": "TEORIA",
-    "paginas": 81,
-    "palabras_md": 31683,
+    "paginas": 85,
+    "palabras_md": 33672,
     "cobertura_palabras_visibles": 1.0,
     "palabras_faltantes_en_extraccion": [],
-    "caracteres_md": 216986,
-    "bytes_pdf": 638606,
-    "sha256_md": "121a7358bd4b18ec95be0e176d97433556764b9f63486d28bf904b552f58b3f4",
+    "caracteres_md": 230500,
+    "bytes_pdf": 671844,
+    "sha256_md": "aa662a5a592fba3d75ad36477115b47e6c0fd5d5f556f2ab5948b155ae618c9d",
     "fuente_md_incrustada_identica": true,
     "capitulos_inicio": {
       "1": 3,
@@ -33,13 +33,13 @@ La inspección visual humana página a página no se sustituye por estas comprob
   },
   {
     "tipo": "PRACTICAS",
-    "paginas": 80,
-    "palabras_md": 28603,
+    "paginas": 86,
+    "palabras_md": 30000,
     "cobertura_palabras_visibles": 1.0,
     "palabras_faltantes_en_extraccion": [],
-    "caracteres_md": 201857,
-    "bytes_pdf": 604636,
-    "sha256_md": "24bba39897deb2d2b814ddc49d486084d1961972ac1280fe457fd6e5416fcabc",
+    "caracteres_md": 215968,
+    "bytes_pdf": 647761,
+    "sha256_md": "ca5fff46defb8ff27a7aff6f0f1251212957c45c05b70c4453b291909784ace1",
     "fuente_md_incrustada_identica": true,
     "capitulos_inicio": {
       "1": 3,
