@@ -539,6 +539,122 @@ Abre `Components/Pages/Seguridad.razor`. Examina el `AuthorizeView` que presenta
 
 En el formulario POST `/demo/entrar`, utiliza el código local **`curso-demo-44`**. El servidor compara ese código, crea un principal de ejemplo con nombre `AlumnoDemo` y rol `Formador`, y envía una cookie. El token `<AntiforgeryToken />` protege el envío del formulario frente a falsificaciones. Para cerrar la sesión se emplea POST `/demo/salir`, no un enlace GET.
 
+
+### Código del laboratorio: el alumno puede reconstruir el acceso
+
+La demostración no debe limitarse a observar una pantalla preconfigurada. Vamos a localizar y activar los elementos en un orden que permita comprender las dependencias.
+
+Primero, en `Program.cs`, añade los espacios de nombres:
+
+```csharp
+using System.Security.Claims;
+using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Antiforgery;
+```
+
+Registra los servicios antes de `builder.Build()`:
+
+```csharp
+builder.Services.AddAuthentication("CookiesDemo").AddCookie("CookiesDemo", options =>
+{
+    options.LoginPath = "/seguridad";
+    options.Events.OnRedirectToLogin = contexto =>
+    {
+        if (contexto.Request.Path.StartsWithSegments("/demo/privado"))
+        {
+            contexto.Response.StatusCode = 401;
+            return Task.CompletedTask;
+        }
+        contexto.Response.Redirect(contexto.RedirectUri);
+        return Task.CompletedTask;
+    };
+});
+builder.Services.AddAuthorization();
+builder.Services.AddCascadingAuthenticationState();
+```
+
+Coloca `app.UseAuthentication()`, `app.UseAuthorization()` y `app.UseAntiforgery()` antes de mapear los endpoints protegidos.
+
+Después incorpora las rutas de demostración **solo en Development**:
+
+```csharp
+if (app.Environment.IsDevelopment())
+{
+    app.MapGet("/demo/privado",
+        () => Results.Ok(new { mensaje = "Recurso protegido" }))
+        .RequireAuthorization(p => p.RequireRole("Formador"));
+
+    app.MapPost("/demo/entrar",
+        async (HttpContext http, IAntiforgery antiforgery) =>
+    {
+        if (!await antiforgery.IsRequestValidAsync(http))
+            return Results.BadRequest("Token antifalsificación inválido.");
+
+        var formulario = await http.Request.ReadFormAsync();
+        if (formulario["codigo"] != "curso-demo-44")
+            return Results.Redirect("/seguridad?error=1");
+
+        var claims = new[]
+        {
+            new Claim(ClaimTypes.Name, "AlumnoDemo"),
+            new Claim(ClaimTypes.Role, "Formador")
+        };
+        var identidad = new ClaimsIdentity(claims, "CookiesDemo");
+        await http.SignInAsync(
+            "CookiesDemo", new ClaimsPrincipal(identidad));
+        return Results.Redirect("/seguridad");
+    });
+
+    app.MapPost("/demo/salir",
+        async (HttpContext http, IAntiforgery antiforgery) =>
+    {
+        if (!await antiforgery.IsRequestValidAsync(http))
+            return Results.BadRequest("Token antifalsificación inválido.");
+
+        await http.SignOutAsync("CookiesDemo");
+        return Results.Redirect("/seguridad");
+    });
+}
+```
+
+Un POST sin token debe devolverse como 400. Esto es intencional: no se debe desactivar la verificación simplemente para simplificar el ejercicio.
+
+Finalmente, crea `Components/Pages/Seguridad.razor`:
+
+```razor
+@page "/seguridad"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using Microsoft.AspNetCore.Components.Authorization
+
+<h1>Demostración de seguridad</h1>
+<AuthorizeView>
+    <Authorized>
+        <p>Usuario: @context.User.Identity?.Name</p>
+        <AuthorizeView Roles="Formador" Context="rolContexto">
+            <Authorized>
+                <p>Rol Formador reconocido</p>
+            </Authorized>
+        </AuthorizeView>
+        <form method="post" action="/demo/salir" data-enhance="false">
+            <AntiforgeryToken />
+            <button type="submit">Cerrar sesión</button>
+        </form>
+    </Authorized>
+    <NotAuthorized>
+        <p>Usuario anónimo</p>
+        <form method="post" action="/demo/entrar" data-enhance="false">
+            <AntiforgeryToken />
+            <label>Código:
+                <input name="codigo" type="password" />
+            </label>
+            <button type="submit">Acceder</button>
+        </form>
+    </NotAuthorized>
+</AuthorizeView>
+```
+
+Los dos `AuthorizeView` están anidados: el contexto del componente interior tiene nombre explícito para evitar una colisión de parámetros de Razor. Ejecuta la aplicación en entorno Development, que es el único donde existen las rutas de demostración. Las rutas de productos no necesitan autenticación para continuar el ejercicio anterior.
+
 ### Paso 4.4.4. Verificar una autorización auténtica
 
 Abre `/seguridad` sin sesión. Después intenta consultar directamente `/demo/privado`: el servidor debe impedir el acceso. Inicia sesión en el formulario, consulta el recurso de nuevo y comprueba que ahora devuelve el contenido protegido. Cierra la sesión y confirma que vuelve a denegarlo. Esta comprobación debe hacerse incluso si `AuthorizeView` muestra correctamente el nombre.
