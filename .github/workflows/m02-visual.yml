@@ -2,8 +2,11 @@ name: M02 - Láminas para revisión visual
 on:
   workflow_dispatch:
   push:
-    branches: [desarrollo/m02-sobre-m01-aprobado]
-    paths: [".github/workflows/m02-visual.yml"]
+    branches: [desarrollo/m02-sobre-m01-aprobado, desarrollo/reconstruccion-m01-m02-trazable]
+    paths:
+      - "M02_FORMULARIOS_RAZOR/TEORIA/M02_TEORIA.pdf"
+      - "M02_FORMULARIOS_RAZOR/PRACTICAS/M02_PRACTICAS.pdf"
+      - ".github/workflows/m02-visual.yml"
 permissions:
   contents: write
 jobs:
