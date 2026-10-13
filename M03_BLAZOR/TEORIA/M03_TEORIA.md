@@ -1211,7 +1211,7 @@ Antes de llamar a RemoveAt, la página registra el objeto y su índice. Al recup
 
 La tarjeta no necesita modificarse. Únicamente se cambia el método al que el padre vincula AlQuitar: en lugar de Quitar, utiliza QuitarConDeshacer. Esta es una consecuencia concreta de diseñar el callback como comunicación de una **intención** y no como una implementación fija de la operación.
 
-La solución tiene un límite declarado: solo recuerda la última eliminación. Si se retiran dos productos consecutivos, la segunda operación reemplaza la información pendiente de la primera. Un historial completo necesitaría una estructura y reglas diferentes, pero no añade valor imprescindible al alcance de esta sesión. Lo que sí debe comprobarse es que quitar Lápiz y recuperarlo mantiene el orden Cuaderno–Lápiz–Carpeta, el Id 2 y el funcionamiento del botón Seleccionar.
+La solución tiene un límite declarado: solo recuerda la última eliminación. Si se retiran dos productos consecutivos, la segunda operación reemplaza la información pendiente de la primera. Un historial completo necesitaría una estructura y reglas diferentes, pero no añade valor imprescindible al alcance de esta sesión. Lo que sí debe comprobarse es que quitar Lápiz y recuperarlo restablece su posición en la lista fuente; la vista filtrada y ordenada por precio vuelve a mostrar Lápiz–Carpeta–Cuaderno, conservando el Id 2 y el funcionamiento del botón Seleccionar.
 
 
 ## Demostración completa: el hijo notifica intenciones, el padre mantiene los datos
