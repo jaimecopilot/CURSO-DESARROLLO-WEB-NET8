@@ -164,5 +164,3 @@ Mantén el `finally` que desactiva el indicador de carga. Puedes cambiar tempora
 ### Resultado y continuidad
 
 Al finalizar, `/productos` conserva el aprendizaje local de M03 y `/catalogo-remoto` demuestra GET, POST y errores HTTP entre dos procesos. La API auxiliar utilizada aquí se estudiará en detalle en P4.3; en **P4.2** extraeremos las llamadas del componente a `IProductosApiService`.
-
-> Nota docente de alcance: el proyecto cliente del punto 4.1 se construirá en pasos rastreables desde la base M03. La existencia del código auxiliar API no demuestra todavía que el cliente haya sido implementado o ejecutado; la validación se registra fuera de este manual.
