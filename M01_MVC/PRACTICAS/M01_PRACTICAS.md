@@ -296,6 +296,282 @@ curl -i http://localhost:5091/ruta-inexistente
 
 Si los códigos de respuesta no coinciden con lo esperado, revisar el puerto, la URL exacta y que se esté ejecutando el proyecto `CursoWeb.Mvc` en lugar de `PlantillaMvc`.
 
+## Construcción íntegra P1.1 — archivos que forman la primera aplicación MVC
+
+La teoría de 1.1 ha explicado cómo una petición llega a ASP.NET Core. Para poder crear este primer proyecto desde cero, no basta con copiar Program.cs o una vista aislada: el proyecto contiene configuración, código C#, marcado Razor y recursos que cooperan. A continuación encontrarás **la transcripción completa de los once archivos iniciales**, cada uno con su responsabilidad y un recorrido de lectura. Después puedes volver a los pasos P1.1 para activar únicamente los bloques propuestos sin destruir el estado de referencia. Los ejercicios posteriores conservarán los archivos cuyo contenido no cambia.
+
+### P1.1 · CursoWeb.Mvc.csproj
+
+**Responsabilidad y lectura del código.** El SDK Web y el target net8.0 determinan el tipo de proyecto y la plataforma de ejecución. Distingue las propiedades de compilación de una instrucción que se ejecuta ante una petición HTTP.
+
+**Archivo íntegro:** `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc/CursoWeb.Mvc.csproj`
+
+~~~xml
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+</Project>
+~~~
+
+**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+
+### P1.1 · Program.cs
+
+**Responsabilidad y lectura del código.** El host registra MVC, habilita archivos estáticos, enruta las peticiones y mapea el patrón convencional. Reconstruye el orden de ejecución desde WebApplication.CreateBuilder hasta app.Run: no confundas registro de servicios con una acción del controlador.
+
+**Archivo íntegro:** `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc/Program.cs`
+
+~~~csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// PASO 1.1.2 — Servicios para controladores con vistas.
+builder.Services.AddControllersWithViews();
+
+var app = builder.Build();
+
+// PASO 1.1.3 — Middleware de archivos estáticos y enrutamiento.
+app.UseStaticFiles();
+app.UseRouting();
+
+// La ruta convencional permite que "/" corresponda a HomeController.Index.
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+// Kestrel atiende las solicitudes; ASP.NET Core procesa cada petición HTTP.
+app.Run();
+~~~
+
+**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+
+### P1.1 · Controllers/HomeController.cs
+
+**Responsabilidad y lectura del código.** La acción del controlador recibe una solicitud y decide el resultado. Revisa el atributo o método HTTP, el valor que se pasa a la vista y los comentarios que preparan los pasos activables; al editar el controlador puedes cambiar cabeceras sin editar HTML.
+
+**Archivo íntegro:** `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc/Controllers/HomeController.cs`
+
+~~~csharp
+using Microsoft.AspNetCore.Mvc;
+
+namespace CursoWeb.Mvc.Controllers;
+
+public class HomeController : Controller
+{
+    // PASO 1.1.1 — El navegador envía GET / y la acción devuelve una vista HTML.
+    [HttpGet]
+    public IActionResult Index()
+    {
+        // PASO 1.1.4 — Descomentar solo la siguiente línea para observar
+        // una cabecera de respuesta HTTP generada desde el controlador.
+        // Response.Headers["X-Curso-Paso"] = "1.1.4";
+
+        // RETO 1.1 — Cambiar una cabecera de respuesta sin tocar la vista.
+        // Al activar el reto, eliminar // solo de la siguiente asignación.
+        // Response.Headers["X-Curso-Reto"] = "HTTP-y-HTML";
+
+        return View();
+    }
+}
+~~~
+
+**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+
+### P1.1 · Views/Home/Index.cshtml
+
+**Responsabilidad y lectura del código.** La vista Razor construye el cuerpo HTML con el texto específico del ejemplo y los bloques de práctica comentados. El navegador recibe la salida, nunca los delimitadores Razor ni el código C# original.
+
+**Archivo íntegro:** `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc/Views/Home/Index.cshtml`
+
+~~~cshtml
+@{
+    ViewData["Title"] = "Primer recorrido MVC";
+}
+
+<h1>1.1 | Primer recorrido MVC</h1>
+<p>Esta página HTML ha sido generada en el servidor mediante una acción MVC.</p>
+<p id="resultado-inicial">Respuesta HTTP correcta: aplicación MVC disponible.</p>
+
+@* PASO 1.1.5 (inicio)
+<section id="marca-paso-1-1-5">
+    <h2>Contenido añadido durante la práctica</h2>
+    <p>El navegador ha recibido una nueva versión de la vista Razor.</p>
+    <!-- APLICACIÓN 1.1.5: reemplaza este comentario por un párrafo id="razonamiento-1-1". Escribe con tus palabras qué hace el servidor. -->
+</section>
+PASO 1.1.5 (fin) *@
+
+@* RETO 1.1 (inicio)
+<p id="reto-1-1">El servidor genera el HTML y envía las cabeceras HTTP por separado.</p>
+RETO 1.1 (fin) *@
+~~~
+
+**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+
+### P1.1 · Views/Shared/_Layout.cshtml
+
+**Responsabilidad y lectura del código.** El layout concentra el esqueleto HTML, los enlaces compartidos y el espacio en el que se inserta cada vista. Localiza RenderBody y la ruta al CSS para explicar qué partes del documento se repiten entre páginas.
+
+**Archivo íntegro:** `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc/Views/Shared/_Layout.cshtml`
+
+~~~cshtml
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Curso Web .NET 8</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+</head>
+<body>
+    <header>
+        <nav aria-label="Navegación principal">
+            <a href="/">Inicio</a>
+        </nav>
+    </header>
+    <main class="container">
+        @RenderBody()
+    </main>
+    <footer>Curso ASP.NET Core MVC · .NET 8</footer>
+</body>
+</html>
+~~~
+
+**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+
+### P1.1 · Views/_ViewImports.cshtml
+
+**Responsabilidad y lectura del código.** Esta vista de configuración incorpora namespaces y Tag Helpers que pueden usar las demás vistas. No es una ruta navegable ni una acción; se aplica al procesamiento Razor.
+
+**Archivo íntegro:** `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc/Views/_ViewImports.cshtml`
+
+~~~cshtml
+@using CursoWeb.Mvc
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+~~~
+
+**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+
+### P1.1 · Views/_ViewStart.cshtml
+
+**Responsabilidad y lectura del código.** Esta pieza configura el layout predeterminado de las vistas. Un cambio aquí afecta al marco de representación; no modifica el modelo Producto ni la elección de acción.
+
+**Archivo íntegro:** `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc/Views/_ViewStart.cshtml`
+
+~~~cshtml
+@{
+    Layout = "_Layout";
+}
+~~~
+
+**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+
+### P1.1 · Properties/launchSettings.json
+
+**Responsabilidad y lectura del código.** El archivo describe perfiles locales de ejecución y direcciones para Visual Studio o dotnet run. No publica rutas de controlador ni sustituye la configuración de producción.
+
+**Archivo íntegro:** `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc/Properties/launchSettings.json`
+
+~~~json
+{
+  "profiles": {
+    "CursoWeb.Mvc": {
+      "commandName": "Project",
+      "launchBrowser": true,
+      "applicationUrl": "http://localhost:5091",
+      "environmentVariables": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  }
+}
+~~~
+
+**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+
+### P1.1 · appsettings.json
+
+**Responsabilidad y lectura del código.** La configuración se carga desde el host y tiene una estructura de secciones y claves. Distingue la lectura de valores de configuración de la representación de información en una vista.
+
+**Archivo íntegro:** `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc/appsettings.json`
+
+~~~json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*"
+}
+~~~
+
+**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+
+### P1.1 · wwwroot/css/site.css
+
+**Responsabilidad y lectura del código.** Los estilos se sirven desde wwwroot mediante recursos estáticos. Cada regla CSS cambia presentación del HTML, no el método C# que maneja la URL.
+
+**Archivo íntegro:** `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc/wwwroot/css/site.css`
+
+~~~css
+body {
+    margin: 0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: #f8fafc;
+    color: #1f2937;
+    line-height: 1.55;
+}
+header { background: #16324f; padding: 1rem 2rem; }
+nav a { color: white; text-decoration: none; }
+.container { max-width: 850px; padding: 2rem; margin: auto; }
+h1 { margin-top: 0; }
+section { border-left: 4px solid #16324f; padding-left: 1rem; }
+footer { text-align: center; font-size: 0.9rem; color: #4b5563; padding: 2rem; }
+~~~
+
+**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+
+### P1.1 · README.md
+
+**Responsabilidad y lectura del código.** Estas instrucciones se entregan junto con la instantánea del ejercicio. Revisa qué comandos ejecutan la misma solución y qué rutas del proyecto señalan; se trata de documentación, no de código compilado.
+
+**Archivo íntegro:** `M01_MVC/PROYECTO/1.1/CursoWeb.Mvc/README.md`
+
+~~~markdown
+# Proyecto ejecutable del punto 1.1
+
+**AUTOR: JAIME GALLO**
+
+Este es el estado inicial de la aplicación MVC A. Evolucionará durante M01 y M02. No requiere base de datos ni paquetes NuGet externos.
+
+## Ejecutar
+
+Desde esta carpeta:
+
+~~~bash
+dotnet restore
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+Abrir http://localhost:5091. Detener con Ctrl+C.
+
+## Activar bloques
+
+- Paso 1.1.4 en Controllers/HomeController.cs: descomentar solo la línea que asigna la cabecera X-Curso-Paso.
+- Paso 1.1.5 en Views/Home/Index.cshtml: quitar los dos delimitadores que envuelven el comentario Razor 1.1.5; mantener el HTML interior.
+- Guardar y actualizar el navegador. Ambos pasos se pueden activar a la vez.
+- **RETO 1.1:** en `Controllers/HomeController.cs` descomentar la asignación `X-Curso-Reto`. En `Views/Home/Index.cshtml` retirar los delimitadores del comentario `RETO 1.1` para hacer visible el párrafo `reto-1-1`. El reto dispone de código completo y explicación en P1.1, apartado G.
+
+Las explicaciones y el recorrido completo se encuentran en la sección 1.1 de ../../../PRACTICAS/M01_PRACTICAS.md .
+~~~
+
+**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+
+**Continuidad hacia P1.2.** El host, la vista de inicio, el layout y los recursos de este primer proyecto no se reemplazan cuando se incorpora el catálogo. En P1.2 se añadirán el modelo Producto, su controlador y su vista. Los archivos que no cambian siguen siendo exactamente los explicados aquí; así cada nueva instantánea representa un incremento sobre la anterior.
+
 ## Laboratorio de razonamiento P1.1 — localizar la responsabilidad sin probar cambios al azar
 
 Hemos conseguido ejecutar una página MVC, añadir una cabecera HTTP y modificar su HTML. Pero una misma aplicación puede producir síntomas parecidos por causas completamente distintas: la página no abre, la página abre sin estilos, el contenido visible no cambia o una URL alternativa produce 404. Este laboratorio propone un método de diagnóstico que podrás reutilizar durante todo el curso.
