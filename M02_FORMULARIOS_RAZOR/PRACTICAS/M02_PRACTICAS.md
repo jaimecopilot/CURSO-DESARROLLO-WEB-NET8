@@ -781,6 +781,259 @@ Estas comprobaciones no requieren modificar cuatro archivos simultáneamente. La
 El formulario de P2.2 termina siendo más mantenible, pero la responsabilidad de aceptar datos válidos continúa estando en el servidor y no en la apariencia del HTML.
 
 
+## Construcción del código completo en P2.2
+
+La teoría de Tag Helpers ha demostrado por qué Razor puede generar HTML tipado. En P2.2 no se crea otro catálogo ni se cambia el contrato HTTP: se transforman estos cinco archivos manteniendo las acciones y los datos. Los archivos sin modificaciones se conservan literalmente del punto 2.1.
+
+### P2.2 — Views/Productos/Crear.cshtml
+
+**Función y relación con la teoría.** Reescribe el mismo formulario con atributos asp-for, asp-controller y asp-action. Compara los campos generados y el token del formulario; no conserves un segundo formulario HTML en paralelo. El código completo de esta instantánea incluye tanto sus líneas activas como las instrucciones comentadas que el alumno debe trabajar paso a paso.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Crear producto";
+}
+<h1>Crear producto — P2.2</h1>
+<p>Transformaremos el formulario HTML de P2.1 en un formulario con Tag Helpers, sin cambiar la acción ni los datos.</p>
+
+@* PASO 2.2.2 — FORM TAG HELPER, alternativa comentada:
+   Sustituye la etiqueta de apertura del formulario por:
+   <form asp-controller="Productos" asp-action="Crear" method="post">
+   Al activarlo, RETIRA la línea @Html.AntiForgeryToken() de abajo:
+   FormTagHelper genera automáticamente el token para este POST.
+   Conserva el mismo </form> final.
+*@
+<form method="post" action="/Productos/Crear">
+    @Html.AntiForgeryToken()
+    <div class="campo">
+        @* PASO 2.2.3 — LABEL TAG HELPER, alternativa comentada:
+           <label asp-for="Nombre"></label>
+           Sustituye solamente el label HTML siguiente y comprueba el atributo for generado.
+        *@
+        <label for="Nombre">Nombre</label>
+
+        @* PASO 2.2.4 — INPUT TAG HELPER, alternativa comentada:
+           <input asp-for="Nombre" />
+           Sustituye solamente el input HTML siguiente; comprueba id y name generados.
+        *@
+        <input id="Nombre" name="Nombre" value="@Model.Nombre" />
+    </div>
+    <div class="campo">
+        @* PASO 2.2.3 — LABEL TAG HELPER, alternativa comentada:
+           <label asp-for="Precio"></label>
+        *@
+        <label for="Precio">Precio</label>
+
+        @* PASO 2.2.4 — INPUT TAG HELPER, alternativa comentada:
+           <input asp-for="Precio" type="number" step="0.01" />
+           El atributo step permite escribir centésimas; no es una regla de negocio.
+        *@
+        <input id="Precio" name="Precio" type="number" step="0.01" value="@Model.Precio.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+    </div>
+    <button type="submit">Enviar producto</button>
+</form>
+
+@* PASO 2.2.5 — ANCHOR TAG HELPER, alternativa comentada:
+   Sustituye el enlace HTML siguiente por:
+   <p><a asp-controller="Productos" asp-action="Index">Volver al catálogo</a></p>
+   Compara el href final con el enlace HTML que acabas de reemplazar.
+*@
+<p><a href="/Productos">Volver al catálogo</a></p>
+~~~
+
+**Resultado que debes poder explicar:** contrasta el HTML visible o los datos que procesa la acción con el estado anterior del formulario. Justifica qué propiedad C# suministra cada campo sin desactivar antiforgery ni duplicar los elementos.
+
+### P2.2 — Views/Productos/Index.cshtml
+
+**Función y relación con la teoría.** Conserva el listado del catálogo y mejora la generación de enlaces a acciones usando sus propiedades de ruta. El código completo de esta instantánea incluye tanto sus líneas activas como las instrucciones comentadas que el alumno debe trabajar paso a paso.
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+@{
+    ViewData["Title"] = "Catálogo de productos";
+}
+
+<h1>1.5 | Razor y presentación de productos</h1>
+<p><a asp-controller="Productos" asp-action="Crear">Crear producto</a></p>
+<p id="proposito-vista">La vista representa datos del catálogo, sin consultas a base de datos.</p>
+
+@if (Model is null)
+{
+    <p id="sin-modelo">El controlador no ha proporcionado productos.</p>
+}
+else
+{
+    <p id="numero-productos">El controlador ha enviado <strong>@Model.Count</strong> productos.</p>
+
+    @* PASO 1.5.2: habilitado al terminar M01. *@
+    @if (Model.Count >= 3)
+    {
+        <p id="catalogo-completo">El catálogo contiene al menos tres productos.</p>
+    }
+    
+
+    <ul id="listado-productos">
+    @foreach (var producto in Model)
+    {
+        <li data-id="@producto.Id">
+            @producto.Nombre — @producto.Precio.ToString("0.00") €
+            @* RETO 2.2 — Sustituye el enlace siguiente por esta alternativa
+               y comprueba que sigue generando tres rutas de detalle distintas:
+               <a class="enlace-detalle" asp-controller="Productos"
+                  asp-action="Detalle" asp-route-id="@producto.Id">Ver detalle</a>
+               Al activarlo, RETIRA el enlace literal que está justo debajo.
+            *@
+            <a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
+        </li>
+    }
+    </ul>
+
+    @* PASO 1.5.4: habilitado al terminar M01. *@
+    <section id="tarjetas-catalogo" aria-label="Tarjetas reutilizables de productos">
+        <h2>Vista de tarjetas</h2>
+        @foreach (var producto in Model)
+        {
+            <partial name="_TarjetaProducto" model="producto" />
+        }
+    </section>
+    
+}
+~~~
+
+**Resultado que debes poder explicar:** contrasta el HTML visible o los datos que procesa la acción con el estado anterior del formulario. Justifica qué propiedad C# suministra cada campo sin desactivar antiforgery ni duplicar los elementos.
+
+### P2.2 — Views/Shared/_TarjetaProducto.cshtml
+
+**Función y relación con la teoría.** Muestra la tarjeta existente y evoluciona sus enlaces sin cambiar el contrato Producto que recibe del controlador. El código completo de esta instantánea incluye tanto sus líneas activas como las instrucciones comentadas que el alumno debe trabajar paso a paso.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+
+@* PASO 1.5.4: vista parcial tipada. No declara @page ni layout propio. *@
+<article class="tarjeta-producto" data-producto-id="@Model.Id">
+    <h3>@Model.Nombre</h3>
+    <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
+    @* APLICACION 2.2.6 — ESCRIBIR:
+       Reemplaza el enlace literal por un Anchor Tag Helper propio que utilice
+       asp-controller="Productos", asp-action="Detalle" y asp-route-id="@Model.Id".
+       Mantén el texto «Ver detalle de @Model.Nombre» y verifica listado y ficha.
+       No se entrega aquí la solución activa.
+    *@
+    <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
+
+    @* RETO 1.5 (inicio)
+    @if (Model.Precio < 3m)
+    {
+        <strong class="etiqueta-economico">Precio económico</strong>
+    }
+    RETO 1.5 (fin) *@
+</article>
+~~~
+
+**Resultado que debes poder explicar:** contrasta el HTML visible o los datos que procesa la acción con el estado anterior del formulario. Justifica qué propiedad C# suministra cada campo sin desactivar antiforgery ni duplicar los elementos.
+
+### P2.2 — Controllers/ProductosController.cs
+
+**Función y relación con la teoría.** El GET que presenta el formulario y el POST que recibe sus datos siguen siendo los mismos: cambiar el marcado no elimina el model binding. El código completo de esta instantánea incluye tanto sus líneas activas como las instrucciones comentadas que el alumno debe trabajar paso a paso.
+
+~~~csharp
+using CursoWeb.Mvc.Models;
+using Microsoft.AspNetCore.Mvc;
+
+namespace CursoWeb.Mvc.Controllers;
+
+public class ProductosController : Controller
+{
+    // La colección fija es compartida por Index, Detalle y Ficha.
+    // Se mantiene el dominio de productos de M01, sin base de datos.
+    private static IReadOnlyList<Producto> ObtenerProductosEjemplo() =>
+        new List<Producto>
+        {
+            new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+            new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+            new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+        };
+
+    [HttpGet]
+    public IActionResult Index()
+    {
+        return View(ObtenerProductosEjemplo());
+    }
+
+    [HttpGet]
+    public IActionResult Estado()
+    {
+        return Content("Catalogo MVC disponible", "text/plain");
+    }
+
+    [HttpGet]
+    public IActionResult Detalle(int id)
+    {
+        if (id <= 0)
+        {
+            return BadRequest("El identificador debe ser mayor que cero.");
+        }
+
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        return producto is null ? NotFound() : View(producto);
+    }
+
+    [HttpGet("/catalogo/ficha/{id:int}")]
+    public IActionResult Ficha(int id)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        return producto is null ? NotFound() : View("Detalle", producto);
+    }
+
+
+    // P2.1: GET representa el formulario; POST recibe sus datos mediante model binding.
+    [HttpGet]
+    public IActionResult Crear() => View(new Producto());
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult Crear(Producto producto)
+    {
+        // Todavía no se guarda: la persistencia se introduce en P2.4.
+        // El enlace de modelos utiliza las propiedades Nombre y Precio.
+        return View("Confirmacion", producto);
+    }
+
+    // El reto 1.4 permanece identificado como variante histórica.
+    // P1.5 trabaja específicamente con presentación Razor y vistas parciales.
+    /* RETO 1.4 INICIO
+    [HttpGet("/catalogo/resumen/{id:int}")]
+    public IActionResult Resumen(int id)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        return producto is null ? NotFound() : Ok(new { producto.Id, producto.Nombre });
+    }
+    RETO 1.4 FIN */
+}
+~~~
+
+**Resultado que debes poder explicar:** contrasta el HTML visible o los datos que procesa la acción con el estado anterior del formulario. Justifica qué propiedad C# suministra cada campo sin desactivar antiforgery ni duplicar los elementos.
+
+### P2.2 — Views/Productos/Confirmacion.cshtml
+
+**Función y relación con la teoría.** Presenta los valores aceptados sin confundir la confirmación con persistencia. El código completo de esta instantánea incluye tanto sus líneas activas como las instrucciones comentadas que el alumno debe trabajar paso a paso.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Datos recibidos";
+}
+<h1>Datos recibidos del formulario</h1>
+<p id="producto-recibido">Nombre: <strong>@Model.Nombre</strong></p>
+<p id="precio-recibido">Precio: <strong>@Model.Precio.ToString("0.00")</strong> €</p>
+<p>Este resultado confirma el enlace de modelos; los productos aún no se guardan.</p>
+<p><a asp-controller="Productos" asp-action="Crear">Enviar otro formulario</a></p>
+<p><a asp-controller="Productos" asp-action="Index">Volver al catálogo</a></p>
+~~~
+
+**Resultado que debes poder explicar:** contrasta el HTML visible o los datos que procesa la acción con el estado anterior del formulario. Justifica qué propiedad C# suministra cada campo sin desactivar antiforgery ni duplicar los elementos.
+
 ## Cuaderno de profundización opcional P2.2 — Comparación guiada de HTML y Tag Helpers
 
 Trabaja sobre `PROYECTO/2.2/CursoWeb.Mvc` tras completar los pasos 2.2.1 a 2.2.5. El objetivo es practicar una habilidad diferente de la escritura de sintaxis: **leer el resultado que el servidor entrega al navegador y justificarlo a partir de la vista Razor**. No es necesario crear nuevos archivos ni alterar rutas fuera de las preparadas.
