@@ -29,6 +29,20 @@ jobs:
             M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/BLAZOR/CursoWeb.Blazor/CursoWeb.Blazor.csproj \
             M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/MVC/CursoWeb.Mvc/CursoWeb.Mvc.csproj
           do dotnet build "$p" -c Release; done
+
+      - name: Compilar variante Razor de resumen visible y restaurar componente canónico
+        shell: bash
+        run: |
+          set -euo pipefail
+          componente=M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/BLAZOR/CursoWeb.Blazor/Components/Pages/CatalogoRemoto.razor
+          variante=M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/VARIANTES/P5.1_RESUMEN/Components/Pages/CatalogoRemoto.razor
+          cp "$componente" "$RUNNER_TEMP/M05-Catalogo-original.razor"
+          trap 'cp "$RUNNER_TEMP/M05-Catalogo-original.razor" "$componente"' EXIT
+          cp "$variante" "$componente"
+          dotnet build M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/BLAZOR/CursoWeb.Blazor/CursoWeb.Blazor.csproj -c Release
+          cp "$RUNNER_TEMP/M05-Catalogo-original.razor" "$componente"
+          dotnet build M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/BLAZOR/CursoWeb.Blazor/CursoWeb.Blazor.csproj -c Release
+
       - name: API real, GET 200, 404, POST 201 y 400; host Blazor HTTP 200
         shell: bash
         run: |
