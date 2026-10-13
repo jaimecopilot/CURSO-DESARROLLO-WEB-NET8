@@ -387,6 +387,146 @@ Una persona crea Regla desde Blazor. La página recibe un DTO con ID asignado po
 
 
 
+
+### 5.1.18. El contrato entre servicio y componente: comprender un resultado sin ver HTTP en la vista
+
+Hasta aquí hemos separado el componente de la API. Conviene examinar una consecuencia concreta de esa separación: la vista puede trabajar con `IReadOnlyList<ProductoDto>` sin saber cómo se ha recibido el JSON. Esta decisión facilita la lectura y el mantenimiento, pero requiere que el servicio encapsule de verdad la responsabilidad HTTP.
+
+El contrato utilizado en la aplicación B presenta dos operaciones fundamentales:
+
+~~~csharp
+public interface IProductosApiService
+{
+    Task<IReadOnlyList<ProductoDto>> ObtenerAsync();
+    Task<ProductoDto> CrearAsync(CrearProductoDto solicitud);
+}
+~~~
+
+La primera promete una tarea que, al finalizar con éxito, proporcionará una colección de productos. La segunda promete el producto que el servidor haya creado. Ni el método de consulta ni el de creación necesitan recibir referencias a botones, textos HTML o componentes Razor. El servicio no sabe dónde se dibuja un nombre: su trabajo concluye al entregar el dato o manifestar un error.
+
+**Primer razonamiento:** ¿por qué el método de creación devuelve `ProductoDto` y no simplemente `bool`? Porque el servidor decide un identificador y puede normalizar información. Una respuesta afirmativa aislada perdería la representación creada. El componente necesita ese resultado para actualizar su colección sin inventar un ID.
+
+**Segundo razonamiento:** ¿por qué una tarea asincrónica? Porque la respuesta depende de una operación externa que puede tardar o fallar. Un contrato sincrónico que bloqueara innecesariamente la ejecución resultaría menos adecuado para un componente que debe representar una operación en curso.
+
+**Tercer razonamiento:** ¿por qué una interfaz? Porque expresa lo que el componente necesita y permite cambiar detalles de implementación o de configuración HTTP sin trasladar la URL a cada elemento visual. No es necesario introducir una arquitectura empresarial compleja; con dos operaciones y un servicio concreto basta para este curso.
+
+### 5.1.19. Leer la implementación del servicio desde las operaciones HTTP
+
+El método de lectura del proyecto utiliza una forma compacta del cliente HTTP tipado:
+
+~~~csharp
+public async Task<IReadOnlyList<ProductoDto>> ObtenerAsync() =>
+    await cliente.GetFromJsonAsync<List<ProductoDto>>("api/productos") ?? [];
+~~~
+
+Esta expresión concentra tres ideas. Primero, `cliente` ya debe haber recibido su dirección base durante el registro de servicios. Segundo, la ruta relativa `api/productos` se combina con esa dirección para formular la solicitud. Tercero, la respuesta JSON se transforma en una lista de objetos `ProductoDto`; el componente no tiene que realizar la deserialización por su cuenta.
+
+El operador `?? []` cubre el caso en que la operación de deserialización produzca una referencia nula. No convierte en válidos cuerpos JSON arbitrarios. Si el contenido no puede convertirse al tipo esperado, la deserialización puede producir una excepción. La distinción es significativa: «no hay objeto» y «el JSON está mal formado» son estados técnicos distintos.
+
+La operación de creación muestra más pasos porque necesita enviar el cuerpo y conservar la representación del recurso creado:
+
+~~~csharp
+public async Task<ProductoDto> CrearAsync(CrearProductoDto solicitud)
+{
+    using var respuesta = await cliente.PostAsJsonAsync("api/productos", solicitud);
+    respuesta.EnsureSuccessStatusCode();
+
+    return await respuesta.Content.ReadFromJsonAsync<ProductoDto>()
+        ?? throw new InvalidOperationException(
+            "La API confirmó un alta sin devolver un producto.");
+}
+~~~
+
+`PostAsJsonAsync` envía un cuerpo JSON a la ruta indicada. `EnsureSuccessStatusCode` impide tratar una respuesta 400 como si representara un alta correcta. `ReadFromJsonAsync` intenta convertir la respuesta en el DTO esperado. Si el servidor no devuelve ese objeto, el servicio no debe fabricar una representación que no existe.
+
+El `using` indica que el objeto de respuesta HTTP se libera al salir del método. No significa que se cierre inmediatamente todo el cliente HTTP tipado ni que la aplicación deje de poder realizar futuras llamadas. Es importante no confundir el ciclo de vida de la respuesta concreta con la infraestructura administrada por `HttpClientFactory`.
+
+### 5.1.20. Interpretar correctamente el flujo de excepciones
+
+Supongamos cuatro situaciones.
+
+En la primera, el servidor no escucha la dirección configurada. La consulta no consigue una respuesta HTTP útil. El componente puede recibir una excepción de transporte y representar «No se pudo obtener el catálogo remoto». Este resultado no demuestra que la ruta sea incorrecta; tal vez el proceso esté detenido o el puerto difiera.
+
+En la segunda, el servidor responde 404 para una ruta. El cliente HTTP ha conseguido comunicarse. Si la operación utiliza métodos que exigen respuesta satisfactoria, puede producirse una `HttpRequestException` asociada a ese código, pero la investigación debe distinguirla de una conexión rechazada.
+
+En la tercera, el servidor responde 200 con un arreglo JSON vacío. La solicitud y la deserialización se completan. El componente recibe una lista sin elementos; debe representarla como **ausencia válida de productos** y no como avería de comunicación.
+
+En la cuarta, el servidor devuelve 200 con un texto que declara JSON pero no puede analizarse como una lista. El servicio intenta deserializar y puede producirse `JsonException`. La consulta llegó al servidor; el fallo aparece al interpretar el contrato de contenido.
+
+Por ese motivo el código del componente contempla clases de errores distintas. No pretende adivinar la causa exacta de cualquier fallo de red a partir de un único texto, pero sí evita un mensaje indistinto que llevaría al alumno a modificar la capa equivocada.
+
+### 5.1.21. La importancia del orden de las condiciones Razor
+
+En una interfaz con operaciones asincrónicas, el orden de renderizado expresa una política. Esta secuencia es especialmente instructiva:
+
+~~~razor
+@if (cargando)
+{
+    <p role="status">Consultando...</p>
+}
+else if (error is not null)
+{
+    <p role="alert">@error</p>
+}
+else if (productos.Count == 0)
+{
+    <p>La consulta terminó, pero no hay productos.</p>
+}
+else
+{
+    <ul>
+        @foreach (var producto in productos)
+        {
+            <li>@producto.Nombre</li>
+        }
+    </ul>
+}
+~~~
+
+La primera rama representa una consulta en curso. La segunda indica que no podemos presentar la respuesta como satisfactoria. La tercera describe una respuesta válida sin elementos. Solo la cuarta presenta una colección con productos. Cambiar el orden puede introducir mensajes engañosos aunque el servicio HTTP sea correcto.
+
+**Caso de error:** una consulta falla antes de haber recibido productos y la colección inicial permanece vacía. Si la comprobación de colección vacía precede a la de `error`, la pantalla podría informar de que el servidor no tiene productos. En realidad no hemos obtenido su representación. La explicación correcta reside en la precedencia de las condiciones.
+
+**Caso de éxito vacío:** la API devuelve `[]`. No se ha producido excepción; la colección está vacía después de una respuesta correcta. Si la pantalla usa la misma frase para esta situación y para una caída de red, pierde una información fundamental para el usuario y para el aprendizaje.
+
+La lógica de presentación debe corresponder a los hechos conocidos por el componente, no a suposiciones sobre el estado del servidor.
+
+### 5.1.22. La bandera del botón reduce duplicaciones, pero no es un sistema de concurrencia distribuida
+
+Deshabilitar el botón durante una consulta es una decisión útil:
+
+~~~razor
+<button disabled="@cargando" @onclick="ConsultarAsync">
+    Consultar servidor
+</button>
+~~~
+
+Evita que el usuario lance desde ese mismo control otra operación mientras se representa la carga. Sin embargo, no significa que toda la aplicación quede bloqueada ni que distintos clientes de la API se coordinen a través de esa bandera.
+
+Un segundo navegador puede crear un producto mientras el primer componente está consultando. El servidor API sigue atendiendo solicitudes de clientes diferentes. Además, el componente podría disponer de otros eventos capaces de cambiar su estado. Por tanto, no debemos afirmar que `disabled` garantiza un orden global entre todas las operaciones HTTP.
+
+El laboratorio adopta un comportamiento deliberadamente sencillo: la pantalla informa de carga y evita pulsaciones repetidas desde el botón. No desarrolla control de concurrencia distribuida ni sincronización en tiempo real. Entender este límite es suficiente para no atribuir a la interfaz garantías que corresponden a otras capas.
+
+### 5.1.23. Una operación puede producir dos efectos observables distintos
+
+Cuando el alumno pulsa «Crear», ocurren al menos dos cosas diferenciadas. Por un lado, se modifica la colección mantenida por la API si el POST es válido. Por otro, el componente añade localmente el DTO devuelto y actualiza la interfaz.
+
+La segunda acción no demuestra por sí sola la primera si ignoramos el contrato del servidor. Por ello conviene contrastar la pantalla con un GET externo. A la inversa, un POST realizado desde otra terminal puede cambiar la colección de la API sin que la pantalla reciba inmediatamente esa información.
+
+Esta doble observación sirve para explicar por qué los componentes de interfaz son representaciones temporales de un estado externo. En la práctica P5.1, la operación `ConsultarAsync` permite actualizar esa representación bajo demanda.
+
+La distinción es también un criterio de diagnóstico: si POST devuelve 201 pero el producto no aparece en la pantalla, revisaremos el modo en que el componente incorpora el DTO. Si el producto aparece localmente pero no se encuentra mediante GET, deberemos investigar qué servidor respondió y si el contrato fue realmente satisfecho. No se resuelve ninguno de los dos casos reescribiendo sin motivo toda la API.
+
+### 5.1.24. Un ensayo reproducible necesita restaurar el servidor
+
+Para comparar lista normal, lista vacía y JSON inválido se puede modificar temporalmente la respuesta del mismo endpoint. Eso permite estudiar fallos realistas, pero no debe convertirse en el estado permanente de la aplicación que recibe el siguiente alumno.
+
+La variante de diagnóstico del curso elige un escenario por configuración y preserva el comportamiento normal como valor predeterminado. Al acabar, se restaura el `Program.cs` original y se elimina la variable que había forzado el escenario. Así la API vuelve a sus dos productos iniciales y a su contrato habitual.
+
+La restauración forma parte de la competencia práctica: permite repetir el mismo experimento, comparar los resultados y evitar que una modificación temporal se convierta en una dependencia oculta. No es una operación meramente administrativa; es la condición que hace que las explicaciones y las instrucciones mantengan su validez para todo el alumnado.
+
+
+
 ## 5.2. Ejecutar, compilar y publicar una aplicación ASP.NET Core MVC
 
 ### 5.2.1. ¿Por qué compilar no equivale a publicar?
