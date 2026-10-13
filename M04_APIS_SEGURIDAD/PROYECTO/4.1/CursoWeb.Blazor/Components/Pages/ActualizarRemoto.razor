@@ -1,0 +1,74 @@
+@page "/actualizar-remoto"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Net.Http.Json
+@inject IHttpClientFactory Clientes
+
+<h1>Actualización explícita de un catálogo remoto</h1>
+<p>La lista se obtiene cuando se pulsa Consultar. Otro cliente puede modificar
+   el servidor sin actualizar automáticamente esta copia visual.</p>
+
+<button id="consultar-remoto" disabled="@consultando" @onclick="ConsultarAsync">
+    @(consultando ? "Consultando..." : "Consultar servidor")
+</button>
+
+<p id="estado-consulta" role="status">@estado</p>
+
+@if (productos.Count == 0 && !consultando && consultado && error is null)
+{
+    <p id="sin-coincidencias">El catálogo remoto está vacío.</p>
+}
+@if (error is not null)
+{
+    <p role="alert" id="error-consulta">@error</p>
+}
+<ul id="lista-consultada">
+    @foreach (var producto in productos)
+    {
+        <li>@producto.Id — @producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+    }
+</ul>
+
+@code {
+    private bool consultado;
+    private bool consultando;
+    private string estado = "Todavía no se ha consultado el servidor.";
+    private string? error;
+    private List<ProductoDto> productos = [];
+
+    private async Task ConsultarAsync()
+    {
+        consultando = true;
+        error = null;
+        estado = "Esperando GET /api/productos...";
+
+        try
+        {
+            var cliente = Clientes.CreateClient("ProductosApi");
+            var recibidos = await cliente
+                .GetFromJsonAsync<List<ProductoDto>>("api/productos");
+
+            productos = recibidos ?? [];
+            estado = $"Consulta correcta: {productos.Count} producto(s).";
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo consultar la API. Comprueba el host y el puerto.";
+            estado = "Consulta fallida.";
+        }
+        catch (TaskCanceledException)
+        {
+            error = "La espera de la consulta ha terminado.";
+            estado = "Consulta interrumpida.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            error = "La API no devolvió una lista JSON compatible.";
+            estado = "Contrato incompatible.";
+        }
+        finally
+        {
+            consultado = true;
+            consultando = false;
+        }
+    }
+}
