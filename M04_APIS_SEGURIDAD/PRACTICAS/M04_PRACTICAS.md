@@ -13,7 +13,7 @@
 - [P4.1 — Consumo HTTP desde Blazor](#punto-1)
 - [P4.2 — Refactorización a servicio tipado](#punto-2)
 - [P4.3 — Construcción de una API REST desde cero](#punto-3)
-- [P4.4 — Seguridad básica: sesión y autorización](#punto-4)
+- [P4.4 — Cookies, roles y ampliación Identity/JWT](#punto-4)
 
 ## Cómo seguir las prácticas
 
@@ -34,7 +34,7 @@ El tiempo de explicación suma 90 minutos y el de construcción obligatoria 240;
 
 ### Cómo reconocer una ampliación
 
-Los talleres de diagnóstico HTTP, el servicio simulado, el archivo de peticiones `.http`, el reto de búsqueda y el análisis extendido de sesiones se presentan como **ampliaciones**. Su objetivo es proporcionar material de referencia y autonomía sin convertir una jornada de seis horas en una lista imposible de ejercicios obligatorios.
+Los talleres de diagnóstico HTTP, el servicio simulado, el archivo de peticiones `.http`, el reto de búsqueda, el análisis extendido de sesiones y **ASP.NET Core Identity/JWT** se presentan como **ampliaciones**. Su objetivo es proporcionar material de referencia y autonomía sin convertir una jornada de seis horas en una lista imposible de ejercicios obligatorios.
 
 Antes de comenzar un nuevo punto, confirma únicamente el resultado obligatorio del anterior: en 4.1 la consulta y el alta remotas; en 4.2 la misma pantalla consumiendo un servicio tipado; en 4.3 la API construida desde cero y compatible; en 4.4 una sesión de demostración que protege un recurso del servidor.
 
@@ -3818,4 +3818,4 @@ El ejemplo sirve para aprender autenticación y autorización, no para publicar 
 
 ### Cierre
 
-Hemos observado autenticación, autorización y representación visual de la identidad sin rehacer cursos de Web API o Identity. Nunca reutilices la credencial fija de laboratorio en un despliegue público.
+Hemos observado autenticación por cookie, autorización y representación visual de la identidad. La ampliación P4.4.6 añade Identity real con SQLite, emisión de JWT firmados y una API protegida con JwtBearer. No reutilices credenciales ni secretos de laboratorio en un despliegue público; ambos ejemplos requieren un diseño de identidad de producción distinto.
