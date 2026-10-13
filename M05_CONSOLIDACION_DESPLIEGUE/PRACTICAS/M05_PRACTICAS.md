@@ -1971,6 +1971,131 @@ Si utilizaste la variante adicional, entrega al docente los nombres concretos de
 
 
 
+
+### Paso P5.4.21. Distinguir un recurso estático ausente de una aplicación detenida
+
+**Fundamento:** 5.4.18 y 5.4.23. Un sitio IIS puede responder correctamente a la portada MVC y fallar al servir un CSS. Queremos observar esa diferencia controladamente, sin cambiar los archivos fuente del proyecto ni modificar permisos.
+
+**Preparación.** Necesitamos el sitio `CursoWeb-M05` funcionando en `http://localhost:8091/` y su directorio físico publicado `C:\CursoWeb\M05\IIS`. Detén cualquier otro ensayo que utilice el mismo puerto. Antes de tocar archivos, confirma el estado correcto:
+
+~~~powershell
+curl.exe -i http://localhost:8091/
+curl.exe -i http://localhost:8091/css/site.css
+~~~
+
+Ambas solicitudes deben producir respuestas satisfactorias. No continúes si CSS ya falta: primero debes encontrar el motivo de esa avería inicial, porque no podrías atribuir el resultado posterior a este experimento.
+
+Desde una PowerShell con permiso para trabajar en la carpeta publicada, define los nombres exactos:
+
+~~~powershell
+$css = "C:\CursoWeb\M05\IIS\wwwroot\css\site.css"
+$copia = "$css.p5421-original"
+Test-Path $css
+~~~
+
+Si `Test-Path` devuelve `False`, la ruta física del sitio podría ser diferente; consúltala en IIS antes de continuar. No busques un CSS parecido en cualquier carpeta del equipo.
+
+### Paso P5.4.22. Retirar temporalmente solo el archivo publicado
+
+**Objetivo:** demostrar que un 404 de CSS no equivale a un fallo del host ASP.NET Core.
+
+Copia primero el archivo y después retira temporalmente la copia servida:
+
+~~~powershell
+Copy-Item $css $copia -Force
+Rename-Item -Path $css -NewName "site.css.p5421-oculto"
+~~~
+
+No borres la hoja de estilos del proyecto fuente. La modificación se realiza exclusivamente en la publicación usada por IIS y debe durar solo lo necesario para observar su efecto. Si el equipo es compartido, realiza el ensayo con autorización docente, ya que las páginas que dependan de ese CSS pueden verse temporalmente sin su formato habitual.
+
+Solicita ahora tres URLs desde otra terminal:
+
+~~~powershell
+curl.exe -i http://localhost:8091/
+curl.exe -i http://localhost:8091/Productos/Estado
+curl.exe -i http://localhost:8091/css/site.css
+~~~
+
+Si el sitio sigue funcionando, las rutas MVC pueden responder 200 mientras el CSS responde 404. La portada puede verse sin estilos al abrirla en el navegador. No es un error del controlador Home/Index: la solicitud al recurso estático no encuentra el archivo que pretendía servir.
+
+**Pregunta razonada:** ¿por qué no debemos reinstalar el Hosting Bundle para resolver este escenario? Porque las rutas ASP.NET Core siguen atendiendo solicitudes; conocemos exactamente qué archivo retiramos del directorio publicado y qué recurso dejó de existir.
+
+### Paso P5.4.23. Restaurar el recurso y comprobar la recuperación
+
+Cierra la observación recuperando la hoja original. Desde la misma terminal, con las variables definidas:
+
+~~~powershell
+$oculto = Join-Path (Split-Path $css -Parent) "site.css.p5421-oculto"
+if (Test-Path $oculto) {
+    Remove-Item $oculto
+}
+Copy-Item $copia $css -Force
+Remove-Item $copia
+~~~
+
+La restauración comprueba que el archivo original vuelve a encontrarse en la ruta publicada. No reconstruye la aplicación MVC ni modifica sus controladores. Consulta otra vez:
+
+~~~powershell
+curl.exe -i http://localhost:8091/css/site.css
+~~~
+
+La respuesta prevista es 200. Si aún aparece 404, comprueba que el sitio apunta realmente a `C:\CursoWeb\M05\IIS` y que el archivo restaurado tiene el nombre correcto. No declares la práctica terminada hasta devolver al laboratorio su estado inicial.
+
+**Resultado de aprendizaje:** una aplicación puede estar disponible mientras un recurso estático concreto no lo está. El código HTTP y el tipo de recurso nos ayudan a localizar la avería.
+
+### Paso P5.4.24. Diferenciar una copia publicada de una modificación de código fuente
+
+**Fundamento:** 5.2.13–5.2.16 y 5.4.18. Acabamos de modificar temporalmente un CSS en la carpeta publicada y de observar el efecto. Ese ensayo no cambia necesariamente el archivo `wwwroot/css/site.css` del proyecto original.
+
+Comprueba en Visual Studio que el CSS fuente conserva su contenido y que el proyecto sigue siendo MVC A de M02. Si ahora volvieras a publicar desde ese proyecto, los archivos generados podrían sustituir la copia del destino por el contenido del origen. Esa es precisamente la frontera que queremos enseñar.
+
+El comportamiento de una vista Razor puede ser distinto: las vistas suelen compilarse como parte de la publicación, por lo que editar el archivo de origen no reemplaza automáticamente su contenido en la aplicación alojada. Por eso P5.2 construyó dos carpetas con publicaciones de distinta versión en lugar de asumir que una modificación del editor actualizaba todos los servidores.
+
+La comparación no exige modificar ahora otra vez Home/Index ni crear un segundo sitio. Basta con señalar la diferencia causal entre un recurso estático servido desde una carpeta física y una vista dinámica que forma parte de los artefactos de la aplicación.
+
+### Paso P5.4.25. Comprobar el entorno efectivo mediante la limitación prevista
+
+**Fundamento:** 5.4.20. La práctica principal creó `appsettings.Production.json` con `Despliegue:SinLocalDb=true`. No necesitamos añadir una ruta especial para revelar el entorno a través de HTTP. Podemos observar una consecuencia concreta de esa configuración.
+
+Con el sitio IIS operativo y el CSS restaurado, consulta:
+
+~~~powershell
+curl.exe -i http://localhost:8091/Productos/Estado
+curl.exe -i http://localhost:8091/Productos
+~~~
+
+La primera ruta debe responder 200; la segunda, 503. Si Productos intenta acceder a LocalDB o falla durante el arranque, puede que la opción no se haya aplicado al proceso. Comprueba la existencia del archivo de entorno en la **ruta física publicada** y el entorno utilizado por la aplicación.
+
+No cambies una instancia SQL ni añadas otro proveedor EF para conseguir un código diferente. El objetivo del ensayo es comprobar IIS y reconocer una limitación deliberada, no transformar el CRUD original.
+
+### Paso P5.4.26. Elegir la siguiente comprobación según el error observado
+
+Observa estos cinco casos y explica qué investigarías primero.
+
+**Caso 1.** El sitio aparece Started, pero ninguna de las rutas responde y la consola informa de un error de hospedaje. Revisa ANCM, Hosting Bundle, runtime y publicación. No se ha demostrado que el controlador se esté ejecutando.
+
+**Caso 2.** El sitio y la portada responden, pero el CSS devuelve 404. Revisa `wwwroot`, la ruta de archivo y la carpeta física publicada. La prueba controlada anterior demuestra cómo puede producirse esta situación.
+
+**Caso 3.** La portada devuelve 200, Estado devuelve 200 y Productos devuelve 503 bajo el modo sin base. El resultado es coherente con el alcance del ensayo. No lo etiquetes como CRUD exitoso ni como IIS caído.
+
+**Caso 4.** IIS muestra una portada antigua aunque la publicación más reciente se encuentra en otra carpeta. Comprueba qué ruta física utiliza el sitio y cuál fue el destino real de `dotnet publish`.
+
+**Caso 5.** La ejecución directa Kestrel responde, pero el sitio IIS no inicia. La diferencia orienta a los componentes específicos de IIS: pool, módulo, permisos y ruta física. No afirmes que la prueba Kestrel equivale a haber probado IIS.
+
+Cada respuesta debe mencionar un archivo, una opción de configuración o una observación concreta. «Volver a empezar» no constituye un diagnóstico.
+
+### Paso P5.4.27. Recuperar el estado inicial antes de pasar a Docker
+
+Antes de iniciar la última práctica, confirma que `wwwroot/css/site.css` está presente en la publicación IIS, que el sitio conserva sus bindings originales y que no quedan archivos temporales del experimento.
+
+La carpeta de proyecto MVC A sigue intacta. No se ha modificado su modelo de productos, el proveedor EF Core ni la cadena de conexión. La publicación IIS continúa demostrando páginas sin base bajo la configuración de laboratorio.
+
+El siguiente ensayo utilizará Docker Linux. No necesita que el sitio IIS siga escuchando mientras se construye la imagen, aunque pueden coexistir en puertos diferentes. El alumno debe saber qué proceso responde a cada URL antes de comparar resultados.
+
+**Síntesis:** la acción de recuperar un archivo estático, comprobar la ruta física y reconocer el estado de aplicación permite cerrar una demostración de IIS sin introducir operaciones peligrosas ni alterar la arquitectura acordada.
+
+
+
 ### Ampliación autónoma P5.4: explicar una diferencia de proceso
 
 Compara la dirección 5091 utilizada en Kestrel con 8091 de IIS. Argumenta por qué ambos pueden servir la misma acción `HomeController.Index` sin modificar su código, pero dependen de procesos de arranque, identidad y permisos diferentes. Explica además por qué un fallo 503 de `/Productos` deliberadamente producido por el modo sin base no es una avería del módulo IIS.
