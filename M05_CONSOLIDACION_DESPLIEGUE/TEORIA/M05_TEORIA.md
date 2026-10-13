@@ -1324,6 +1324,140 @@ El aprendizaje consiste en asociar cada resultado observado con una instancia de
 
 
 
+
+### 5.3.23. Una ruta conocida como punto de partida para diagnosticar Kestrel
+
+Para comprobar un servidor no necesitamos empezar con la parte más compleja de su aplicación. MVC A conserva una ruta `/Productos/Estado` que responde texto desde una acción del controlador. Este punto de observación no utiliza la tabla de productos. Su utilidad no consiste en crear un sistema general de monitorización, sino en aislar un recorrido pequeño y verificable.
+
+Si obtenemos respuesta 200 en Estado, sabemos que algún proceso escuchó la dirección, que ASP.NET Core atendió la solicitud y que la acción pudo devolver su contenido. Si a la vez `/Productos` devuelve 503 bajo el modo sin base, no hay contradicción: dos rutas distintas recorren condiciones distintas.
+
+Si Estado devuelve 404 mientras `/` funciona, el servidor sigue siendo capaz de atender solicitudes. Debemos comprobar si estamos ejecutando la publicación correcta, si la ruta pertenece a esa versión o si otra aplicación se encuentra escuchando el puerto. Un cambio arbitrario de puerto no es suficiente para diagnosticar un fallo de enrutamiento.
+
+**Ejemplo de razonamiento completo:** al abrir `localhost:5091` el navegador muestra una portada correcta. Sin embargo, la URL de Estado no existe. El primer dato no autoriza a concluir que todo el proyecto MVC esté cargado con las rutas esperadas. Comprueba la versión publicada y si el proceso realmente ejecuta el proyecto acumulativo. Es posible que la dirección la esté atendiendo una plantilla MVC diferente que el alumno dejó iniciada.
+
+### 5.3.24. El valor de comprobar el cuerpo además del código de estado
+
+Una respuesta HTTP con código 200 no identifica por sí sola cuál de dos aplicaciones está contestando. Dos servidores distintos pueden devolver 200 en `/`. Por eso un endpoint de texto conocido resulta útil como firma funcional del proyecto que pretendíamos iniciar.
+
+Al consultar `/Productos/Estado` esperamos `Catalogo MVC disponible`. La combinación de estado y cuerpo ofrece más información que un «OK» aislado. No demuestra identidad criptográfica ni sustituye mecanismos de seguridad, pero en un laboratorio permite descartar que estemos viendo simplemente la portada predeterminada de otro proyecto.
+
+La misma técnica se utiliza al comparar las dos publicaciones de la práctica anterior. Ambas pueden responder 200 en Home/Index, pero una incorpora una marca específica en el HTML. El cuerpo de respuesta identifica la versión a la que accedemos.
+
+Esto enseña una regla de observación general: cuando el objetivo consiste en demostrar **qué aplicación o versión se ejecutó**, necesitamos comparar algo más que la existencia de una respuesta satisfactoria.
+
+### 5.3.25. La ruta de archivos estáticos no ejecuta el mismo trabajo que una acción MVC
+
+La ruta `/css/site.css` pertenece a un archivo físico publicado bajo `wwwroot`. La petición puede ser atendida por el middleware de archivos estáticos sin invocar una acción del controlador de productos. En cambio, `/Productos/Estado` se resuelve a una acción MVC y su respuesta la produce código del controlador.
+
+El servidor HTTP es común, pero las responsabilidades no son idénticas. Si falla CSS, revisaremos la publicación del archivo y el middleware. Si falla Estado, revisaremos la ruta de controlador y la versión de la aplicación. Si falla el catálogo, además podríamos necesitar comprobar SQL Server Express LocalDB.
+
+En términos de prueba, solicitar tres tipos de recursos aporta tres observaciones:
+
+| Tipo de recurso | Ejemplo | Capacidad observada |
+|---|---|---|
+| Vista MVC | `/` | Enrutamiento y representación HTML |
+| Acción de texto MVC | `/Productos/Estado` | Acción de controlador accesible |
+| Archivo estático | `/css/site.css` | Publicación y servicio de recursos |
+
+La tabla no significa que todas las aplicaciones deban incorporar un endpoint de estado. Este proyecto dispone de uno y lo aprovechamos para explicar el hospedaje con un recorrido mínimo.
+
+### 5.3.26. El mismo programa puede escucharse en más de una dirección
+
+Supongamos que ejecutamos la publicación en 5091. Para iniciar una segunda instancia con la misma DLL debemos elegir otra dirección compatible, como 5094, si el primer proceso continúa escuchando. Ambas instancias tienen su propio ciclo de vida y su propia configuración de proceso.
+
+En el modo sin LocalDB, la portada y la ruta de estado pueden responder de forma equivalente en los dos puertos. No hemos duplicado el código fuente, ni diseñado un segundo controlador; solo hemos ejecutado dos procesos. Esa diferencia se observa al detener una de las terminales: la otra puede seguir atendiendo solicitudes.
+
+En el modo normal, los dos procesos podrían necesitar acceso a LocalDB y sus resultados dependerían de la disponibilidad de la instancia. Por eso un experimento destinado a comprobar exclusivamente una colisión o independencia de puertos debe aislar explícitamente esa dependencia y no adjudicar una excepción SQL a Kestrel.
+
+### 5.3.27. Qué demuestra una colisión y por qué reproducirla puede ser útil
+
+Una colisión de puertos ocurre cuando dos procesos intentan atender combinaciones incompatibles de dirección y puerto. Kestrel no puede iniciar su escucha si la combinación ya está ocupada de manera incompatible.
+
+La observación es pedagógicamente relevante porque se produce **antes** de que el navegador ejecute una petición a Home/Index. No intervienen el model binding, las vistas Razor ni el contexto EF Core en la decisión del sistema operativo de admitir un listener.
+
+Podemos describir el ensayo: iniciamos una publicación en 5091 y confirmamos que Estado responde. Sin detenerla, iniciamos otra publicación en 5091. El segundo proceso debe informar del conflicto, siempre que haya llegado a la fase de escucha. La primera instancia continúa respondiendo.
+
+La corrección más pequeña es detener el proceso que ya no se necesita o utilizar otro puerto. No es necesario cambiar el código de controladores, reinstalar el SDK o suprimir la persistencia de la aplicación como reacción improvisada.
+
+### 5.3.28. Los puertos no explican por sí solos la identidad del proceso
+
+Aun cuando sepamos que 5091 está ocupado, necesitamos averiguar **por quién**. El sistema operativo puede mostrar el identificador del proceso que escucha. En Windows, PowerShell permite realizar esa consulta:
+
+~~~powershell
+Get-NetTCPConnection -LocalPort 5091 -State Listen -ErrorAction SilentlyContinue |
+    Select-Object LocalAddress, LocalPort, OwningProcess
+~~~
+
+Si aparece un identificador de proceso, puede consultarse `Get-Process` para obtener más información. Debe actuarse con prudencia: no se debe terminar un proceso solo porque usa el puerto; puede pertenecer a otro servicio del equipo o a otra persona.
+
+En una máquina de formación suele bastar con detener la terminal concreta desde la que arrancó la aplicación. El comando de observación sirve para resolver casos en los que existen varias terminales y se ha perdido la correspondencia entre proceso y aplicación.
+
+La presencia de un listener tampoco demuestra que cualquier endpoint HTTP funcione. Necesitamos la petición a una ruta concreta para comprobar el recorrido de aplicación.
+
+### 5.3.29. La dirección efectiva es más importante que la recordada por el alumno
+
+El comando de arranque puede contener `--urls http://localhost:5091`. Sin embargo, si la aplicación incorpora otra configuración específica de endpoints, la dirección efectiva podría diferir. No debemos enseñar que todos los mecanismos de configuración tienen la misma prioridad ni que una opción textual prevalece incondicionalmente en cualquier host.
+
+En el proyecto de laboratorio, la práctica utiliza una configuración sencilla y se espera que la dirección anunciada coincida con la prevista. Cuando exista discrepancia, hay que leer el mensaje de escucha del proceso, comprobar sus fuentes de configuración y solicitar la URL efectiva.
+
+La respuesta adecuada no consiste en añadir instrucciones a `HomeController`. Los controladores se ejecutan después de que ASP.NET Core haya recibido una solicitud a través de su mecanismo de hospedaje; la selección de puerto es una responsabilidad anterior.
+
+### 5.3.30. El tratamiento de un 404 frente a una conexión rechazada
+
+Si un navegador recibe HTTP 404, hubo comunicación con un servidor que atendió y rechazó la ruta o recurso. Si informa de que no puede conectarse, puede que no exista ningún listener accesible en esa dirección. Estos resultados no deben recibir la misma interpretación.
+
+Por ejemplo, pedir `http://localhost:5091/ruta-inventada` a un proceso MVC correctamente iniciado puede producir 404. La prueba demuestra que Kestrel está funcionando y que el recurso solicitado no está definido. En cambio, detener el proceso y pedir Estado puede producir un error de conexión, que no contiene una respuesta 404 de MVC.
+
+Este contraste resulta particularmente importante después de copiar una publicación. Un 404 puede indicar que el proyecto ejecutado no contiene la ruta prevista; un error de conexión puede indicar que ni siquiera se ha iniciado. Antes de diagnosticar EF Core debemos separar los dos casos.
+
+### 5.3.31. Una publicación Kestrel no es exclusiva de desarrollo
+
+El hecho de que usemos `dotnet run` durante la construcción no convierte a Kestrel en un servidor que solo pueda utilizarse en desarrollo. Una publicación ASP.NET Core puede atender solicitudes directamente mediante Kestrel cuando el entorno está configurado adecuadamente.
+
+En este curso ejecutamos la DLL publicada en un puerto local. No se configuran certificados públicos, balanceadores ni un proxy externo. Esa limitación de alcance no debe confundirse con una propiedad intrínseca de Kestrel.
+
+La diferencia que se enseña es entre **ejecutar desde la estructura de proyecto** y **ejecutar los artefactos publicados**. Ambos recorridos pueden utilizar el mismo servidor HTTP, aunque sus herramientas, carpetas y condiciones de arranque difieran.
+
+Al introducir IIS veremos que el mecanismo de hospedaje Windows añade un módulo y un Application Pool. Al introducir Docker veremos que la misma aplicación puede arrancar en un contenedor. Ninguna de esas modalidades convierte los controladores MVC en otro tipo de programa.
+
+### 5.3.32. La respuesta 503 es información de aplicación, no de conectividad
+
+En el modo `Despliegue:SinLocalDb=true`, el programa reconoce rutas de productos que dependerían de SQL Server y devuelve una respuesta 503. La solicitud llegó al proceso; el servidor pudo identificar la condición y escribir el estado de respuesta.
+
+Si el alumno observa HTTP 503 y afirma que el servidor está apagado, contradice la evidencia: un servidor ha producido precisamente esa respuesta. El mensaje expresa indisponibilidad de una función bajo la configuración elegida. No significa que toda la red esté rota.
+
+En cambio, si la aplicación no consiguió iniciar porque intentó abrir LocalDB al arrancar y no pudo, quizá no habrá ningún listener disponible para responder con HTTP. Las dos situaciones tienen causas y síntomas distintos; ambas dependen de la configuración de base, pero aparecen en fases diferentes.
+
+### 5.3.33. Elegir la siguiente comprobación a partir de la evidencia disponible
+
+El alumno ve una página de error. ¿Qué hace a continuación? Depende de lo que ya se sabe.
+
+Si no se recibió respuesta HTTP y la consola no anuncia una dirección de escucha, investigar el arranque y el puerto. Si hubo HTTP 404, comprobar la URL y la tabla de rutas. Si hubo HTTP 503 para productos y el modo sin base está activo, interpretar la restricción, no intentar repararla como si fuera inesperada. Si hubo HTML 200 sin CSS, inspeccionar los recursos publicados.
+
+La técnica es un árbol de decisión conceptual:
+
+~~~text
+¿Llega una respuesta HTTP?
+  NO -> proceso, puerto, escucha, dependencia de inicio
+  SÍ -> ¿qué ruta y qué código?
+          200 -> comprobar también contenido y recurso esperado
+          404 -> ruta, versión, archivo o endpoint ausente
+          503 -> comprobar la dependencia o limitación declarada
+          otro -> examinar la evidencia concreta antes de intervenir
+~~~
+
+El árbol no sustituye herramientas de diagnóstico; orienta su uso. Evita la modificación de archivos al azar cuando todavía no se ha determinado la capa del problema.
+
+### 5.3.34. Cierre: reproducir el mismo resultado en el siguiente hospedaje
+
+La comprobación de portada, acción de estado y CSS nos proporciona una referencia para comparar con IIS y Docker. Si la misma MVC A responde en otro mecanismo, la continuidad se observa mediante las mismas rutas. Si una de ellas falla, conocemos qué parte del comportamiento está ausente.
+
+No es necesario crear una prueba de cada controlador de M02 dentro de esta jornada. El CRUD completo ya tuvo su recorrido de aprendizaje con SQL Server LocalDB. M05 enseña un problema distinto: cómo iniciar, exponer y detener una publicación, y cómo identificar sus límites.
+
+Este cierre conecta el apartado con la siguiente práctica de IIS: mantendremos constantes las rutas y cambiaremos el modo de hospedaje. Así el alumno compara mecanismos sin confundirlos con una modificación funcional de la aplicación.
+
+
+
 ## 5.4. Publicación elemental de ASP.NET Core en IIS
 
 ### 5.4.1. El problema que IIS resuelve
