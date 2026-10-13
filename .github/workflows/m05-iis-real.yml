@@ -74,10 +74,10 @@ jobs:
           for ($i=0;$i -lt 70;$i++) {
             Start-Sleep -Seconds 2
             try {
-              $home=Invoke-WebRequest 'http://127.0.0.1:8091/' -UseBasicParsing -TimeoutSec 5
+              $homeResponse=Invoke-WebRequest 'http://127.0.0.1:8091/' -UseBasicParsing -TimeoutSec 5
               $estado=Invoke-WebRequest 'http://127.0.0.1:8091/Productos/Estado' -UseBasicParsing -TimeoutSec 5
               $css=Invoke-WebRequest 'http://127.0.0.1:8091/css/site.css' -UseBasicParsing -TimeoutSec 5
-              if ($home.StatusCode -eq 200 -and $estado.StatusCode -eq 200 -and $css.StatusCode -eq 200) { $ok=$true; break }
+              if ($homeResponse.StatusCode -eq 200 -and $estado.StatusCode -eq 200 -and $css.StatusCode -eq 200) { $ok=$true; break }
             } catch { Write-Host "IIS aún sin respuesta correcta: $_" }
           }
           if (-not $ok) {
