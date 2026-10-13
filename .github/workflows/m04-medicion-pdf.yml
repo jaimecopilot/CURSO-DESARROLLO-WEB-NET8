@@ -1,0 +1,46 @@
+name: M04 - medir PDF canónico sin publicar
+on:
+  push:
+    branches: [desarrollo/m04-reescritura-docente-integral]
+    paths:
+      - 'M04_APIS_SEGURIDAD/DOCS/**'
+      - '.github/workflows/m04-medicion-pdf.yml'
+  workflow_dispatch:
+jobs:
+  medir-documentos:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Instalar maquetación y comprobadores
+        run: |
+          python -m pip install 'markdown-it-py>=3,<5' 'pygments>=2.17,<3' 'weasyprint>=63,<69' 'pypdf>=5,<8' 'pymupdf>=1.24,<2' 'beautifulsoup4>=4.12,<5'
+          sudo apt-get update -qq
+          sudo apt-get install -y fonts-dejavu-core graphviz
+      - name: Medir extensión y fidelidad de PDF
+        run: |
+          python M04_APIS_SEGURIDAD/DOCS/generar_m04_pdf.py
+          echo "Estado de extensión:"
+          cat VERIFICACION_INTERNA/M04_PDF_EXTENSION_OK.txt
+      - name: Diagnóstico de todas las páginas
+        run: |
+          python - <<'PY'
+          import fitz
+          from pathlib import Path
+          for kind in ('TEORIA','PRACTICAS'):
+            f=Path('M04_APIS_SEGURIDAD')/kind/f'M04_{kind}.pdf'
+            with fitz.open(f) as doc:
+              for i,page in enumerate(doc):
+                img=page.get_pixmap(matrix=fitz.Matrix(0.65,0.65),alpha=False)
+                assert img.width>300 and img.height>400
+                assert page.get_text().strip(),(kind,i+1)
+              print(f'{kind}: {len(doc)} páginas procesadas, ninguna vacía')
+          PY
+      - name: No publicar PDF de documentación insuficiente
+        run: |
+          if [ "$(cat VERIFICACION_INTERNA/M04_PDF_EXTENSION_OK.txt)" != "OK" ]; then
+            echo "::warning::El contenido aún no permite publicar los PDF como definitivos."
+          fi
