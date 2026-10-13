@@ -8,6 +8,38 @@
 
 **AUTOR: JAIME GALLO**
 
+## Índice del módulo
+
+- [P4.1 — Consumo HTTP desde Blazor](#punto-1)
+- [P4.2 — Refactorización a servicio tipado](#punto-2)
+- [P4.3 — Construcción de una API REST desde cero](#punto-3)
+- [P4.4 — Seguridad básica: sesión y autorización](#punto-4)
+
+## Cómo seguir las prácticas
+
+Este manual distingue el **recorrido obligatorio**, que se construye durante las seis horas del módulo, de los **talleres de ampliación**, que sirven para profundizar, repetir y diagnosticar fuera del tiempo presencial. Ningún taller adicional es necesario para que funcione el siguiente punto. Los proyectos de referencia permiten comparar resultados, pero no sustituyen los pasos de construcción escritos aquí.
+
+### Itinerario presencial de seis horas
+
+| Punto | Explicación | Construcción obligatoria |
+|---|---:|---:|
+| 4.1. HTTP y DTO, GET/POST desde Blazor | 25 min | 75 min |
+| 4.2. Interfaz, DI y cliente HTTP tipado | 20 min | 50 min |
+| 4.3. API mínima creada desde cero | 30 min | 75 min |
+| 4.4. Cookie de demostración, roles y autorización | 15 min | 40 min |
+| **Repaso, dudas y recuperación de incidencias** | **30 min** | **—** |
+| **Total** | | **360 minutos (6 h)** |
+
+El tiempo de explicación suma 90 minutos y el de construcción obligatoria 240; el cierre ocupa 30 minutos. Las actividades adicionales que figuran después de los recorridos esenciales no se incorporan a ese cómputo presencial.
+
+### Cómo reconocer una ampliación
+
+Los talleres de diagnóstico HTTP, el servicio simulado, el archivo de peticiones `.http`, el reto de búsqueda y el análisis extendido de sesiones se presentan como **ampliaciones**. Su objetivo es proporcionar material de referencia y autonomía sin convertir una jornada de seis horas en una lista imposible de ejercicios obligatorios.
+
+Antes de comenzar un nuevo punto, confirma únicamente el resultado obligatorio del anterior: en 4.1 la consulta y el alta remotas; en 4.2 la misma pantalla consumiendo un servicio tipado; en 4.3 la API construida desde cero y compatible; en 4.4 una sesión de demostración que protege un recurso del servidor.
+
+
+
 
 ## P4.1 — Primer consumo HTTP desde Blazor
 
@@ -512,7 +544,7 @@ Como experimento razonado, imagina que el servidor respondiera con el objeto de 
 Al cerrar P4.1, el alumno debe poder explicar qué parte del flujo se ejecuta en el proceso Blazor y cuál se ejecuta en el proceso API. Esa explicación es la base del refactor de P4.2.
 
 
-### P4.1 — Taller complementario: comparar tres situaciones desde una misma página
+### Ampliación P4.1 — Taller complementario: comparar tres situaciones desde una misma página
 
 Ya hemos creado el catálogo remoto y hemos aprendido a mostrar errores. Ahora construiremos una **pantalla temporal de diagnóstico HTTP**, sin sustituir la aplicación principal. El objetivo es observar de forma diferenciada una respuesta correcta, un rechazo 404 y un fallo de conectividad, manteniendo la misma configuración de cliente.
 
@@ -990,7 +1022,7 @@ Abre la página local /productos. Debe continuar operativa, porque mantenemos IP
 La evidencia final no es simplemente que un archivo compiló. Es que el comportamiento visible se mantiene y que el componente dejó de conocer detalles HTTP. Al cumplir ambas condiciones hemos efectuado un refactor que el alumno puede justificar.
 
 
-### P4.2 — Taller adicional: demostrar la DI cambiando una implementación
+### Ampliación P4.2 — Taller adicional: demostrar la DI cambiando una implementación
 
 Hasta ahora sabemos que CatalogoRemoto.razor no debería conocer detalles HTTP después del refactor. Vamos a comprobar esa propiedad con un experimento distinto de los anteriores: **sustituir el origen de los productos sin tocar el componente**. La finalidad no es crear otra aplicación de negocios, sino poner a prueba el significado de una interfaz inyectada.
 
@@ -1124,7 +1156,7 @@ Esa narración deja claro que la inyección de dependencias no es una tecnologí
 
 El resultado de P4.2 no es una pantalla nueva, sino una frontera de responsabilidades: el componente presenta y gestiona el estado; `IProductosApiService` expresa las operaciones que necesita; `ProductosApiService` resuelve el transporte; y la API mantiene las reglas del servidor. En P4.3 estudiaremos y modificaremos esta última.
 
-## P4.3 — Abrir la API existente y añadir un resumen sin romper Blazor
+## P4.3 — Construir desde cero la API REST y conservar el contrato de Blazor
 
 ### Objetivo y material inicial
 
@@ -1132,29 +1164,13 @@ Partimos de **la API entregada en 4.1**, \`PROYECTO/4.1/CursoWeb.ProductosApi\`,
 
 Al terminar, la nueva API seguirá ofreciendo GET, POST, respuestas 400/404 y una operación adicional \`GET /api/productos/resumen\`. El cliente Blazor seguirá consultando \`/api/productos\` sin cambiar su código HTTP.
 
-### Paso 4.3.1. Identificar las piezas del proceso servidor
+### Recorrido obligatorio P4.3 — construir el servidor antes de estudiarlo como referencia
 
-Abre \`CursoWeb.ProductosApi/Program.cs\` e identifica el \`WebApplication.CreateBuilder\`, \`Build\`, \`MapGet\`, \`MapPost\` y \`Run\`. Localiza los registros Cuaderno y Lápiz que se cargan al arrancar, y observa que se guardan en \`ConcurrentDictionary<int, ProductoApi>\`, no en una base de datos.
+Sigue las **etapas 1 a 5** del taller de construcción autónoma: crear la plantilla ASP.NET Core, publicar GET, añadir detalle, implementar POST con validación e integrar la API recién creada con Blazor. La API entregada para P4.1–P4.2 solo era un servidor disponible para comenzar el consumo: **no se copia su Program.cs como solución del alumno**.
 
-Ejecuta la API:
+Al terminar la etapa 5, el contrato está demostrado. Las siguientes tareas —reinicio, resumen, código comentado del proyecto suministrado, búsqueda opcional, editor `.http` y PowerShell— constituyen ampliaciones. Pueden desarrollarse después de clase o utilizarse por el docente para enriquecer la demostración, sin interrumpir el avance hacia P4.4.
 
-\`\`\`powershell
-dotnet run --project M04_APIS_SEGURIDAD/PROYECTO/4.3/CursoWeb.ProductosApi/CursoWeb.ProductosApi.csproj --urls http://localhost:5081
-\`\`\`
-
-Si otra instancia usa 5081, detén esa instancia antes de iniciar la de 4.3. Abre \`http://localhost:5081/api/productos\` y verifica que aparecen dos productos.
-
-### Paso 4.3.2. Seguir un GET y un POST
-
-En el código, localiza \`Results.Ok\` y \`Results.Created\`. Consulta \`/api/productos/999\` para obtener 404. Envía un POST con nombre «Regla» y precio 1,75 usando un cliente HTTP (por ejemplo, \`curl.exe\` con un fichero JSON para evitar problemas de comillas):
-
-\`\`\`json
-{ "nombre": "Regla", "precio": 1.75 }
-\`\`\`
-
-Observa la respuesta 201, el identificador asignado y la cabecera \`Location\`. Envía ahora un nombre vacío y precio cero para obtener 400. Comprueba que un producto inválido no aparece en la lista GET.
-
-### Taller de construcción autónoma: sustituir la API entregada
+### Construcción obligatoria — API REST a partir de una plantilla vacía
 
 En 4.1 y 4.2 era indispensable disponer de una API operativa mientras aprendíamos a consumirla. Ahora podemos construir una nueva implementación desde cero y poner a prueba que **responde exactamente al mismo contrato HTTP**.
 
@@ -1261,6 +1277,33 @@ Para diagnosticar un fallo, recorre en orden estas preguntas: ¿responde la API 
 
 **Reto de sustitución del servidor.** Sin modificar el cliente, cambia temporalmente la cadena \`"Cuaderno"\` de la API construida por \`"Cuaderno A4"\`, reinicia y consulta Blazor. El nombre debe reflejar el cambio de servidor. Después restaura el dato de referencia y explica por qué la interfaz no necesitó recompilarse para recibir una respuesta JSON con el mismo contrato.
 
+
+### Ampliación P4.3 — comparar con la API de referencia y activar el resumen
+
+Este apartado es posterior a la construcción autónoma. Ahora resulta útil leer la versión de referencia y comparar sus endpoints; **no** sustituye los pasos anteriores.
+
+### Paso 4.3.1. Identificar las piezas del proceso servidor
+
+Abre \`CursoWeb.ProductosApi/Program.cs\` e identifica el \`WebApplication.CreateBuilder\`, \`Build\`, \`MapGet\`, \`MapPost\` y \`Run\`. Localiza los registros Cuaderno y Lápiz que se cargan al arrancar, y observa que se guardan en \`ConcurrentDictionary<int, ProductoApi>\`, no en una base de datos.
+
+Ejecuta la API:
+
+\`\`\`powershell
+dotnet run --project M04_APIS_SEGURIDAD/PROYECTO/4.3/CursoWeb.ProductosApi/CursoWeb.ProductosApi.csproj --urls http://localhost:5081
+\`\`\`
+
+Si otra instancia usa 5081, detén esa instancia antes de iniciar la de 4.3. Abre \`http://localhost:5081/api/productos\` y verifica que aparecen dos productos.
+
+### Paso 4.3.2. Seguir un GET y un POST
+
+En el código, localiza \`Results.Ok\` y \`Results.Created\`. Consulta \`/api/productos/999\` para obtener 404. Envía un POST con nombre «Regla» y precio 1,75 usando un cliente HTTP (por ejemplo, \`curl.exe\` con un fichero JSON para evitar problemas de comillas):
+
+\`\`\`json
+{ "nombre": "Regla", "precio": 1.75 }
+\`\`\`
+
+Observa la respuesta 201, el identificador asignado y la cabecera \`Location\`. Envía ahora un nombre vacío y precio cero para obtener 400. Comprueba que un producto inválido no aparece en la lista GET.
+
 ### Paso 4.3.3. Añadir una ruta de resumen
 
 Antes del \`app.Run();\` añade este endpoint, cuya finalidad y contrato se explican en teoría 4.3.4:
@@ -1297,7 +1340,7 @@ La variante está incluida como bloque \`RETO 4.3.5\` comentado en el proyecto. 
 Haz otra llamada a \`/api/productos/resumen\` y comprueba que aparece \`"hayProductos": true\`. Explica por qué es un campo de un JSON distinto de \`ProductoDto\` y por qué el cliente de 4.2 no necesita cambios.
 
 
-### P4.3 — Registro detallado de la construcción: del host vacío a una API compatible
+### Ampliación P4.3 — Registro detallado de la construcción: del host vacío a una API compatible
 
 La construcción de la API debe realizarse por etapas porque cada etapa comprueba una decisión específica. Mantén abierta una terminal para el proceso servidor y otra para enviar peticiones. No incorpores EF Core ni utilices una base de datos: queremos que la evidencia de cada estado corresponda a un endpoint, una ruta o una regla HTTP.
 
@@ -1480,7 +1523,7 @@ Ejecuta la API construida desde cero en el mismo puerto y abre la aplicación Bl
 Esta tabla permite evaluar el contrato sin confundir éxito de compilación con éxito funcional. Es recomendable escribir el resultado observado junto a cada prueba cuando el alumno la ejecuta, aunque no incorporaremos un sistema de auditoría a su código fuente.
 
 
-### P4.3 — Laboratorio de solicitudes en el editor HTTP de Visual Studio
+### Ampliación P4.3 — Laboratorio de solicitudes en Visual Studio
 
 Además de consultar la API desde Blazor, vamos a ejecutarla como lo haría otro consumidor HTTP. Visual Studio puede abrir archivos .http que contienen solicitudes separadas mediante líneas ###. Cada solicitud declara el verbo, la ruta, sus cabeceras y, cuando es necesario, un cuerpo JSON. La utilidad pedagógica de este archivo es poder reproducir las operaciones sin escribir un programa cliente adicional.
 
@@ -1663,7 +1706,7 @@ Conserva dos proyectos diferentes: el cliente Blazor y la API que has construido
 Si puedes explicar por qué esas tres condiciones son simultáneamente necesarias —funcionamiento directo del servidor, compatibilidad del cliente y validación independiente— habrás comprendido el propósito de crear la API dentro de M04.
 
 
-### P4.3 — Reto opcional 4.3.6: incorporar una búsqueda sin romper los clientes existentes
+### Ampliación P4.3 — Reto opcional 4.3.6: incorporar una búsqueda sin romper los clientes existentes
 
 Este ejercicio amplía la API que has construido desde cero con una operación de consulta que filtra productos por una parte de su nombre. No hace falta modificar el cliente de 4.2 ni reconstruir ninguna pantalla; vamos a probar el endpoint directamente y comprender cómo ASP.NET Core obtiene un parámetro desde la URL.
 
@@ -1769,7 +1812,7 @@ La enseñanza del reto es concreta: diferenciar ruta y query string, validar un 
 No confundas esta matriz con una obligación de implantar búsquedas complejas, paginación o repositorios. Es una ampliación limitada de Minimal API que conecta un concepto de HTTP con un comportamiento que puede comprobarse directamente.
 
 
-### P4.3 — Alternativa PowerShell: enviar JSON sin errores de comillas
+### Ampliación P4.3 — Alternativa PowerShell: enviar JSON sin errores de comillas
 
 Los comandos curl.exe de la práctica permiten observar las cabeceras y el estado HTTP, pero en Windows PowerShell puede resultar incómodo escribir JSON directamente en una línea de comandos que contiene varias comillas. Una alternativa consiste en preparar primero un objeto de PowerShell, convertirlo a JSON y enviarlo con los comandos HTTP integrados en ese entorno.
 
@@ -2008,7 +2051,7 @@ Abre `/seguridad` sin sesión. Después intenta consultar directamente `/demo/pr
 Comenta temporalmente el bloque visual `AuthorizeView Roles="Formador"` y comprueba que `/demo/privado` sigue protegido. Después modifica **solo en una copia de ensayo** la regla de autorización del endpoint para exigir `OtroRol`; aunque el usuario de prueba continúe autenticado, el servidor debe denegar acceso. Restablece `Formador`.
 
 
-### P4.4 — Recorrido completo de una sesión, sin saltarse las transiciones
+### Ampliación P4.4 — Recorrido completo de la sesión
 
 El propósito de este laboratorio es observar una sesión autenticada y comprobar un recurso protegido **del lado del servidor**. La pantalla de seguridad sirve para mostrar el estado, pero el criterio de autorización de /demo/privado no se sustituye por esconder el enlace.
 
@@ -2130,7 +2173,7 @@ Inicia una sesión limpia y ejecuta la secuencia mínima: anónimo denegado, acc
 
 
 
-### Taller integrador de M04 — Recuperar una aplicación con cuatro fallos aislados
+### Ampliación transversal de M04 — Recuperar una aplicación con cuatro fallos aislados
 
 Esta actividad combina los conceptos de los cuatro puntos sin añadir nuevas tecnologías ni convertir la API de memoria en un producto empresarial. Se realiza en una **copia de ensayo del estado 4.4**, nunca sobre el proyecto de referencia sin conservar el estado original. El propósito es que el alumno aprenda a relacionar una observación con el límite del sistema responsable.
 
