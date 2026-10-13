@@ -2432,6 +2432,8 @@ M01_MVC/
 
 **No modificar el proyecto 1.3.** El proyecto 1.4 es una continuación autocontenida del estado final funcional anterior. Las carpetas independientes permiten volver a un estado previo si se necesita reproducir la actividad de un capítulo.
 
+**Continuidad del ejercicio de publicación de P1.3.** `DOCUMENTACION/ejercicio-publicacion.txt` era un recurso deliberadamente temporal para practicar la diferencia entre un archivo interno y una copia publicada bajo `wwwroot`. No forma parte de la funcionalidad permanente del catálogo y por eso no se arrastra a la instantánea base 1.4. Sí se conservan los recursos estáticos permanentes de P1.3 (`catalogo.css`, `guia-publica.txt` y `aviso-laboratorio.txt`) y toda la funcionalidad MVC anterior. Si realizaste la aplicación autónoma sobre tu copia de 1.3, puedes conservar allí tanto el original como la copia creada durante el ejercicio; no necesitas trasladarlos a 1.4 para continuar el curso.
+
 Desde una terminal en la raíz del repositorio:
 
 ~~~bash
