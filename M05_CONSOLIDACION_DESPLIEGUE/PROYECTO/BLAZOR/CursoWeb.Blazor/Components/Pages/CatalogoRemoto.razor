@@ -14,6 +14,10 @@ else if (error is not null)
 {
     <p id="error-api" role="alert">@error</p>
 }
+else if (productos.Count == 0)
+{
+    <p id="estado-api">El servidor respondió correctamente, pero no hay productos disponibles.</p>
+}
 else
 {
     <p id="estado-api">Catálogo remoto disponible</p>
