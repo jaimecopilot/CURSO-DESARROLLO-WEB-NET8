@@ -1963,6 +1963,117 @@ El objetivo no es decidir qué tecnología es mejor para todos los usos. Una ele
 
 
 
+
+### 5.5.20. Construir y ejecutar son verbos diferentes también dentro de Docker
+
+El Dockerfile contiene instrucciones que se ejecutan en fases distintas. `RUN dotnet restore` y `RUN dotnet publish` pertenecen al proceso de construcción de la imagen. En cambio, `ENTRYPOINT ["dotnet", "CursoWeb.Mvc.dll"]` determina el comando que se ejecuta cuando se inicia un contenedor.
+
+Un alumno puede ver que Docker ha restaurado dependencias y publicado la aplicación y concluir equivocadamente que el servidor debe estar activo. La construcción solo ha preparado capas y archivos; el proceso web nace cuando se ejecuta el contenedor. Por ello `docker images` y `docker ps` responden preguntas diferentes: la primera sobre imágenes disponibles, la segunda sobre instancias ejecutándose.
+
+La separación coincide con la que ya aprendimos mediante `dotnet publish` y Kestrel. El contexto de ejecución se encapsula en una imagen, pero la existencia del artefacto no implica que un proceso atienda conexiones. La comprobación final continúa siendo una petición HTTP a una ruta conocida.
+
+### 5.5.21. Seguir los archivos desde el contexto hasta la imagen de runtime
+
+La primera etapa de nuestro Dockerfile recibe el proyecto MVC y ejecuta las operaciones de restauración y publicación. Para ello utilizamos como contexto de `docker build` la carpeta que contiene `CursoWeb.Mvc.csproj`.
+
+La ruta de los archivos importa en dos sistemas de archivos: primero el directorio local que Docker recibe como contexto y después el directorio de trabajo de la etapa de compilación. `WORKDIR /src` establece una carpeta dentro de la imagen; `COPY . .` copia allí el material del contexto. `RUN dotnet restore CursoWeb.Mvc.csproj` presupone que el archivo existe ahora bajo `/src`.
+
+La segunda etapa parte de una imagen ASP.NET Core de runtime y copia únicamente los artefactos publicados desde la etapa anterior. Los ensamblados se trasladan dentro del proceso de construcción; no se vuelven a compilar cuando el contenedor recibe cada solicitud HTTP.
+
+**Ejemplo de diagnóstico:** Docker informa de que no existe `CursoWeb.Mvc.csproj` durante restore. El primer punto de inspección es el contexto que se pasó a `docker build` y la ruta de copia resultante. No es lógico comenzar por reinstalar SQL Server Express LocalDB, porque la restauración del proyecto todavía no ha iniciado el servidor web ni ha intentado consultar la base.
+
+### 5.5.22. Por qué un `.dockerignore` forma parte del ejemplo
+
+El proyecto contiene archivos de desarrollo que no necesitan enviarse al contexto de Docker: resultados locales de `bin` y `obj`, carpetas de Visual Studio y ciertos archivos de usuario. El `.dockerignore` impide que formen parte del contexto enviado a la construcción.
+
+Esto no significa que los ensamblados finales vayan a faltar. El Dockerfile ejecuta `dotnet publish` dentro de su etapa SDK. La publicación adecuada se genera allí y luego se copia a la imagen runtime.
+
+La distinción permite un experimento razonado: aunque el alumno borre las carpetas `bin` y `obj` locales de una copia limpia del proyecto, la imagen debería poder construirse si los archivos fuente y las dependencias necesarias están disponibles. La imagen no debe depender de haber compilado antes en Visual Studio.
+
+En proyectos reales se prestarían otras atenciones al contexto, como impedir que se incluyan secretos. Este curso se limita a un `.dockerignore` elemental y a datos ficticios, pero el principio sigue siendo válido: una construcción necesita un contexto definido conscientemente.
+
+### 5.5.23. Un contenedor Linux no contiene la sesión Windows del alumno
+
+El entorno de ejecución de Docker Desktop para contenedores Linux no es el mismo contexto Windows en que Visual Studio utiliza LocalDB. Aunque el proyecto conserve la cadena de conexión de M02, no aparece automáticamente una instancia SQL Server Express LocalDB accesible dentro de la imagen.
+
+Si arrancáramos la aplicación en el modo normal y su inicialización intentara abrir LocalDB, la ejecución podría fallar antes de atender HTTP. No deberíamos resolver ese fallo copiando cualquier DLL SQL ni declarando que el proveedor EF funciona sin comprobarlo.
+
+El modo `Despliegue:SinLocalDb=true` responde a esta diferencia de entorno. No elimina `UseSqlServer` ni escribe otro controlador de productos; evita la inicialización incompatible con el objetivo del ensayo y produce un 503 para las rutas que necesitan datos.
+
+Este límite está documentado en el código y en las prácticas para evitar que se confunda una aplicación MVC accesible con un CRUD persistente disponible. El ejercicio de Docker no incluye un servidor SQL externo ni un volumen, y no tiene que simularlos.
+
+### 5.5.24. Escuchar en una interfaz interna no equivale a publicar un puerto del host
+
+Dentro del contenedor, la aplicación necesita escuchar en una dirección compatible con el tráfico que Docker dirige a su puerto. Por eso el Dockerfile define `ASPNETCORE_URLS=http://+:8080`, de modo que ASP.NET Core acepta conexiones en el puerto interno previsto.
+
+La opción `EXPOSE 8080` documenta la intención de la imagen. No proporciona por sí sola una dirección externa en Windows. Para que el navegador del host pueda acceder, ejecutamos `docker run -p 8081:8080`.
+
+El orden de números importa. El puerto 8081 pertenece al lado del host y 8080 al contenedor. Si el alumno invierte la relación o solicita 8080 en Windows cuando publicó 8081, puede concluir erróneamente que la aplicación no responde. El diagnóstico correcto empieza por consultar el mapeo real que informa Docker.
+
+### 5.5.25. Dos contenedores de la misma imagen no necesitan compartir puerto exterior
+
+Una imagen puede utilizarse para crear más de un contenedor. Si cada uno escucha internamente en 8080, el host no necesita publicar ambos en el mismo puerto exterior. Podemos imaginar uno mapeado a 8081 y otro a 8082.
+
+El programa MVC es idéntico en ambos; cada instancia tiene su proceso y su propio ciclo de vida. La necesidad de puertos exteriores distintos no implica cambiar el controlador Home/Index. Es una característica del entorno de alojamiento.
+
+El laboratorio no requiere mantener dos contenedores simultáneos. Este razonamiento, no obstante, aclara por qué al resolver una colisión del puerto host se puede cambiar el primer número de `-p` conservando el segundo. Cambiar la escucha interna a otro valor exigiría coordinarla con el programa.
+
+### 5.5.26. La variable de entorno pertenece al contenedor que se inicia
+
+Cuando ejecutamos:
+
+~~~powershell
+docker run -e Despliegue__SinLocalDb=true -p 8081:8080 cursoweb-mvc:m05
+~~~
+
+la opción `-e` aporta una variable al proceso del contenedor. No es una edición de `appsettings.json` del proyecto y tampoco cambia por sí misma una instancia Kestrel que continúe ejecutándose fuera de Docker.
+
+La comparación con IIS es instructiva. Bajo IIS se creó un archivo de entorno en la carpeta publicada para el proceso hospedado por el sitio. Bajo Docker se entrega un valor cuando se lanza el contenedor. Los mecanismos son diferentes, pero ambos producen una opción que el mismo código ASP.NET Core sabe leer.
+
+Si el alumno modifica la variable de su propia terminal Windows después de que el contenedor haya arrancado, no debe dar por hecho que el proceso interno cambiará automáticamente. Lo importante es la configuración efectiva suministrada al iniciar esa instancia. Para repetir el ensayo con otros parámetros es más claro detener el contenedor y crearlo con opciones explícitas.
+
+### 5.5.27. Qué revela la secuencia imagen → contenedor → respuesta
+
+Una comprobación de Docker necesita tres observaciones encadenadas. La primera confirma que se ha construido una imagen. La segunda confirma que un contenedor de esa imagen está activo. La tercera confirma que la aplicación sirve una ruta HTTP desde el host.
+
+No podemos sustituir la tercera por las anteriores. Una imagen puede construirse correctamente y un contenedor puede arrancar, pero la URL solicitada puede utilizar un puerto diferente al publicado. También puede ocurrir que el proceso termine antes de aceptar solicitudes; una construcción correcta no garantiza un arranque correcto.
+
+La forma de diagnóstico depende de la etapa en que falla la secuencia. Si no hay imagen, comprobar el contexto, Dockerfile y construcción. Si no hay contenedor activo, consultar la salida del proceso y los logs. Si hay contenedor y no hay HTTP, comprobar puertos, dirección de escucha y ruta.
+
+### 5.5.28. Los logs deben relacionarse con la instancia que estamos comprobando
+
+El comando `docker logs cursoweb-m05` permite examinar la salida del contenedor que tiene ese nombre. No muestra la salida de cualquier instancia que se haya ejecutado anteriormente con un nombre diferente.
+
+Si se utiliza `--rm`, Docker elimina el contenedor después de que termine. Esta decisión es útil para limpiar el aula, pero significa que no podemos esperar conservar indefinidamente los logs de un contenedor ya retirado. Cuando investigamos un fallo de arranque, conviene observar la terminal que ejecutó `docker run` y consultar los logs mientras el contenedor todavía existe.
+
+La misma precaución se aplicaba a Kestrel: una terminal antigua y otra nueva pueden mostrar mensajes diferentes. Para atribuir un resultado a la publicación correcta debemos identificar el proceso o contenedor concreto que atendió la solicitud.
+
+### 5.5.29. El estado 503 bajo Docker no es una prueba de base de datos
+
+Al solicitar `/Productos` en el contenedor Linux, el modo sin LocalDB devuelve intencionadamente 503. Esta respuesta demuestra que el middleware identificó una funcionalidad no disponible. No demuestra una consulta EF Core satisfactoria, ni que se haya instalado SQL Server dentro de la imagen.
+
+En cambio, `/Productos/Estado` sí puede devolver 200, porque es una ruta independiente de la base. La portada y CSS también pueden responder satisfactoriamente. Juntas, estas respuestas acreditan que la aplicación MVC publicada funciona en el alcance de hospedaje previsto.
+
+El alumno no debe elegir una interpretación extrema —«Docker no funciona» o «todo funciona»— sin precisar el recurso. Docker y la aplicación tienen capacidades observables diferentes. La práctica enseña a describirlas.
+
+### 5.5.30. Tres preguntas que permiten interpretar la limpieza del laboratorio
+
+Al ejecutar `docker stop`, solicitamos detener un contenedor. Si lo iniciamos con `--rm`, Docker debe retirarlo después de terminar. Sin embargo, la imagen utilizada puede continuar apareciendo con `docker images`. Eso no es una contradicción: imagen y contenedor son objetos distintos.
+
+En la carpeta de proyecto, el Dockerfile sigue siendo un archivo de texto que describe cómo crear la imagen; tampoco desaparece al detener el contenedor. Y el código MVC original sigue existiendo con su configuración LocalDB para Windows.
+
+Una limpieza correcta elimina o detiene exclusivamente los recursos de ensayo que ya no se necesitan. No debe borrar imágenes ajenas ni ejecutar comandos de limpieza masiva que afecten a otros proyectos del equipo.
+
+### 5.5.31. Cierre comparado: el programa no cambia, su entorno sí
+
+La misma aplicación MVC A puede ejecutarse directamente con Kestrel, alojarse en IIS o iniciarse dentro de una imagen Docker. Los controladores y las vistas conservan su responsabilidad funcional; las diferencias residen en artefactos, procesos, direcciones, identidades y disponibilidad de dependencias.
+
+La base SQL Server Express LocalDB permanece como parte del proyecto del curso. No se sustituye a escondidas por otro motor. Cuando no existe un entorno apto para ese CRUD, el ejercicio se limita honestamente a páginas y recursos independientes de la base.
+
+El resultado formativo final es una explicación técnica completa de la publicación: qué archivos se prepararon, quién los ejecutó, cómo llegó una petición HTTP y qué parte del comportamiento quedó demostrada. Ese criterio permanece válido aunque en otros cursos se estudien despliegues más avanzados.
+
+
+
 ### 5.5.19. Conclusión del curso
 
 Tras M05 el alumno habrá recorrido dos ideas complementarias: una aplicación Blazor que se comunica correctamente con una API y una aplicación MVC que puede ser publicada y ejecutada en distintas modalidades de hospedaje. Habrá aprendido a distinguir compilación de ejecución, respuesta HTTP de funcionamiento completo, interfaz de servidor, y estado temporal de persistencia.
