@@ -294,7 +294,7 @@ dotnet build .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\BLAZOR\CursoWeb.Blazor\Curs
 
 ### Paso P5.1.9. Preparar una variante reversible del mismo servidor
 
-**Relación con la teoría:** 5.1.3, 5.1.12 y 5.1.16. Para estudiar un catálogo vacío y un cuerpo JSON inválido no hace falta crear una tercera aplicación ni modificar el proyecto Blazor. Podemos sustituir temporalmente **un solo archivo** de la API por una variante completa, incluida en el repositorio, con tres modos de salida seleccionados mediante configuración.
+**Relación con la teoría:** 5.1.3, 5.1.12 y 5.1.16. Para estudiar un catálogo vacío y un cuerpo JSON inválido no hace falta crear una tercera aplicación ni modificar el proyecto Blazor. Podemos sustituir temporalmente **un solo archivo** de la API por una variante completa, incluida en el repositorio, con modos de salida seleccionados mediante configuración.
 
 El archivo de referencia para esta ampliación se encuentra en:
 
@@ -315,7 +315,7 @@ Copy-Item $variante $origen -Force
 dotnet build .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\CursoWeb.ProductosApi.csproj
 ~~~
 
-No suprimas la copia de seguridad hasta haber terminado los tres escenarios. Si al copiar el archivo aparece un error de acceso, comprueba que el proceso de API se ha detenido. Si falla la compilación, restaura inmediatamente el original con el procedimiento final de este apartado y comprueba que sigues partiendo de la misma versión del curso.
+No suprimas la copia de seguridad hasta haber terminado los escenarios. Si al copiar el archivo aparece un error de acceso, comprueba que el proceso de API se ha detenido. Si falla la compilación, restaura inmediatamente el original con el procedimiento final de este apartado y comprueba que sigues partiendo de la misma versión del curso.
 
 **Qué contiene la variante.** Localiza `ObtenerCatalogo` y observa la selección de una respuesta en función del valor `Laboratorio:EscenarioCatalogo`:
 
@@ -414,6 +414,90 @@ La API debe devolver **400 Bad Request**. Vuelve a solicitar `GET /api/productos
 El ejercicio demuestra dos validaciones con responsabilidades diferentes: la interfaz impide un envío evitable, pero el endpoint rechaza de manera independiente cualquier cliente que incumpla el contrato. No debemos considerar la API protegida solo porque la pantalla esté programada correctamente.
 
 **Cierre razonado del caso:** enumera qué pruebas demostrarían que la API está detenida, que ha respondido con una colección válida vacía, que ha respondido 200 con JSON malformado y que ha rechazado un POST. En los cuatro casos el aspecto inicial puede parecerse, pero el diagnóstico correcto exige comparar estado HTTP, cuerpo y mensaje del componente.
+
+
+
+
+### Paso P5.1.12. Mejorar la información ante una ruta HTTP inexistente
+
+**Relación con la teoría:** 5.1.25 y 5.1.26. El proyecto inicial informaba de un fallo HTTP mediante un mensaje general. Ahora queremos distinguir una conexión que no ha recibido respuesta de un servidor que sí ha contestado con 404.
+
+Abre `PROYECTO/BLAZOR/CursoWeb.Blazor/Components/Pages/CatalogoRemoto.razor`. Dentro de `ConsultarAsync`, localiza la primera captura de `HttpRequestException` y sitúa **inmediatamente antes** una captura filtrada por código de estado:
+
+~~~csharp
+catch (HttpRequestException ex)
+    when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+{
+    error = "La API respondió 404: no existe la ruta del catálogo.";
+}
+catch (HttpRequestException)
+{
+    error = "No se pudo obtener el catálogo remoto.";
+}
+~~~
+
+No introduzcas estas capturas en `CrearAsync`: estamos modificando exclusivamente la clasificación de errores del GET. El resto del componente sigue controlando `cargando` en `finally`, y conserva los casos de cancelación y error JSON. No agregues otro `ConsultarAsync` ni repitas las llamadas al servicio.
+
+**Por qué importa el orden:** si el bloque general apareciera primero, absorbería también el 404. El filtro `when` selecciona únicamente la excepción cuyo código conocido es `NotFound`. Si no hay respuesta HTTP útil, el filtro no presupone un 404 y puede ejecutarse la captura general.
+
+Compila la aplicación Blazor desde la raíz:
+
+~~~powershell
+dotnet build .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\BLAZOR\CursoWeb.Blazor\CursoWeb.Blazor.csproj
+~~~
+
+Arranca la API en modo normal y Blazor como en P5.1.2–P5.1.3. Con Cuaderno y Lápiz disponibles, la nueva captura no debería alterar el resultado. El código final de referencia de M05 incluye ya esta modificación; el archivo inicial del módulo M04 permite reconstruirla desde el estado anterior.
+
+### Paso P5.1.13. Comparar HTTP 404 y HTTP 500 desde el mismo servicio
+
+**Estado inicial:** Blazor contiene la captura especializada y la API original está restaurada. Detén únicamente la API; no hace falta detener el componente Blazor. Volveremos a usar el archivo completo `PROYECTO/VARIANTES/P5.1_DIAGNOSTICO/Program.cs`, que permite seleccionar cinco escenarios sin construir una API diferente.
+
+Desde una terminal PowerShell situada en la raíz del repositorio:
+
+~~~powershell
+$origen = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\Program.cs"
+$variante = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\VARIANTES\P5.1_DIAGNOSTICO\Program.cs"
+$respaldo = "$origen.p513-copia"
+
+Copy-Item $origen $respaldo -Force
+Copy-Item $variante $origen -Force
+dotnet build .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\CursoWeb.ProductosApi.csproj
+~~~
+
+**Escenario 404:** en la terminal de la API ejecuta:
+
+~~~powershell
+$env:Laboratorio__EscenarioCatalogo = "no-encontrado"
+dotnet run --project .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\CursoWeb.ProductosApi.csproj --no-launch-profile --urls http://localhost:5081
+~~~
+
+Desde otra terminal solicita `curl.exe -i http://localhost:5081/api/productos`. La respuesta prevista es 404. En Blazor pulsa «Consultar servidor» y comprueba el mensaje «La API respondió 404: no existe la ruta del catálogo». A diferencia de una conexión rechazada, aquí existe una respuesta HTTP con estado conocido.
+
+**Escenario 500:** detén la API con Ctrl+C, cambia la variable y vuelve a iniciar el mismo proyecto:
+
+~~~powershell
+$env:Laboratorio__EscenarioCatalogo = "error-servidor"
+dotnet run --project .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\CursoWeb.ProductosApi.csproj --no-launch-profile --urls http://localhost:5081
+~~~
+
+La solicitud directa debe devolver HTTP 500. El componente mostrará su aviso general de fallo al obtener el catálogo. No debe informar falsamente de que la ruta no existe, porque el servidor ha contestado con un código diferente.
+
+**Escenario sin respuesta:** detén la API sin cerrar Blazor y vuelve a pulsar el botón. Ahora no hay un servidor que genere 404 ni 500 en ese puerto. El componente debe mostrar el aviso general; la prueba directa también fallará por no disponer de una respuesta HTTP de la API.
+
+**Restauración final obligatoria:** después de detener la API ejecuta:
+
+~~~powershell
+$origen = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\Program.cs"
+$respaldo = "$origen.p513-copia"
+
+Copy-Item $respaldo $origen -Force
+Remove-Item $respaldo
+Remove-Item Env:\Laboratorio__EscenarioCatalogo -ErrorAction SilentlyContinue
+
+dotnet build .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\CursoWeb.ProductosApi.csproj
+~~~
+
+El resultado final debe ser de nuevo el catálogo normal, con Blazor capaz de consultar Cuaderno y Lápiz. La modificación permanente del componente consiste únicamente en ofrecer un mensaje más preciso cuando recibe un 404 real. Los modos de fallo pertenecen a la variante reversible, no al comportamiento predeterminado de la API.
 
 
 
