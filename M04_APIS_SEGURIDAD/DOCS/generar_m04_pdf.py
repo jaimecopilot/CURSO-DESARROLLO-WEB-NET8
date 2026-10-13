@@ -138,7 +138,7 @@ def create(kind):
     writer=PdfWriter()
     writer.append(BytesIO(target.read_bytes()))
     writer.add_metadata({"/Author":"AUTOR: JAIME GALLO",
-       "/Title":f"M04 {kind}: Blazor Web App y componentes"})
+       "/Title":f"M04 {kind}: Integración de APIs y seguridad básica"})
     writer.add_attachment(filename=source.name,data=raw)
     buf=BytesIO()
     writer.write(buf)
