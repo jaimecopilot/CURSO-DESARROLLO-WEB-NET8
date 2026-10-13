@@ -1981,6 +1981,133 @@ Después de estudiar PUT y DELETE, el contrato obligatorio del módulo sigue int
 El alumno debe poder explicar por qué el ID forma parte de la ruta de modificación, por qué el objeto de entrada carece de ID, por qué DELETE puede devolver 204, por qué una actualización concurrente necesita más atención y por qué el componente Blazor no incorpora directamente detalles del protocolo.
 
 
+
+### Ampliación 4.3 — Diseñar respuestas de validación que el cliente pueda comprender
+
+Nuestra primera API devuelve una cadena sencilla cuando el POST contiene un nombre vacío o un precio no positivo. Este contrato resulta suficiente para observar 400 Bad Request durante una introducción a HTTP. Sin embargo, si una aplicación tuviera varios campos y necesitara mostrar la razón exacta de cada error, un texto arbitrario no ofrecería una estructura fácil de procesar.
+
+Podemos mejorar el razonamiento mediante un formato de problema estructurado. ASP.NET Core permite producir respuestas de validación con una representación que identifica los campos afectados y sus mensajes. El objetivo de esta ampliación no es introducir un framework de formularios adicional: es comprender cómo se diseña un **contrato de error** del mismo modo que se diseña un contrato de éxito.
+
+#### El límite de un mensaje de error no estructurado
+
+En la primera versión, la API podía responder así:
+
+~~~http
+HTTP/1.1 400 Bad Request
+Content-Type: text/plain
+
+Nombre y precio deben ser válidos.
+~~~
+
+Ese mensaje informa de que la petición fue rechazada. Pero si el formulario tiene un nombre correcto y un precio incorrecto, el cliente no puede identificar de forma fiable cuál de los campos provocó el rechazo a partir de un contrato de texto libre, salvo que intente interpretar palabras de un idioma.
+
+Tampoco sería una buena decisión construir la UI buscando literalmente «precio» en una frase devuelta por el servidor. Si mañana cambiamos el texto, corregimos una traducción o incluimos un nuevo campo, esa lógica podría romperse aunque el contrato funcional siguiera siendo el mismo.
+
+Por eso conviene separar el código HTTP, que expresa la categoría de resultado, y el cuerpo estructurado, que explica qué datos no cumplieron las reglas.
+
+#### Representar errores por campo
+
+Podemos preparar un diccionario cuya clave sea el nombre del campo y cuyo valor sea la lista de errores que le corresponden:
+
+~~~csharp
+var errores = new Dictionary<string, string[]>();
+
+if (string.IsNullOrWhiteSpace(entrada.Nombre))
+    errores["nombre"] = ["El nombre es obligatorio."];
+
+if (entrada.Precio <= 0)
+    errores["precio"] = ["El precio debe ser positivo."];
+~~~
+
+Las dos condiciones se evalúan independientemente. Así, una solicitud con nombre vacío y precio cero puede producir dos errores distintos. En una interfaz de formulario, el componente podría relacionar cada entrada con su mensaje correspondiente.
+
+En .NET 8, una Minimal API puede utilizar Results.ValidationProblem para construir una respuesta HTTP de validación:
+
+~~~csharp
+if (errores.Count > 0)
+    return Results.ValidationProblem(errores);
+~~~
+
+Esta solución expresa un contrato más preciso que una única cadena: si existe un error de nombre, aparece bajo la clave nombre; si el precio es inválido, aparece bajo precio. El servidor sigue siendo quien aplica ambas reglas.
+
+#### Un endpoint alternativo completo para estudiar ese contrato
+
+En una copia de ensayo de la API podemos sustituir temporalmente el POST inicial por esta variante:
+
+~~~csharp
+app.MapPost("/api/productos", (CrearProductoApi entrada) =>
+{
+    var errores = new Dictionary<string, string[]>();
+
+    if (string.IsNullOrWhiteSpace(entrada.Nombre))
+        errores["nombre"] = ["El nombre es obligatorio."];
+
+    if (entrada.Precio <= 0)
+        errores["precio"] = ["El precio debe ser positivo."];
+
+    if (errores.Count > 0)
+        return Results.ValidationProblem(errores);
+
+    var id = Interlocked.Increment(ref siguienteId);
+    var creado = new ProductoApi(
+        id, entrada.Nombre.Trim(), entrada.Precio);
+    productos[id] = creado;
+    return Results.Created($"/api/productos/{id}", creado);
+});
+~~~
+
+La ruta y el método no cambian. Las entradas correctas continúan creando un producto y devolviendo 201 con el recurso completo. La diferencia se encuentra únicamente en la forma del error cuando la entrada no es válida. Por ello un cliente que solo consume el camino de éxito puede seguir funcionando, mientras que un cliente que desee mostrar errores específicos dispone ahora de información estructurada.
+
+No registres las dos variantes de POST para la misma ruta simultáneamente. Son implementaciones alternativas de un contrato que queremos comparar, no endpoints diferentes.
+
+#### ¿Qué observa el alumno al enviar un nombre vacío?
+
+Imaginemos que enviamos:
+
+~~~json
+{
+  "nombre": "",
+  "precio": 4.50
+}
+~~~
+
+El manejador encuentra un error para nombre y ninguno para precio. La respuesta de validación tendrá estado 400 y un cuerpo de problema que incluye el campo errors con la clave nombre. El servidor no incrementa el contador de identificadores ni añade un recurso al diccionario.
+
+Si enviamos nombre Regla y precio cero, aparecerá solamente el error de precio. Si ambos datos son inválidos, podremos observar mensajes para las dos claves. Esto hace posible comprobar la independencia de las reglas.
+
+La estructura completa puede incluir miembros estándar como type, title, status y errors. El alumno no debe depender de una serialización textual exacta del orden de esas propiedades; lo importante es la semántica del estado y la presencia de las claves que hemos diseñado.
+
+#### ¿Por qué una respuesta de error no puede convertirse en ProductoDto?
+
+El método CrearAsync de ProductosApiService espera un producto válido cuando POST tiene éxito. Por eso ejecuta EnsureSuccessStatusCode antes de ReadFromJsonAsync<ProductoDto>. Si la API responde con ValidationProblem, la llamada debe reconocer el rechazo y no intentar tratar el cuerpo como si fuera un producto.
+
+Para desarrollar una interfaz que muestre los mensajes por campo tendríamos que definir cómo leer el cuerpo de error y mapearlo al estado de validación del formulario. Esa evolución pertenece a un requisito adicional: el ejemplo básico conserva un mensaje general y la API puede seguir aplicando sus reglas de forma independiente.
+
+No conviene confundir un error de formato JSON mal formado con una validación de negocio. Si la petición no puede enlazarse a CrearProductoApi, puede ser rechazada antes de ejecutar la lógica del endpoint. Si se enlaza correctamente pero contiene nombre o precio no válidos, es el código del manejador el que produce ValidationProblem.
+
+#### Comprobar efectos secundarios ante entradas rechazadas
+
+Una respuesta 400 no es suficiente por sí sola para afirmar que los datos no cambiaron. La implementación debe devolver el error **antes** de llamar a Interlocked.Increment y antes de asignar un elemento al diccionario.
+
+Para comprobarlo, comenzamos con dos productos, enviamos un POST inválido y después consultamos GET /api/productos. La colección debe seguir teniendo dos elementos. Al enviar un POST válido a continuación, se asignará el primer identificador de creación correspondiente al estado inicial.
+
+Esta comprobación conecta dos propiedades: el contrato observable indica rechazo y la regla de implementación impide que una solicitud rechazada modifique el estado.
+
+#### Diferenciar una API clara de una API extensa
+
+El objetivo de la variante no es añadir rutas por volumen. De hecho, podemos mejorar la precisión del contrato sin aumentar el número de endpoints. La decisión importante está en cómo representamos la información de error y qué puede hacer el cliente con ella.
+
+Un servicio bien diseñado no necesita exponer todos los detalles internos del programa. Puede devolver un problema de validación comprensible sin revelar una traza de excepción, rutas del sistema de archivos ni información sensible del servidor. El formato de error se convierte así en parte del contrato público, no en una copia accidental de los mensajes internos de .NET.
+
+#### Relación con los formularios de M02
+
+El alumnado ya ha trabajado validación de entradas en la parte web del curso. Ahora puede reconocer que una validación de presentación y una validación de API no se sustituyen. El formulario ayuda a introducir datos correctos; la API rechaza los que incumplen sus reglas, independientemente del cliente que los envía.
+
+Si en el futuro necesitáramos mostrar mensajes exactos por campo desde una API, podríamos convertir el contrato de error en información de validación visual. La interfaz seguiría sin determinar las reglas definitivas del servidor.
+
+La competencia formativa de esta ampliación consiste en poder explicar por qué 400 y su cuerpo representan cosas distintas, cómo se estructuran errores por campo, por qué se valida antes de modificar memoria y por qué el cliente no interpreta un problema de validación como un producto creado.
+
+
 ### Síntesis del punto 4.3
 
 Un endpoint es una asociación entre método HTTP, ruta y ejecución de código. Los DTO establecen el contrato; los resultados HTTP indican éxito o rechazo; el estado en memoria explica la duración de los datos. Hemos añadido una operación de resumen sin romper las rutas existentes, y disponemos de una API reproducible que se puede observar tanto directamente como desde Blazor.
