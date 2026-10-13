@@ -357,6 +357,9 @@ def v36reintento(page):
     page.goto(BASE+"/productos")
     page.get_by_text("Lista preparada").wait_for(timeout=18000)
     assert page.locator(".tarjeta").count()==3
+    page.locator('[data-producto-id="2"]').get_by_role("button",name="Quitar").click()
+    page.get_by_text("Total: 2").wait_for(timeout=12000)
+    assert page.locator("#deshacer").is_enabled()
     page.locator("#simular-error").check()
     page.locator("#recargar-productos").click()
     page.get_by_text("Carga fallida").wait_for(timeout=18000)
@@ -367,6 +370,7 @@ def v36reintento(page):
     page.get_by_text("Lista preparada").wait_for(timeout=18000)
     assert page.locator(".tarjeta").count()==3
     assert page.locator("#error-carga").count()==0
+    assert page.locator("#deshacer").is_disabled()
 
 with sync_playwright() as p:
     browser=p.chromium.launch(headless=True)
