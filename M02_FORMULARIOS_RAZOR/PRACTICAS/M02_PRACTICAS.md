@@ -2130,6 +2130,559 @@ El punto de llegada no es que aparezca un mensaje diciendo «Guardado», sino qu
 El siguiente punto, **P2.5**, utilizará una Razor Page muy pequeña dentro de la misma aplicación para comparar el método de trabajo con un controlador y una vista. No crearemos otro CRUD ni una API adicional: la finalidad es distinguir `PageModel`, `OnGet` y `OnPost` mientras reutilizamos el conocimiento que acabamos de consolidar.
 
 
+## Construcción íntegra P2.4 — pasar del modelo validado a datos persistentes
+
+La teoría de P2.4 introduce EF Core, DbContext y persistencia SQL Server Express LocalDB porque ya conocemos formularios HTTP y validación del servidor. Este capítulo enseña el **estado completo de los doce archivos que evolucionan**, sin abandonar el proyecto MVC de P2.3. El formulario cambia de devolver una confirmación temporal a ejecutar operaciones de base de datos. Los archivos que no aparecen aquí siguen teniendo el contenido de etapas anteriores.
+
+### P2.4 — CursoWeb.Mvc.csproj
+
+**Qué construimos y por qué.** Incluye las referencias necesarias de EF Core y SQL Server. Distingue las dependencias NuGet del código C# que crea el DbContext. Examina el código íntegro del archivo en lugar de interpretar únicamente las líneas del ejemplo teórico. Distingue las llamadas que consultan la base de las que alteran datos.
+
+~~~xml
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.31" />
+  </ItemGroup>
+</Project>
+~~~
+
+**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+
+### P2.4 — Models/Producto.cs
+
+**Qué construimos y por qué.** La entidad persistente mantiene Id, Nombre y Precio. No confundas sus propiedades con las reglas del modelo que recibe el formulario. Examina el código íntegro del archivo en lugar de interpretar únicamente las líneas del ejemplo teórico. Distingue las llamadas que consultan la base de las que alteran datos.
+
+~~~csharp
+namespace CursoWeb.Mvc.Models;
+
+/// <summary>
+/// PASO 2.4.1: la misma entidad Producto presentada en M01 ahora es
+/// persistida mediante AppDbContext, sin introducir HTML ni HTTP en el modelo.
+/// Id es generado por SQL Server; el formulario de alta solo recibe Nombre y Precio.
+/// </summary>
+public sealed class Producto
+{
+    public int Id { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public decimal Precio { get; set; }
+}
+~~~
+
+**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+
+### P2.4 — Models/ProductoFormulario.cs
+
+**Qué construimos y por qué.** El modelo de entrada conserva DataAnnotations y las validaciones que se enseñaron en P2.3. No debe sustituirse por un objeto de base de datos sin validar. Examina el código íntegro del archivo en lugar de interpretar únicamente las líneas del ejemplo teórico. Distingue las llamadas que consultan la base de las que alteran datos.
+
+~~~csharp
+using System.ComponentModel.DataAnnotations;
+namespace CursoWeb.Mvc.Models;
+
+// P2.4: seguimos reutilizando el contrato de entrada validado de P2.3.
+// No expone Id ni otros campos que el cliente no debe controlar.
+public sealed class ProductoFormulario
+{
+    [Required(ErrorMessage = "Indica el nombre.")]
+    [StringLength(60, MinimumLength = 2, ErrorMessage = "El nombre debe tener entre 2 y 60 caracteres.")]
+    public string? Nombre { get; set; }
+
+    [Required(ErrorMessage = "Indica el precio.")]
+    [Range(typeof(decimal), "0.01", "9999.99", ParseLimitsInInvariantCulture = true, ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
+    public decimal? Precio { get; set; }
+}
+~~~
+
+**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+
+### P2.4 — Data/AppDbContext.cs
+
+**Qué construimos y por qué.** Define el DbSet de productos y el puente entre modelo C# y SQL Server. Su ciclo de vida lo administra la inyección de dependencias. Examina el código íntegro del archivo en lugar de interpretar únicamente las líneas del ejemplo teórico. Distingue las llamadas que consultan la base de las que alteran datos.
+
+~~~csharp
+using CursoWeb.Mvc.Models;
+using Microsoft.EntityFrameworkCore;
+
+namespace CursoWeb.Mvc.Data;
+
+public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(options)
+{
+    public DbSet<Producto> Productos => Set<Producto>();
+
+    protected override void OnModelCreating(ModelBuilder modelBuilder)
+    {
+        modelBuilder.Entity<Producto>().Property(p => p.Precio).HasPrecision(10, 2);
+    }
+}
+~~~
+
+**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+
+### P2.4 — Program.cs
+
+**Qué construimos y por qué.** Registra EF Core con SQL Server Express LocalDB, configura la cadena de conexión y prepara los productos iniciales solo al crear la base del laboratorio. EnsureCreated no equivale a ejecutar migraciones. Examina el código íntegro del archivo en lugar de interpretar únicamente las líneas del ejemplo teórico. Distingue las llamadas que consultan la base de las que alteran datos.
+
+~~~csharp
+using CursoWeb.Mvc.Data;
+using CursoWeb.Mvc.Models;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+builder.Services.AddControllersWithViews();
+
+// PASO 2.4.1 — Elegimos SQL Server Express LocalDB a través de configuración.
+// ConnectionStrings__Productos permite aislar una base de laboratorio
+// sin cambiar archivos del alumno. LocalDB exige Windows y la instancia instalada.
+var cadena = builder.Configuration.GetConnectionString("Productos")
+    ?? throw new InvalidOperationException("Falta ConnectionStrings:Productos.");
+builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(cadena));
+
+var app = builder.Build();
+
+// PASO 2.4.1 — Inicialización mínima para una práctica nueva.
+// EnsureCreated crea el esquema solo si todavía NO existe esta base;
+// no constituye un sistema de migraciones y NO debe combinarse con
+// Database.Migrate() sobre la misma base. El alumno conoce EF Core;
+// aquí interesa el resultado observado desde MVC.
+//
+// Se añaden tres productos únicamente al CREAR la base por primera vez.
+// Si después el alumno elimina todos los productos, reiniciar NO los
+// reinsertará: así la persistencia puede observarse también en el borrado.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    bool baseCreada = db.Database.EnsureCreated();
+    if (baseCreada)
+    {
+        db.Productos.AddRange(
+            new Producto { Nombre = "Cuaderno", Precio = 4.50m },
+            new Producto { Nombre = "Lápiz", Precio = 1.20m },
+            new Producto { Nombre = "Carpeta", Precio = 3.75m });
+        db.SaveChanges();
+    }
+}
+
+// PASO 2.4.2 — MVC, enrutamiento y vistas son los mismos conceptos de M01.
+app.UseStaticFiles();
+app.UseRouting();
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.Run();
+~~~
+
+**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+
+### P2.4 — appsettings.json
+
+**Qué construimos y por qué.** Define la cadena de conexión bajo ConnectionStrings, distinta de los archivos de presentación. La persistencia depende de conectar con la misma base. Examina el código íntegro del archivo en lugar de interpretar únicamente las líneas del ejemplo teórico. Distingue las llamadas que consultan la base de las que alteran datos.
+
+~~~json
+{
+  "Logging": {
+    "LogLevel": {
+      "Default": "Information",
+      "Microsoft.AspNetCore": "Warning"
+    }
+  },
+  "AllowedHosts": "*",
+  "ConnectionStrings": {
+    "Productos": "Server=(localdb)\\MSSQLLocalDB;Database=CursoWebProductos;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true"
+  }
+}
+~~~
+
+**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+
+### P2.4 — Controllers/ProductosController.cs
+
+**Qué construimos y por qué.** Conserva Index y Detalle y añade acciones GET/POST para crear, editar y eliminar. Los POST comprueban ModelState, modifican el contexto y llaman SaveChangesAsync solo cuando procede. Examina el código íntegro del archivo en lugar de interpretar únicamente las líneas del ejemplo teórico. Distingue las llamadas que consultan la base de las que alteran datos.
+
+~~~csharp
+using CursoWeb.Mvc.Data;
+using CursoWeb.Mvc.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace CursoWeb.Mvc.Controllers;
+
+/// <summary>
+/// P2.4: la misma aplicación MVC utiliza ahora EF Core y LocalDB.
+/// El itinerario avanza de consultas a Create, Edit y Delete.
+///
+/// El alumno activa los bloques 2.4.3, 2.4.4 y 2.4.5
+/// SIN eliminar las comprobaciones de ModelState ni antiforgery.
+/// Los ejercicios se basan en los cinco proyectos escalonados del curso.
+/// </summary>
+public class ProductosController : Controller
+{
+    private readonly AppDbContext _db;
+
+    // PASO 2.4.1: DbContext se obtiene por inyección de dependencias;
+    // no se crea manualmente una conexión SQL en cada acción.
+    public ProductosController(AppDbContext db) => _db = db;
+
+    // PASO 2.4.2: READ — consultar la base sin seguimiento para una lista.
+    [HttpGet]
+    public async Task<IActionResult> Index()
+    {
+        var productos = await _db.Productos
+            .AsNoTracking()
+            .OrderBy(p => p.Id)
+            .ToListAsync();
+        return View(productos);
+    }
+
+    [HttpGet]
+    public IActionResult Estado() => Content("Catalogo MVC disponible", "text/plain");
+
+    [HttpGet]
+    public async Task<IActionResult> Detalle(int id)
+    {
+        if (id <= 0) return BadRequest("El identificador debe ser mayor que cero.");
+        var producto = await _db.Productos.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id);
+        return producto is null ? NotFound() : View(producto);
+    }
+
+    [HttpGet("/catalogo/ficha/{id:int}")]
+    public async Task<IActionResult> Ficha(int id)
+    {
+        var producto = await _db.Productos.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id);
+        return producto is null ? NotFound() : View("Detalle", producto);
+    }
+
+    // PASO 2.4.3: GET muestra el formulario de creación ya aprendido.
+    [HttpGet]
+    public IActionResult Crear() => View(new ProductoFormulario());
+
+    // PASO 2.4.3 (ACTIVAR): descomentar el método POST completo.
+    // Antes de activarlo, enviar el formulario no modifica la base de datos.
+    /* PASO 2.4.3 INICIO
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Crear(ProductoFormulario entrada)
+    {
+        // Regla central aprendida en P2.3: no persistir entradas inválidas.
+        if (!ModelState.IsValid)
+            return View(entrada);
+
+        // ProductoFormulario no tiene Id; el cliente no lo asigna.
+        var producto = new Producto
+        {
+            Nombre = entrada.Nombre!,
+            Precio = entrada.Precio!.Value
+        };
+
+        // Add marca una entidad nueva; SaveChangesAsync ejecuta el INSERT.
+        _db.Productos.Add(producto);
+        await _db.SaveChangesAsync();
+
+        // El identificador ya ha sido asignado por SQL Server.
+        // PRG evita reenvíos accidentales al recargar la página de detalle.
+        return RedirectToAction(nameof(Detalle), new { id = producto.Id });
+    }
+    PASO 2.4.3 FIN */
+
+    // PASO 2.4.4 (ACTIVAR): GET carga el producto desde LocalDB
+    // y POST actualiza solamente las dos propiedades admitidas del formulario.
+    /* PASO 2.4.4 INICIO
+    [HttpGet]
+    public async Task<IActionResult> Editar(int id)
+    {
+        if (id <= 0) return BadRequest();
+        var producto = await _db.Productos.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id);
+        if (producto is null) return NotFound();
+
+        ViewData["ProductoId"] = producto.Id;
+        return View(new ProductoFormulario
+        {
+            Nombre = producto.Nombre,
+            Precio = producto.Precio
+        });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Editar(int id, ProductoFormulario entrada)
+    {
+        if (id <= 0) return BadRequest();
+        // Leer la entidad existente, sin aceptar un objeto Producto
+        // directamente desde el cliente: evita sobrepublicación de Id.
+        var producto = await _db.Productos
+            .FirstOrDefaultAsync(p => p.Id == id);
+        if (producto is null) return NotFound();
+
+        if (!ModelState.IsValid)
+        {
+            ViewData["ProductoId"] = id;
+            return View(entrada);
+        }
+
+        producto.Nombre = entrada.Nombre!;
+        producto.Precio = entrada.Precio!.Value;
+        // EF Core realiza UPDATE sobre la entidad seguida por el contexto.
+        await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(Detalle), new { id });
+    }
+    PASO 2.4.4 FIN */
+
+    // PASO 2.4.5 (ACTIVAR): GET solo muestra una confirmación;
+    // la eliminación de datos sucede EXCLUSIVAMENTE mediante POST protegido.
+    /* PASO 2.4.5 INICIO
+    [HttpGet]
+    public async Task<IActionResult> Eliminar(int id)
+    {
+        if (id <= 0) return BadRequest();
+        var producto = await _db.Productos.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id);
+        return producto is null ? NotFound() : View(producto);
+    }
+
+    [HttpPost, ActionName("Eliminar")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EliminarConfirmado(int id)
+    {
+        if (id <= 0) return BadRequest();
+        var producto = await _db.Productos
+            .FirstOrDefaultAsync(p => p.Id == id);
+        if (producto is null) return NotFound();
+
+        _db.Productos.Remove(producto);
+        await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(Index));
+    }
+    PASO 2.4.5 FIN */
+
+    // RETO 2.4 (ACTIVAR): búsqueda de texto ejecutada en el servidor.
+    // Usa SQL Server y no reutiliza datos fijos del módulo anterior.
+    /* RETO 2.4 INICIO
+    [HttpGet("/catalogo/buscar")]
+    public async Task<IActionResult> Buscar(string? nombre)
+    {
+        var consulta = _db.Productos.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(nombre))
+            consulta = consulta.Where(p => p.Nombre.Contains(nombre));
+
+        var encontrados = await consulta.OrderBy(p => p.Id).ToListAsync();
+        return View("Index", encontrados);
+    }
+    RETO 2.4 FIN */
+
+    // RETO opcional histórico de M01. No es necesario para P2.4.
+    /* RETO 1.4 INICIO
+    [HttpGet("/catalogo/resumen/{id:int}")]
+    public async Task<IActionResult> Resumen(int id)
+    {
+        var producto = await _db.Productos.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id);
+        return producto is null ? NotFound() : Ok(new { producto.Id, producto.Nombre });
+    }
+    RETO 1.4 FIN */
+}
+~~~
+
+**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+
+### P2.4 — Views/Productos/Crear.cshtml
+
+**Qué construimos y por qué.** Formulario de alta tipado con campos, mensajes y protección antiforgery. Después de guardar, la aplicación usa el Id de la entidad persistente. Examina el código íntegro del archivo en lugar de interpretar únicamente las líneas del ejemplo teórico. Distingue las llamadas que consultan la base de las que alteran datos.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.ProductoFormulario
+@{
+    ViewData["Title"] = "Crear producto";
+}
+<h1>Crear producto — P2.4</h1>
+<p>Los productos se guardan en SQL Server Express LocalDB.</p>
+<form asp-controller="Productos" asp-action="Crear" method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <div>
+        <label asp-for="Nombre"></label><input asp-for="Nombre" />
+        <span asp-validation-for="Nombre" class="text-danger"></span>
+    </div>
+    <div>
+        <label asp-for="Precio"></label><input asp-for="Precio" type="number" step="0.01" />
+        <span asp-validation-for="Precio" class="text-danger"></span>
+    </div>
+    <button type="submit">Guardar producto</button>
+</form>
+<p><a asp-action="Index">Volver al catálogo</a></p>
+~~~
+
+**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+
+### P2.4 — Views/Productos/Editar.cshtml
+
+**Qué construimos y por qué.** Permite cambiar un registro existente sin crear otro. Observa cómo el Id viaja por la ruta y el resto de valores se enlazan al modelo de entrada. Examina el código íntegro del archivo en lugar de interpretar únicamente las líneas del ejemplo teórico. Distingue las llamadas que consultan la base de las que alteran datos.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.ProductoFormulario
+@{
+    ViewData["Title"] = "Editar producto";
+    var productoId = ViewData["ProductoId"];
+}
+<h1>Editar producto</h1>
+<form asp-controller="Productos" asp-action="Editar" asp-route-id="@productoId" method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <div>
+        <label asp-for="Nombre"></label><input asp-for="Nombre" />
+        <span asp-validation-for="Nombre" class="text-danger"></span>
+    </div>
+    <div>
+        <label asp-for="Precio"></label><input asp-for="Precio" type="number" step="0.01" />
+        <span asp-validation-for="Precio" class="text-danger"></span>
+    </div>
+    <button type="submit">Guardar cambios</button>
+</form>
+<p><a asp-action="Index">Cancelar y volver</a></p>
+~~~
+
+**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+
+### P2.4 — Views/Productos/Eliminar.cshtml
+
+**Qué construimos y por qué.** Presenta la confirmación por GET antes del POST que borra; no debe eliminar un producto simplemente por visitar la dirección. Examina el código íntegro del archivo en lugar de interpretar únicamente las líneas del ejemplo teórico. Distingue las llamadas que consultan la base de las que alteran datos.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Confirmar eliminación";
+}
+<h1>Confirmar eliminación de producto</h1>
+<p>¿Deseas eliminar <strong>@Model.Nombre</strong> (id @Model.Id)?</p>
+<p>Esta operación modifica de forma persistente la base de datos.</p>
+<form asp-controller="Productos" asp-action="Eliminar" asp-route-id="@Model.Id" method="post">
+    <button type="submit">Sí, eliminar</button>
+</form>
+<p><a asp-action="Index">No, volver al catálogo</a></p>
+~~~
+
+**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+
+### P2.4 — Views/Productos/Index.cshtml
+
+**Qué construimos y por qué.** El listado ahora procede de los datos persistidos y muestra acciones de detalle, edición y eliminación sobre cada Id real. Examina el código íntegro del archivo en lugar de interpretar únicamente las líneas del ejemplo teórico. Distingue las llamadas que consultan la base de las que alteran datos.
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+@{
+    ViewData["Title"] = "Catálogo de productos";
+}
+
+<h1>P2.4 | Catálogo persistente de productos</h1>
+<p><a asp-controller="Productos" asp-action="Crear">Crear producto</a></p>
+<p id="proposito-vista">Esta vista representa los productos recuperados de SQL Server Express LocalDB.</p>
+
+@if (Model is null)
+{
+    <p id="sin-modelo">El controlador no ha proporcionado productos.</p>
+}
+else
+{
+    <p id="numero-productos">El controlador ha enviado <strong>@Model.Count</strong> productos.</p>
+
+    @* PASO 1.5.2: habilitado al terminar M01. *@
+    @if (Model.Count >= 3)
+    {
+        <p id="catalogo-completo">El catálogo contiene al menos tres productos.</p>
+    }
+    
+
+    @* APLICACION 2.4.7 (ESCRIBIR):
+       Si Model.Count == 0, muestra un aviso visible:
+       <p id="catalogo-vacio">No hay productos guardados.</p>
+       Debe funcionar también después de eliminar el último producto.
+       Escribe tú el @if; no hay solución activada.
+    *@
+
+    @* RETO 2.4 (ACTIVAR al habilitar Buscar en el controlador):
+       <form action="/catalogo/buscar" method="get">
+           <label for="nombre">Filtrar por nombre</label>
+           <input id="nombre" name="nombre" />
+           <button type="submit">Buscar</button>
+       </form>
+       Observa que esta operación consulta datos y utiliza GET,
+       no POST ni una escritura en LocalDB.
+    *@
+    <ul id="listado-productos">
+    @foreach (var producto in Model)
+    {
+        <li data-id="@producto.Id">
+            @producto.Nombre — @producto.Precio.ToString("0.00") €
+            <a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
+            @* PASO 2.4.4 (ACTIVAR): al descomentar Editar en el
+               controlador, retira el comentario de este enlace.
+            <a asp-action="Editar" asp-route-id="@producto.Id">Editar</a>
+            *@
+            @* PASO 2.4.5 (ACTIVAR): al descomentar Eliminar en el
+               controlador, retira el comentario de este enlace.
+            <a asp-action="Eliminar" asp-route-id="@producto.Id">Eliminar</a>
+            *@
+        </li>
+    }
+    </ul>
+
+    @* PASO 1.5.4: habilitado al terminar M01. *@
+    <section id="tarjetas-catalogo" aria-label="Tarjetas reutilizables de productos">
+        <h2>Vista de tarjetas</h2>
+        @foreach (var producto in Model)
+        {
+            <partial name="_TarjetaProducto" model="producto" />
+        }
+    </section>
+    
+}
+~~~
+
+**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+
+### P2.4 — Views/Shared/_Layout.cshtml
+
+**Qué construimos y por qué.** Conserva el marco común y los enlaces del catálogo desde M01; el CRUD no necesita una segunda aplicación ni una plantilla de navegación ajena. Examina el código íntegro del archivo en lugar de interpretar únicamente las líneas del ejemplo teórico. Distingue las llamadas que consultan la base de las que alteran datos.
+
+~~~cshtml
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Curso Web .NET 8</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+    <link rel="stylesheet" href="/css/catalogo.css" />
+</head>
+<body>
+    <header>
+        <nav aria-label="Navegación principal">
+            <a href="/">Inicio</a>
+            <a href="/Productos">Productos</a>
+            <a href="/recursos/guia-publica.txt">Guía pública</a>
+        </nav>
+    </header>
+    <main class="container">
+        @RenderBody()
+    </main>
+    @* PASO 1.5.3: habilitado al terminar M01. *@
+    <aside id="notas-del-layout" aria-label="Notas de la página">
+        @await RenderSectionAsync("NotasPagina", required: false)
+    </aside>
+    
+    <footer>Curso ASP.NET Core MVC · .NET 8</footer>
+</body>
+</html>
+~~~
+
+**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+
+**Prueba de continuidad.** Reinicia Kestrel y abre de nuevo el catálogo de la misma base LocalDB: un registro persistente continúa existiendo. Este hecho contrasta con el estado en memoria de P2.1–P2.3. La vista de Confirmacion que se utilizó allí deja de formar parte de esta instantánea porque el POST de creación redirige a la ficha persistida; ya no hay dos salidas activas contradictorias. También se retira la vista parcial de scripts de validación de cliente de la instantánea anterior cuando no forma parte de este recorrido; las validaciones obligatorias del servidor y antiforgery se conservan.
+
 ## Cuaderno de profundización opcional P2.4 — Reconstruir la historia de un producto
 
 Este recorrido se realiza **después** de los pasos 2.4.3, 2.4.4 y 2.4.5; exige que sus bloques estén activados. No añade un segundo CRUD ni nuevas operaciones de base de datos. Su objetivo es comprobar que distingues los efectos de cada petición y que puedes diagnosticar una incidencia atendiendo al Id y a la persistencia. Trabaja con una base propia y conocida, tal como se explica en 2.4.1.
