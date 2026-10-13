@@ -2545,6 +2545,86 @@ El conocimiento que debe conservar el estudiante es una cadena de responsabilida
 Esa comprensión es más importante que memorizar una llamada aislada a AddCookie o una plantilla concreta de AuthorizeView. Permite evaluar diseños reales y detectar cuándo una funcionalidad visual se ha confundido peligrosamente con una garantía de seguridad.
 
 
+
+### Ampliación 4.4 — Respuestas de desafío y acceso denegado en aplicaciones con cookies
+
+La autenticación por cookie resulta muy cómoda para una aplicación web porque permite redirigir a una página de entrada cuando el usuario no está reconocido. Sin embargo, cuando el recurso protegido se consume como un endpoint HTTP, una redirección puede resultar menos clara que un código de estado explícito.
+
+Imaginemos una solicitud anónima a GET /demo/privado. El endpoint exige el rol Formador. El servidor necesita comprobar primero que existe una identidad reconocida y después que satisface la política. Si no hay autenticación válida, se produce un desafío de autenticación; si existe identidad pero carece del permiso, el acceso se prohíbe.
+
+Estas decisiones están relacionadas con 401 y 403, pero la configuración de cookies puede convertirlas en respuestas de redirección apropiadas para aplicaciones que esperan páginas HTML. En el laboratorio elegimos hacer visible el código 401 para el recurso protegido, de modo que el alumno pueda comprobarlo con una herramienta HTTP.
+
+#### Qué implica un desafío de autenticación
+
+Un desafío aparece cuando la aplicación necesita que el usuario se autentique para continuar. En un navegador que visita una página, redirigir al formulario de entrada puede ser una experiencia razonable. En un cliente que espera JSON, recibir una página HTML de login puede causar una confusión: el cliente podría tratar de convertir ese HTML a su DTO y concluir equivocadamente que la API envió datos incompatibles.
+
+Por eso hay que distinguir el tipo de consumidor. Una aplicación de interfaz HTML y un endpoint de datos pueden utilizar el mismo esquema de autenticación, pero necesitar representaciones diferentes del rechazo. El criterio debe decidirse explícitamente, no depender de un comportamiento accidental que el alumnado desconoce.
+
+En el proyecto de demostración configuramos una excepción para la ruta privada:
+
+~~~csharp
+options.Events.OnRedirectToLogin = contexto =>
+{
+    if (contexto.Request.Path.StartsWithSegments("/demo/privado"))
+    {
+        contexto.Response.StatusCode = 401;
+        return Task.CompletedTask;
+    }
+
+    contexto.Response.Redirect(contexto.RedirectUri);
+    return Task.CompletedTask;
+};
+~~~
+
+La condición muestra cómo conservar una navegación habitual hacia la página de login mientras que el endpoint de laboratorio produce un resultado HTTP observable. No estamos proponiendo que toda aplicación deba copiar ese fragmento sin analizar su propia API y sus rutas.
+
+#### Identidad existente, permiso ausente
+
+El segundo caso requiere imaginar un principal autenticado, pero con un rol diferente de Formador. No es lo mismo que un usuario anónimo: la aplicación reconoce una identidad y, aun así, deniega el recurso por su política.
+
+En un diseño que necesite exponer 403 directamente para un endpoint de datos, puede configurarse la respuesta de acceso denegado mediante el evento apropiado de cookies. Por ejemplo, para el mismo recurso de laboratorio:
+
+~~~csharp
+options.Events.OnRedirectToAccessDenied = contexto =>
+{
+    if (contexto.Request.Path.StartsWithSegments("/demo/privado"))
+    {
+        contexto.Response.StatusCode = 403;
+        return Task.CompletedTask;
+    }
+
+    contexto.Response.Redirect(contexto.RedirectUri);
+    return Task.CompletedTask;
+};
+~~~
+
+Ambas configuraciones corresponden a situaciones diferentes. La primera observa falta de autenticación, la segunda observa falta de permiso. Para comprobar 403 no basta con enviar una solicitud anónima; necesitamos crear deliberadamente una identidad válida que no satisfaga RequireRole("Formador").
+
+Esto proporciona una lección general de pruebas: cada resultado debe corresponder al estado real del usuario en el instante de la petición, no al mensaje que creemos que se mostrará.
+
+#### El cliente no debe convertir una redirección en éxito de negocio
+
+Un cliente HTTP puede seguir redirecciones según su configuración. Si una solicitud destinada a un recurso JSON se redirige a una página HTML, el estado final podría llegar a ser 200 para la página de entrada. Eso no demuestra que se haya autorizado el recurso original.
+
+Por este motivo, cuando depuramos autenticación en un servicio necesitamos observar no solo el último número de estado, sino también la ruta, las posibles redirecciones, el tipo de contenido y el cuerpo efectivo. Esta atención es especialmente importante cuando una biblioteca intenta deserializar automáticamente JSON.
+
+La misma disciplina se utilizó en 4.1 con GET y POST: una respuesta aparentemente exitosa puede seguir siendo incompatible con el contrato previsto. En 4.4 añadimos la identidad del usuario como una condición que también afecta al recorrido HTTP.
+
+#### El código de seguridad pertenece a un contexto concreto
+
+Los ejemplos usan rutas de demostración y una identidad de laboratorio. No definen cómo debe autenticarse una API empresarial ni cómo transmitir credenciales entre procesos distintos. Esas decisiones necesitarían requisitos de negocio y un diseño de seguridad específico.
+
+Tampoco debemos interpretar la capacidad de configurar 401 y 403 como sustituto de proteger efectivamente el recurso. El endpoint debe seguir exigiendo autorización mediante su política. Un mensaje de error bien presentado no añade por sí mismo controles que no existen.
+
+#### Cómo examinar la diferencia en una sesión
+
+El alumno puede comenzar por una solicitud anónima a /demo/privado y comprobar 401. Después inicia sesión como Formador y comprueba 200. Para observar una identidad autenticada sin permiso, se puede utilizar una copia de ensayo con un principal de rol diferente y comprobar la denegación correspondiente. Finalmente, al cerrar la sesión, la solicitud debe volver a producir rechazo anónimo.
+
+Este experimento conecta el estado del principal, la política y la semántica de HTTP. No exige desplegar un proveedor completo de Identity ni compartir cookies con la API auxiliar.
+
+La conclusión es que **reconocer una identidad, aplicar un permiso y decidir cómo se comunica una denegación son tres responsabilidades distintas**. La comprensión de esa separación permite diagnosticar mejor una aplicación ASP.NET Core protegida.
+
+
 ### Taller transversal: una operación vista desde cuatro límites
 
 Este apartado relaciona los cuatro conceptos del módulo mediante un mismo caso: una persona desea crear un producto nuevo llamado «Agenda», con precio 6,40. Seguir la operación de un extremo a otro ayuda a detectar errores que quedan ocultos cuando se estudian las tecnologías como listas de instrucciones.
