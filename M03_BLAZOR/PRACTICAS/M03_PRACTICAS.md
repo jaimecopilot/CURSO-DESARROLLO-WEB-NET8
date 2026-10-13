@@ -1547,6 +1547,8 @@ El código completo del estado inicial entregado para P3.6 está a continuación
         errorCarga = null;
         estado = "Cargando productos...";
         productos = [];
+        Limpiar();
+        eliminacionPendiente = null;
         try
         {
             productos = (await Catalogo.ObtenerConErrorAsync(simularError)).ToList();
