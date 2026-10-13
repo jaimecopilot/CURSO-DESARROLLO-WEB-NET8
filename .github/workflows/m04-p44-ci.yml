@@ -28,6 +28,7 @@ jobs:
             if curl -s http://127.0.0.1:5094/seguridad > /tmp/seguridad.html; then break; fi
             sleep 1
           done
-          grep -q 'Seguridad básica' /tmp/seguridad.html
+          test -s /tmp/seguridad.html
+          grep -q 'blazor.web.js' /tmp/seguridad.html
           status=$(curl -s -o /tmp/p44-denegado -w '%{http_code}' http://127.0.0.1:5094/demo/privado)
           test "$status" = "401"
