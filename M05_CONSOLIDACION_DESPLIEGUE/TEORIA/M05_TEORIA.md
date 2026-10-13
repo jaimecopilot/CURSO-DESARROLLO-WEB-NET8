@@ -941,6 +941,123 @@ El alumno debe poder describir tres evidencias: el proceso de publicación se in
 
 
 
+
+### 5.3.15. El recorrido de una petición dentro del host MVC
+
+La publicación de MVC A utiliza middleware y rutas de ASP.NET Core para transformar solicitudes en respuestas. Este recorrido suele parecer invisible cuando el alumno abre simplemente una página, por lo que conviene describirlo en pasos.
+
+El programa configura el servicio de archivos estáticos, el enrutamiento y los endpoints MVC/Razor Pages. Una versión reducida de sus instrucciones finales es:
+
+~~~csharp
+app.UseStaticFiles();
+app.UseRouting();
+
+app.MapRazorPages();
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.Run();
+~~~
+
+El fragmento presupone que `app` ya se ha construido y que MVC/Razor Pages fueron registrados en los servicios. Es decir, explica el final de `Program.cs`, no una aplicación completa que el alumno deba copiar en otra solución.
+
+Cuando llega `GET /`, ASP.NET Core puede seleccionar por convención el controlador `Home` y la acción `Index`, que produce una vista. Cuando llega `GET /css/site.css`, el middleware de archivos estáticos puede resolver el recurso dentro de `wwwroot` sin ejecutar una acción de listado de productos. Cuando llega `GET /Productos/Estado`, se invoca la acción que devuelve un texto, sin consultar EF Core.
+
+Esta diferencia permite diagnosticar qué tramo del pipeline está implicado. El servidor HTTP es común; la producción concreta de la respuesta no tiene por qué serlo.
+
+### 5.3.16. La respuesta HTTP no es solo el contenido que dibuja el navegador
+
+Cuando utilizamos el navegador vemos sobre todo una página o un mensaje. Sin embargo, la respuesta HTTP posee estado, cabeceras y, normalmente, un cuerpo. La herramienta `curl.exe -i` permite observar una parte más explícita de esa comunicación.
+
+Para la ruta de estado de MVC A, podemos esperar una respuesta con código satisfactorio y un cuerpo de texto semejante a:
+
+~~~http
+HTTP/1.1 200 OK
+Content-Type: text/plain; charset=utf-8
+
+Catalogo MVC disponible
+~~~
+
+Las cabeceras exactas pueden incluir otros valores y variar con el entorno. Lo importante aquí es distinguir la línea de estado del contenido. El cuerpo permite verificar que ha respondido la acción adecuada. El estado 200 indica que esa solicitud terminó satisfactoriamente.
+
+Un recurso inexistente puede producir 404; una ruta de productos deshabilitada para el modo sin LocalDB responde 503. En ambos casos el navegador puede mostrar una página de error, pero no estamos ante la misma situación técnica.
+
+### 5.3.17. El significado de una respuesta 503 deliberada
+
+La aplicación MVC A contiene una opción llamada `Despliegue:SinLocalDb`. Se ha añadido para demostrar Kestrel, IIS y Docker sin afirmar que SQL Server está disponible bajo cualquier identidad o sistema operativo.
+
+Cuando esa opción es verdadera, el host omite la inicialización LocalDB y un middleware intercepta solicitudes a las rutas de productos que requerirían la base, con una excepción para `/Productos/Estado`. El middleware produce 503 y un mensaje de diagnóstico.
+
+Podemos resumir el criterio:
+
+~~~text
+¿La aplicación está ejecutándose con SinLocalDb=true?
+    |
+    +-- No --> recorrido normal de MVC con SQL Server Express LocalDB
+    |
+    +-- Sí --> ¿es una ruta de productos dependiente de SQL?
+                   |
+                   +-- Sí --> respuesta HTTP 503
+                   |
+                   +-- No --> continúa el pipeline de MVC y recursos
+~~~
+
+Una solicitud que recibe 503 ha llegado a un servidor capaz de atender HTTP. Por eso no debe describirse del mismo modo que una conexión rechazada. Tampoco se ha creado un catálogo alternativo en memoria: se ha expresado una capacidad que no está disponible en ese escenario.
+
+La distinción importa cuando se comparan hospedajes. No sería legítimo afirmar que el CRUD se ha desplegado sobre Linux solo porque el inicio y la hoja CSS funcionen. En cambio, sí podemos afirmar que el host MVC se ha iniciado y responde correctamente las rutas independientes de SQL.
+
+### 5.3.18. Un proceso antiguo puede producir una prueba engañosa
+
+Imaginemos que el alumno ejecuta el proyecto con `dotnet run` en 5091, publica una versión nueva y olvida detener el proceso anterior. Después intenta iniciar la DLL publicada en ese mismo puerto, observa un error de dirección ocupada y vuelve al navegador. La portada sigue respondiendo, por lo que concluye erróneamente que la publicación está funcionando.
+
+En realidad el navegador puede estar consultando el proceso antiguo que seguía escuchando. La respuesta HTTP confirma la disponibilidad de **algún proceso** en esa dirección, no su identidad ni la carpeta que utiliza.
+
+Para resolver esta ambigüedad debemos comprobar el proceso de escucha y la salida de la terminal correspondiente. En Windows, `Get-NetTCPConnection` puede revelar el identificador del proceso asociado al puerto. La publicación nueva debe iniciarse tras detener la antigua, o en otro puerto claramente identificado.
+
+Este ejemplo explica por qué los estados finales de las prácticas incluyen detener procesos y liberar puertos. No es burocracia: protege la trazabilidad entre una acción concreta y el resultado que se observa.
+
+### 5.3.19. Los puertos forman parte del entorno, no de la identidad del proyecto
+
+El mismo ensamblado MVC puede escuchar en 5091 o 5094 si se inicia con opciones compatibles y no existen conflictos. Eso no crea dos aplicaciones distintas desde el punto de vista del código; crea dos instancias de ejecución.
+
+Si ambas utilizan el modo sin LocalDB, pueden atender las rutas sin base con independencia entre sí. El controlador Home/Index no necesita duplicarse para responder en dos puertos. La dirección de escucha se decide durante el alojamiento del proceso, no en la vista Razor.
+
+Esta idea conecta el ensayo Kestrel con Docker: dentro del contenedor MVC escucha en 8080, mientras Docker puede publicar ese puerto en 8081 o 8082 del host. Lo que cambia es el acceso al proceso, no su lógica de negocio. El alumno debe aprender a mantener separadas las URL de Blazor, de la API auxiliar y de MVC para no atribuir resultados a un servidor equivocado.
+
+### 5.3.20. El error de arranque precede al error de endpoint
+
+Cuando el proceso intenta iniciar Kestrel, pueden fallar condiciones que nada tienen que ver con un controlador específico. Un puerto ocupado, un runtime ausente o una excepción durante la inicialización LocalDB pueden impedir que el servidor llegue a escuchar.
+
+Por otro lado, cuando Kestrel escucha y recibe una solicitud, pueden aparecer problemas posteriores: una ruta inexistente, un recurso estático ausente o una acción que devuelve 503. Estos errores pertenecen a una fase distinta del recorrido.
+
+**Criterio de diagnóstico:**
+ 
+- Si no existe dirección de escucha y ningún recurso responde, investigar primero el arranque.
+- Si el servidor responde 404 en una ruta concreta, investigar la ruta y los endpoints.
+- Si la portada responde 200 y Productos 503 bajo modo sin base, interpretar la restricción declarada.
+- Si la página HTML carga pero CSS responde 404, investigar los recursos publicados y la ruta estática.
+
+La secuencia impide convertir todos los problemas en «Kestrel está roto». Un diagnóstico útil necesita identificar el punto en que el comportamiento deja de coincidir con el contrato.
+
+### 5.3.21. La salida de consola es una observación, no una prueba de todas las funciones
+
+Los mensajes del host muestran información de arranque y posibles excepciones. Ayudan a saber qué direcciones está escuchando Kestrel. Pero no sustituyen una solicitud de navegador o de un cliente HTTP a la ruta que deseamos comprobar.
+
+Un mensaje de «Listening» indica que el proceso ha podido abrir la escucha; no acredita que exista `/Productos/Estado`. Una respuesta 200 a esa ruta demuestra un recorrido concreto, pero no que el CRUD pueda modificar una base SQL. Un formulario visible sin enviarlo no demuestra que `ModelState` y EF Core persistan correctamente.
+
+Esta jerarquía de evidencias es útil para todas las modalidades de hospedaje. Los logs de Docker permiten ver el proceso del contenedor; la consola IIS permite ver un sitio configurado; solo una petición HTTP demuestra qué respuesta recibe realmente un cliente.
+
+### 5.3.22. Separar el comportamiento del proceso y la aplicación al detenerlo
+
+Durante una sesión de clase, suele haber varias terminales abiertas. Algunas ejecutan Blazor, otras la API, otras MVC. Detener la terminal equivocada puede provocar un error que parezca surgir de la última modificación del código. Por eso cada práctica establece qué proceso necesita y cuál puede detenerse.
+
+En P5.3 la aplicación de referencia es solo MVC A. Se puede detener Blazor y la API sin afectar a las rutas de MVC que no consumen esos servicios. Cuando detenemos Kestrel con Ctrl+C, liberamos el puerto de esa instancia. Si la dirección sigue respondiendo, hay que averiguar si permanece otro proceso activo.
+
+El aprendizaje consiste en asociar cada resultado observado con una instancia de ejecución concreta. Al pasar a IIS, el mecanismo de inicio cambiará; al pasar a Docker, la instancia recibirá un nombre de contenedor. La disciplina de identificar **quién está escuchando** seguirá siendo la misma.
+
+
+
 ## 5.4. Publicación elemental de ASP.NET Core en IIS
 
 ### 5.4.1. El problema que IIS resuelve
