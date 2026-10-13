@@ -86,3 +86,15 @@ Accept: application/json
 # El resultado incluye hayProductos; no activar ambas rutas a la vez.
 GET {{BaseUrl}}/api/productos/resumen
 Accept: application/json
+
+### N. RETO OPCIONAL 4.3.6: buscar por parte del nombre (ACTIVAR EN PROGRAM.CS)
+GET {{BaseUrl}}/api/productos/buscar?nombre=cuad
+Accept: application/json
+
+### O. RETO OPCIONAL 4.3.6: búsqueda sin nombre devuelve 400
+GET {{BaseUrl}}/api/productos/buscar
+Accept: application/json
+
+### P. RETO OPCIONAL 4.3.6: sin coincidencias devuelve 200 y []
+GET {{BaseUrl}}/api/productos/buscar?nombre=nohaycoincidencia
+Accept: application/json
