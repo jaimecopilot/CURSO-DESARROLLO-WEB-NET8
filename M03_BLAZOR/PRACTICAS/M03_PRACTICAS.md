@@ -1653,6 +1653,75 @@ Elabora una explicación que conecte `@inject`, el registro `AddScoped`, `OnInit
 Si puedes diferenciar los resultados sin API, estarás preparado para estudiar M04: allí los mismos estados de interfaz deberán convivir con errores HTTP, deserialización JSON y respuestas remotas. No se trata de repetir desde cero la programación de componentes, sino de cambiar de manera controlada la fuente de datos.
 
 
+## Taller integrador — Construir y explicar el catálogo Blazor de principio a fin
+
+Este taller **no es una séptima aplicación ni un nuevo tema oficial**. Es una oportunidad de reconstruir el itinerario utilizando los archivos completos ya estudiados y de justificar por qué cada componente existe. Se puede realizar por equipos o como actividad posterior a las seis horas principales. El resultado ha de conservar las funciones de todos los capítulos.
+
+### Fase A — Dibujar el recorrido antes de escribir código
+
+Recorre la aplicación desde la URL hasta el producto representado. Una solicitud dirigida a /productos encuentra la página por su directiva @page. Esa página se representa a través del router y del layout que ofrece la navegación. La página solicita los datos iniciales a Catalogo después de obtener su dependencia por @inject. Al concluir la tarea asíncrona, recorre una lista de objetos Producto y suministra cada objeto a TarjetaProducto. El componente hijo produce su artículo HTML y comunica intenciones por los callbacks configurados por su padre.
+
+Distingue por escrito las cinco responsabilidades: **arranque**, **enrutamiento**, **obtención de datos**, **estado/operaciones** y **representación/reutilización**. No las sustituyas por el nombre de un único framework: cada responsabilidad se localiza en uno o varios archivos que has leído completos. Program.cs registra el servicio; App.razor y Routes.razor configuran el árbol de presentación; MainLayout.razor organiza navegación; Productos.razor gobierna catálogo, filtros y editor; TarjetaProducto.razor representa un producto; el servicio implementa la adquisición.
+
+### Fase B — Reconstruir desde la plantilla sin omitir archivos
+
+Crea un nuevo proyecto Blazor Web App de .NET 8 en un directorio **temporal separado**. Si usas Visual Studio 2026, selecciona la opción de componentes con interactividad en servidor; si empleas la CLI, verifica el template y el target framework para que el resultado use net8.0. No reutilices las clases MVC A de los módulos anteriores, ya que el proyecto Blazor B tiene otro host y otro árbol de componentes.
+
+Antes de añadir la página Productos, abre el proyecto de partida P3.1 y compara sus archivos completos con los que generó la plantilla. Identifica si el archivo Program.cs registra Interactive Server en servicios y en endpoints. Comprueba que App.razor conserva los recursos necesarios para la interactividad y que Routes.razor declara el router. Copia o reproduce MainLayout.razor, Home.razor, Estatica.razor e Interactiva.razor según el código ya explicado en P3.1, manteniendo sus rutas sin nombres duplicados.
+
+Añade también el contenido de app.css. Sin esta hoja, las páginas podrían funcionar funcionalmente pero no presentar el estilo de tarjetas, navegación y mensajes que el alumno espera. Localiza la referencia a la hoja en App.razor y verifica que las clases usadas en el componente tienen reglas de presentación. No introduzcas reglas CSS arbitrarias de una aplicación diferente: el propósito es entender cómo una plantilla sirve recursos estáticos al navegador.
+
+El archivo launchSettings.json tiene otro cometido: su configuración afecta a los perfiles con los que el entorno de desarrollo arranca Kestrel. No sustituye a @page, no registra el servicio y no configura el callback de una tarjeta. Si un alumno cambia el puerto, debe distinguir el perfil de lanzamiento del destino que escribe en el navegador. El proyecto puede ejecutarse con una URL explícita en la CLI, aunque Visual Studio utilice el perfil descrito en el archivo.
+
+### Fase C — Ver el catálogo antes de abstraerlo
+
+Reproduce el contenido de Models/Producto.cs y la primera versión de Productos.razor de P3.2. La lista literal de Cuaderno, Lápiz y Carpeta pertenece inicialmente al componente padre. Recorre los tres records y muestra un li por objeto. Añade NavLink hacia /productos en el layout. No cambies simultáneamente el router y la colección: primero comprueba que se puede navegar, después verifica que el listado contiene los tres elementos.
+
+Ahora extrae el marcado visual a TarjetaProducto.razor, como se hizo en P3.3. La página no tiene por qué conocer el HTML exacto que el hijo utiliza, pero sí debe suministrar el parámetro obligatorio Producto en cada vuelta del foreach. Modifica el componente hijo para cambiar, por ejemplo, el orden de nombre y precio. Observa que las tres tarjetas cambian de presentación porque comparten la misma definición. Si copias tres artículos manualmente en la página, ya no estás demostrando reutilización; habrás regresado al estado anterior.
+
+### Fase D — Construir interactividad sin duplicar la tarjeta
+
+En P3.4 el padre añade campos de entrada y estado local. Define el campo seleccion, el texto nuevoNombre, el identificador siguienteId y los campos para editar por Id. Sitúa el botón de selección **junto a** la instancia de TarjetaProducto, dentro del mismo contenedor de iteración; todavía no es necesario enseñar EventCallback. Comprueba que cada botón transmite producto.Id desde su propia iteración y que los botones pertenecen al producto correcto incluso cuando cambias el orden.
+
+Activa @bind y el método de alta. El valor que se escribe en el input se almacena en una propiedad C# del componente; el método Agregar utiliza ese valor para construir un nuevo Producto y lo incorpora a la colección. Para evidenciar la dependencia, introduce Regla: deberías observar un nuevo artículo. Después escribe un nombre compuesto únicamente por espacios. La decisión de no añadirlo proviene del retorno temprano del método, **no** de una regla SQL ni del componente visual.
+
+A continuación activa el editor. SeleccionarParaEditar guarda el Id, no solo el nombre. GuardarCambio localiza por Id y sustituye el record con una expresión with. El nuevo objeto conserva el mismo Id y Precio; no crea un nuevo registro al final. Haz una prueba especialmente reveladora: cambia Lápiz por «Lápiz largo» y comprueba que sigue existiendo un solo elemento con Id 2. Si la cantidad de tarjetas crece, has llamado a Add o has perdido el índice de edición.
+
+Por último ensaya los criterios de consulta. El estado de búsqueda y el precio máximo no deberían sustituir la lista fuente. Construye ProductosVisibles a partir del orden y del filtro; utiliza la propiedad calculada en la iteración de tarjetas. Al escribir un término que no existe, podrás ver un subconjunto vacío sin perder los registros. Al borrar el término, reaparecerán los mismos objetos. Si el editor cambia un nombre, la consulta posterior encontrará ese valor actualizado, porque los datos fuente son compartidos.
+
+### Fase E — Reubicar los eventos sin perder capacidades
+
+P3.5 no introduce otra página ni necesita empezar con tres productos distintos. El estado del editor, el método Agregar y los filtros se conservan. Modifica la tarjeta para que pueda emitir AlSeleccionar e incorpora NotificarSeleccion. En el padre retira el botón provisional que estaba junto a la tarjeta y vincula AlSeleccionar con SeleccionarParaEditar. La nueva ubicación del botón no cambia quién posee el estado.
+
+Completa la segunda intención mediante AlQuitar. El hijo comunica el Id; el padre decide si quita el objeto de la lista y limpia la selección. Enlaza el callback a Quitar, comprueba la eliminación y, cuando comprendas la operación simple, evoluciona el manejo a QuitarConDeshacer. La información necesaria para revertir la última eliminación pertenece al padre, porque solo él conoce la posición de ese objeto en la colección.
+
+Repite una operación antigua tras cada cambio de comunicación. Selecciona un producto para editarlo y comprueba el campo del editor; añade otro y verifica que recibe los botones del hijo; aplica un filtro, elimina un resultado y borra el filtro para comprobar que los demás siguen presentes. Este orden revela si realmente has conservado el proyecto completo o solo has creado otra demostración mínima de EventCallback.
+
+### Fase F — Cambiar el origen inicial de los datos, no la aplicación
+
+En P3.6 separa la adquisición de la lista en IProductosMemoriaService y ProductosMemoriaService. El contrato devuelve Task<IReadOnlyList<Producto>> y la implementación produce datos de laboratorio. Registra el servicio en Program.cs e inyéctalo en la página. La colección de la página puede comenzar vacía y poblarse tras el await: la **responsabilidad del resto de métodos no cambia**. El editor seguirá sustituyendo records, Agregar seguirá construyendo valores y QuitarConDeshacer continuará recordando la última retirada.
+
+Durante la espera, no debemos tratar una lista temporalmente vacía como un resultado definitivo. La bandera cargando permite dibujar el estado provisional y posponer la presentación de controles hasta que el componente haya recibido el resultado. El método OnInitializedAsync se invoca durante la inicialización de la instancia. Una vez completado, el campo estado comunica «Lista preparada» y los datos se representan por TarjetaProducto.
+
+Verifica también la diferencia entre solicitar datos de nuevo y editar datos ya cargados. Una edición local cambia la colección en memoria; llamar al servicio otra vez obtiene una nueva colección inicial. Esta es una frontera real que habrá que tratar en una aplicación persistente. En este curso no fingimos que un record editado se haya grabado en la base de datos, porque M03 no utiliza almacenamiento externo.
+
+### Fase G — Tres resultados posibles de una misma adquisición
+
+Ensaya el resultado correcto con tres productos, el resultado correcto con cero elementos y un fallo controlado. En el segundo caso corresponde un mensaje de vacío, pero no de error. En el tercero la implementación lanza InvalidOperationException de forma deliberada; el componente captura ese caso conocido y presenta «Carga fallida». Si vuelve a intentarlo, debe limpiar el mensaje anterior al comienzo y permitir que la operación llegue de nuevo a un estado correcto.
+
+Durante cada reintento, deshabilita el botón correspondiente. No es necesario programar una segunda interfaz para mostrar el fallo: es otro estado del mismo componente. El usuario desmarca «Simular fallo», pulsa Recargar y recupera el catálogo. Tras esa recuperación selecciona y renombra Lápiz, filtra por su nuevo nombre y elimina/deshace el resultado. Si falla una de estas operaciones, el laboratorio no está completo aunque se haya recuperado la lista.
+
+### Fase H — Explicar el programa sin recurrir a frases genéricas
+
+Describe exactamente qué sucede cuando se pulsa Seleccionar dentro de una tarjeta. El botón ejecuta NotificarSeleccion, se invoca AlSeleccionar con el Id de Producto, el padre recibe la intención mediante SeleccionarParaEditar y actualiza tres campos de estado. El framework representa de nuevo la frase de selección y el valor enlazado del editor. La tarjeta no modifica la colección completa y el navegador no recibe código C# para ejecutarlo.
+
+Repite el razonamiento con Guardar nombre: el botón pertenece a Productos.razor, lee nombreEditado, busca el índice por Id, construye otro record y reemplaza el valor de productos. TarjetaProducto vuelve a recibir el objeto actualizado al representarse la lista. El precio y la identidad se conservan porque la expresión with cambia únicamente Nombre.
+
+Finalmente, describe una recarga que falla. La página marca cargando, vacía los datos presentados y llama al contrato del servicio. La implementación decide producir una excepción; el catch conocido transforma esa condición en un mensaje y el finally restablece la disponibilidad del control. Un segundo intento correcto obtiene tres objetos, restablece el estado visible y permite otra vez las operaciones que se aprendieron en P3.4 y P3.5.
+
+El resultado de este taller es un programa cuyo código puede recorrerse desde Program.cs hasta el último botón sin dejar piezas inexplicadas. Si una pieza no aparece en los archivos completos mostrados en las secciones precedentes, hay que volver al paso correspondiente para incorporarla, **no inventarla al margen del manual**.
+
+
 ## Autoevaluación integradora
 
 Al final del módulo, abre P3.6 y describe cinco diferencias entre la aplicación MVC A y la aplicación Blazor B sin recurrir a generalidades. Señala el lugar donde se configura Interactive Server; cómo se declara una ruta `@page`; cómo una tarjeta recibe un producto; cómo un método de clic actualiza un texto; y cómo el servicio obtiene datos sin que la página sepa dónde se construye su colección.
