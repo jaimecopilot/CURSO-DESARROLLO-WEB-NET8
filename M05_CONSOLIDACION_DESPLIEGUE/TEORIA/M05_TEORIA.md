@@ -1635,6 +1635,116 @@ Esta disciplina de separar hechos comprobados y capacidades no comprobadas es tr
 
 
 
+
+### 5.4.16. El sitio IIS y el programa ASP.NET Core tienen ciclos de vida diferentes
+
+Al abrir el Administrador de IIS, el alumno ve sitios y grupos de aplicaciones. Son objetos de administración. La existencia de un sitio no implica que se haya publicado una DLL ASP.NET Core válida; tampoco que su proceso haya llegado a iniciar.
+
+Un sitio define dónde y cómo recibe solicitudes IIS. El directorio físico contiene los artefactos publicados. El Application Pool establece un contexto de ejecución, y el ASP.NET Core Module enlaza ese mundo con el inicio de nuestra aplicación. Si falta cualquiera de las piezas necesarias, la experiencia del navegador puede ser diferente.
+
+Una página de error antes de que Home/Index pueda ejecutarse no debe interpretarse automáticamente como un fallo de la vista. Primero se comprueban los componentes de hospedaje, el archivo `web.config`, el runtime y los permisos. Cuando una ruta específica falla después de que la portada ya funcione, el diagnóstico se desplaza hacia esa ruta y sus dependencias.
+
+La separación del ciclo de vida es importante porque el docente podría encontrar un sitio `Started` con una aplicación que no responde. «Started» describe el estado de configuración administrado por IIS, no un contrato de respuesta HTTP satisfactoria para todas las rutas.
+
+### 5.4.17. Elegir un binding no modifica el código de HomeController
+
+En el laboratorio creamos un sitio `CursoWeb-M05` asociado al puerto 8091. La URL `http://localhost:8091/` permite solicitar su portada desde el mismo equipo. El número pertenece a la configuración de entrada de IIS, no a una propiedad del controlador MVC.
+
+Podemos imaginar que el mismo contenido publicado se hospeda en otro puerto libre. La acción `HomeController.Index` seguiría recibiendo solicitudes a la ruta prevista. El cambio de dirección no exige duplicar el controlador ni añadir condiciones del tipo «si el puerto es 8091».
+
+Esta independencia explica una ventaja central del framework: la lógica de aplicación se construye alrededor de solicitudes, rutas, acciones y respuestas. El mecanismo que acepta inicialmente la conexión puede variar entre Kestrel directo, IIS y contenedor Docker.
+
+No obstante, no debemos confundir la independencia del controlador con ausencia de configuración. Los bindings, puertos, certificados y nombres de host forman parte del entorno. Un binding incorrecto puede impedir que una solicitud alcance siquiera el endpoint MVC.
+
+### 5.4.18. La ruta física debe apuntar a una publicación, no a la carpeta de la solución
+
+Un error frecuente consiste en seleccionar como ruta física de IIS la carpeta donde vive el `.csproj`. Allí existen fuentes y configuraciones de desarrollo, pero no necesariamente una publicación adecuada. El mecanismo de hospedaje IIS espera los artefactos preparados con `dotnet publish`.
+
+La práctica utiliza `C:\CursoWeb\M05\IIS` como destino y publica directamente a esa carpeta. Después el sitio IIS debe apuntar a ese mismo directorio. Si el alumno ejecuta otra publicación en `.work\M05` y olvida cambiar el destino, IIS seguirá sirviendo la versión que se encuentre en la carpeta que tiene configurada.
+
+Es útil comparar dos preguntas: «¿a dónde escribió los archivos `dotnet publish`?» y «¿qué carpeta física utiliza el sitio IIS?». Solo cuando ambas respuestas corresponden al mismo destino podremos atribuir el contenido del navegador a esa publicación.
+
+Este razonamiento es idéntico al ejercicio de dos publicaciones Kestrel, pero aquí interviene una configuración administrativa adicional. La aplicación sigue siendo MVC A; la diferencia es quién selecciona sus artefactos y cómo inicia el proceso.
+
+### 5.4.19. Por qué la identidad del pool cambia el significado de una misma ruta SQL
+
+En Visual Studio, el proyecto MVC se ejecuta bajo la identidad del alumno. SQL Server Express LocalDB suele estar asociado a esa identidad. En IIS, el Application Pool puede ejecutarse bajo otra cuenta; incluso si la cadena de conexión es idéntica, el acceso real a LocalDB puede diferir.
+
+La confusión nace de atribuir demasiada capacidad al archivo `appsettings.json`. Una cadena de conexión es un dato de configuración. No crea por sí misma una sesión Windows, no traslada credenciales ni instala SQL Server. El proceso que utiliza la cadena debe tener acceso real al destino indicado.
+
+En el recorrido de M05 no reconfiguramos el pool para darle acceso a una instancia LocalDB del usuario. Eso introduciría permisos y particularidades de administración que exceden el objetivo simple de publicación IIS. Por ello activamos el modo sin base para demostrar de manera independiente las rutas que no requieren SQL.
+
+La consecuencia observable es que `/` y `/Productos/Estado` pueden responder 200, y `/Productos` debe devolver 503. El código 503 no es un defecto de IIS; es la manera en que la propia aplicación declara la indisponibilidad del CRUD bajo el escenario elegido.
+
+### 5.4.20. El archivo de entorno puede estar presente y no ser el que el proceso utiliza
+
+La práctica crea `appsettings.Production.json` en la carpeta publicada. En un host cuyo entorno efectivo sea Production, ese archivo aporta la clave `Despliegue:SinLocalDb=true`. Si el entorno se ha configurado con otro nombre, el hecho de tener ese archivo no demuestra que se haya cargado.
+
+El alumno necesita conocer dos valores: el entorno con el que arrancó realmente ASP.NET Core y la ubicación del archivo que define la opción. Solo con esa información puede interpretar de manera fiable por qué el host omite o intenta utilizar LocalDB.
+
+La corrección debe ser específica. Si el sitio ejecuta otro entorno, hay que proporcionar la configuración en la fuente que realmente consulta ese proceso. No es correcto crear múltiples archivos de entorno al azar hasta que alguno produzca una portada.
+
+Este caso resulta especialmente instructivo al comparar Kestrel e IIS: durante Kestrel una variable se configura en la terminal del alumno; en IIS la aplicación se inicia bajo la administración del sitio y no hereda sin más cualquier valor escrito en una PowerShell independiente.
+
+### 5.4.21. Qué significa comprobar ANCM y por qué no basta una casilla de IIS
+
+ANCM, el ASP.NET Core Module, conecta el servidor IIS con el mecanismo de hospedaje ASP.NET Core. Es necesario porque IIS no adquiere automáticamente soporte de .NET 8 por haber habilitado una característica de servidor web de Windows.
+
+El Hosting Bundle aporta los componentes para alojar aplicaciones ASP.NET Core, incluido el módulo y los runtimes necesarios. En el laboratorio lo instalamos antes de declarar que la publicación puede funcionar bajo IIS.
+
+Un error de inicio puede derivarse de un módulo ausente, de un runtime incompatible o de un `web.config` que no corresponde al programa publicado. Por eso copiar solamente `CursoWeb.Mvc.dll` al sitio no constituye un despliegue suficiente.
+
+Debemos conservar también una distinción conceptual: en modo in-process la aplicación se hospeda dentro del proceso trabajador IIS mediante el mecanismo correspondiente; en out-of-process se utiliza un proceso ASP.NET Core separado. No enseñamos a optimizar ambas modalidades, pero sí evitamos afirmar que siempre tiene que existir el mismo Kestrel externo.
+
+### 5.4.22. Interpretar un error sin conceder permisos excesivos
+
+Una aplicación necesita leer sus archivos publicados. La identidad del pool debe tener los permisos necesarios para ello. Un fallo por acceso denegado puede resolverse concediendo permisos apropiados sobre la carpeta del sitio, pero no justifica dar control total a todo el equipo.
+
+En un laboratorio compartido, ampliar indiscriminadamente permisos crea un problema de seguridad que no es necesario para aprender IIS. La respuesta es identificar la identidad que ejecuta el pool, el directorio físico y la operación que ha fallado.
+
+La misma precaución se aplica al acceso SQL: conceder permisos globales sobre una instancia de base de datos para hacer desaparecer un error de LocalDB no forma parte de esta práctica. El modo sin base evita tener que realizar esa preparación para demostrar la portada y los recursos estáticos.
+
+**Ejercicio conceptual:** el sitio ha sido creado y IIS informa de un error de lectura de archivos. ¿Debemos cambiar `HomeController`? No: el fallo puede impedir que la aplicación llegue a ejecutarse. La información disponible orienta a revisar el acceso a la carpeta física y la identidad del pool.
+
+### 5.4.23. Una prueba IIS debe solicitar la URL IIS
+
+Una prueba con `dotnet run` demuestra que la aplicación puede ejecutarse directamente. No demuestra que un sitio IIS haya aceptado una solicitud ni que ANCM esté instalado correctamente. La práctica utiliza la dirección de binding `http://localhost:8091/` para observar el mecanismo real.
+
+El alumno debe comprobar al menos la portada MVC, la acción de estado y el CSS en ese puerto. Después puede consultar Productos para confirmar la restricción 503 del modo sin LocalDB. Las solicitudes se dirigen a IIS, no a una instancia Kestrel anterior que sigue escuchando en 5091.
+
+También hay que verificar que el sitio utiliza la carpeta publicada correcta. Una página inicial con estado 200 podría proceder del sitio equivocado si el alumno ha abierto el puerto de otra aplicación. La relación entre nombre del sitio, binding, ruta física y contenido recibido es parte de la evidencia.
+
+### 5.4.24. El proyecto fuente no cambia al dar de alta un sitio
+
+Durante el apartado IIS no se modifican los controladores MVC. Los archivos que cambian pertenecen a la configuración del destino: copia publicada, archivo de entorno específico, sitio, binding y Application Pool.
+
+Si para conseguir que la portada funcione alguien elimina `UseSqlServer`, no ha comprobado el despliegue de la misma aplicación. Ha cambiado su arquitectura funcional. El curso exige mantener el CRUD de M02 para el entorno Windows con LocalDB, y aislar únicamente las condiciones del ensayo de hospedaje.
+
+Esta distinción será útil al pasar a Docker: tampoco allí crearemos otra aplicación MVC. Se generará una imagen a partir del mismo proyecto y se activará una configuración que indica la ausencia de LocalDB en Linux.
+
+### 5.4.25. Comparación entre un sitio configurado y una ruta funcional
+
+| Observación | Conclusión que permite | Conclusión que no permite |
+|---|---|---|
+| El sitio existe en IIS | La configuración fue creada | Que ASP.NET Core haya arrancado |
+| El pool figura Started | IIS gestiona ese pool | Que Home/Index devuelva HTML |
+| La carpeta contiene la DLL | Hay un artefacto publicado | Que exista el runtime |
+| GET `/` devuelve 200 desde 8091 | La ruta de portada funciona a través del binding | Que LocalDB esté accesible |
+| GET CSS devuelve 200 desde 8091 | IIS y ASP.NET Core sirven el recurso | Que el CRUD funcione |
+| GET Productos devuelve 503 esperado | El modo sin base está aplicado a esa ruta | Que la consulta SQL se haya realizado |
+
+La tabla evita un error recurrente: acumular comprobaciones de administración y declararlas equivalentes a una operación de aplicación. La publicación web debe describirse mediante solicitudes y respuestas, no solo mediante estados en una consola gráfica.
+
+### 5.4.26. Cierre: IIS añade infraestructura sin volver a escribir MVC
+
+Al finalizar, el alumno debería poder explicar cómo una publicación construida fuera de Visual Studio se coloca en una carpeta utilizada por IIS, cómo el sitio define una dirección de entrada, cómo el pool establece un contexto de proceso y cómo ANCM permite hospedar ASP.NET Core.
+
+La misma acción Home/Index continúa produciendo HTML, pero bajo condiciones de arranque diferentes. LocalDB sigue siendo la dependencia funcional original y no se declara disponible sin haberlo comprobado.
+
+El siguiente apartado conserva el proyecto MVC y cambia otra vez el entorno: ejecutará una imagen Docker Linux. La transición desde IIS no debe llevarnos a reescribir controladores; debe enseñarnos a identificar la nueva forma de empaquetado, los puertos y las limitaciones reales del proceso.
+
+
+
 ## 5.5. Docker: ejecutar la misma aplicación MVC en un contenedor Linux
 
 ### 5.5.1. Imagen, contenedor y aplicación no son lo mismo
