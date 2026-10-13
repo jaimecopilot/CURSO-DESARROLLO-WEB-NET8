@@ -5,6 +5,8 @@ on:
     paths:
       - 'M04_APIS_SEGURIDAD/PROYECTO/4.5/**'
       - 'VERIFICACION_INTERNA/m04_identity_jwt_e2e.py'
+      - 'VERIFICACION_INTERNA/m04_identity_j3_j6_desde_md.py'
+      - 'M04_APIS_SEGURIDAD/PRACTICAS/M04_PRACTICAS.md'
       - '.github/workflows/m04-identity-jwt-ci.yml'
   workflow_dispatch:
 jobs:
@@ -41,6 +43,9 @@ jobs:
           Add-Content $env:GITHUB_ENV "Jwt__SigningKey=$secret"
           $cs='Server=(localdb)\MSSQLLocalDB;Database=CursoWeb_M04_IdentityJwt_CI_'+$env:GITHUB_RUN_ID+';Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true'
           Add-Content $env:GITHUB_ENV "ConnectionStrings__IdentityDb=$cs"
+      - name: Compilar etapas J3-J6 directamente desde Markdown de prácticas
+        shell: pwsh
+        run: python VERIFICACION_INTERNA/m04_identity_j3_j6_desde_md.py
       - name: Compilar contra Microsoft.EntityFrameworkCore.SqlServer
         shell: pwsh
         run: dotnet build M04_APIS_SEGURIDAD/PROYECTO/4.5/CursoWeb.IdentityJwtApi/CursoWeb.IdentityJwtApi.csproj -c Release
