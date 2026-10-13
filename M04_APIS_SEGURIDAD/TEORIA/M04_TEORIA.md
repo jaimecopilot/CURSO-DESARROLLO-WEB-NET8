@@ -2832,6 +2832,223 @@ La comprobación de firma acredita integridad y procedencia según la clave conf
 
 En el ejemplo el token expira quince minutos después de su emisión. El tiempo reducido permite experimentar con caducidad sin añadir renovación de tokens. El código no implementa refresh tokens ni revocación centralizada: cuando el cliente «olvida» el JWT en la pantalla, elimina su copia, pero **eso no revoca un token que otra aplicación ya tenga**. Para requisitos de revocación y sesiones prolongadas necesitaríamos un diseño adicional.
 
+#### Demostración técnica completa: del esquema SQL Server a un JWT utilizable
+
+El proceso que sigue **no depende de copiar el programa terminado**. Lo recorreremos como una transformación del servidor. Primero construiremos identidad persistente y usuarios; después aprenderemos a identificar y registrar al solicitante; a continuación emitiremos un token y finalmente protegeremos las rutas. En el manual de prácticas se repetirán esos estados como operaciones que realiza el alumno y se comprobará cada uno por separado.
+
+**Estado teórico 1 — la base LocalDB y los servicios.** La aplicación necesita un `DbContext` específico de Identity y un registro de servicios capaz de proporcionar `UserManager`, `RoleManager` y `SignInManager`. El ejemplo usa esta configuración real:
+
+~~~csharp
+var conexion = builder.Configuration.GetConnectionString("IdentityDb")
+    ?? throw new InvalidOperationException(
+        "Configura ConnectionStrings:IdentityDb apuntando a SQL Server Express LocalDB.");
+
+builder.Services.AddDbContext<IdentidadDbContext>(opciones =>
+    opciones.UseSqlServer(conexion));
+
+builder.Services.AddIdentityCore<IdentityUser>(opciones =>
+{
+    opciones.User.RequireUniqueEmail = true;
+    opciones.Password.RequiredLength = 8;
+    opciones.Password.RequireDigit = true;
+    opciones.Password.RequireUppercase = true;
+    opciones.Password.RequireLowercase = true;
+    opciones.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+    opciones.Lockout.MaxFailedAccessAttempts = 5;
+    opciones.Lockout.AllowedForNewUsers = true;
+})
+.AddRoles<IdentityRole>()
+.AddEntityFrameworkStores<IdentidadDbContext>()
+.AddSignInManager()
+.AddDefaultTokenProviders();
+~~~
+
+El registro `AddDbContext` decide dónde se almacena la información. `AddIdentityCore` configura reglas para cuentas y contraseñas; `AddRoles` añade la administración de roles; `AddEntityFrameworkStores` conecta esas operaciones al contexto SQL Server. `AddSignInManager` proporciona las comprobaciones de inicio de sesión. En particular, `UserManager` no representa una tabla que debamos recorrer manualmente para comparar contraseñas: proporciona operaciones que aplican la configuración de Identity.
+
+El contexto queda declarado al final de `Program.cs`, fuera de las instrucciones de nivel superior:
+
+~~~csharp
+sealed class IdentidadDbContext(DbContextOptions<IdentidadDbContext> opciones)
+    : IdentityDbContext<IdentityUser>(opciones) { }
+~~~
+
+Tras `builder.Build()` se crea un ámbito de servicios y se llama a `EnsureCreatedAsync` para preparar las tablas. El ámbito es necesario porque `IdentidadDbContext` es un servicio con ciclo de vida acotado; no debemos resolverlo y conservarlo globalmente como si fuera un objeto estático. El bloque de referencia también crea `Alumno` y `Formador` cuando todavía no existen; comprueba con `RoleManager.RoleExistsAsync` para no duplicarlos en cada arranque.
+
+**Estado teórico 2 — registrar no significa autenticar.** Este es el manejador real de registro:
+
+~~~csharp
+// P4.5.4: Identity aplica hash de contraseñas; no las almacenamos manualmente.
+app.MapPost("/auth/registro", async (RegistrarDto entrada,
+    UserManager<IdentityUser> usuarios) =>
+{
+    if (string.IsNullOrWhiteSpace(entrada.Email) ||
+        string.IsNullOrWhiteSpace(entrada.Password))
+        return Results.BadRequest("Correo y contraseña obligatorios.");
+
+    var nuevo = new IdentityUser
+    {
+        UserName = entrada.Email.Trim(),
+        Email = entrada.Email.Trim()
+    };
+    var resultado = await usuarios.CreateAsync(nuevo, entrada.Password);
+    if (!resultado.Succeeded)
+        return Results.ValidationProblem(
+            resultado.Errors.GroupBy(e => e.Code)
+                .ToDictionary(g => g.Key, g => g.Select(e => e.Description).ToArray()));
+
+    var asignacion = await usuarios.AddToRoleAsync(nuevo, "Alumno");
+    if (!asignacion.Succeeded)
+        return Results.Problem("No se pudo configurar el rol del usuario.");
+
+    return Results.Created("/api/identidad/yo", new
+    {
+        id = nuevo.Id,
+        email = nuevo.Email,
+        rol = "Alumno"
+    });
+});
+~~~
+
+Al recibir JSON, el servidor construye `RegistrarDto` y verifica que existan correo y contraseña. Crea `IdentityUser` y llama a `UserManager.CreateAsync`; Identity aplica sus reglas y guarda un hash de contraseña en LocalDB. Los errores se convierten en una respuesta 400 estructurada. Si todo va bien, `AddToRoleAsync` concede **solo el rol Alumno**, y el servidor responde 201 sin incluir la contraseña. El resultado de registrarse no es todavía un JWT: el cliente debe demostrar posteriormente que conoce la contraseña.
+
+La distinción también protege contra una escalada de permisos. No existe una propiedad `Rol` en el DTO que el cliente pueda usar para hacerse Formador. La cuenta Formador se prepara únicamente en una inicialización docente controlada fuera del endpoint público.
+
+**Estado teórico 3 — de una contraseña verificada a un JWT.** El acceso se implementa con la siguiente operación real:
+
+~~~csharp
+// P4.5.5: comprueba contraseñas y bloqueo mediante SignInManager.
+app.MapPost("/auth/login", async (AccederDto entrada,
+    UserManager<IdentityUser> usuarios,
+    SignInManager<IdentityUser> acceso) =>
+{
+    var usuario = await usuarios.FindByEmailAsync(entrada.Email ?? "");
+    if (usuario is null)
+        return Results.Unauthorized();
+
+    var resultado = await acceso.CheckPasswordSignInAsync(
+        usuario, entrada.Password ?? "", lockoutOnFailure: true);
+    if (!resultado.Succeeded)
+        return Results.Unauthorized();
+
+    var roles = await usuarios.GetRolesAsync(usuario);
+    var ahora = DateTime.UtcNow;
+    var caducidad = ahora.AddMinutes(15);
+    var claims = new List<Claim>
+    {
+        new(JwtRegisteredClaimNames.Sub, usuario.Id),
+        new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
+        new(JwtRegisteredClaimNames.Iat,
+            DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(),
+            ClaimValueTypes.Integer64),
+        new(ClaimTypes.NameIdentifier, usuario.Id),
+        new(ClaimTypes.Email, usuario.Email ?? "")
+    };
+    claims.AddRange(roles.Select(rol => new Claim(ClaimTypes.Role, rol)));
+
+    var token = new JwtSecurityToken(
+        issuer: emisor,
+        audience: audiencia,
+        claims: claims,
+        notBefore: ahora,
+        expires: caducidad,
+        signingCredentials: new SigningCredentials(
+            new SymmetricSecurityKey(bytesFirma),
+            SecurityAlgorithms.HmacSha256));
+
+    return Results.Ok(new
+    {
+        accessToken = new JwtSecurityTokenHandler().WriteToken(token),
+        tokenType = "Bearer",
+        expiresAtUtc = caducidad
+    });
+});
+~~~
+
+Comenzamos buscando el usuario; si no existe se devuelve 401. `CheckPasswordSignInAsync` comprueba la credencial, incluido el mecanismo de bloqueo activado en esta demostración. Si falla, tampoco se emite token. Solo después se obtienen los roles reales desde SQL Server y se construye una lista de claims. La firma HMAC se calcula con la clave local cargada por configuración; el `JwtSecurityToken` contiene emisor, audiencia, instante inicial y expiración a quince minutos.
+
+No se guarda el JWT en la tabla de usuarios ni se utiliza como contraseña. Una vez emitido, funciona como una credencial que el cliente debe presentar expresamente. `WriteToken` serializa el objeto firmado; el consumidor recibe `accessToken`, `tokenType` y `expiresAtUtc`. No se registra ni se muestra el valor completo en la interfaz de referencia.
+
+**Estado teórico 4 — emitir un JWT no significa aceptarlo sin verificar.** Antes de `builder.Build()` registramos la autenticación de la API con el middleware JWT:
+
+~~~csharp
+// P4.5.2: JWT de verdad, validando firma, emisor, audiencia y expiración.
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(opciones =>
+    {
+        opciones.MapInboundClaims = false;
+        opciones.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = emisor,
+            ValidateAudience = true,
+            ValidAudience = audiencia,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(bytesFirma),
+            ValidateLifetime = true,
+            RequireExpirationTime = true,
+            RequireSignedTokens = true,
+            ClockSkew = TimeSpan.FromSeconds(5),
+            NameClaimType = ClaimTypes.NameIdentifier,
+            RoleClaimType = ClaimTypes.Role
+        };
+    });
+builder.Services.AddAuthorization();
+~~~
+
+Obsérvese el orden de las responsabilidades. El servidor ya conoce `emisor`, `audiencia` y `bytesFirma`; el manejador `JwtBearer` necesita esos mismos valores para verificar que recibe un token dirigido a esta API y firmado con la clave de confianza. `ValidateLifetime` exige vigencia temporal. `MapInboundClaims=false` evita transformaciones automáticas de nombres de claims que dificultarían la observación en el laboratorio; el proyecto fija además los tipos usados para nombre y rol.
+
+Es importante registrar autenticación y autorización **antes de construir el host**, y aplicar sus middleware tras `Build`:
+
+~~~csharp
+app.UseAuthentication();
+app.UseAuthorization();
+~~~
+
+Si un alumno añade `RequireAuthorization` pero no registra correctamente la autenticación, no habrá un principal autenticado con el que evaluar la política. Si añade un JWT a la respuesta de login pero omite `AddJwtBearer`, la API no estará preparada para validarlo en los recursos de destino.
+
+**Estado teórico 5 — proteger rutas por identidad y por rol.** Los endpoints reales son:
+
+~~~csharp
+// P4.5.6: sin Bearer válido devuelve 401.
+app.MapGet("/api/identidad/yo", (ClaimsPrincipal principal) =>
+    Results.Ok(new
+    {
+        id = principal.FindFirstValue(ClaimTypes.NameIdentifier),
+        email = principal.FindFirstValue(ClaimTypes.Email),
+        roles = principal.FindAll(ClaimTypes.Role).Select(c => c.Value).ToArray()
+    }))
+    .RequireAuthorization();
+
+// P4.5.7: un token de Alumno es auténtico pero carece del rol => 403.
+app.MapGet("/api/identidad/formador", () =>
+    Results.Ok(new { mensaje = "Recurso reservado a Formador" }))
+    .RequireAuthorization(p => p.RequireRole("Formador"));
+~~~
+
+`/api/identidad/yo` exige únicamente autenticación; un JWT de Alumno válido basta para recibir ID, correo y roles. `/api/identidad/formador` exige, además, el rol Formador: el mismo JWT de Alumno obtiene 403, aunque haya superado la validación de firma. Sin cabecera `Authorization: Bearer` la API devuelve 401. Es la comprobación concreta de la diferencia entre *quién es el solicitante* y *qué puede hacer*.
+
+**Estado teórico 6 — comprobar que el dato persistido es realmente de Identity.** El fichero LocalDB debe contener las tablas del sistema y los usuarios creados. El explorador SQL Server de Visual Studio permite comprobar que `AspNetUsers` identifica los registros y `AspNetUserRoles` los relaciona con `AspNetRoles`. No copiamos hashes de contraseña a los documentos. Repetir el registro del mismo correo debe producir un error; reiniciar la API no elimina los usuarios de LocalDB.
+
+Esto último contrasta con la API de productos del punto 4.3: aquella conserva un diccionario en memoria y reiniciarlo restaura los productos de ejemplo. Identity usa una base persistente, por lo que registrar al alumno una segunda vez no equivale a empezar desde cero.
+
+**Estado teórico 7 — integrar un consumidor Blazor sin cambiar la identidad del host.** La nueva página `/perfil-jwt` utiliza `IHttpClientFactory` para obtener un cliente llamado `IdentityJwtApi`. Tras llamar a `/auth/login`, envía `Authorization: Bearer` al recurso de perfil. El servidor Blazor que ejecuta el componente y la API de Identity son procesos distintos. La cookie `CookiesDemo` de `/seguridad` no autentica automáticamente a este cliente HTTP; por eso debemos incluir el JWT de forma expresa.
+
+Esta solución separa dos demostraciones, no intenta construir un proveedor de identidades empresarial. Ni la clave local, ni la inicialización de la cuenta docente ni el almacenamiento temporal del token representan una configuración de producción.
+
+#### Comprobaciones conceptuales que preceden al ejercicio
+
+| Estado construido | Evidencia que demuestra | Límite de la evidencia |
+|---|---|---|
+| Contexto y roles en LocalDB | Existen tablas de Identity y los roles iniciales | Aún no hay registro público |
+| POST de registro | Identity valida la contraseña, crea el usuario y asigna Alumno | Registrarse no emite JWT |
+| POST de login | Contraseña correcta produce JWT firmado | Emitir no demuestra que la API lo acepte |
+| Middleware JwtBearer | Firma, emisor, audiencia y vigencia se validan | No reemplaza autorización por roles |
+| Recurso `/yo` | Token válido produce 200; ausencia, 401 | No prueba el permiso Formador |
+| Recurso `/formador` | JWT Alumno produce 403; Formador, 200 | No implica proteger la API de productos |
+| Página Blazor `/perfil-jwt` | Se envía Bearer desde cliente HTTP y se observan estados | Olvidar el JWT local no revoca tokens |
+
+La teoría presenta así las clases, la construcción y los resultados antes de que la práctica proponga escribirlos. Cuando se ejecuten los pasos J3–J6 el estudiante podrá asociar cada fragmento con una responsabilidad ya explicada.
+
 #### Un contraste práctico con la cookie de Blazor
 
 | Aspecto | Cookie de demostración 4.4 | JWT de ampliación |
