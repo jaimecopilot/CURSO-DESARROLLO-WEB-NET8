@@ -835,3 +835,64 @@ La compatibilidad de contratos es uno de los motivos por los que una API no debe
 Sin escribir todavía código, responde: ¿qué componente conoce el puerto 5081? ¿Qué capa debe saber que existe `api/productos`? ¿Quién asigna el identificador? ¿Dónde se comprueba el rol `Formador` para `/demo/privado`? Si las respuestas sitúan el puerto en configuración/cliente HTTP, la ruta en servicio/API, el ID en la API y la autorización en el servidor, la separación de responsabilidades está bien comprendida.
 
 Estas decisiones serán observables en los proyectos de 4.1–4.4 y no dependen de nombres de clases memorísticos: derivan del recorrido completo de la petición.
+
+### 4.4.6. Autenticación por cookie: seguir el intercambio completo
+
+Cuando el usuario completa correctamente el formulario de demostración, el navegador envía una petición HTTP POST al servidor Blazor. El servidor compara el código local del laboratorio, crea una identidad con claims y ejecuta `SignInAsync`. En la respuesta aparece una cookie de autenticación; en solicitudes posteriores el navegador la envía al servidor correspondiente. El middleware vuelve a interpretar esa cookie y crea el principal asociado al usuario.
+
+Es útil distinguir tres instantes. **Antes de entrar**, el navegador no presenta una cookie reconocida y el principal es anónimo. **Después del POST correcto**, la respuesta establece la sesión y redirige a la página de demostración. **Después de salir**, el servidor solicita al navegador que elimine o invalide la cookie y una navegación posterior vuelve a producir una identidad anónima.
+
+Esto explica por qué no debemos intentar emitir una cookie dentro de un evento cualquiera de un componente interactivo cuando ya se ha iniciado la respuesta HTTP. El formulario POST convencional facilita que el servidor controle la respuesta y sus cabeceras.
+
+En el laboratorio la autenticación ocurre en el servidor Blazor. No implica que el proceso de la API REST auxiliar acepte automáticamente esa misma identidad ni que comparta el mismo esquema de cookies. Autenticación y autorización deben diseñarse explícitamente en los límites de cada aplicación.
+
+### 4.4.7. Comprender el antiforgery en un formulario de entrada
+
+Un navegador autenticado envía automáticamente cookies apropiadas al servidor. Esta comodidad introduce un riesgo: otro sitio podría intentar provocar un POST usando la sesión del navegador. El token antifalsificación permite al servidor comprobar que la solicitud proviene de un formulario que recibió un token legítimo.
+
+En Razor declaramos:
+
+```razor
+<form method="post" action="/demo/salir" data-enhance="false">
+    <AntiforgeryToken />
+    <button type="submit">Cerrar sesión</button>
+</form>
+```
+
+En un endpoint de demostración que lee el formulario directamente, conviene hacer explícita la comprobación:
+
+```csharp
+app.MapPost("/demo/salir",
+    async (HttpContext http, IAntiforgery antiforgery) =>
+{
+    if (!await antiforgery.IsRequestValidAsync(http))
+        return Results.BadRequest("Token antifalsificación inválido.");
+
+    await http.SignOutAsync("CookiesDemo");
+    return Results.Redirect("/seguridad");
+});
+```
+
+El código requiere el espacio de nombres `Microsoft.AspNetCore.Antiforgery` y `Microsoft.AspNetCore.Authentication`, así como la configuración adecuada del middleware. El resultado de un POST sin token no es una salida válida sino una respuesta de error. El token no sustituye la comprobación del usuario ni convierte un código fijo de laboratorio en una contraseña segura.
+
+### 4.4.8. ¿Qué diferencia hay entre 401 y 403?
+
+La semántica es importante aunque algunas aplicaciones web redirijan al formulario de acceso. **401 Unauthorized** indica que no existe una autenticación válida para acceder al recurso. **403 Forbidden** corresponde a una identidad reconocida que carece del permiso exigido. Con autenticación por cookie, los manejadores pueden convertir esas situaciones en redirecciones a páginas de entrada o de acceso denegado. En un endpoint consultado como API puede ser preferible conservar los códigos HTTP para que el cliente los interprete.
+
+Nuestro endpoint de laboratorio requiere el rol `Formador`. Una persona anónima no satisface esa política. Un principal autenticado con otro rol tampoco, pero la razón es diferente: ya sabemos quién es y lo que falta es autorización.
+
+En pruebas, no basta con ver que un botón está oculto: debemos consultar directamente el endpoint y comprobar que el servidor rechaza la solicitud cuando falta la identidad o el permiso.
+
+### 4.4.9. Los límites concretos de una demostración segura
+
+Un proyecto de aula con código fijo de acceso debe expresar su finalidad. No es un sistema de identidad para Internet. No debe reutilizarse en un despliegue y no debe almacenar datos sensibles. Para mantener controlado el ejemplo, sus rutas especiales pueden registrarse únicamente bajo `app.Environment.IsDevelopment()`.
+
+Los mecanismos que faltarían en un producto real incluyen verificación de credenciales mediante un proveedor adecuado, gestión del ciclo de vida de usuarios, configuración segura de cookies, HTTPS, protección de secretos, políticas de acceso y procedimientos de recuperación. No se desarrollan aquí porque la finalidad de M04 es observar los conceptos básicos dentro de seis horas.
+
+### 4.4.10. Diagnóstico guiado de un acceso fallido
+
+Si la página continúa mostrando una identidad anónima después de enviar el formulario, comprueba primero que el POST se ha enviado a la ruta correcta y que el navegador no lo ha tratado como una navegación parcial que impide observar la nueva cookie. Comprueba después que el token antifalsificación se envió y que el servidor aceptó la solicitud. Si la respuesta es satisfactoria, observa si la cookie se almacenó y si el navegador la envía al volver a consultar el servidor.
+
+Si la página muestra el usuario pero el recurso protegido deniega acceso, revisa la autorización del endpoint. Una identidad autenticada puede carecer del claim de rol requerido. Si la interfaz muestra el rol y aun así el endpoint rechaza la solicitud, revisa si ambas acciones se están ejecutando en el mismo host y bajo el mismo esquema de autenticación.
+
+Este procedimiento está orientado a clasificar errores. No necesitamos integrar un sistema de gestión de cuentas para aprender a diferenciar identidad, permisos, HTTP y presentación.
