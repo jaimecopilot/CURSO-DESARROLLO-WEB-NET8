@@ -1250,6 +1250,189 @@ Ejecuta la API construida desde cero en el mismo puerto y abre la aplicación Bl
 
 Esta tabla permite evaluar el contrato sin confundir éxito de compilación con éxito funcional. Es recomendable escribir el resultado observado junto a cada prueba cuando el alumno la ejecuta, aunque no incorporaremos un sistema de auditoría a su código fuente.
 
+
+### P4.3 — Laboratorio de solicitudes en el editor HTTP de Visual Studio
+
+Además de consultar la API desde Blazor, vamos a ejecutarla como lo haría otro consumidor HTTP. Visual Studio puede abrir archivos .http que contienen solicitudes separadas mediante líneas ###. Cada solicitud declara el verbo, la ruta, sus cabeceras y, cuando es necesario, un cuerpo JSON. La utilidad pedagógica de este archivo es poder reproducir las operaciones sin escribir un programa cliente adicional.
+
+El proyecto de referencia incorpora ProductosApi.http. También puedes crearlo manualmente dentro de la carpeta de la API que hayas construido desde cero. La variable BaseUrl concentra el host y el puerto. Si has arrancado una API diferente en otra dirección, cambia ese valor en una copia del fichero y no modifiques todos los endpoints uno a uno.
+
+#### Preparación del laboratorio HTTP
+
+Antes de comenzar, detén los procesos que puedan estar usando 5081. Inicia exclusivamente la API que deseas comprobar; por ejemplo, la que has construido mediante dotnet new web. Observa en la consola que ha comenzado a escuchar. Comprueba con el navegador que GET /api/productos responde, y después abre el editor HTTP.
+
+No ejecutes de una sola vez todas las solicitudes del archivo suponiendo que los resultados serán independientes. Algunas, como POST Regla y POST Agenda, modifican el diccionario en memoria. El identificador de una creación depende del estado que ya exista en ese proceso. Para observar exactamente el caso de dos elementos iniciales, reinicia antes la API.
+
+#### Solicitudes ejecutables del laboratorio
+
+El contenido del archivo es el siguiente:
+
+
+~~~http
+# M04 · P4.3 · Peticiones que puede ejecutar el alumno en Visual Studio
+# Arrancar antes la API en http://localhost:5081
+# Los resultados de POST dependen del estado temporal del proceso.
+@BaseUrl = http://localhost:5081
+
+### A. Catálogo inicial: 200 y colección de dos elementos
+GET {{BaseUrl}}/api/productos
+Accept: application/json
+
+### B. Detalle existente: 200, Cuaderno
+GET {{BaseUrl}}/api/productos/1
+Accept: application/json
+
+### C. Identificador inexistente: 404
+GET {{BaseUrl}}/api/productos/999
+Accept: application/json
+
+### D. Ruta inexistente: 404 por enrutamiento
+GET {{BaseUrl}}/api/catalogo
+Accept: application/json
+
+### E. Creación correcta: 201 + Location
+POST {{BaseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+
+{
+  "nombre": "Regla",
+  "precio": 1.75
+}
+
+### F. Revisar el catálogo tras la creación
+GET {{BaseUrl}}/api/productos
+Accept: application/json
+
+### G. Rechazo de precio cero: 400
+POST {{BaseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "Regla",
+  "precio": 0
+}
+
+### H. Rechazo de nombre vacío: 400
+POST {{BaseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "",
+  "precio": 1.75
+}
+
+### I. Rechazo de nombre formado por espacios: 400
+POST {{BaseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "   ",
+  "precio": 1.75
+}
+
+### J. Rechazo de precio negativo: 400
+POST {{BaseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "Regla",
+  "precio": -0.01
+}
+
+### K. Nombre con espacios a normalizar: 201
+POST {{BaseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "   Agenda   ",
+  "precio": 6.40
+}
+
+### L. Resumen (ACTIVAR PASO 4.3.3): 200, cantidad y precioTotal
+GET {{BaseUrl}}/api/productos/resumen
+Accept: application/json
+
+### M. Resumen extendido (ACTIVAR RETO 4.3.5 EN VEZ DEL PASO):
+# El resultado incluye hayProductos; no activar ambas rutas a la vez.
+GET {{BaseUrl}}/api/productos/resumen
+Accept: application/json
+
+~~~
+
+
+#### Interpretación 1: distinguir las dos clases de 404
+
+Ejecuta primero la solicitud de detalle con ID 999. El endpoint GET /api/productos/{id:int} existe, pero el diccionario no contiene ese identificador y la lógica devuelve NotFound. Ahora ejecuta la solicitud de /api/catalogo. En este segundo caso no hemos publicado una ruta que corresponda a esa petición.
+
+Aunque ambas operaciones pueden responder 404, sus causas son diferentes. La primera demuestra que la lógica de un recurso controla una ausencia válida; la segunda que la ruta solicitada no coincide con un endpoint disponible. Saber diferenciarlas evita corregir datos cuando el problema es una dirección equivocada.
+
+#### Interpretación 2: cuerpo de creación y estado HTTP
+
+Ejecuta la solicitud POST correcta de Regla. Comprueba que el servidor recibe JSON con nombre y precio, que responde con 201 y que entrega el recurso nuevo. Observa si aparece Location y qué dirección señala. Después ejecuta el GET del catálogo y verifica que el servidor realmente incorporó el elemento.
+
+Una respuesta 201 sin posibilidad de consultar el recurso o sin el producto esperado merece investigación: la creación no queda demostrada solamente porque haya aparecido una cifra en un encabezado de respuesta. En este laboratorio, la evidencia conjunta es el POST, el producto devuelto y su aparición posterior en GET.
+
+#### Interpretación 3: reglas de negocio frente a sintaxis JSON
+
+El archivo incluye casos de nombre vacío, nombre compuesto por espacios, precio cero y precio negativo. Todos son JSON sintácticamente válido. El servidor debe convertir esos cuerpos a CrearProductoApi y después rechazarlos por las reglas de negocio del ejercicio.
+
+Una entrada con JSON mal formado es un caso distinto: el problema puede aparecer durante la lectura del cuerpo antes de ejecutar las reglas de validación. El alumno no debe atribuir a la función de comprobación del nombre todos los errores que se producen en una solicitud POST.
+
+Al ejecutar cada petición inválida, realiza GET inmediatamente después y verifica que la colección no ha aumentado. No basta con observar 400; también queremos descartar que se haya añadido el elemento antes de rechazarlo.
+
+#### Interpretación 4: normalización de datos
+
+Ejecuta el POST con espacios antes y después del nombre Agenda. El servidor llama Trim antes de crear el producto, por lo que la respuesta debe contener el nombre normalizado. La UI de Blazor también aplica una normalización básica antes de enviar. Estas dos decisiones no son redundantes de manera accidental: la primera ayuda al usuario y la segunda protege el contrato del servidor frente a cualquier cliente HTTP.
+
+Explica por qué el servidor no debe confiar en que todos los consumidores utilizarán necesariamente el formulario que hemos construido. La existencia del fichero .http es una prueba de que otro cliente puede invocar la operación sin pasar por el componente Razor.
+
+#### Interpretación 5: el resumen es una operación distinta
+
+Antes de activar el endpoint de resumen, su solicitud no debe devolver el objeto esperado. Ahora activa exclusivamente PASO 4.3.3 en Program.cs, compila y reinicia. Consulta de nuevo el resumen y comprueba que incluye cantidad y precioTotal.
+
+Si se habían creado productos antes de reiniciar, recuerda que la colección vuelve al estado inicial de memoria. Para comprobar el valor después de un alta, realiza POST Regla y a continuación solicita de nuevo el resumen. Así el resultado debe reflejar tres productos y la suma de sus precios.
+
+Después desactiva el paso normal y activa la variante RETO 4.3.5. El JSON debe incorporar hayProductos. No actives ambos bloques simultáneamente: publicarías dos GET con la misma ruta, lo que dificulta seleccionar un único resultado y contradice el propósito de la variante.
+
+#### Interpretación 6: el cliente Blazor conserva su contrato
+
+Una vez que has comprobado directamente la API construida por el alumno, deja ese proceso escuchando en 5081 y arranca el proyecto Blazor de 4.2. La página /catalogo-remoto debe cargar la lista y permitir crear un producto.
+
+Comprueba en ProductosApiService.cs que las rutas siguen siendo api/productos y que el servicio utiliza DTO de lectura y creación compatibles. Si el .http funciona pero el cliente Blazor no, ya has aislado una parte del problema: revisa la configuración del cliente HTTP y la serialización antes de reescribir el endpoint.
+
+Si el servidor devuelve un objeto de resumen correcto pero Blazor no lo presenta en su catálogo, no es un fallo: esa pantalla consume deliberadamente la lista original. Añadir una pantalla específica para el resumen sería otro requisito, no un cambio implícito de GET /api/productos.
+
+### P4.3 — Ficha individual para estudiar respuestas
+
+Para cada operación ejecutada anota mentalmente o en tus notas de trabajo cinco datos: método y ruta, cuerpo de solicitud, estado obtenido, forma del cuerpo de respuesta y cambio de estado del servidor si existe. Esa pauta impide clasificar una operación por una sola cifra.
+
+Por ejemplo, para POST Regla: el método es POST, la ruta /api/productos, la entrada contiene nombre y precio, el estado esperado es 201, el cuerpo es un objeto con ID y la colección se incrementa. Para GET /api/productos/999: método GET, sin cuerpo de creación, estado 404 y sin modificación del diccionario.
+
+La pauta cambia al examinar un problema de conectividad. Si el servidor está apagado, no hay estado HTTP emitido por la API; por tanto, describirlo simplemente como un 404 sería incorrecto. Esa distinción se ha practicado también en P4.1, ahora desde el otro extremo de la comunicación.
+
+### P4.3 — Plan de recuperación ante errores de construcción
+
+**El proyecto no compila después de añadir los records.** Comprueba que las instrucciones de nivel superior aparezcan antes de las declaraciones de tipos auxiliares. Revisa que los records finales se sitúen fuera del cuerpo de otro bloque y no dentro del lambda de un endpoint.
+
+**La API arranca pero la raíz devuelve un resultado diferente.** Comprueba qué plantilla dotnet new utilizaste y qué rutas añadiste. No presupongas que la plantilla web vacía publica automáticamente /api/productos. Ese endpoint pertenece al código que el alumno debe construir.
+
+**El GET funciona pero el POST responde 404.** Observa qué verbos se han registrado para /api/productos. Tener MapGet no implica que exista MapPost. Una ruta puede reconocer distintas operaciones según el método HTTP.
+
+**El POST responde 400 para un precio que parece válido.** Revisa el cuerpo JSON real que envía la herramienta, la representación decimal y el nombre del campo. No uses una coma decimal fuera de una cadena en JSON: el formato numérico JSON emplea el punto. Después comprueba la regla de precio positivo.
+
+**El POST devuelve 201 pero no localizas el producto.** Comprueba que GET y POST comparten la misma instancia del diccionario y que la API no se ha reiniciado entre las dos solicitudes. La memoria de laboratorio vive únicamente mientras el proceso está en ejecución.
+
+**El resumen devuelve una lista.** Puede que sigas consultando /api/productos en lugar de /api/productos/resumen. Comprueba la URL efectiva antes de modificar los DTO. Cada endpoint tiene su propio contrato.
+
+**El resumen falla tras activar el reto.** Comprueba que has desactivado el bloque PASO 4.3.3. Solo se debe registrar una de las variantes del mismo método y ruta. El resultado debe ser un objeto único con las propiedades del contrato extendido.
+
+### P4.3 — Conclusión que el alumno debe poder demostrar
+
+Conserva dos proyectos diferentes: el cliente Blazor y la API que has construido desde cero. Pon la API en marcha, comprueba sus endpoints con el archivo .http y después inicia Blazor. El catálogo remoto debe funcionar sin cambiar el código del componente y el servidor debe seguir rechazando las entradas inválidas incluso cuando no interviene la interfaz.
+
+Si puedes explicar por qué esas tres condiciones son simultáneamente necesarias —funcionamiento directo del servidor, compatibilidad del cliente y validación independiente— habrás comprendido el propósito de crear la API dentro de M04.
+
 ### Resultado del ejercicio
 
 Ahora puedes recorrer una petición desde Blazor hasta la API y viceversa, interpretar sus códigos HTTP y añadir un endpoint nuevo sin modificar rutas existentes. La API continúa funcionando en memoria: al reiniciarla se pierde todo lo creado durante la ejecución.
