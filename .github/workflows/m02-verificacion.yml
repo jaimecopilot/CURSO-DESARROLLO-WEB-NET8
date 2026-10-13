@@ -2,7 +2,7 @@ name: M02 - Pruebas de estados intermedios
 on:
   workflow_dispatch:
   push:
-    branches: [desarrollo/m02-sobre-m01-aprobado]
+    branches: [desarrollo/m02-sobre-m01-aprobado, desarrollo/reconstruccion-m01-m02-trazable]
     paths:
       - "M02_FORMULARIOS_RAZOR/TESTS/**"
       - "M02_FORMULARIOS_RAZOR/PROYECTO/**"
