@@ -323,7 +323,7 @@ public class ProductosController : Controller
 }
 ~~~
 
-Identifica en estas líneas qué responde a GET, qué recoge el POST y qué se limita a presentar datos. Ejecuta el caso asociado en los pasos de P2.1 y comprueba que el catálogo anterior sigue siendo navegable.
+**Cómo participa en P2.1.** `GET Crear` prepara el objeto que necesita la vista y `POST Crear` recibe `Nombre` y `Precio` mediante model binding. Al activar el POST, `ValidateAntiForgeryToken` debe seguir presente y el resultado se envía a `Confirmacion` sin modificar todavía el catálogo en memoria. Comprueba además que `Index`, `Detalle` y `Ficha` continúan respondiendo: añadir un formulario no sustituye las acciones de consulta de M01.
 
 ### P2.1 — Views/Productos/Crear.cshtml
 
@@ -345,7 +345,7 @@ Contiene los controles del formulario, su destino y la protección antiforgery. 
 <p><a href="/Productos">Volver al catálogo</a></p>
 ~~~
 
-Identifica en estas líneas qué responde a GET, qué recoge el POST y qué se limita a presentar datos. Ejecuta el caso asociado en los pasos de P2.1 y comprueba que el catálogo anterior sigue siendo navegable.
+**Cómo participa en P2.1.** Los atributos HTML `name="Nombre"` y `name="Precio"` son el contrato que el model binder utiliza para rellenar `Producto`; `action="/Productos/Crear"` y `method="post"` determinan la solicitud que se envía. `@Html.AntiForgeryToken()` añade el campo oculto que el filtro del controlador exige. El formulario recoge datos, pero no asigna un Id ni demuestra persistencia.
 
 ### P2.1 — Views/Productos/Confirmacion.cshtml
 
@@ -375,7 +375,7 @@ RETO 2.1 FIN *@
 <p><a asp-controller="Productos" asp-action="Index">Volver al catálogo</a></p>
 ~~~
 
-Identifica en estas líneas qué responde a GET, qué recoge el POST y qué se limita a presentar datos. Ejecuta el caso asociado en los pasos de P2.1 y comprueba que el catálogo anterior sigue siendo navegable.
+**Cómo participa en P2.1.** Esta vista recibe exactamente el `Producto` que el POST acaba de construir y representa sus valores. Que aquí aparezcan nombre y precio demuestra el enlace de modelos, no un `INSERT`: al volver al catálogo siguen los tres productos fijos. La aplicación autónoma y el reto modifican únicamente la presentación de este mismo objeto recibido.
 
 ### P2.1 — Views/Productos/Index.cshtml
 
@@ -428,7 +428,7 @@ else
 }
 ~~~
 
-Identifica en estas líneas qué responde a GET, qué recoge el POST y qué se limita a presentar datos. Ejecuta el caso asociado en los pasos de P2.1 y comprueba que el catálogo anterior sigue siendo navegable.
+**Cómo participa en P2.1.** `Index` conserva la lista heredada de M01 y añade el acceso al nuevo recorrido de creación. El enlace a `Crear` inicia una nueva petición GET; no añade un cuarto elemento a `Model`. Comprueba que después de enviar el formulario y regresar al listado continúan apareciendo los mismos tres objetos en memoria.
 
 ### P2.1 — Views/Productos/Detalle.cshtml
 
@@ -462,7 +462,7 @@ El detalle por Id sigue funcionando incluso cuando se introduce otra operación 
 </section>
 ~~~
 
-Identifica en estas líneas qué responde a GET, qué recoge el POST y qué se limita a presentar datos. Ejecuta el caso asociado en los pasos de P2.1 y comprueba que el catálogo anterior sigue siendo navegable.
+**Cómo participa en P2.1.** `Detalle.cshtml` no forma parte del envío del formulario: sigue representando un `Producto` seleccionado por Id mediante las acciones heredadas. Visitar `/Productos/Detalle/2` antes y después de activar el POST debe producir la misma ficha. Esta regresión confirma que incorporar GET/POST de creación no rompe el recorrido de consulta.
 
 ### P2.1 — Views/Shared/_TarjetaProducto.cshtml
 
@@ -486,7 +486,7 @@ La parcial de tarjeta continúa presentando productos sin convertirse en formula
 </article>
 ~~~
 
-Identifica en estas líneas qué responde a GET, qué recoge el POST y qué se limita a presentar datos. Ejecuta el caso asociado en los pasos de P2.1 y comprueba que el catálogo anterior sigue siendo navegable.
+**Cómo participa en P2.1.** La parcial continúa recibiendo un `Producto` ya existente y construyendo su tarjeta; no contiene controles `<form>`, antiforgery ni lógica de model binding. Su permanencia muestra que el nuevo formulario se integra en la aplicación sin desplazar los componentes de presentación creados en M01.
 
 ### P2.1 — Views/Shared/_Layout.cshtml
 
@@ -523,7 +523,7 @@ El layout mantiene una navegación coherente por las páginas MVC. El archivo si
 </html>
 ~~~
 
-Identifica en estas líneas qué responde a GET, qué recoge el POST y qué se limita a presentar datos. Ejecuta el caso asociado en los pasos de P2.1 y comprueba que el catálogo anterior sigue siendo navegable.
+**Cómo participa en P2.1.** El layout sigue componiendo todas las páginas mediante `@RenderBody()` y conserva navegación y secciones compartidas. No decide si una petición es GET o POST ni recibe `Producto`; esas responsabilidades pertenecen al routing, al controlador y a cada vista. Comprueba que formulario, confirmación, listado y detalle mantienen el mismo marco visual.
 
 ## Cuaderno de profundización opcional P2.1 — Rastrear el contrato completo
 
@@ -842,7 +842,7 @@ La teoría de Tag Helpers ha demostrado por qué Razor puede generar HTML tipado
 <p><a href="/Productos">Volver al catálogo</a></p>
 ~~~
 
-**Resultado que debes poder explicar:** contrasta el HTML visible o los datos que procesa la acción con el estado anterior del formulario. Justifica qué propiedad C# suministra cada campo sin desactivar antiforgery ni duplicar los elementos.
+**Qué debes poder explicar al ejecutarlo.** El formulario inicial y su versión con Tag Helpers deben enviar las mismas propiedades al mismo `POST Crear`. Al sustituir `form`, `label` e `input`, inspecciona el HTML generado: los Tag Helpers producen `action`, `for`, `id` y `name` coherentes con `Producto`, y el Form Tag Helper conserva la protección antiforgery sin mantener a la vez el token escrito manualmente.
 
 ### P2.2 — Views/Productos/Index.cshtml
 
@@ -901,7 +901,7 @@ else
 }
 ~~~
 
-**Resultado que debes poder explicar:** contrasta el HTML visible o los datos que procesa la acción con el estado anterior del formulario. Justifica qué propiedad C# suministra cada campo sin desactivar antiforgery ni duplicar los elementos.
+**Qué debes poder explicar al ejecutarlo.** El reto cambia la forma de generar el enlace, no la acción de destino: `asp-route-id="@producto.Id"` debe producir tres `href` distintos, uno por producto. Si todos los enlaces apuntan al mismo Id, el error está en el valor de ruta utilizado en el bucle, no en `Detalle(int id)`.
 
 ### P2.2 — Views/Shared/_TarjetaProducto.cshtml
 
@@ -931,7 +931,7 @@ else
 </article>
 ~~~
 
-**Resultado que debes poder explicar:** contrasta el HTML visible o los datos que procesa la acción con el estado anterior del formulario. Justifica qué propiedad C# suministra cada campo sin desactivar antiforgery ni duplicar los elementos.
+**Qué debes poder explicar al ejecutarlo.** La aplicación autónoma sustituye el `href` literal de la parcial por un Anchor Tag Helper alimentado por `Model.Id`. Como la misma parcial se usa en listado y detalle, el enlace generado debe seguir apuntando al producto que la parcial está representando en cada contexto.
 
 ### P2.2 — Controllers/ProductosController.cs
 
@@ -1013,7 +1013,7 @@ public class ProductosController : Controller
 }
 ~~~
 
-**Resultado que debes poder explicar:** contrasta el HTML visible o los datos que procesa la acción con el estado anterior del formulario. Justifica qué propiedad C# suministra cada campo sin desactivar antiforgery ni duplicar los elementos.
+**Qué debes poder explicar al ejecutarlo.** Este controlador conserva las mismas firmas GET/POST de P2.1. El hecho de que el HTML de la vista cambie a Tag Helpers no modifica el contrato del servidor: model binding sigue recibiendo `Producto` y antiforgery sigue validándose antes de ejecutar el cuerpo de la acción. Es una prueba de que P2.2 cambia generación de marcado, no lógica de negocio.
 
 ### P2.2 — Views/Productos/Confirmacion.cshtml
 
@@ -1032,7 +1032,7 @@ public class ProductosController : Controller
 <p><a asp-controller="Productos" asp-action="Index">Volver al catálogo</a></p>
 ~~~
 
-**Resultado que debes poder explicar:** contrasta el HTML visible o los datos que procesa la acción con el estado anterior del formulario. Justifica qué propiedad C# suministra cada campo sin desactivar antiforgery ni duplicar los elementos.
+**Qué debes poder explicar al ejecutarlo.** `Confirmacion.cshtml` permanece como destino del POST y recibe el mismo `Producto` independientemente de que el formulario origen se escriba con HTML literal o Tag Helpers. Si el resultado cambia sin haber tocado esta vista, investiga primero el HTML generado y los nombres enviados por el formulario.
 
 ## Cuaderno de profundización opcional P2.2 — Comparación guiada de HTML y Tag Helpers
 
@@ -1412,7 +1412,7 @@ public sealed class ProductoFormulario
 }
 ~~~
 
-**Actividad de lectura vinculada a la teoría.** Revisa las propiedades, los atributos de Razor y las ramas del controlador que intervienen en los casos de Nombre vacío, Nombre corto, Precio fuera de intervalo o dato no convertible. Identifica qué condición decide aceptar o rechazar el envío, qué recibe el usuario y qué se conserva de P2.2.
+**Cómo se conecta con la validación.** `ProductoFormulario` separa la entrada del usuario de la entidad mostrada en el catálogo. `string?` y `decimal?` permiten representar ausencia de datos; `Required`, `StringLength` y `Range` añaden reglas distintas. Prueba vacío, un carácter, texto no convertible y número fuera de rango y relaciona cada error con binding o validación, no con una base de datos que todavía no existe.
 
 ### P2.3 — Controllers/ProductosController.cs
 
@@ -1537,7 +1537,7 @@ public class ProductosController : Controller
 }
 ~~~
 
-**Actividad de lectura vinculada a la teoría.** Revisa las propiedades, los atributos de Razor y las ramas del controlador que intervienen en los casos de Nombre vacío, Nombre corto, Precio fuera de intervalo o dato no convertible. Identifica qué condición decide aceptar o rechazar el envío, qué recibe el usuario y qué se conserva de P2.2.
+**Cómo se conecta con la validación.** El POST recibe `ProductoFormulario` y consulta `ModelState` antes de construir un `Producto`. Los errores de conversión pueden aparecer aunque una DataAnnotation no los haya producido, y el reto añade un error contextual con `ModelState.AddModelError`. Si el estado es inválido se devuelve `View(entrada)`, preservando los valores; solo un estado válido llega a la conversión del modelo.
 
 ### P2.3 — Views/Productos/Crear.cshtml
 
@@ -1587,7 +1587,7 @@ public class ProductosController : Controller
 *@
 ~~~
 
-**Actividad de lectura vinculada a la teoría.** Revisa las propiedades, los atributos de Razor y las ramas del controlador que intervienen en los casos de Nombre vacío, Nombre corto, Precio fuera de intervalo o dato no convertible. Identifica qué condición decide aceptar o rechazar el envío, qué recibe el usuario y qué se conserva de P2.2.
+**Cómo se conecta con la validación.** Los `asp-validation-for` muestran errores asociados a cada propiedad y el resumen `ModelOnly` reserva su zona para errores no asociados a campos. Los `asp-for` regeneran los valores del modelo devuelto por el controlador, por lo que un POST inválido no debe vaciar automáticamente los datos correctos. La sección `Scripts` activa después la capa opcional de validación de cliente.
 
 ### P2.3 — Views/Shared/_ValidationScriptsPartial.cshtml
 
@@ -1605,7 +1605,7 @@ public class ProductosController : Controller
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validation-unobtrusive/4.0.0/jquery.validate.unobtrusive.min.js"></script>
 ~~~
 
-**Actividad de lectura vinculada a la teoría.** Revisa las propiedades, los atributos de Razor y las ramas del controlador que intervienen en los casos de Nombre vacío, Nombre corto, Precio fuera de intervalo o dato no convertible. Identifica qué condición decide aceptar o rechazar el envío, qué recibe el usuario y qué se conserva de P2.2.
+**Cómo se conecta con la validación.** Esta parcial carga jQuery, jQuery Validate y Unobtrusive Validation en el orden necesario para interpretar los atributos generados por MVC en el navegador. Si la CDN no está disponible puede desaparecer la validación cliente, pero el mismo POST inválido debe seguir siendo rechazado por `ModelState` en el servidor; esa diferencia es parte del ejercicio.
 
 ### P2.3 — Views/Shared/_Layout.cshtml
 
@@ -1644,7 +1644,7 @@ public class ProductosController : Controller
 </html>
 ~~~
 
-**Actividad de lectura vinculada a la teoría.** Revisa las propiedades, los atributos de Razor y las ramas del controlador que intervienen en los casos de Nombre vacío, Nombre corto, Precio fuera de intervalo o dato no convertible. Identifica qué condición decide aceptar o rechazar el envío, qué recibe el usuario y qué se conserva de P2.2.
+**Cómo se conecta con la validación.** `RenderSectionAsync("Scripts", required: false)` permite que `Crear.cshtml` cargue los scripts solo cuando declara la sección y que las demás vistas sigan funcionando sin ella. El layout no contiene las reglas `Required` o `Range`: solo ofrece el punto de composición para recursos de la página.
 
 ### P2.3 — Views/Productos/Index.cshtml
 
@@ -1697,7 +1697,7 @@ else
 }
 ~~~
 
-**Actividad de lectura vinculada a la teoría.** Revisa las propiedades, los atributos de Razor y las ramas del controlador que intervienen en los casos de Nombre vacío, Nombre corto, Precio fuera de intervalo o dato no convertible. Identifica qué condición decide aceptar o rechazar el envío, qué recibe el usuario y qué se conserva de P2.2.
+**Cómo se conecta con la validación.** El listado permanece como comprobación de continuidad del catálogo. P2.3 valida datos de entrada, pero todavía no persiste el objeto creado; después de un POST válido y de volver a `Index` deben seguir apareciendo los tres productos en memoria. Si el listado cambia, se ha introducido una responsabilidad que no pertenece aún a este punto.
 
 ### P2.3 — Views/Shared/_TarjetaProducto.cshtml
 
@@ -1721,7 +1721,7 @@ else
 </article>
 ~~~
 
-**Actividad de lectura vinculada a la teoría.** Revisa las propiedades, los atributos de Razor y las ramas del controlador que intervienen en los casos de Nombre vacío, Nombre corto, Precio fuera de intervalo o dato no convertible. Identifica qué condición decide aceptar o rechazar el envío, qué recibe el usuario y qué se conserva de P2.2.
+**Cómo se conecta con la validación.** `_TarjetaProducto` continúa trabajando con `Producto`, no con `ProductoFormulario`. Esa diferencia es deliberada: una tarjeta presenta un objeto del catálogo y no necesita mensajes de `ModelState` ni atributos de validación de entrada. Mantener ambos contratos separados prepara el paso de P2.4 sin mezclar presentación y recepción de datos.
 
 ## Cuaderno de profundización opcional P2.3 — Cuatro causas de fallo diferentes
 
