@@ -2310,6 +2310,114 @@ También debemos comprobar el entorno. La implementación de laboratorio registr
 Esa secuencia de preguntas ofrece una estrategia transferible: no mezclar fallos de transporte, formulario, identidad, cookie y permisos. Cada comprobación debe aportar información sobre uno de esos límites.
 
 
+
+### Ampliación 4.4 — Analizar la seguridad de una aplicación que combina Blazor y una API
+
+El ejemplo de 4.4 utiliza una cookie local de demostración para mostrar qué son autenticación y autorización. Ese escenario es deliberadamente pequeño, pero conviene comprender qué **no** demuestra. Una aplicación real que muestre productos a través de Blazor y permita modificarlos mediante una API tiene al menos dos superficies diferentes: el host que sirve y ejecuta los componentes, y el host que acepta operaciones HTTP sobre productos.
+
+En la pantalla de seguridad podemos iniciar sesión como AlumnoDemo con rol Formador y abrir /demo/privado. Esa autorización pertenece al servidor Blazor y a su política local. El catálogo remoto, por su parte, sigue consumiendo una API auxiliar pública. La identidad de la pantalla no modifica mágicamente la configuración de la API. La separación está presente aunque ambos proyectos se ejecuten en la misma máquina.
+
+#### Una amenaza concreta: acceder a un endpoint sin utilizar la pantalla
+
+Imaginemos que una página Blazor solo representa el botón Crear en API para usuarios con el rol Formador. El desarrollador podría pensar que la operación está protegida porque el usuario anónimo no ve el botón. Sin embargo, cualquier cliente HTTP que conozca la ruta POST /api/productos puede intentar enviar una petición directamente al servidor API.
+
+Si ese endpoint no tiene una política de autorización propia, la ausencia del botón no impide que reciba y procese la petición. Para protegerlo correctamente habría que diseñar cómo reconoce la identidad del cliente remoto, qué credenciales acepta y qué permiso se exige para esa operación.
+
+Este razonamiento permite separar una regla de experiencia de usuario de una regla de seguridad. AuthorizeView ayuda a mostrar elementos apropiados, pero el servidor que posee el recurso debe comprobar sus propios requisitos antes de devolver información o modificar datos.
+
+No vamos a simular una protección de la API que realmente no existe. El laboratorio conserva sus endpoints de productos públicos y los identifica como demostración. El único recurso protegido del punto 4.4 es /demo/privado, que pertenece al host Blazor y utiliza su política de rol.
+
+#### Un segundo riesgo: confundir código de acceso con autenticación de usuarios
+
+El formulario del laboratorio acepta una cadena fija para crear una identidad temporal de prueba. Su finalidad es poder observar SignInAsync, la emisión de una cookie y la comprobación de un rol sin instalar un sistema de cuentas.
+
+La cadena fija no tiene las propiedades de una contraseña de usuario gestionada correctamente. No está asociada a una cuenta con ciclo de vida, no dispone de un proceso de cambio y recuperación, y no constituye un mecanismo de identidad adecuado para publicar un sitio en Internet. Su valor didáctico no justifica convertirla en una característica de producción.
+
+Por eso restringimos las rutas /demo/entrar, /demo/salir y /demo/privado al entorno Development. Si una ejecución publicada no encuentra esas rutas, no significa que debamos eliminar la protección de entorno: significa que el mecanismo de laboratorio no se ha habilitado para un contexto en el que no sería apropiado utilizarlo.
+
+Una aplicación real podría utilizar ASP.NET Core Identity u otro sistema legítimo de autenticación. Eso aportaría funcionalidades como gestión de usuarios, credenciales, confirmaciones, recuperación y políticas adicionales que no hemos desarrollado aquí. Es importante saber que existen sin convertir esta jornada en una instalación y configuración completa de Identity.
+
+#### Un tercer riesgo: pensar que una cookie sirve para todo servidor
+
+Cuando el navegador inicia sesión con el host Blazor, guarda una cookie emitida por ese servidor. No debemos suponer que otro proceso ASP.NET Core reconocerá automáticamente su contenido ni que el navegador enviará una credencial apropiada a cualquier URL.
+
+El ámbito de una cookie depende de sus atributos y de las reglas del navegador, mientras que su interpretación depende del esquema y de la configuración de autenticación del servidor receptor. Compartir autenticación entre aplicaciones requiere un diseño explícito. No se consigue simplemente copiando el nombre CookiesDemo a un segundo Program.cs.
+
+En nuestro recorrido además existe una distinción de origen de las peticiones: el HttpClient del componente Interactive Server realiza sus llamadas desde el host Blazor. Ese HttpClient no hereda por sí mismo la cookie de sesión del navegador para autenticar automáticamente la API remota.
+
+Por ello una futura protección del catálogo exigiría decidir cómo se transmitirá identidad entre procesos, cómo se verificará y qué autorización se aplicará. No basta con poner un atributo de autorización en un componente de presentación.
+
+#### El papel de HTTPS
+
+HTTP sin cifrar sobre localhost resulta cómodo para el laboratorio porque permite reconocer puertos y rutas sin introducir certificados de desarrollo como un problema adicional. Esa comodidad no debe confundirse con una recomendación de utilizar HTTP sin cifrar para credenciales reales.
+
+En una aplicación publicada con autenticación, HTTPS protege el transporte de información sensible entre navegador y servidor. La configuración de cookies y las políticas de sesión también deben pensarse para ese contexto. El laboratorio se limita a una ejecución local de demostración y no introduce contraseñas reales.
+
+Esta distinción debe aparecer claramente en el razonamiento del alumno: el código que sirve para observar una cookie en Development no es una plantilla segura para publicar autenticación en Internet sin transformaciones adicionales.
+
+#### Un cuarto riesgo: una operación POST no protegida frente a solicitudes falsificadas
+
+Las cookies permiten que el navegador envíe automáticamente información de sesión en peticiones compatibles con su ámbito. Un sitio ajeno podría intentar aprovechar ese comportamiento para provocar solicitudes que cambian el estado. La protección antifalsificación se utiliza para comprobar que ciertos envíos se realizan con un token válido asociado al formulario esperado.
+
+En el laboratorio incorporamos AntiforgeryToken a los formularios y verificamos la validez del token antes de iniciar o cerrar sesión. El servidor no debe aceptar un POST sin token simplemente porque su cuerpo contenga el código de demostración correcto.
+
+Conviene distinguir cuatro conceptos:
+
+| Concepto | Pregunta que responde |
+|---|---|
+| Autenticación | ¿Quién realiza la acción? |
+| Autorización | ¿Está permitido acceder al recurso? |
+| Antiforgery | ¿El envío de este formulario satisface la comprobación antifalsificación? |
+| HTTPS | ¿Está protegida la comunicación durante el transporte? |
+
+Son mecanismos complementarios. Ninguno de ellos sustituye automáticamente a los otros. Un formulario puede llevar un token válido y, aun así, contener credenciales incorrectas. Un usuario puede estar autenticado y no tener rol suficiente. Una conexión cifrada puede transportar una petición que el servidor debe rechazar por reglas de autorización.
+
+#### ¿Qué significa que una operación sea segura si la interfaz es interactiva?
+
+Blazor Interactive Server puede actualizar la UI después de un evento sin ejecutar una navegación completa visible. Esa capacidad no convierte todas las operaciones en acciones que puedan establecer cabeceras HTTP en cualquier instante. Para crear o eliminar cookies necesitamos una respuesta HTTP donde el servidor pueda escribir las cabeceras apropiadas.
+
+Nuestro ejemplo utiliza un formulario POST convencional con data-enhance=false para abrir un intercambio HTTP normal. Después del inicio o cierre de sesión, el servidor redirige al navegador, que vuelve a consultar la página. Ese recorrido permite observar cómo cambia el estado reconocido.
+
+Si intentáramos realizar SignInAsync directamente dentro de un evento interactivo cuando la respuesta HTTP correspondiente ya está iniciada, podríamos recibir una incidencia de cabeceras no modificables. La elección del formulario normal no es una limitación general de Blazor; es una manera clara de explicar el mecanismo subyacente de cookies.
+
+#### Evaluar una política mediante escenarios y no mediante una captura
+
+Una captura de la página que muestra «Rol Formador reconocido» es evidencia de presentación, pero no demuestra por sí sola que la política del servidor funcione. Debemos consultar también el recurso protegido y observar la respuesta para distintos estados.
+
+Primero realizamos una solicitud anónima: el servidor debe denegar el recurso. Después iniciamos sesión y comprobamos que el rol correcto permite acceder. Si cambiamos temporalmente la política para exigir OtroRol, el usuario sigue identificado, pero debe ser rechazado. Finalmente cerramos sesión y repetimos la solicitud anónima.
+
+Los casos forman una secuencia de razonamiento:
+
+~~~text
+Sin identidad       → recurso denegado
+Identidad incorrecta → recurso denegado
+Identidad Formador   → recurso permitido
+Cierre de sesión    → recurso denegado de nuevo
+~~~
+
+La denegación de un usuario con rol incorrecto requiere configurar esa condición para observarla: no es suficiente ver un rechazo de usuario anónimo y afirmar que se han probado los permisos por rol.
+
+#### Evaluar un formulario mediante escenarios independientes
+
+El inicio de sesión también necesita más de una observación. Un POST con código incorrecto debe rechazar el acceso. Un POST sin token antifalsificación debe rechazarse, aunque incluya el código correcto. Un POST válido con código correcto y token válido puede establecer la sesión. El cierre con token válido debe eliminarla.
+
+No debemos mezclar todos los defectos en una sola prueba. Si enviamos simultáneamente código incorrecto y token ausente, el servidor puede rechazar el token antes de comprobar el código. Esa observación no demostraría que la comprobación de credenciales funciona. Para estudiar cada regla, mantenemos las demás condiciones correctas.
+
+Este principio ya apareció en los ejercicios HTTP del catálogo: pruebas pequeñas con una sola variación proporcionan diagnósticos mucho más claros que una petición que falla por múltiples causas.
+
+#### Seguridad e interoperabilidad no son objetivos opuestos
+
+Una API bien diseñada puede publicar operaciones consumibles por distintos clientes y, al mismo tiempo, comprobar permisos. La interoperabilidad describe cómo se comunican las aplicaciones; la autorización decide qué operaciones acepta el servidor para una identidad determinada. Para este curso mantenemos pública la API de productos y protegemos un endpoint separado, precisamente para no presentar un sistema falso que aparenta ser seguro por mostrar mensajes de rol.
+
+El siguiente paso en un proyecto real sería definir requisitos de seguridad para el propio catálogo antes de implementar credenciales o tokens. ¿Quién puede consultar? ¿Quién puede crear? ¿Qué permisos se necesitan para modificar o eliminar? ¿Se protegen datos privados? Una política debe responder a esos requisitos, no elegirse simplemente porque el framework ofrece una API determinada.
+
+#### Conclusión de seguridad aplicada
+
+El conocimiento que debe conservar el estudiante es una cadena de responsabilidades: el navegador y Blazor representan una interfaz; el servidor de Blazor reconoce una cookie de demostración; las políticas del servidor protegen sus propios recursos; la API remota mantiene sus operaciones y decisiones; y el uso de una interfaz condicional no sustituye autorización en el servidor que posee el dato.
+
+Esa comprensión es más importante que memorizar una llamada aislada a AddCookie o una plantilla concreta de AuthorizeView. Permite evaluar diseños reales y detectar cuándo una funcionalidad visual se ha confundido peligrosamente con una garantía de seguridad.
+
+
 ### Taller transversal: una operación vista desde cuatro límites
 
 Este apartado relaciona los cuatro conceptos del módulo mediante un mismo caso: una persona desea crear un producto nuevo llamado «Agenda», con precio 6,40. Seguir la operación de un extremo a otro ayuda a detectar errores que quedan ocultos cuando se estudian las tecnologías como listas de instrucciones.
