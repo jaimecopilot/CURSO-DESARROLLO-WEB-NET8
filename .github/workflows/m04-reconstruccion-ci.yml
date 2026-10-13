@@ -82,3 +82,38 @@ jobs:
           PY
           test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{"nombre":"","precio":0}' http://127.0.0.1:5088/api/productos)" = "400"
           test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5088/api/productos/999)" = "404"
+      - name: Activar y verificar búsqueda opcional P4.3.6 en proyecto aislado
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -R M04_APIS_SEGURIDAD/PROYECTO/4.3/CursoWeb.ProductosApi /tmp/p43-busqueda
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/p43-busqueda/Program.cs')
+          s=p.read_text()
+          start=s.index('// RETO OPCIONAL 4.3.6 INICIO')
+          end=s.index('// RETO OPCIONAL 4.3.6 FIN',start)
+          block=s[start:end]
+          assert block.count('/*')==1 and block.count('*/')==1
+          s=s[:start]+block.replace('/*','',1).replace('*/','',1)+s[end:]
+          p.write_text(s)
+          PY
+          dotnet build /tmp/p43-busqueda/CursoWeb.ProductosApi.csproj -c Release
+          dotnet run --no-build -c Release --project /tmp/p43-busqueda/CursoWeb.ProductosApi.csproj --urls http://127.0.0.1:5089 > /tmp/p43-busqueda.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" || true; cat /tmp/p43-busqueda.log' EXIT
+          for i in $(seq 1 40); do
+            if curl -fsS 'http://127.0.0.1:5089/api/productos/buscar?nombre=cuad' > /tmp/p43-busqueda.json; then break; fi
+            sleep 1
+          done
+          python3 - <<'PY'
+          import json
+          x=json.load(open('/tmp/p43-busqueda.json'))
+          assert len(x)==1 and x[0]['nombre']=='Cuaderno',x
+          PY
+          test "$(curl -s -o /dev/null -w '%{http_code}' 'http://127.0.0.1:5089/api/productos/buscar')" = "400"
+          test "$(curl -s -o /tmp/p43-busqueda-vacia.json -w '%{http_code}' 'http://127.0.0.1:5089/api/productos/buscar?nombre=nohaycoincidencia')" = "200"
+          python3 - <<'PY'
+          import json
+          assert json.load(open('/tmp/p43-busqueda-vacia.json'))==[]
+          PY
