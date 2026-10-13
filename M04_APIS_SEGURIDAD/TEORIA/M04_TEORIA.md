@@ -1338,6 +1338,90 @@ La ventaja de un reto así no es simplemente añadir líneas, sino reunir varias
 
 No obliga a incorporar EF Core, Identity, paginación ni una interfaz adicional. Permite trabajar un poco más con la API que el alumno ya ha construido, sin convertir una jornada de integración Blazor en un curso completo de servicios REST.
 
+
+### 4.3.32. Tres aplicaciones ASP.NET Core, tres responsabilidades de presentación
+
+En este curso hemos utilizado MVC, Blazor Web App Interactive Server y una pequeña Minimal API. Todas pueden construirse sobre ASP.NET Core, pero eso no significa que sus responsabilidades deban mezclarse.
+
+En MVC, el navegador envía solicitudes a la aplicación, una acción del controlador coordina la operación y una vista Razor produce HTML para la respuesta. La interacción posterior del usuario suele originar nuevas solicitudes que pueden terminar en acciones distintas. En los primeros módulos el alumno aprendió a relacionar controlador, modelo y vista, y a gestionar formularios y validaciones.
+
+En Blazor Interactive Server, el navegador representa componentes y participa en una conexión interactiva con el servidor Blazor. Un evento del usuario puede invocar código C# de un componente sin requerir que escribamos manualmente una acción MVC para cada pulsación. El componente mantiene estado de presentación y puede llamar a servicios registrados mediante DI.
+
+En la Minimal API auxiliar, no diseñamos páginas. El servidor publica recursos HTTP y devuelve datos JSON junto con códigos de estado. Un navegador, una aplicación Blazor, una terminal o cualquier cliente compatible pueden utilizar esas operaciones. Por eso las reglas de creación y asignación de ID tienen que estar en la API: la interfaz no es el único consumidor posible.
+
+~~~mermaid
+flowchart TB
+    A["Navegador y usuario"] --> B["MVC: controlador y vista HTML"]
+    A --> C["Blazor: componente Interactive Server"]
+    C --> D["Servicio HTTP tipado"]
+    D --> E["Minimal API: JSON y estado HTTP"]
+    E --> F["Productos en memoria"]
+~~~
+
+El diagrama no afirma que MVC sea parte del recorrido de una petición de Blazor en M04. Presenta dos modos de construir interfaz y el recurso HTTP que utiliza el segundo. El alumno debe poder explicar cuándo está procesando una solicitud de navegación, cuándo ejecuta un evento de componente y cuándo consume un recurso JSON.
+
+### 4.3.33. Qué significa comunicar servidores en Interactive Server
+
+En nuestro laboratorio el código HttpClient de Blazor se ejecuta en el servidor que aloja los componentes. El navegador se comunica con Blazor, y el servidor Blazor se comunica con la API. Es distinto de construir una aplicación JavaScript que emite desde el propio navegador todas las solicitudes a otra URL.
+
+Esa distinción explica por qué no añadimos indiscriminadamente políticas CORS a la API de esta jornada. CORS es una política del navegador relacionada con solicitudes de origen cruzado; la comunicación de HttpClient entre dos procesos .NET del servidor no está sometida a esa comprobación del navegador. Si cambiáramos el diseño para realizar fetch desde código del navegador, sí deberíamos analizar los orígenes permitidos según el escenario real.
+
+Conviene no transformar esta observación en la frase «Blazor nunca necesita CORS». Blazor puede utilizar diferentes modelos de ejecución y las aplicaciones pueden combinar componentes con otros clientes. La conclusión exacta es que **el GET y POST de este proyecto concreto se realizan desde el proceso Blazor Interactive Server**, por lo que añadir CORS a la API no es una condición necesaria para esos ejercicios.
+
+### 4.3.34. Diagrama de secuencia de una creación completa
+
+~~~mermaid
+sequenceDiagram
+    participant U as Usuario
+    participant B as Blazor
+    participant S as Servicio HTTP
+    participant A as API
+    U->>B: Introduce nombre y precio
+    B->>S: CrearAsync(solicitud)
+    S->>A: POST api/productos
+    A-->>S: 201 + producto con ID
+    S-->>B: ProductoDto creado
+    B-->>U: Lista actualizada
+~~~
+
+Este diagrama muestra la ruta de éxito. En la primera etapa, los campos del formulario pertenecen a Blazor. En la segunda, la solicitud pasa a la interfaz del servicio. En la tercera, la implementación transforma una llamada C# en HTTP. En la cuarta, la API valida, asigna un ID y devuelve el recurso creado. Finalmente, el componente añade ese objeto a la lista y actualiza la presentación.
+
+Podemos comparar ese recorrido con el de una creación rechazada. Si el servidor devuelve 400, el servicio no obtiene un ProductoDto creado; su comprobación de estado genera una excepción que el componente transforma en mensaje de error. La lista no debería añadir un producto que el servidor nunca confirmó. La diferencia entre ambas rutas no está en el botón, sino en la respuesta que la API emitió.
+
+### 4.3.35. Construir un contrato antes de crear componentes
+
+En un sistema distribuido pequeño, el diseño puede comenzar por cuatro preguntas. ¿Qué necesita consultar el consumidor? ¿Qué datos debe enviar al crear un recurso? ¿Quién asigna los identificadores? ¿Qué estados expresan éxito, rechazo y ausencia?
+
+Para nuestro catálogo respondemos de la siguiente manera. El cliente consulta GET /api/productos y recibe una lista de elementos con id, nombre y precio. Para crear envía POST /api/productos con nombre y precio, sin id. El servidor valida esos campos, asigna el nuevo identificador y devuelve 201 junto al producto completo. Para un ID no encontrado, la consulta individual devuelve 404. Para una entrada incorrecta, POST devuelve 400.
+
+El contrato descrito es suficiente para iniciar los ejercicios. No necesitamos decidir todavía detalles de estructura interna del servidor, nombres de variables o estilo de componentes Razor. Cuando escribimos esos archivos, cada uno debe respetar el acuerdo que ya hemos definido.
+
+Esto ayuda a comprender por qué el cliente no debería depender de compartir exactamente la misma clase C# con la API. Lo que viaja entre procesos son solicitudes y representaciones HTTP. Los tipos locales ayudan a expresar esos datos en cada lenguaje o ensamblado, pero no sustituyen la obligación de mantener compatibilidad.
+
+### 4.3.36. Observar dos instancias de API sin confundir sus estados
+
+Podemos arrancar la misma implementación de API en dos puertos diferentes, siempre que cada proceso mantenga su propio estado en memoria. Por ejemplo, uno escucha en 5081 y otro en 5088. Si enviamos POST a la primera instancia, la segunda no incorpora automáticamente el producto; no existe una base de datos compartida ni un mecanismo de sincronización entre ambas.
+
+Este experimento ofrece una demostración clara de los límites de proceso. Cambiar ProductosApi:BaseUrl en Blazor determina qué instancia consulta el cliente. Si una muestra Regla y la otra todavía muestra solo Cuaderno y Lápiz, el componente no está funcionando mal: está observando dos servidores distintos.
+
+No debemos utilizar este laboratorio para concluir que dos instancias reales de una aplicación deban funcionar siempre con memorias independientes. Es una característica de nuestra decisión de almacenamiento temporal. En sistemas de producción, las instancias suelen necesitar una estrategia de persistencia y coordinación que no desarrollaremos en este módulo.
+
+### 4.3.37. Lista de decisiones de implementación y su razón formativa
+
+| Decisión | Motivo en esta formación | Qué no pretende resolver |
+|---|---|---|
+| Minimal API | Hacer visibles los endpoints | Arquitectura empresarial completa |
+| DTO de creación distinto | Asignar ID en servidor | Gestión avanzada de entidades |
+| ConcurrentDictionary | Soportar operaciones básicas en memoria | Persistencia o transacciones |
+| Interlocked para ID | Evitar incrementos no atómicos | Identificadores distribuidos |
+| Results.Created | Expresar alta con recurso nuevo | Diseño general de hipermedia |
+| GET de resumen separado | Conservar el catálogo consumido | Versionado completo de APIs |
+| Búsqueda opcional por query | Distinguir filtro y ruta | Motor avanzado de búsquedas |
+| Archivo .http | Ejecutar solicitudes directas | Reemplazar todas las pruebas automatizadas |
+
+La tabla no debe entenderse como un conjunto de recetas invariables para cualquier producto. Son decisiones pequeñas, justificadas por el objetivo docente de comprender comunicación HTTP y construcción progresiva sin perder de vista el tiempo disponible. Otras aplicaciones necesitarán soluciones diferentes.
+
+
 ### Síntesis del punto 4.3
 
 Un endpoint es una asociación entre método HTTP, ruta y ejecución de código. Los DTO establecen el contrato; los resultados HTTP indican éxito o rechazo; el estado en memoria explica la duración de los datos. Hemos añadido una operación de resumen sin romper las rutas existentes, y disponemos de una API reproducible que se puede observar tanto directamente como desde Blazor.
