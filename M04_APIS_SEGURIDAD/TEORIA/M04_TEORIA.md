@@ -588,3 +588,90 @@ En este punto **no** implantamos autenticación sobre el catálogo; la demostrac
 ### Síntesis del punto 4.3
 
 Un endpoint es una asociación entre método HTTP, ruta y ejecución de código. Los DTO establecen el contrato; los resultados HTTP indican éxito o rechazo; el estado en memoria explica la duración de los datos. Hemos añadido una operación de resumen sin romper las rutas existentes, y disponemos de una API reproducible que se puede observar tanto directamente como desde Blazor.
+## 4.4. Autenticación, autorización y AuthorizeView
+
+### Identificar al usuario no es darle permisos
+
+**Autenticación** responde quién es el usuario. **Autorización** responde qué puede hacer ese usuario ya identificado. En ASP.NET Core la identidad puede representar datos mediante **claims**: afirmaciones como el nombre o un rol. Un rol de ejemplo, `Formador`, servirá para observar la autorización sin construir una infraestructura de cuentas.
+
+La página Blazor de 4.4 demostrará estos conceptos con una cookie de sesión **solo en el laboratorio local**. No implantaremos ASP.NET Core Identity ni JWT, OAuth u OpenID Connect; mencionar Identity permitirá comprender dónde encaja la gestión real de usuarios y contraseñas en una aplicación profesional. El código fijo de demostración **no es una credencial válida para producción**.
+
+### 4.4.1. Configurar una autenticación de demostración
+
+ASP.NET Core permite registrar autenticación por cookie y autorización con:
+
+```csharp
+builder.Services.AddAuthentication("CookiesDemo")
+    .AddCookie("CookiesDemo", opciones =>
+    {
+        opciones.LoginPath = "/seguridad";
+    });
+builder.Services.AddAuthorization();
+builder.Services.AddCascadingAuthenticationState();
+```
+
+Tras construir la aplicación se usan `app.UseAuthentication()` y `app.UseAuthorization()`, antes de mapear los recursos protegidos. La autenticación examina la cookie enviada por el navegador. La autorización aplica reglas usando el principal autenticado. `AddCascadingAuthenticationState` hace disponible ese estado a los componentes Razor.
+
+Para construir una identidad de prueba:
+
+```csharp
+var claims = new[]
+{
+    new Claim(ClaimTypes.Name, "AlumnoDemo"),
+    new Claim(ClaimTypes.Role, "Formador")
+};
+var identidad = new ClaimsIdentity(claims, "CookiesDemo");
+var principal = new ClaimsPrincipal(identidad);
+await contexto.SignInAsync("CookiesDemo", principal);
+```
+
+La cookie debe emitirse en una respuesta HTTP normal. Una operación `SignInAsync` dentro de un evento de Blazor Interactive Server que ya ha iniciado su respuesta no es el enfoque apropiado; por ello haremos el acceso mediante un formulario HTML POST y una redirección de página completa.
+
+### 4.4.2. Proteger recursos en el servidor
+
+Un endpoint protegido es distinto de un botón oculto:
+
+```csharp
+app.MapGet("/demo/privado", () =>
+    Results.Ok(new { mensaje = "Recurso protegido" }))
+    .RequireAuthorization(p => p.RequireRole("Formador"));
+```
+
+La autorización se evalúa en el servidor. Aunque se conozca la URL, el usuario anónimo no recibe el contenido. Una identidad autenticada sin `Formador` tampoco recibe autorización. La API de Productos utilizada en 4.1–4.3 permanece deliberadamente pública: aquí no añadimos credenciales a todo el proyecto.
+
+### 4.4.3. AuthorizeView: presentación condicional, no seguridad del servidor
+
+```razor
+<AuthorizeView>
+    <Authorized>
+        <p>Sesión: @context.User.Identity?.Name</p>
+    </Authorized>
+    <NotAuthorized>
+        <p>La sesión no está autenticada.</p>
+    </NotAuthorized>
+</AuthorizeView>
+```
+
+`AuthorizeView Roles="Formador"` muestra contenido solo si los claims del usuario satisfacen esa condición. Eso cambia la **interfaz visible**; no reemplaza la regla `RequireAuthorization` del servidor. Para páginas protegidas con `[Authorize]` puede emplearse `AuthorizeRouteView` al resolver las rutas, pero el recurso de demostración será el endpoint HTTP protegido.
+
+### 4.4.4. Formularios HTTP y antifalsificación
+
+El inicio de sesión de laboratorio usará un formulario HTML normal con `method="post"`, `<AntiforgeryToken />` y `data-enhance="false"`. El servidor comprobará el formulario, creará los claims y emitirá la cookie. La salida también se hará mediante POST con token y `SignOutAsync`.
+
+El token antifalsificación dificulta que un sitio externo envíe solicitudes que cambian estado usando la sesión del navegador; **no comprueba la identidad** y no transforma una contraseña fija en un sistema seguro. Nunca debemos desactivar su protección simplemente para que la demo funcione.
+
+### 4.4.5. Casos que debe observar el alumno
+
+| Estado | Resultado |
+|---|---|
+| Usuario anónimo | `AuthorizeView` presenta `NotAuthorized` |
+| Anónimo consulta `/demo/privado` | El servidor deniega el recurso |
+| Código local correcto | Se crea una sesión de demostración |
+| Sesión con rol `Formador` | Se muestra el rol y se accede al recurso protegido |
+| Salida POST | La sesión deja de estar autenticada |
+
+La demostración es intencionalmente superficial. Identity, proveedores externos, permisos de producción y protección del catálogo completo quedan fuera de este curso de 30 horas.
+
+### Conclusión del módulo
+
+4.1 enseña a consumir HTTP; 4.2 separa interfaz y servicios; 4.3 explica el servidor; 4.4 distingue la identidad, la decisión de acceso del servidor y la presentación condicional de Blazor.
