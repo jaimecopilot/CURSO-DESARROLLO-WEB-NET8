@@ -1102,6 +1102,155 @@ El hecho de que las cadenas y tipos estén bien ubicados no prueba por sí solo 
 
 
 
+
+### Ampliación 4.2 — Diseñar servicios que puedan probarse sin depender siempre de la red
+
+El refactor del catálogo remoto introduce IProductosApiService y ProductosApiService. Hasta ahora hemos justificado ese diseño por la eliminación de rutas HTTP del componente. Existe otra consecuencia importante: podemos examinar por separado qué hace la vista, qué hace la implementación del servicio y qué responde realmente la API.
+
+No debe confundirse esta separación con una afirmación de que las pruebas sin red son superiores a las pruebas HTTP. Ambas responden preguntas distintas. Un servicio simulado puede demostrar que la pantalla muestra productos obtenidos por una interfaz, pero no demuestra que el servidor responda con 201 ni que el cuerpo JSON sea compatible. Una prueba HTTP real demuestra el contrato entre procesos, pero no necesariamente la experiencia visual de la pantalla.
+
+#### Un experimento de sustitución de implementación
+
+Consideremos que el componente recibe un objeto IProductosApiService. Podríamos proporcionar una implementación que devolviera dos productos de memoria:
+
+~~~csharp
+public sealed class ProductosApiSimuladoService : IProductosApiService
+{
+    private readonly List<ProductoDto> productos =
+    [
+        new(101, "Libreta simulada", 4.25m),
+        new(102, "Bolígrafo simulado", 1.10m)
+    ];
+
+    private int siguienteId = 102;
+
+    public Task<IReadOnlyList<ProductoDto>> ObtenerAsync()
+    {
+        IReadOnlyList<ProductoDto> respuesta = productos.ToArray();
+        return Task.FromResult(respuesta);
+    }
+
+    public Task<ProductoDto> CrearAsync(CrearProductoDto solicitud)
+    {
+        if (string.IsNullOrWhiteSpace(solicitud.Nombre) ||
+            solicitud.Precio <= 0)
+            throw new ArgumentException("Datos incorrectos.");
+
+        var creado = new ProductoDto(
+            Interlocked.Increment(ref siguienteId),
+            solicitud.Nombre.Trim(),
+            solicitud.Precio);
+
+        productos.Add(creado);
+        return Task.FromResult(creado);
+    }
+}
+~~~
+
+No hay rutas, HttpClient ni JSON en esta implementación. Aun así, el componente puede invocar ObtenerAsync y CrearAsync, porque esas operaciones pertenecen al contrato público de la interfaz.
+
+Para seleccionar esta variante se cambia el registro del contenedor de DI:
+
+~~~csharp
+builder.Services.AddScoped<
+    IProductosApiService, ProductosApiSimuladoService>();
+~~~
+
+La modificación se hace como alternativa al registro tipado, no añadiendo sin criterio dos registros que compiten para el mismo consumidor. Cuando se restaura la implementación real vuelve a utilizarse AddHttpClient<IProductosApiService, ProductosApiService> con su dirección configurada.
+
+La observación didáctica es que la pantalla continúa utilizando los mismos métodos y DTO, mientras que la fuente de datos cambia. No significa que el servicio simulado sea una versión publicable de la API: su memoria y su ciclo de vida son distintos.
+
+#### Qué demuestra una sustitución y qué no demuestra
+
+Si el componente representa correctamente Libreta simulada y Bolígrafo simulado, sabemos que el estado de UI puede alimentarse mediante la abstracción sin conocer detalles HTTP. Si crea otro producto mediante CrearAsync y muestra el objeto devuelto, sabemos que su recorrido de alta respeta ese contrato.
+
+No sabemos, sin embargo, si la API real devuelve 201 o si su puerto está configurado correctamente. La implementación simulada no emite HTTP. Para demostrar el contrato remoto seguimos necesitando ejecutar la API y enviar peticiones directas o desde el servicio real.
+
+El estudiante debe poder expresar esa diferencia. No sería correcto decir «ya he probado la API porque el componente funciona con una implementación simulada». Tampoco sería correcto decir «la UI está bien porque curl obtiene 200»: ese resultado solo observa un lado del sistema.
+
+#### Probar una implementación HTTP sin arrancar una API real
+
+Otra técnica formativa consiste en sustituir el manejador interno de HttpClient. HttpClient acepta un HttpMessageHandler que decide cómo procesar una solicitud. Podemos escribir una implementación pequeña que devuelve una respuesta conocida y registra el método y la ruta que recibió:
+
+~~~csharp
+public sealed class ManejadorDePrueba : HttpMessageHandler
+{
+    public HttpMethod? UltimoMetodo { get; private set; }
+    public string? UltimaRuta { get; private set; }
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage request,
+        CancellationToken cancellationToken)
+    {
+        UltimoMetodo = request.Method;
+        UltimaRuta = request.RequestUri?.AbsolutePath;
+
+        var respuesta = new HttpResponseMessage(
+            System.Net.HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                "[{\"id\":1,\"nombre\":\"Cuaderno\",\"precio\":2.50}]",
+                System.Text.Encoding.UTF8,
+                "application/json")
+        };
+
+        return Task.FromResult(respuesta);
+    }
+}
+~~~
+
+En una prueba controlada podemos construir HttpClient utilizando ese manejador y una BaseAddress ficticia, y después pasar el cliente a ProductosApiService. El servicio realiza su GET habitual, pero el manejador de prueba devuelve el JSON conocido sin utilizar la red.
+
+La prueba podría comprobar que UltimoMetodo es GET y UltimaRuta es /api/productos. También podría verificar que el resultado contiene Cuaderno. Son observaciones del comportamiento de ProductosApiService: la ruta que construye, el verbo que utiliza y cómo deserializa una respuesta.
+
+Hay que limitar el alcance de esta técnica. Un manejador de prueba no reproduce por sí mismo el enrutamiento real de ASP.NET Core, sus reglas de validación ni el almacenamiento del servidor. Complementa la prueba de integración, no la reemplaza.
+
+#### Relacionar la prueba con la responsabilidad de cada capa
+
+Podemos organizar las comprobaciones del módulo en cuatro categorías:
+
+| Comprobación | Componente real | Servicio HTTP real | API real |
+|---|---|---|---|
+| UI con servicio simulado | Sí | No | No |
+| Servicio con manejador simulado | No | Sí | No |
+| GET/POST directo a API | No | No | Sí |
+| Recorrido desde navegador hasta API | Sí | Sí | Sí |
+
+Ninguna fila por sí sola reemplaza todas las demás. El objetivo pedagógico no es multiplicar herramientas de pruebas, sino reconocer qué límite se observa cuando aparece un fallo.
+
+Si el test del manejador demuestra que el servicio solicita /api/productos pero un GET directo devuelve 404, debemos revisar el servidor o la ubicación. Si el servidor devuelve el JSON correcto pero el servicio no puede deserializarlo, revisamos DTO y contrato. Si ambos funcionan, pero el componente permanece en carga, revisamos el ciclo de vida y sus estados de presentación.
+
+#### Ciclo de vida del cliente tipado y del componente
+
+La inyección de dependencias suministra objetos a componentes y servicios, pero no decide por nosotros la duración adecuada de todo estado mutable. En particular, no deberíamos guardar la lista del formulario o el estado de selección en un cliente HTTP compartido sin haber definido su semántica. Esos datos pertenecen normalmente a la presentación.
+
+La fábrica de HttpClient gestiona el uso y la reutilización de manejadores HTTP. Eso no implica que una instancia concreta de ProductosApiService deba almacenarse indefinidamente en una variable estática. Un registro con AddHttpClient<TInterface,TImplementation> utiliza las convenciones de clientes tipados y ofrece un lugar central para configurar dirección y timeout.
+
+En Blazor Interactive Server los componentes pueden permanecer activos en un circuito interactivo; el alumnado debe evitar pensar que cada clic crea una nueva aplicación ASP.NET Core. El botón invoca un método del componente existente, que utiliza las dependencias disponibles en ese contexto.
+
+Una implementación simulada registrada como scoped tendrá un ciclo de vida asociado al ámbito de inyección. No debemos afirmar que esa memoria es una base de datos compartida por todos los usuarios. La elección de duración y persistencia forma parte del diseño y es independiente de que exista una interfaz.
+
+#### Qué sucede al registrar dos alternativas sin intención
+
+Una confusión frecuente aparece cuando se añade un registro para IProductosApiService sin retirar el anterior. Dependiendo de cómo se resuelva una dependencia única, el contenedor puede suministrar una implementación que no sea la que el alumno creía estar probando. El síntoma es una pantalla que muestra datos de la API real cuando se esperaba la lista simulada, o viceversa.
+
+La solución didáctica es elegir expresamente una implementación para cada ejecución. Primero se prueba el cliente real con su API en 5081. Después se comenta ese registro y se habilita el servicio simulado. Finalmente se revierte la variante y se comprueba que la pantalla vuelve a depender de HTTP.
+
+Este experimento también muestra por qué los proyectos de prácticas deben conservar estados claros: si muchas variantes permanecen activas a la vez, deja de ser evidente qué comportamiento se está estudiando.
+
+#### La interfaz no garantiza equivalencia de todas las implementaciones
+
+Dos clases pueden implementar los mismos métodos y seguir comportándose de manera distinta en aspectos que no expresa directamente la firma. Una puede conservar una lista solo durante una sesión; otra consulta un servidor externo; otra podría introducir retrasos o responder con errores.
+
+Por tanto, la interfaz expresa un contrato de operaciones y tipos, pero debemos documentar también la semántica relevante: quién asigna IDs, qué significa un fallo, cuándo se confirma una creación y qué persistencia se espera. En el laboratorio ambas implementaciones devuelven ProductoDto para que el componente sea compatible, pero la prueba simulado no se presenta como equivalente funcional a un servidor real.
+
+#### Cierre: por qué merece la pena el refactor
+
+Después de estudiar estas alternativas, la utilidad de IProductosApiService resulta menos abstracta. Permite centralizar rutas y serialización, mantener el componente dedicado a la UI, intercambiar fuentes de datos en una prueba y delimitar qué comprobaciones corresponden a cada capa.
+
+No hemos añadido una arquitectura compleja sin justificación. Hemos empezado con un componente que funcionaba directamente con HttpClient, identificado el problema de dispersar comunicación y aplicado una transformación cuya ventaja podemos demostrar.
+
+
 ## 4.3. Construir desde cero una API REST y comprobar su contrato HTTP
 
 ### Por qué estudiamos ahora el servidor
