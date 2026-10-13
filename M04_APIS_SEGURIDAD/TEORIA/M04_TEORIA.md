@@ -2711,6 +2711,148 @@ Este experimento conecta el estado del principal, la política y la semántica d
 La conclusión es que **reconocer una identidad, aplicar un permiso y decidir cómo se comunica una denegación son tres responsabilidades distintas**. La comprensión de esa separación permite diagnosticar mejor una aplicación ASP.NET Core protegida.
 
 
+
+### 4.4.6. Ampliación técnica — ASP.NET Core Identity y JWT Bearer reales
+
+Hasta aquí hemos estudiado una cookie local de demostración y una política de autorización que protege un endpoint del servidor Blazor. Es un buen primer laboratorio para diferenciar autenticación, autorización y presentación condicional, pero no contiene un sistema real de usuarios ni ofrece tokens firmados para una API remota. Esta ampliación responde a esa necesidad sin sustituir los ejercicios previos: vamos a integrar **ASP.NET Core Identity con Entity Framework Core y una API que emite y valida JWT auténticos**.
+
+**Ubicación en el curso.** Se trata de una ampliación autónoma de 4.4. El temario presencial conserva seis horas y el itinerario anterior sigue siendo válido. El proyecto adicional se encuentra en M04_APIS_SEGURIDAD/PROYECTO/4.5/CursoWeb.IdentityJwtApi; la numeración 4.5 de la carpeta identifica el estado adicional del proyecto, no crea un nuevo módulo de seis horas.
+
+#### Del acceso con código fijo a ASP.NET Core Identity
+
+ASP.NET Core Identity proporciona componentes para gestionar usuarios, credenciales, hashes de contraseña, roles, reglas de acceso, bloqueo y almacenamiento. En la API adicional utilizaremos IdentityUser, UserManager, SignInManager y RoleManager. No guardaremos las contraseñas directamente en una columna de texto: UserManager.CreateAsync utiliza la infraestructura de hashing de Identity y las comprobaciones de contraseña se realizan a través de SignInManager.
+
+El almacenamiento será una base de datos SQLite gestionada con Entity Framework Core mediante un contexto que hereda de IdentityDbContext<IdentityUser>. Eso permite crear tablas reales de usuarios y roles: AspNetUsers, AspNetRoles y sus tablas de relaciones, entre otras. Aunque el alumnado ya conoce EF Core, aquí nos interesa observar qué información persiste y cuáles son las responsabilidades del sistema de identidad.
+
+El usuario tiene Email, UserName, Id y propiedades de control de identidad. El identificador no se deriva necesariamente de su correo: la clase IdentityUser define un Id propio. La contraseña no forma parte del perfil que enviamos como JSON al cliente. Podemos consultar un perfil autenticado sin publicar jamás el hash almacenado.
+
+En este laboratorio utilizamos EnsureCreatedAsync para obtener rápidamente una base SQLite de desarrollo a partir del modelo. **No es una política de evolución de esquemas para producción.** Una solución mantenida utilizaría migraciones, configuración de persistencia y procedimientos de despliegue adecuados. El directorio .work del proyecto se ignora en Git y conserva la base local de ensayo.
+
+#### La diferencia entre Identity y la autenticación JWT
+
+Identity administra usuarios y ayuda a verificar contraseñas y roles. JWT, por otra parte, es un formato de token que representa afirmaciones firmadas. No son dos alternativas intercambiables.
+
+Nuestro flujo tendrá estas fases:
+
+1. La API registra un usuario mediante UserManager y le asigna el rol Alumno.
+2. Un cliente envía el correo y la contraseña al endpoint de acceso.
+3. SignInManager verifica la contraseña y aplica las reglas de bloqueo configuradas.
+4. La API obtiene las funciones o roles del usuario desde Identity.
+5. El servidor crea un JWT firmado, con emisor, audiencia, subject, expiración e identificador de token.
+6. El cliente incluye el valor obtenido en la cabecera Authorization: Bearer de las consultas protegidas.
+7. El middleware JwtBearer valida firma, emisor, audiencia y vigencia antes de conceder acceso.
+8. Una política de autorización exige el rol Formador para el recurso más restringido.
+
+No emitimos una cookie de sesión en este recorrido. El cliente recibe un token de acceso y lo transmite explícitamente en cada solicitud protegida.
+
+#### Una distinción importante en .NET 8: bearer tokens de Identity y JWT
+
+ASP.NET Core 8 incluye los métodos AddIdentityApiEndpoints y MapIdentityApi. Son útiles para exponer endpoints de identidad y pueden emitir tokens bearer propietarios de Identity, pero **esos tokens no deben describirse automáticamente como JWT**. Un JWT tiene una representación reconocible formada por tres segmentos codificados y separados por puntos, con header, payload y firma.
+
+Para no mezclar conceptos, nuestra ampliación utiliza AddIdentityCore con Entity Framework Core para gestionar usuarios y roles, y el paquete Microsoft.AspNetCore.Authentication.JwtBearer para validar JWT. La emisión de JWT se realiza de manera explícita para que el alumno vea de dónde proceden las afirmaciones y cómo se firma el token.
+
+Esta construcción manual es **una demostración controlada**, no una recomendación de crear un servidor de identidad propio para aplicaciones de producción. Para escenarios empresariales conviene delegar la emisión en un proveedor de identidad y utilizar protocolos adecuados como OpenID Connect/OAuth 2.0, evitando inventar soluciones de autenticación.
+
+#### Los tres segmentos de un JWT
+
+Un JWT firmado suele representarse como header.payload.signature. Los segmentos se codifican en Base64Url, lo que no equivale a cifrar el contenido. Por eso **no debemos colocar contraseñas, secretos, documentos privados o datos sensibles innecesarios en el payload**.
+
+El encabezado indica, entre otros elementos, el algoritmo que se ha utilizado; el payload contiene claims; y la firma permite comprobar que el contenido no ha sido modificado por alguien que desconozca la clave de firma. Un cliente puede decodificar los segmentos sin disponer del secreto. Decodificar no significa que el token sea válido: confiar en él exige verificar firma y demás condiciones.
+
+En el laboratorio utilizamos un algoritmo HMAC SHA-256 con una clave de longitud suficiente. La clave se lee de Jwt__SigningKey mediante la configuración de .NET. **No figura en appsettings.json ni en el repositorio.** Cada equipo genera su secreto aleatorio en su entorno de desarrollo.
+
+Esta firma simétrica es suficiente para demostrar el mecanismo en un proceso local. Una arquitectura con servidores emisores y consumidores independientes podría utilizar firmas asimétricas y validación mediante claves públicas; esa infraestructura excede el propósito de la jornada.
+
+#### Claims, roles y sujeto
+
+El token contiene identificadores y afirmaciones. El claim sub identifica al sujeto; iss identifica al emisor; aud señala el destinatario previsto; exp expresa la expiración; iat el momento de emisión; y jti un identificador del token. Además, incorporamos claims de identidad y de rol que permiten a ASP.NET Core establecer un ClaimsPrincipal cuando el JWT supera su validación.
+
+Un usuario registrado desde el endpoint público recibe el rol Alumno, no Formador. Este principio es esencial: permitir que el cliente envíe el rol deseado al registrarse convertiría una simple creación de cuenta en una escalada de permisos.
+
+La cuenta Formador de la demostración se inicializa **solo si el docente proporciona desde el entorno** correo y contraseña. El alumno no puede obtener ese rol registrándose ni modificando el cuerpo JSON del endpoint público.
+
+La política de autorización del endpoint /api/identidad/formador exige RequireRole("Formador"). Un JWT de Alumno puede estar perfectamente firmado y vigente y, sin embargo, recibir 403. Un cliente que no envía JWT o presenta uno inválido recibe 401. Esta diferencia reproduce con otra tecnología los conceptos estudiados al utilizar cookies.
+
+#### Cómo valida realmente JwtBearer
+
+El servidor tiene que rechazar tokens emitidos por un tercero que utilice otra clave, tokens destinados a otra API y tokens caducados. Por ello, el middleware configura parámetros explícitos:
+
+~~~csharp
+new TokenValidationParameters
+{
+    ValidateIssuer = true,
+    ValidIssuer = emisor,
+    ValidateAudience = true,
+    ValidAudience = audiencia,
+    ValidateIssuerSigningKey = true,
+    IssuerSigningKey = new SymmetricSecurityKey(bytesFirma),
+    ValidateLifetime = true,
+    RequireExpirationTime = true,
+    RequireSignedTokens = true,
+    ClockSkew = TimeSpan.FromSeconds(5),
+    NameClaimType = ClaimTypes.NameIdentifier,
+    RoleClaimType = ClaimTypes.Role
+}
+~~~
+
+La comprobación de firma acredita integridad y procedencia según la clave configurada. El emisor evita confiar en tokens de otra autoridad. La audiencia asegura que el token está dirigido al recurso esperado. La validación temporal impide aceptar tokens fuera de su vigencia. Una API que solo decodificara el payload sin validar estos atributos no estaría autenticando correctamente.
+
+En el ejemplo el token expira quince minutos después de su emisión. El tiempo reducido permite experimentar con caducidad sin añadir renovación de tokens. El código no implementa refresh tokens ni revocación centralizada: cuando el cliente «olvida» el JWT en la pantalla, elimina su copia, pero **eso no revoca un token que otra aplicación ya tenga**. Para requisitos de revocación y sesiones prolongadas necesitaríamos un diseño adicional.
+
+#### Un contraste práctico con la cookie de Blazor
+
+| Aspecto | Cookie de demostración 4.4 | JWT de ampliación |
+|---|---|---|
+| Estado de identidad | Principal reconocido por host Blazor | Claims en token firmado validado por API |
+| Transporte habitual | Cookie gestionada por navegador | Cabecera Authorization: Bearer |
+| Credencial de entrada | Código local fijo de laboratorio | Contraseña comprobada por Identity |
+| Persistencia de usuarios | No, identidad construida al entrar | Usuarios y roles en SQLite |
+| Autorización | Recurso /demo/privado | Recursos /api/identidad/yo y /formador |
+| Fin de sesión del cliente | SignOutAsync invalida cookie del navegador | El cliente descarta su copia del JWT |
+| Aplicación en producción | No: código fijo de ensayo | No: emisión manual de JWT docente |
+
+Los dos enfoques permiten trabajar con ClaimsPrincipal y políticas, pero no se deben mezclar sus mecanismos de transporte. En particular, una cookie válida para el host Blazor no equivale a un JWT que la API externa acepte.
+
+#### Una arquitectura de demostración con Blazor como consumidor
+
+El proyecto Blazor de 4.4 incorpora una página adicional /perfil-jwt. Esta página utiliza un cliente HttpClient con nombre IdentityJwtApi que apunta a otro puerto. Primero solicita un JWT al endpoint /auth/login y después lo presenta en la cabecera de una consulta:
+
+~~~csharp
+using var solicitud = new HttpRequestMessage(
+    HttpMethod.Get, "api/identidad/yo");
+solicitud.Headers.Authorization =
+    new AuthenticationHeaderValue("Bearer", token);
+using var respuesta = await cliente.SendAsync(solicitud);
+~~~
+
+Este ejemplo muestra algo que la integración original de productos no necesitaba: la API requiere una credencial explícita para devolver el perfil. Blazor no recibe permiso simplemente por dibujar una pantalla de acceso. El servidor examina Authorization, valida el token y aplica la política del recurso.
+
+La página guarda el token solamente en el estado temporal del componente Interactive Server y no lo imprime, registra ni coloca en una URL. No utiliza localStorage ni lo incorpora a un formulario de navegación. Es una elección limitada al laboratorio. En producción, el almacenamiento de tokens, los flujos de acceso y la prevención de filtraciones necesitan un diseño conforme al proveedor de identidad y al modelo de ejecución.
+
+#### Seguridad adicional que el ejemplo no pretende resolver
+
+Aunque utilizamos Identity real y JWT firmado, el laboratorio restringe su ejecución al entorno Development. El registro público y el endpoint de acceso no están diseñados como un servicio de identidad publicado.
+
+No implementamos recuperación de contraseña, confirmación de correo, MFA, gestión de tokens de renovación, revocación, consentimiento, rotación de claves, auditoría avanzada ni una autoridad OIDC. Tampoco trasladamos el JWT a una cookie ni ofrecemos un mecanismo general de sesión persistente para Blazor.
+
+En una aplicación real no se deberían recibir credenciales mediante HTTP sin cifrar. Los comandos del laboratorio usan localhost por claridad, pero todo acceso real con credenciales requiere HTTPS y un proveedor adecuado. Los secretos de firma y las contraseñas de la cuenta docente no deben confirmarse en Git.
+
+El objetivo de esta ampliación es **comprender y ejecutar** el flujo completo Identity → comprobación de contraseña → emisión JWT → validación JwtBearer → autorización por roles, identificando expresamente qué capacidades quedan fuera.
+
+#### Qué debe poder razonar el alumno
+
+Al terminar, el estudiante debe responder con precisión:
+
+- ¿Qué diferencia existe entre UserManager y JwtBearer? El primero administra usuarios y credenciales; el segundo valida tokens presentados a una API.
+- ¿Por qué no basta con decodificar el JWT? Porque hay que verificar la firma, el emisor, la audiencia y el tiempo.
+- ¿Por qué se obtiene 401 sin token y 403 con un token de Alumno en el endpoint Formador? Porque autenticación y autorización son comprobaciones distintas.
+- ¿Por qué no debe aceptarse un rol enviado por el usuario durante el registro? Porque permitiría escalar privilegios.
+- ¿Qué sucede al borrar el token en Blazor? Solo se descarta su copia local; no se revoca automáticamente un JWT ya emitido.
+- ¿Puede MapIdentityApi emitir un bearer token que no sea JWT? Sí; no deben confundirse esos formatos.
+
+Estas preguntas sitúan la nueva ampliación dentro del temario de seguridad de ASP.NET Core sin convertir una API didáctica en un servidor de identidad supuestamente preparado para producción.
+
+
 ### Taller transversal: una operación vista desde cuatro límites
 
 Este apartado relaciona los cuatro conceptos del módulo mediante un mismo caso: una persona desea crear un producto nuevo llamado «Agenda», con precio 6,40. Seguir la operación de un extremo a otro ayuda a detectar errores que quedan ocultos cuando se estudian las tecnologías como listas de instrucciones.
