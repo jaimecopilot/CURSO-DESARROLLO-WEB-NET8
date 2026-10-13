@@ -729,6 +729,119 @@ Pop-Location
 
 El directorio de publicación sigue existiendo. No borres la salida: será reutilizada en P5.4 como fuente de artefactos de despliegue. El estado final de P5.3 consiste en una aplicación MVC publicada capaz de servir HTML/CSS/estado bajo Kestrel y un puerto liberado.
 
+
+### Paso P5.3.6. Construir una prueba HTTP mínima que distinga conexión y resultado
+
+**Relación con la teoría:** 5.3.8 y 5.3.12. En este ejercicio no cambiaremos el código MVC. Utilizaremos la DLL publicada y una configuración explícita para ver que un mismo servidor puede responder 200 en una ruta y 503 en otra.
+
+Si terminaste P5.3.5, vuelve a la raíz del repositorio y abre una terminal PowerShell. Elimina una variable anterior para que la demostración no herede un valor desconocido; después elige expresamente el modo sin base:
+
+~~~powershell
+Remove-Item Env:\Despliegue__SinLocalDb -ErrorAction SilentlyContinue
+$env:Despliegue__SinLocalDb = "true"
+$salida = ".\.work\M05\publicacion-mvc"
+
+Push-Location $salida
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5091
+~~~
+
+Con la ventana abierta, desde otra terminal solicita en este orden:
+
+~~~powershell
+curl.exe -i http://localhost:5091/
+curl.exe -i http://localhost:5091/Productos/Estado
+curl.exe -i http://localhost:5091/Productos
+curl.exe -i http://localhost:5091/css/site.css
+~~~
+
+Anota la combinación de código HTTP y recurso solicitado. El resultado previsto es 200 en la portada, 200 en Estado, 503 en Productos y 200 en el CSS. El 503 no quiere decir que Kestrel esté detenido: **el servidor ha devuelto expresamente una respuesta** en la ruta dependiente de base. El resultado documenta una capacidad limitada del proyecto para este escenario.
+
+Para comprobar el texto del endpoint de estado independientemente de la representación visual, utiliza:
+
+~~~powershell
+curl.exe -s http://localhost:5091/Productos/Estado
+~~~
+
+Debes observar `Catalogo MVC disponible`. Una respuesta de texto desde una acción concreta acredita el recorrido hasta el controlador. No acredita que las consultas EF Core se hayan ejecutado.
+
+### Paso P5.3.7. Observar que un puerto pertenece a un proceso
+
+**Relación con la teoría:** 5.3.7, 5.3.10 y 5.3.11. Mientras la aplicación permanece activa en 5091, abre otra terminal PowerShell:
+
+~~~powershell
+Get-NetTCPConnection -LocalPort 5091 -State Listen -ErrorAction SilentlyContinue |
+    Select-Object LocalAddress, LocalPort, State, OwningProcess
+~~~
+
+Si el comando ofrece el identificador del proceso, puedes consultarlo sin detenerlo:
+
+~~~powershell
+$conexiones = Get-NetTCPConnection -LocalPort 5091 -State Listen -ErrorAction SilentlyContinue
+$conexiones | ForEach-Object {
+    Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue |
+        Select-Object Id, ProcessName
+}
+~~~
+
+Es normal que el proceso se llame `dotnet` en una publicación dependiente del framework. No debes interpretar ese nombre como si el navegador ejecutara C#; el navegador sigue enviando HTTP y el proceso se encarga de servir las solicitudes.
+
+Ahora ejecuta en una tercera terminal la misma publicación con el mismo puerto y con el mismo modo sin base:
+
+~~~powershell
+$env:Despliegue__SinLocalDb = "true"
+Push-Location .\.work\M05\publicacion-mvc
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5091
+~~~
+
+El segundo arranque debe fallar al intentar escuchar la dirección ocupada, siempre que la primera instancia siga viva y no haya otra particularidad de configuración. Comprueba que el primer proceso continúa respondiendo a `/Productos/Estado`; el fallo del segundo no ha detenido automáticamente al primero.
+
+**Restauración:** cierra la terminal del segundo proceso con Ctrl+C si continúa abierta y ejecuta `Pop-Location`. No mates por identificador un proceso que no te pertenece. La prueba consiste en comprender la colisión, no en practicar eliminación indiscriminada de procesos.
+
+### Paso P5.3.8. Cambiar únicamente el puerto y comprobar la independencia del código
+
+**Relación con la teoría:** 5.3.9 y 5.3.10. Mantén el primer servidor activo en 5091. Desde la segunda terminal, inicia otra instancia de la misma DLL, esta vez en 5094:
+
+~~~powershell
+$env:Despliegue__SinLocalDb = "true"
+Push-Location .\.work\M05\publicacion-mvc
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5094
+~~~
+
+La segunda instancia debe poder arrancar si 5094 está libre. No hemos modificado `HomeController`, `ProductosController`, ninguna vista ni el archivo `.csproj`. Solo hemos indicado una dirección de escucha diferente.
+
+Desde otra terminal compara:
+
+~~~powershell
+curl.exe -i http://localhost:5091/Productos/Estado
+curl.exe -i http://localhost:5094/Productos/Estado
+~~~
+
+Ambas respuestas deben proceder de la misma versión de MVC A, aunque atendidas por procesos distintos. Detén primero la instancia 5094 y después la 5091, comprobando que al cerrar una no desaparece necesariamente la otra. Vuelve a la raíz con `Pop-Location` en cada terminal.
+
+**Pregunta razonada:** ¿por qué no habría solucionado la colisión cambiar la URL de una vista Razor? Porque la colisión se produce al abrir el socket de escucha durante el arranque, antes de procesar el HTML de esa vista.
+
+### Paso P5.3.9. Comprobar un fallo de arranque sin diagnosticarlo como fallo HTTP
+
+Un caso diferente aparece si la DLL publicada no puede iniciar por una dependencia previa. En la configuración normal de MVC A, el host prepara LocalDB durante el arranque. Si la instancia falta o no se puede abrir, puede fallar antes de empezar a escuchar.
+
+Para no provocar daños en la base ni en la configuración existente, no elimines instancias ni archivos SQL. En su lugar, razona sobre la salida de error y comprueba primero el estado de la variable `Despliegue__SinLocalDb`. Si estaba activada, el comportamiento 503 de Productos es intencionado. Si estaba desactivada, el host intentará preparar la conexión LocalDB real. En cualquier caso, antes de atribuir un error a Kestrel comprueba si llegó a aparecer una dirección de escucha y si alguna ruta devolvió HTTP.
+
+Este paso no exige forzar una avería en la máquina del docente. Consiste en reconocer la evidencia que distinguiría una excepción de arranque, un puerto ocupado y una acción que responde 503. Un alumno capaz de explicar esas tres posibilidades puede trasladar el diagnóstico al siguiente hospedaje sin confundir subsistemas.
+
+### Paso P5.3.10. Cierre reproducible de la variante
+
+Después de detener todas las instancias Kestrel abiertas para el ensayo, en cada terminal que hubiera configurado la opción temporal ejecuta:
+
+~~~powershell
+Remove-Item Env:\Despliegue__SinLocalDb -ErrorAction SilentlyContinue
+~~~
+
+Comprueba que la carpeta `.work\M05\publicacion-mvc` continúa disponible. No elimines el proyecto original ni su `ConnectionStrings:Productos`. El siguiente punto seguirá utilizando la **misma publicación MVC**, pero con un sitio IIS que determinará su propio mecanismo de entrada.
+
+El resultado que debes ser capaz de explicar es una secuencia completa: arranque de un proceso desde una DLL publicada, lectura de su puerto, solicitud de varias rutas, diagnóstico de un segundo arranque conflictivo, ejecución en un puerto alternativo y parada controlada. Todos esos pasos pertenecen a un único proyecto y pueden reproducirse sin alterar el proveedor de datos.
+
+
+
 ### Diagnóstico P5.3: qué comprobar y por qué
 
 | Problema | Comprobación directa | Corrección proporcionada |
