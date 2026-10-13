@@ -1768,6 +1768,99 @@ La enseñanza del reto es concreta: diferenciar ruta y query string, validar un 
 
 No confundas esta matriz con una obligación de implantar búsquedas complejas, paginación o repositorios. Es una ampliación limitada de Minimal API que conecta un concepto de HTTP con un comportamiento que puede comprobarse directamente.
 
+
+### P4.3 — Alternativa PowerShell: enviar JSON sin errores de comillas
+
+Los comandos curl.exe de la práctica permiten observar las cabeceras y el estado HTTP, pero en Windows PowerShell puede resultar incómodo escribir JSON directamente en una línea de comandos que contiene varias comillas. Una alternativa consiste en preparar primero un objeto de PowerShell, convertirlo a JSON y enviarlo con los comandos HTTP integrados en ese entorno.
+
+Este apartado no sustituye el archivo ProductosApi.http ni cambia la API. Ofrece otra forma de ejecutar los mismos contratos con los conocimientos que el alumno ya tiene de línea de comandos.
+
+#### Paso PS1. Consulta de lectura
+
+Con la API iniciada en 5081, ejecuta:
+
+~~~powershell
+$direccion = "http://localhost:5081"
+$productos = Invoke-RestMethod -Uri "$direccion/api/productos" -Method Get
+$productos | Format-Table
+~~~
+
+La variable productos contendrá la representación deserializada del catálogo, lista para inspeccionarse desde PowerShell. Debes ver Cuaderno y Lápiz cuando el proceso está recién iniciado. Observa la diferencia con curl.exe -i: Invoke-RestMethod resulta cómodo para trabajar con el contenido, mientras que curl.exe -i muestra directamente el estado y las cabeceras.
+
+#### Paso PS2. Preparar JSON válido
+
+Crea un objeto de datos y conviértelo al formato que espera la API:
+
+~~~powershell
+$solicitud = @{
+    nombre = "Agenda"
+    precio = 6.40
+}
+$json = $solicitud | ConvertTo-Json -Compress
+$json
+~~~
+
+El resultado debe tener un objeto JSON con nombre y precio. Con este procedimiento evitamos escribir manualmente una secuencia de comillas escapadas dentro de un argumento largo. No enviamos id, porque el identificador pertenece al servidor.
+
+#### Paso PS3. Crear el producto y observar la respuesta
+
+Ejecuta:
+
+~~~powershell
+$respuesta = Invoke-WebRequest -Uri "$direccion/api/productos" -Method Post -ContentType "application/json" -Body $json
+$respuesta.StatusCode
+$respuesta.Headers["Location"]
+$respuesta.Content
+~~~
+
+El estado esperado es 201. La cabecera Location identifica la dirección relativa del nuevo recurso. El contenido debe representar el producto creado, incluido el ID que ha asignado la API. Si antes se realizaron otras altas, el identificador concreto puede ser distinto del valor observado en un proceso recién iniciado.
+
+Este método permite estudiar varias piezas de HTTP por separado: estado, cabecera y cuerpo. Después puedes repetir GET del catálogo para comprobar que el nuevo recurso aparece en la memoria del servidor.
+
+#### Paso PS4. Provocar la regla de rechazo
+
+Prepara una entrada que conserve un nombre pero tenga precio cero:
+
+~~~powershell
+$invalida = @{
+    nombre = "Agenda"
+    precio = 0
+} | ConvertTo-Json -Compress
+~~~
+
+Envía el cuerpo a POST /api/productos y observa el rechazo. Dependiendo del comando y de la versión de PowerShell, una respuesta HTTP no satisfactoria puede presentarse como excepción en vez de devolverse como objeto normal de éxito. No lo interpretes como un error del lenguaje C#: el servidor está comunicando 400 porque los datos incumplen la regla.
+
+Para examinar el código de forma inequívoca también puedes utilizar el comando curl.exe con un archivo JSON:
+
+~~~powershell
+Set-Content -Path .\producto-invalido.json -Value $invalida -Encoding utf8
+curl.exe -i -X POST http://localhost:5081/api/productos -H "Content-Type: application/json" --data-binary "@producto-invalido.json"
+~~~
+
+Comprueba mediante GET que no se ha incorporado un nuevo producto. Esta observación complementa el estado 400 y demuestra que la validación se produjo antes de modificar la colección.
+
+#### Paso PS5. Diferenciar 404 y ausencia de conexión
+
+Con la API disponible solicita un identificador inexistente usando curl.exe -i. Debes obtener 404 del servidor. Después detén la API y repite GET /api/productos. En ese caso el cliente no recibe un estado HTTP válido del servidor detenido.
+
+El objetivo es comprender que una excepción o un mensaje de error en la terminal no explica por sí solo la causa. Debemos preguntarnos si hubo respuesta HTTP y qué estado contenía. Esa misma clasificación es la que utiliza el componente Blazor cuando distingue rechazo, conexión y deserialización.
+
+#### Paso PS6. Comparar PowerShell, archivo .http y Blazor
+
+Ahora disponemos de tres clientes distintos para el mismo contrato. PowerShell puede enviar GET y POST; el editor HTTP de Visual Studio permite mantener las solicitudes escritas en un archivo del proyecto; y Blazor integra las operaciones en una interfaz con carga, formularios y mensajes.
+
+Los tres consumidores acceden a la misma API. Por ello la validación del nombre y del precio sigue siendo responsabilidad del servidor, independientemente de que un consumidor presente inputs HTML o que otro envíe un objeto JSON desde PowerShell.
+
+No hace falta incluir los comandos de PowerShell en el código de Blazor: son herramientas para inspeccionar y razonar sobre el comportamiento del servidor. Al terminar, elimina los archivos JSON temporales que hayas creado en tu carpeta de ensayo si no vas a utilizarlos en otros ejercicios.
+
+### P4.3 — Una pregunta para comprobar comprensión
+
+Supón que el POST desde PowerShell devuelve 201, pero el formulario Blazor presenta un error. ¿Qué has aprendido? Sabes que la API puede procesar al menos una solicitud válida sin depender del componente. Tu siguiente investigación debería centrarse en el cliente Blazor: dirección base, DTO, servicio tipado o estado de la página.
+
+Ahora supón lo contrario: el formulario Blazor parece mostrar un producto, pero el GET directo a la API no lo incluye. No des por confirmado el alta sin estudiar el estado del servidor. Puede que estés consultando otra instancia o que el componente haya añadido un objeto local sin esperar la confirmación correcta.
+
+Los dos casos demuestran por qué es útil disponer de un consumidor HTTP independiente incluso cuando el objetivo final es construir una interfaz agradable para el usuario.
+
 ### Resultado del ejercicio
 
 Ahora puedes recorrer una petición desde Blazor hasta la API y viceversa, interpretar sus códigos HTTP y añadir un endpoint nuevo sin modificar rutas existentes. La API continúa funcionando en memoria: al reiniciarla se pierde todo lo creado durante la ejecución.
