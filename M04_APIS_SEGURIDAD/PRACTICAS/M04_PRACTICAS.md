@@ -1949,6 +1949,117 @@ Inicia una sesión limpia y ejecuta la secuencia mínima: anónimo denegado, acc
 **¿Por qué hay que probar el endpoint después de cerrar sesión?** Porque la pantalla puede cambiar por razones visuales. El criterio de seguridad consiste en que el servidor deje de entregar un recurso cuando la identidad ya no satisface la política.
 
 
+
+### Taller integrador de M04 — Recuperar una aplicación con cuatro fallos aislados
+
+Esta actividad combina los conceptos de los cuatro puntos sin añadir nuevas tecnologías ni convertir la API de memoria en un producto empresarial. Se realiza en una **copia de ensayo del estado 4.4**, nunca sobre el proyecto de referencia sin conservar el estado original. El propósito es que el alumno aprenda a relacionar una observación con el límite del sistema responsable.
+
+El docente puede presentar las incidencias una a una, o el alumno puede provocarlas y corregirlas siguiendo los escenarios. No se exige resolverlas todas durante el tiempo presencial; forman parte del material de referencia y consolidación. Para cada caso trabajaremos con un único fallo intencionado, de modo que su causa sea identificable.
+
+#### Preparación T0. Crear una copia limpia y conocer los dos procesos
+
+Localiza el proyecto Blazor 4.4 y la API del ejercicio 4.3. Conserva una copia de ambos estados tal como están versionados. La API se ejecutará en 5081 y Blazor en un puerto distinto. Antes de cambiar nada, confirma con una petición directa que el servidor devuelve Cuaderno y Lápiz.
+
+Ahora abre /catalogo-remoto. Debes observar los mismos productos; esa es la primera referencia visual. A continuación abre /seguridad, comprueba que aparece la rama anónima y solicita directamente /demo/privado para observar la denegación de acceso.
+
+No continúes con las incidencias si el punto de partida ya presenta errores. Resolver un problema introducido por nosotros requiere saber cómo se comportaba la aplicación antes.
+
+#### Incidencia T1. Blazor funciona, pero la API parece haber desaparecido
+
+Detén solo el proceso API. Mantén abierto Blazor e intenta consultar /catalogo-remoto. La página deberá seguir existiendo, aunque muestre un error de comunicación. Si la navegación hasta la página también falla, quizás has detenido el proceso equivocado.
+
+A continuación, deja la API iniciada en otro puerto, por ejemplo 5088, y mantén ProductosApi:BaseUrl apuntando a 5081. El síntoma desde Blazor puede ser parecido, pero ahora la API sí existe: simplemente no está escuchando en la dirección que utiliza el cliente.
+
+Diagnostica en este orden. Comprueba con el navegador o el archivo .http qué puerto responde; después abre appsettings.json de Blazor; finalmente verifica la URL base que se utiliza en el registro de HttpClient. Si se ha movido la API a 5088, cambia solo la configuración del cliente y vuelve a ejecutar.
+
+No reescribas ProductoDto ni el componente Razor para arreglar un puerto. Son partes del sistema que no han cambiado. El criterio de corrección es que GET y POST vuelvan a funcionar sin modificar el contrato de datos.
+
+#### Incidencia T2. La página no obtiene siquiera un servicio
+
+Restaura 5081. En una copia de ensayo de Program.cs comenta temporalmente el registro de IProductosApiService. Ejecuta el proyecto y navega a /catalogo-remoto. El componente solicita una dependencia que el contenedor ya no sabe proporcionar.
+
+Compara esta incidencia con T1. En T1 la resolución de dependencias era correcta, pero la petición HTTP no alcanzaba su destino. En T2 la aplicación no llega a ejecutar la operación remota porque no puede construir el colaborador del componente.
+
+Restaura el registro tipado y compila:
+
+~~~csharp
+builder.Services.AddHttpClient<IProductosApiService, ProductosApiService>(
+    cliente =>
+    {
+        cliente.BaseAddress = new Uri(
+            builder.Configuration["ProductosApi:BaseUrl"]
+            ?? "http://localhost:5081/");
+        cliente.Timeout = TimeSpan.FromSeconds(10);
+    });
+~~~
+
+Comprueba que /productos —la página local procedente de M03— sigue disponible. No borres IProductosMemoriaService mientras estás corrigiendo el consumo remoto: hacerlo introduciría una regresión independiente del fallo que queremos estudiar.
+
+#### Incidencia T3. El servidor responde 200, pero los datos no pueden leerse
+
+Con ambos procesos iniciados, observa la respuesta directa de GET /api/productos. Debe ser un arreglo JSON. Imagina ahora que sustituyéramos su cuerpo por el objeto de resumen que contiene cantidad y precioTotal. La ruta podría seguir devolviendo 200, pero el servicio tipado que espera List<ProductoDto> no podría interpretar la nueva forma.
+
+Para observar un fallo real sin destruir el contrato de manera permanente, utiliza una copia de ensayo del Program.cs de la API y sustituye temporalmente el GET del listado por:
+
+~~~csharp
+app.MapGet("/api/productos", () =>
+    Results.Ok(new { cantidad = productos.Count }));
+~~~
+
+No registres esta ruta junto a la versión original. Sustituye una definición por otra, compila y reinicia. Consulta desde el navegador: obtendrás un objeto JSON. Después abre /catalogo-remoto y observa el fallo de conversión, porque el cliente sigue esperando una lista.
+
+Este problema no se resuelve aumentando el timeout ni cambiando el puerto. El servidor respondió a tiempo, pero cambió la forma de los datos. La solución de la actividad es restaurar GET /api/productos como lista, manteniendo cualquier nuevo resumen en su ruta independiente.
+
+#### Incidencia T4. La interfaz oculta el rol, pero el recurso sigue protegido
+
+Restaura la API y comprueba que el catálogo funciona. Ahora entra en /seguridad con el código de laboratorio en Development y consulta /demo/privado. Debería permitir el acceso a la identidad con rol Formador.
+
+Comenta temporalmente la representación visual del rol en Seguridad.razor, sin alterar la política del endpoint. La página puede dejar de anunciar el rol, pero el servidor conserva la exigencia de Formador. Este resultado demuestra que la interfaz no decide por sí misma si entrega información protegida.
+
+Después cambia solo la política del endpoint para exigir OtroRol. El usuario sigue autenticado, pero deja de satisfacer el requisito. Restaura Formador al terminar y realiza una salida mediante POST. Comprueba de nuevo que el recurso deniega el acceso anónimo.
+
+El criterio de corrección no es que el formulario parezca convincente: es observar que el servidor toma la decisión de autorización y que la sesión deja de permitir el recurso después del cierre.
+
+### Taller integrador — Secuencia de recuperación de extremo a extremo
+
+Cuando hayas revertido los cuatro defectos, realiza una secuencia completa con el estado de referencia:
+
+1. Inicia la API del laboratorio en 5081 y consulta GET /api/productos desde una herramienta HTTP. Debes recibir Cuaderno y Lápiz.
+2. Inicia Blazor y abre /catalogo-remoto. Debes recibir la misma colección a través de IProductosApiService.
+3. Crea Regla por 1,75 desde el formulario y observa el ID asignado por el servidor.
+4. Consulta GET /api/productos directamente y comprueba que Regla existe en memoria.
+5. Envía una petición POST con precio cero y comprueba que el servidor la rechaza sin crear otro recurso.
+6. Reinicia la API y observa que regresa al estado inicial de dos productos.
+7. Abre /seguridad en Development y comprueba que un usuario anónimo no recibe /demo/privado.
+8. Entra con el código de laboratorio, comprueba el rol Formador y solicita de nuevo el recurso privado.
+9. Cierra la sesión mediante el formulario POST y vuelve a comprobar la denegación del recurso.
+
+Esta secuencia no exige que el alumno presente una captura por cada acción. Su valor está en poder explicar por qué cada resultado corresponde a una decisión determinada de interfaz, servicio, API o autorización del servidor.
+
+### Taller integrador — Comparación de diagnósticos
+
+| Síntoma observado | Primera comprobación útil | Límite responsable |
+|---|---|---|
+| Blazor abre pero no encuentra catálogo | Consultar API directamente y revisar puerto | Comunicación |
+| Error al activar CatalogoRemoto | Revisar registro IProductosApiService | Contenedor DI |
+| HTTP 200 con error de JSON | Comparar cuerpo con ProductoDto | Contrato |
+| POST inválido crea un producto | Revisar validación en servidor | Reglas API |
+| Dos productos creados por dos pulsaciones | Revisar estados de envío y semántica POST | UI y operación |
+| Resumen incompatible con catálogo | Revisar rutas diferenciadas | Diseño de API |
+| Formulario muestra anónimo tras entrar | Revisar POST, token y cookie | Autenticación |
+| Usuario identificado sin permiso | Revisar claims y RequireRole | Autorización |
+| Link oculto pero endpoint accesible | Probar URL directamente | Protección del recurso |
+| Nuevo proceso de API muestra solo dos productos | Revisar almacenamiento de memoria | Ciclo de vida del proceso |
+
+### Taller integrador — Reflexión sobre el diseño final
+
+El componente CatalogoRemoto presenta datos y recibe interacciones; IProductosApiService declara operaciones; ProductosApiService conoce HTTP y el contrato remoto; la API valida y modifica su colección; y el servidor Blazor aplica autorización al endpoint de demostración. La corrección funcional depende de que estos límites cooperen, no de que una única clase reúna toda la lógica.
+
+El alumno debería poder construir una pequeña API compatible con el cliente, observar estados de error sin confundirlos y explicar por qué una vista que oculta un control no asegura un recurso. Esa es la competencia integrada que M04 aporta al proyecto del curso.
+
+No introducimos en esta actividad base de datos, un proveedor de identidad completo ni despliegue público. Esos ámbitos modificarían el alcance de seis horas que hemos acordado. El material adicional proporciona profundidad, variantes y diagnóstico, pero no exige que cada escenario se imparta íntegramente durante el tiempo presencial.
+
+
 ### Cierre
 
 Hemos observado autenticación, autorización y representación visual de la identidad sin rehacer cursos de Web API o Identity. Nunca reutilices la credencial fija de laboratorio en un despliegue público.
