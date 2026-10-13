@@ -17,6 +17,93 @@ Partimos de la aplicación `M03_BLAZOR/PROYECTO/3.6/CursoWeb.Blazor`. Crearemos 
 
 Los ejemplos razonados de HTTP, DTO, JSON y `HttpClient` están explicados en teoría 4.1. Esta práctica se centra en **construir y observar** el comportamiento.
 
+
+### Preparación autónoma del entorno en Visual Studio y PowerShell
+
+Los ejercicios de este módulo utilizan .NET 8. Las aplicaciones necesarias están dentro del repositorio: partimos de la aplicación Blazor del módulo 3 y utilizamos una API auxiliar ya operativa durante 4.1 y 4.2. Después el alumno construirá su propia API en 4.3. El hecho de que ambos proyectos compartan un repositorio no significa que sean un mismo proceso.
+
+#### Preparación E1. Comprobar el SDK y compilar los proyectos de referencia
+
+Desde PowerShell, situado en la raíz del repositorio, ejecuta:
+
+~~~powershell
+dotnet --list-sdks
+dotnet build .\M04_APIS_SEGURIDAD\PROYECTO\4.1\CursoWeb.ProductosApi\CursoWeb.ProductosApi.csproj
+dotnet build .\M04_APIS_SEGURIDAD\PROYECTO\4.1\CursoWeb.Blazor\CursoWeb.Blazor.csproj
+~~~
+
+Debe existir un SDK 8.x. Una compilación correcta confirma que las dependencias y tipos del proyecto pueden resolverse, pero todavía no demuestra que la API responda ni que la página Blazor obtenga información. Esas comprobaciones se harán después de iniciar los procesos.
+
+Si aparece un error de compilación, resuélvelo antes de modificar la aplicación. Comprueba que trabajas con la ruta correcta y no con una copia incompleta del proyecto, que el SDK apropiado está instalado y que no has perdido archivos al crear tu espacio de trabajo.
+
+#### Preparación E2. Crear una copia de trabajo sin sobrescribir M03
+
+El proyecto M03 es una referencia que debe permanecer intacta. Desde la raíz del repositorio, prepara una carpeta local de trabajo:
+
+~~~powershell
+New-Item -ItemType Directory -Force .work\M04 | Out-Null
+Copy-Item -Path .\M03_BLAZOR\PROYECTO\3.6\CursoWeb.Blazor -Destination .\.work\M04\CursoWeb.Blazor -Recurse
+~~~
+
+Realiza la copia solamente cuando el destino esté vacío. Si ya existe un trabajo anterior en esa ruta, utiliza una carpeta nueva; no lo sobrescribas. La copia será el punto de partida de los cambios que el alumno escribe durante P4.1.
+
+La API suministrada puede arrancarse desde su ruta versionada. No necesitas copiarla ni modificarla para completar los dos primeros puntos. Cuando llegue P4.3, crearás una aplicación servidor independiente y podrás comparar sus archivos con los del recurso suministrado.
+
+#### Preparación E3. Mantener abiertas dos terminales
+
+En la primera terminal inicia la API:
+
+~~~powershell
+dotnet run --project .\M04_APIS_SEGURIDAD\PROYECTO\4.1\CursoWeb.ProductosApi\CursoWeb.ProductosApi.csproj --urls http://localhost:5081
+~~~
+
+No cierres esa terminal. Comprueba mediante un navegador que http://localhost:5081/api/productos devuelve el catálogo inicial. Si el puerto está ocupado, comprueba si otra instancia anterior sigue ejecutándose antes de cambiar números en todos los proyectos.
+
+En una segunda terminal inicia la aplicación Blazor de referencia:
+
+~~~powershell
+dotnet run --project .\M04_APIS_SEGURIDAD\PROYECTO\4.1\CursoWeb.Blazor\CursoWeb.Blazor.csproj --urls http://localhost:5091
+~~~
+
+Ahora Blazor utiliza el puerto 5091 y la API el 5081. Abre http://localhost:5091/catalogo-remoto. El navegador solicita la página Blazor; el servidor que aloja el componente utiliza HttpClient para obtener datos de la API. Esa distinción de procesos es el fundamento de este módulo.
+
+Cuando hayas construido los cambios en tu copia de .work, sustituye en el comando la ruta del proyecto Blazor de referencia por la de tu copia. No necesitas modificar el código de la API para que funcione el cliente.
+
+#### Preparación E4. Distinguir la consulta directa de la interfaz
+
+Con la API ejecutándose, utiliza una terminal para enviar una petición directa:
+
+~~~powershell
+curl.exe -i http://localhost:5081/api/productos
+~~~
+
+Debes observar 200 y una lista JSON. Esta solicitud no atraviesa ni el componente Razor ni el servicio HTTP de Blazor. Es una evidencia independiente de que el servidor API funciona.
+
+Después detén únicamente la API y repite la petición. No recibirás un 404 de ese servidor: no existe un proceso escuchando para producir su respuesta HTTP. Reinicia la API y comprueba que vuelve a responder antes de continuar.
+
+Si desde Blazor la consulta falla aunque el GET directo funcione, investiga la configuración del cliente, la ruta relativa y los DTO. Si el GET directo también falla, comienza el diagnóstico por el proceso API y el puerto, no por el HTML de la pantalla.
+
+#### Preparación E5. Ejecutar desde Visual Studio
+
+Puedes abrir los proyectos en ventanas independientes de Visual Studio o incorporarlos a una solución de trabajo. La elección de ventana no cambia el hecho de que son dos aplicaciones diferentes. Identifica siempre qué proyecto inicia el proceso API y qué proyecto inicia Blazor.
+
+Cuando practiques errores de conexión, detén solo la API. Cuando quieras observar una sesión limpia de Blazor, reinicia únicamente su proceso. Cuando quieras restaurar la colección inicial de productos, reinicia la API, porque es allí donde reside la memoria de productos.
+
+No hay que crear un controlador MVC ni una tercera pantalla para que la API responda. La plantilla web mínima que reconstruirás en 4.3 es suficiente para publicar el pequeño contrato HTTP del laboratorio.
+
+#### Preparación E6. Entender la diferencia entre build y run
+
+dotnet build compila. dotnet run inicia un proceso. Un proyecto puede compilar correctamente y, sin embargo, fallar al abrir un puerto ocupado o al intentar alcanzar un servidor distinto que está apagado. También puede iniciarse una API que todavía no publica todos los endpoints esperados. Por eso las prácticas combinan compilación, consulta HTTP directa y resultado visible en Blazor.
+
+No confundas un error de resolución de dependencias con un error de conexión. En 4.2 comprobaremos expresamente que el componente necesita tener registrado IProductosApiService; en 4.1 todavía usa el cliente con nombre. Son estados de construcción distintos y deben conservarse para entender la evolución.
+
+### Estado de partida para comenzar P4.1
+
+Antes de pasar al primer paso debes poder identificar la carpeta de M03 que sirve como base, el lugar donde escribes tu copia, la terminal donde corre la API y la terminal donde corre Blazor. También debes haber comprobado el JSON del catálogo fuera de Blazor.
+
+Esta preparación no adelanta la implementación de 4.2, la creación desde cero de 4.3 ni el acceso de demostración de 4.4. Su objetivo es que los cambios de cada punto puedan atribuirse a una decisión concreta y no a un entorno que nunca llegó a estar operativo.
+
+
 ### Paso 4.1.1. Preparar dos procesos independientes
 
 **Proyecto API suministrado:** `M04_APIS_SEGURIDAD/PROYECTO/4.1/CursoWeb.ProductosApi`.
