@@ -1,0 +1,80 @@
+name: M04 - Identity y JWT real E2E
+on:
+  push:
+    branches: [desarrollo/m04-reescritura-docente-integral]
+    paths:
+      - 'M04_APIS_SEGURIDAD/PROYECTO/4.5/**'
+      - '.github/workflows/m04-identity-jwt-ci.yml'
+  workflow_dispatch:
+jobs:
+  identity-jwt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      DemoFormador__Email: formador@ejemplo.local
+      DemoFormador__Password: 'ClaveDemoSegura-2026!'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Secretos efímeros fuera del repositorio
+        shell: bash
+        run: echo "Jwt__SigningKey=$(openssl rand -base64 48)" >> "$GITHUB_ENV"
+      - name: Compilar Identity Core EF Core SQLite y JwtBearer
+        run: dotnet build M04_APIS_SEGURIDAD/PROYECTO/4.5/CursoWeb.IdentityJwtApi/CursoWeb.IdentityJwtApi.csproj -c Release
+      - name: Ejecutar E2E real de JWT y roles
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet run --no-build -c Release --project M04_APIS_SEGURIDAD/PROYECTO/4.5/CursoWeb.IdentityJwtApi/CursoWeb.IdentityJwtApi.csproj --urls http://127.0.0.1:5086 > /tmp/m04-identityjwt.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" || true; cat /tmp/m04-identityjwt.log' EXIT
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:5086/ > /dev/null; then break; fi
+            sleep 1
+          done
+          python3 - <<'PY'
+          import json, urllib.request, urllib.error, base64
+          base='http://127.0.0.1:5086'
+          def call(path,method='GET',body=None,token=None):
+              headers={'Content-Type':'application/json'}
+              if token: headers['Authorization']='Bearer '+token
+              data=json.dumps(body).encode() if body is not None else None
+              req=urllib.request.Request(base+path,data=data,method=method,headers=headers)
+              try:
+                  with urllib.request.urlopen(req) as x:
+                      return x.status,json.loads(x.read() or b'{}')
+              except urllib.error.HTTPError as e:
+                  return e.code,{}
+          assert call('/api/identidad/yo')[0]==401
+          assert call('/api/identidad/formador')[0]==401
+          email='alumno@example.test'
+          pwd='ClaveAlumnoSegura-2026!'
+          invalid=call('/auth/registro','POST',{'email':email,'password':'123'})
+          assert invalid[0]==400,invalid
+          created=call('/auth/registro','POST',{'email':email,'password':pwd})
+          assert created[0]==201,created
+          assert created[1]['rol']=='Alumno'
+          duplicate=call('/auth/registro','POST',{'email':email,'password':pwd})
+          assert duplicate[0]==400,duplicate
+          assert call('/auth/login','POST',{'email':email,'password':'incorrecta'})[0]==401
+          status,payload=call('/auth/login','POST',{'email':email,'password':pwd})
+          assert status==200,payload
+          jwt=payload['accessToken']
+          assert jwt.count('.')==2 and payload['tokenType']=='Bearer'
+          h,b,s=jwt.split('.')
+          claims=json.loads(base64.urlsafe_b64decode(b+'='*(-len(b)%4)))
+          assert claims['iss']=='CursoWeb.M04.IdentityJwt'
+          assert claims['aud']=='CursoWeb.M04.Cliente'
+          assert 'exp' in claims and 'sub' in claims
+          status,yo=call('/api/identidad/yo',token=jwt)
+          assert status==200 and 'Alumno' in yo['roles'],(status,yo)
+          assert call('/api/identidad/formador',token=jwt)[0]==403
+          assert call('/api/identidad/yo',token=jwt[:-1]+('A' if jwt[-1]!='A' else 'B'))[0]==401
+          form=call('/auth/login','POST',{'email':'formador@ejemplo.local','password':'ClaveDemoSegura-2026!'})
+          assert form[0]==200,form
+          assert call('/api/identidad/formador',token=form[1]['accessToken'])[0]==200
+          print('E2E OK: 400 contraseña, 201 alta, 401 anónimo y credenciales, 200 JWT válido, 403 rol Alumno, 401 firma alterada, 200 rol Formador',flush=True)
+          PY
