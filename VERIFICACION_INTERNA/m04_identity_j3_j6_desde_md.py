@@ -9,6 +9,11 @@ from pathlib import Path
 import re
 import subprocess
 import tempfile
+import os
+import time
+import json
+import urllib.request
+import urllib.error
 
 ROOT=Path(__file__).resolve().parents[1]
 MD=(ROOT/"M04_APIS_SEGURIDAD/PRACTICAS/M04_PRACTICAS.md").read_text(encoding="utf-8")
@@ -65,4 +70,51 @@ with tempfile.TemporaryDirectory(prefix="m04-identity-desde-md-") as temp:
         if run.returncode:
             raise AssertionError(f"J{i} NO COMPILA: {run.stdout[-12000:]} {run.stderr[-3000:]}")
         print(f"J{i}: COMPILA extraído literalmente de prácticas",flush=True)
-print("J3-J6: etapas acumulativas compiladas desde el Markdown, sin solución final",flush=True)
+
+    # El servidor del alumno se ejecuta DE VERDAD sobre LocalDB Windows
+    # y no comparte base con la implementación de referencia.
+    p=root/"J6"
+    db=os.environ.get("ConnectionStrings__IdentityDb","")
+    if "(localdb)" not in db:
+        raise AssertionError("Esta prueba requiere SQL Server Express LocalDB real.")
+    own=re.sub(r"Database=[^;]+",lambda m:m.group(0)+"_ALUMNO",db,count=1)
+    env=os.environ.copy()
+    env["ConnectionStrings__IdentityDb"]=own
+    port=5090
+    dll=p/"bin"/"Release"/"net8.0"/"CursoWeb.IdentityJwtApi.dll"
+    proc=subprocess.Popen(["dotnet",str(dll),"--urls",f"http://127.0.0.1:{port}"],
+        cwd=p,env=env,stdout=subprocess.DEVNULL,stderr=subprocess.STDOUT)
+    base=f"http://127.0.0.1:{port}"
+    def request(path,method="GET",body=None,token=None):
+        headers={"Content-Type":"application/json"}
+        if token: headers["Authorization"]="Bearer "+token
+        req=urllib.request.Request(base+path,method=method,headers=headers,
+            data=json.dumps(body).encode() if body is not None else None)
+        try:
+            with urllib.request.urlopen(req,timeout=10) as resp:
+                return resp.status,json.loads(resp.read() or b"{}")
+        except urllib.error.HTTPError as err:
+            return err.code,{}
+    try:
+        for _ in range(75):
+            if proc.poll() is not None:
+                raise AssertionError("El servidor J6 dejó de ejecutarse")
+            try:
+                if request("/")[0]==200: break
+            except (urllib.error.URLError, TimeoutError):
+                time.sleep(2)
+        else: raise AssertionError("J6 no inició en LocalDB")
+        assert request("/api/identidad/yo")[0]==401
+        creds={"email":"j6_alumno@example.test","password":"ClaveAlumnoSegura-2026!"}
+        assert request("/auth/registro","POST",creds)[0]==201
+        code,data=request("/auth/login","POST",creds)
+        assert code==200 and data.get("accessToken"),(code,data)
+        jwt=data["accessToken"]
+        assert request("/api/identidad/yo",token=jwt)[0]==200
+        assert request("/api/identidad/formador",token=jwt)[0]==403
+        print("J6 EJECUTADO sobre LocalDB real: 201, 200 login, 401, 200 perfil y 403 Alumno",flush=True)
+    finally:
+        proc.terminate()
+        try: proc.wait(timeout=10)
+        except subprocess.TimeoutExpired: proc.kill()
+print("J3-J6: estados compilados y API final ejecutada DESDE EL MARKDOWN",flush=True)
