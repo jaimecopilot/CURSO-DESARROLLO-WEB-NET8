@@ -1575,6 +1575,112 @@ Conserva dos proyectos diferentes: el cliente Blazor y la API que has construido
 
 Si puedes explicar por qué esas tres condiciones son simultáneamente necesarias —funcionamiento directo del servidor, compatibilidad del cliente y validación independiente— habrás comprendido el propósito de crear la API dentro de M04.
 
+
+### P4.3 — Reto opcional 4.3.6: incorporar una búsqueda sin romper los clientes existentes
+
+Este ejercicio amplía la API que has construido desde cero con una operación de consulta que filtra productos por una parte de su nombre. No hace falta modificar el cliente de 4.2 ni reconstruir ninguna pantalla; vamos a probar el endpoint directamente y comprender cómo ASP.NET Core obtiene un parámetro desde la URL.
+
+El resultado esperado es una nueva dirección: GET /api/productos/buscar?nombre=cuad. Con los productos iniciales, debe devolver Cuaderno dentro de un arreglo JSON. El servidor no debe modificar su diccionario al procesar esa petición y el cliente Blazor debe seguir consumiendo normalmente GET /api/productos.
+
+#### Etapa B1. Establecer el estado de partida
+
+Inicia la API en 5081 sin activar todavía el nuevo endpoint. Consulta GET /api/productos y comprueba que devuelve dos objetos. Intenta después solicitar /api/productos/buscar?nombre=cuad: antes de registrar la nueva ruta no se obtiene la lista filtrada. Anota esta observación porque será la referencia para demostrar que la ampliación tuvo un efecto real.
+
+Asegúrate de que los bloques PASO 4.3.3 y RETO 4.3.5 estén en el estado que necesita tu ejercicio anterior. El endpoint de búsqueda utiliza una ruta nueva, de modo que puede coexistir con cualquiera de las versiones del resumen, pero no requiere tener dos resúmenes activados simultáneamente.
+
+#### Etapa B2. Reconocer un parámetro de consulta
+
+Descompón la dirección en dos partes: /api/productos/buscar identifica el endpoint y ?nombre=cuad transmite el criterio. No confundas ese parámetro con el id entero de /api/productos/{id:int}. El primero es un texto de búsqueda; el segundo selecciona un producto concreto por identificador.
+
+La firma del manejador utiliza string? nombre. La posibilidad de null permite representar que el cliente no ha proporcionado un término. La primera condición del endpoint lo rechaza mediante BadRequest para que un GET sin criterio no se interprete silenciosamente como una consulta de toda la colección.
+
+#### Etapa B3. Activar el endpoint
+
+Localiza en Program.cs el bloque marcado RETO OPCIONAL 4.3.6. Retira solamente los delimitadores de comentario de ese bloque. No copies el código en otro lugar ni publiques la misma ruta por duplicado.
+
+El contenido activado debe ser equivalente a:
+
+~~~csharp
+app.MapGet("/api/productos/buscar", (string? nombre) =>
+{
+    if (string.IsNullOrWhiteSpace(nombre))
+        return Results.BadRequest("Indica el nombre que deseas buscar.");
+
+    var termino = nombre.Trim();
+    var encontrados = productos.Values
+        .Where(p => p.Nombre.Contains(
+            termino, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(p => p.Id)
+        .ToArray();
+
+    return Results.Ok(encontrados);
+});
+~~~
+
+Compila antes de ejecutar. Si falla, verifica que has quitado los dos delimitadores del mismo bloque y que el código quedó fuera de otro lambda. Reinicia la API para que el proceso ejecute la versión nueva.
+
+#### Etapa B4. Búsqueda con una coincidencia
+
+En ProductosApi.http ejecuta el bloque correspondiente a GET /api/productos/buscar?nombre=cuad. Debe devolver un arreglo con Cuaderno y un estado HTTP 200.
+
+Comprueba que la respuesta sigue utilizando los mismos campos de ProductoApi: id, nombre y precio. No hemos definido un DTO de resultado diferente para la búsqueda, porque continúa devolviendo productos. La forma de lista permite que un cliente que conozca ProductoDto pueda interpretar el cuerpo, aunque el componente obligatorio del curso todavía no consuma esta nueva ruta.
+
+#### Etapa B5. Búsqueda sin coincidencias
+
+Ejecuta GET /api/productos/buscar?nombre=nohaycoincidencia. El resultado esperado es 200 con []. La solicitud es válida y el filtro se ha ejecutado, pero ningún nombre contiene ese término.
+
+Es importante no cambiar la implementación para devolver 404 simplemente porque no haya coincidencias. En este contrato el cliente está consultando una colección filtrada; que esa colección resulte vacía es un resultado válido. El contraste con GET /api/productos/999 muestra por qué un recurso individual ausente y una colección sin resultados no tienen necesariamente el mismo estado HTTP.
+
+#### Etapa B6. Criterio ausente
+
+Ejecuta GET /api/productos/buscar sin la parte ?nombre=.... El endpoint rechaza la operación con 400. Comprueba que la respuesta corresponde al manejador de búsqueda y no a una ruta diferente.
+
+Ahora prueba ?nombre= seguido de una cadena vacía. El comportamiento también debe ser 400. La condición string.IsNullOrWhiteSpace cubre ambos casos y permite expresar de manera sencilla la regla de que una búsqueda debe tener un término significativo.
+
+#### Etapa B7. Mayúsculas y coincidencia parcial
+
+Solicita ?nombre=CUAD y después ?nombre=cuad. Ambos filtros deben encontrar Cuaderno, porque el endpoint utiliza StringComparison.OrdinalIgnoreCase. El alumno debe localizar esta decisión en el código y explicar que no depende de cambiar la capitalización del nombre almacenado.
+
+Después prueba un fragmento que no aparezca en ningún nombre. La respuesta vacía no debe provocar una excepción de conversión JSON, porque sigue siendo un arreglo correcto del tipo esperado.
+
+#### Etapa B8. Búsqueda después de crear otro producto
+
+Utiliza POST /api/productos para crear un producto llamado Cuaderno grande, con precio positivo. Repite la búsqueda por cuad. Ahora deben aparecer Cuaderno y Cuaderno grande, ordenados por identificador.
+
+Esta secuencia demuestra que el servidor no utiliza una lista fija de resultados de búsqueda. Consulta el diccionario compartido que también utiliza el endpoint de creación. Si al repetir GET solo aparece el primer producto, investiga si el POST realmente se ejecutó en el mismo proceso que está atendiendo las consultas.
+
+#### Etapa B9. La API original no debe haber cambiado
+
+Solicita GET /api/productos sin filtro. Debe continuar devolviendo todos los elementos, incluidos los creados durante la ejecución. Después solicita el detalle por ID y realiza un POST válido. Estas operaciones no deben haber cambiado por añadir la búsqueda.
+
+Este último paso es una comprobación de compatibilidad. El reto no se considera correcto solo porque la ruta nueva funcione: también debe conservar los contratos que necesitaba el cliente Blazor.
+
+#### Etapa B10. Integración conceptual con el servicio tipado
+
+El ejercicio obligatorio se detiene en la comprobación directa del endpoint. Como actividad de razonamiento, explica qué cambios serían necesarios para incorporar una caja de búsqueda remota a Blazor. Habría que añadir a IProductosApiService una operación BuscarAsync, implementarla en ProductosApiService y crear o adaptar la interfaz que recoge el criterio.
+
+Además, el criterio introducido por un usuario debe representarse adecuadamente en la URL. No conviene construir rutas mediante concatenación ingenua de cadenas que puedan contener espacios o caracteres especiales. Este tema puede tratarse como ampliación de lectura, sin añadir más pantallas obligatorias a la jornada.
+
+#### Etapa B11. Restaurar o conservar el reto de forma identificable
+
+Cuando termines, puedes volver a comentar el bloque para conservar la base del ejercicio o dejarlo activado en una copia identificada como variante. No edites el proyecto de 4.1 que proporcionaba la API inicial y no elimines los endpoints originales de listado, detalle y creación.
+
+La enseñanza del reto es concreta: diferenciar ruta y query string, validar un criterio, filtrar una colección sin modificarla, reconocer respuestas vacías legítimas y ampliar un contrato de API conservando su compatibilidad.
+
+### P4.3 — Evidencia final de la búsqueda
+
+| Solicitud | Estado esperado | Resultado |
+|---|---:|---|
+| /api/productos/buscar?nombre=cuad | 200 | Cuaderno |
+| /api/productos/buscar?nombre=CUAD | 200 | Cuaderno |
+| /api/productos/buscar?nombre=nohaycoincidencia | 200 | [] |
+| /api/productos/buscar sin nombre | 400 | Criterio rechazado |
+| /api/productos/buscar?nombre= | 400 | Criterio rechazado |
+| Búsqueda tras crear Cuaderno grande | 200 | Dos productos coincidentes |
+| /api/productos habitual | 200 | Catálogo completo |
+
+No confundas esta matriz con una obligación de implantar búsquedas complejas, paginación o repositorios. Es una ampliación limitada de Minimal API que conecta un concepto de HTTP con un comportamiento que puede comprobarse directamente.
+
 ### Resultado del ejercicio
 
 Ahora puedes recorrer una petición desde Blazor hasta la API y viceversa, interpretar sus códigos HTTP y añadir un endpoint nuevo sin modificar rutas existentes. La API continúa funcionando en memoria: al reiniciarla se pierde todo lo creado durante la ejecución.
