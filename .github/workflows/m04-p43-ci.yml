@@ -1,0 +1,67 @@
+name: M04 P4.3 - API ampliada y compatibilidad
+on:
+  push:
+    branches:
+      - desarrollo/m04-apis-seguridad-trazable
+    paths:
+      - 'M04_APIS_SEGURIDAD/PROYECTO/4.3/**'
+      - '.github/workflows/m04-p43-ci.yml'
+  workflow_dispatch:
+jobs:
+  p43:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Compilar proyecto Blazor acumulativo
+        run: dotnet build M04_APIS_SEGURIDAD/PROYECTO/4.3/CursoWeb.Blazor/CursoWeb.Blazor.csproj -c Release
+      - name: Activar paso guiado 4.3.3 en copia temporal
+        shell: bash
+        run: |
+          set -euo pipefail
+          cp -R M04_APIS_SEGURIDAD/PROYECTO/4.3/CursoWeb.ProductosApi /tmp/p43-api
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/p43-api/Program.cs')
+          s=p.read_text()
+          start=s.index('// PASO 4.3.3 INICIO')
+          end=s.index('// PASO 4.3.3 FIN', start)
+          block=s[start:end]
+          assert block.count('/*') == 1 and block.count('*/') == 1
+          block=block.replace('/*','',1).replace('*/','',1)
+          p.write_text(s[:start]+block+s[end:])
+          PY
+          dotnet build /tmp/p43-api/CursoWeb.ProductosApi.csproj -c Release
+      - name: Contratos previos GET POST y resumen nuevo
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet run --no-build -c Release --project /tmp/p43-api/CursoWeb.ProductosApi.csproj --urls http://127.0.0.1:5081 > /tmp/p43.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" || true; cat /tmp/p43.log' EXIT
+          for i in $(seq 1 50); do
+            if curl -fsS http://127.0.0.1:5081/api/productos > /tmp/p43-lista.json; then break; fi
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:5081/api/productos/resumen > /tmp/p43-resumen.json
+          python3 - <<'PY'
+          import json
+          lista=json.load(open('/tmp/p43-lista.json'))
+          resumen=json.load(open('/tmp/p43-resumen.json'))
+          assert len(lista)==2,lista
+          assert resumen['cantidad']==2 and abs(resumen['precioTotal']-3.30)<0.001,resumen
+          PY
+          status=$(curl -s -o /tmp/p43-creado.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"nombre":"Regla","precio":1.75}' http://127.0.0.1:5081/api/productos)
+          test "$status" = "201"
+          curl -fsS http://127.0.0.1:5081/api/productos/resumen > /tmp/p43-resumen.json
+          python3 - <<'PY'
+          import json
+          resumen=json.load(open('/tmp/p43-resumen.json'))
+          assert resumen['cantidad']==3 and abs(resumen['precioTotal']-5.05)<0.001,resumen
+          PY
+          bad=$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{"nombre":"","precio":0}' http://127.0.0.1:5081/api/productos)
+          missing=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5081/api/productos/999)
+          test "$bad" = "400"
+          test "$missing" = "404"
