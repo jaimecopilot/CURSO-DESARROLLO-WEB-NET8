@@ -476,6 +476,66 @@ Conviene trabajar con evidencias diferenciadas:
 
 La transición de ejecutar a publicar se entiende cuando el alumno reconoce qué archivos se han producido, cuáles son las dependencias del destino y qué evidencia requiere un programa que arranca fuera de Visual Studio. Esos conocimientos son prerrequisitos de Kestrel, IIS y Docker.
 
+
+### 5.2.7. Qué cambia realmente cuando dejamos de ejecutar desde el proyecto
+
+Mientras desarrollamos con Visual Studio, trabajamos con un directorio que contiene el archivo `.csproj`, código C#, vistas, recursos y configuraciones. La herramienta puede compilarlo, iniciar el proceso y ofrecer una experiencia de depuración. Esa comodidad no debe confundirse con los archivos que hay que trasladar al destino.
+
+`dotnet build` permite comprobar que el código y las referencias forman una aplicación compilable. `dotnet publish` prepara una salida adecuada para ejecutar el programa con unas opciones de despliegue determinadas. `dotnet run` inicia la aplicación desde su proyecto, compilando si corresponde. Una publicación no inicia un servidor por sí misma y una compilación correcta no acredita una conexión a SQL Server.
+
+En una publicación dependiente del framework de ASP.NET Core 8, el directorio de destino debe disponer de un runtime compatible. El ensamblado de MVC A está en `CursoWeb.Mvc.dll`, pero no es suficiente por sí solo. Necesita los archivos de dependencias y configuración correspondientes, las bibliotecas pertinentes y, en el caso de una aplicación web, los recursos estáticos que debe servir.
+
+El criterio correcto para observar la transición es identificar tres preguntas independientes: **¿se ha construido el programa?**, **¿se han preparado los archivos para el destino?** y **¿hay un proceso atendiendo peticiones reales con esos archivos?**. Una respuesta afirmativa a la primera no determina las otras dos.
+
+### 5.2.8. Leer la carpeta publicada como un conjunto de responsabilidades
+
+`CursoWeb.Mvc.runtimeconfig.json` aporta información sobre el entorno de ejecución requerido. Si el equipo no tiene instalado el runtime adecuado, el proceso puede fallar antes de atender ninguna ruta MVC. `CursoWeb.Mvc.deps.json` participa en la resolución de dependencias; no es una tabla de rutas que debamos editar para hacer aparecer una vista. La aplicación sigue ejecutando código compilado.
+
+`wwwroot` contiene archivos estáticos; el programa debe tener configurado su servicio. Si `/` responde HTML y `/css/site.css` devuelve 404, el servidor y la ruta inicial pueden funcionar mientras falta un recurso. Por eso la simple visita a la página inicial es una prueba incompleta. Los archivos de configuración, a su vez, pueden contener una cadena de conexión que apunta a un recurso no disponible. Copiar el archivo no crea la base de datos.
+
+Cuando se publica para IIS puede aparecer `web.config`, que describe cómo debe iniciar la aplicación el módulo de hospedaje ASP.NET Core. Ese archivo es significativo para IIS, pero su existencia no instala IIS ni el Hosting Bundle. Más adelante veremos que el mismo programa puede recibir solicitudes mediante otros mecanismos sin cambiar sus controladores.
+
+### 5.2.9. Directorio actual y directorio publicado no son necesariamente iguales
+
+Una ruta relativa se interpreta desde un contexto. El comando `dotnet publish .\CursoWeb.Mvc.csproj` presupone que el proyecto se encuentra en la carpeta actual. Si nos situamos en la raíz del repositorio, habrá que utilizar una ruta distinta, y si abrimos la carpeta de salida publicada tendremos que ejecutar la DLL desde allí o indicar su ruta completa.
+
+Esta diferencia se vuelve visible cuando aparecen errores de «archivo no encontrado». No significa que el programa C# esté mal diseñado. Puede tratarse de una orden ejecutada desde otra carpeta. La respuesta técnica es comprobar el directorio actual, el archivo de proyecto y la ubicación de salida, no copiar código al azar a distintos directorios.
+
+Además, no hay que suponer que editar una vista en el árbol de código modifica una publicación ya construida. Una distribución normalmente conserva la versión de archivos y ensamblados producida cuando se publicó. Para incorporar cambios posteriores se vuelve a publicar y se sustituye la salida que ejecuta el destino.
+
+### 5.2.10. Configuración de compilación y entorno de ejecución son conceptos distintos
+
+La opción `-c Release` determina una configuración de construcción. No significa que el entorno ASP.NET Core vaya a llamarse necesariamente `Production`. Tampoco instala certificados HTTPS ni añade autorización a los controladores. Es un error pedagógico presentar Release como sinónimo de seguridad.
+
+La aplicación puede leer una configuración general y valores específicos del entorno; las variables de entorno suelen utilizar `__` para representar claves jerárquicas como `Despliegue:SinLocalDb`. Una ejecución puede, por tanto, comportarse de manera distinta aunque se inicie exactamente el mismo ensamblado:
+
+~~~powershell
+$env:Despliegue__SinLocalDb = "true"
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5091
+~~~
+
+El ejemplo presupone que estamos dentro del directorio publicado. Con esta opción la aplicación del curso realiza únicamente el recorrido sin base previsto para demostrar hospedaje; no convierte automáticamente la cadena LocalDB en una conexión válida. Restablecer el valor es imprescindible cuando volvemos a trabajar con el CRUD persistente de M02.
+
+### 5.2.11. Por qué LocalDB puede impedir el arranque antes de que exista una página
+
+El `Program.cs` de MVC A registra un contexto EF Core con `UseSqlServer`. Registrar el contexto no implica que todas las llamadas a SQL Server hayan tenido lugar ya. Sin embargo, el ejemplo del curso también realiza una inicialización elemental de base al inicio bajo la configuración normal. Si esa operación falla, el proceso puede terminar sin haber empezado a escuchar HTTP.
+
+Imaginemos que alguien copia el directorio publicado a un equipo que no dispone de SQL Server Express LocalDB. Ve la DLL y un archivo de configuración correcto, pero la aplicación no arranca. Concluir que Kestrel «no funciona» sería precipitado: la causa inmediata puede estar en una dependencia de datos anterior a la apertura del puerto.
+
+En el modo de ensayo de despliegue, el programa consulta `Despliegue:SinLocalDb`. Cuando vale `true`, omite esa inicialización, pero no pretende habilitar el CRUD con otro proveedor. Para evitar un resultado engañoso, las rutas de productos que requerirían SQL devuelven explícitamente un **503**. Así queda separada la disponibilidad del servidor web de la disponibilidad de la funcionalidad de datos.
+
+### 5.2.12. Historia de una publicación que funciona parcialmente
+
+Un alumno construye MVC A y publica a carpeta. La orden termina correctamente, inicia la aplicación y abre `/` con respuesta 200. Sin embargo, cuando intenta acceder a `/Productos`, recibe 503. ¿Qué sabemos realmente?
+
+Sabemos que existe una publicación ejecutable, un proceso que responde, una ruta MVC disponible y una ruta que declara no estar disponible. Todavía no sabemos si está instalada LocalDB ni cuál fue la configuración de arranque. Debemos mirar el valor del indicador de despliegue y el contexto del proceso antes de modificar las vistas o rehacer la base.
+
+En otra máquina puede suceder algo diferente: `/` funciona, pero el CSS falta. Aquí el problema afecta a recursos estáticos, no necesariamente a SQL Server. Y en un tercer equipo la aplicación ni siquiera llega a abrir un puerto porque el runtime esperado no está instalado. Las tres situaciones se describen coloquialmente como «la publicación falla», pero requieren diagnósticos diferentes.
+
+Esa es la finalidad de este apartado: dar significado técnico a la palabra publicar. Los comandos son relevantes porque producen artefactos concretos, pero la capacidad que debe adquirir el alumno consiste en explicar **qué ejecución se ha preparado, qué dependencias conserva y qué evidencias demuestran sus límites**.
+
+
+
 ## 5.3. Kestrel: proceso, dirección y respuesta HTTP
 
 ### 5.3.1. Qué es Kestrel y qué hace
