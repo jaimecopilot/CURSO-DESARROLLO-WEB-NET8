@@ -1,6 +1,7 @@
 using CursoWeb.Blazor.Components;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
+using Microsoft.AspNetCore.Antiforgery;
 
 using CursoWeb.Blazor.Services;
 
@@ -40,12 +41,16 @@ app.UseAuthentication();
 app.UseAuthorization();
 app.UseAntiforgery();
 
+if (app.Environment.IsDevelopment())
+{
 app.MapGet("/demo/privado", () => Results.Ok(new { mensaje = "Recurso protegido" }))
    .RequireAuthorization(p => p.RequireRole("Formador"));
 
 // La identidad de prueba se establece con una respuesta HTTP convencional.
-app.MapPost("/demo/entrar", async (HttpContext http) =>
+app.MapPost("/demo/entrar", async (HttpContext http, IAntiforgery antiforgery) =>
 {
+    if (!await antiforgery.IsRequestValidAsync(http))
+        return Results.BadRequest("Token antifalsificación inválido.");
     var form = await http.Request.ReadFormAsync();
     if (form["codigo"] != "curso-demo-44")
         return Results.Redirect("/seguridad?error=1");
@@ -57,11 +62,14 @@ app.MapPost("/demo/entrar", async (HttpContext http) =>
     await http.SignInAsync("CookiesDemo", new ClaimsPrincipal(identity));
     return Results.Redirect("/seguridad");
 });
-app.MapPost("/demo/salir", async (HttpContext http) =>
+app.MapPost("/demo/salir", async (HttpContext http, IAntiforgery antiforgery) =>
 {
+    if (!await antiforgery.IsRequestValidAsync(http))
+        return Results.BadRequest("Token antifalsificación inválido.");
     await http.SignOutAsync("CookiesDemo");
     return Results.Redirect("/seguridad");
 });
+}
 // El modo Interactive Server necesita tanto servicios como endpoint.
 app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
 app.Run();
