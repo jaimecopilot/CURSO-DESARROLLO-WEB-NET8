@@ -456,7 +456,7 @@ Separa en tu explicación oral qué recibe la pantalla (`IReadOnlyList<ProductoD
 
 ### Paso 4.2.2. Implementar la comunicación en una clase
 
-Crea `Services/ProductosApiService.cs`, usando la clase completa expuesta y explicada en teoría 4.2.2. Debe implementar **ambos métodos**. Al terminar, comprueba que en esa clase aparecen `GetFromJsonAsync`, `PostAsJsonAsync` y `EnsureSuccessStatusCode`.
+Crea `Services/ProductosApiService.cs` con el código íntegro que aparece a continuación en esta práctica. Debe implementar **ambos métodos**. Al terminar, comprueba que en esa clase aparecen `GetFromJsonAsync`, `PostAsJsonAsync` y `EnsureSuccessStatusCode`.
 
 No envíes desde el cliente un ID inventado en `CrearProductoDto`: la API asignará el valor y devolverá `ProductoDto`.
 
@@ -539,6 +539,226 @@ Abre también `/productos` y comprueba que continúa siendo accesible. Si algo f
 Localiza todos los lugares de `CatalogoRemoto.razor` donde aparezca la cadena `"api/productos"`. **El resultado debe ser ninguno**. Localiza ahora esa ruta en `ProductosApiService.cs`: aquí sí debe aparecer, porque es un detalle de comunicación.
 
 Como variante de exploración, cambia solo esa ruta por `"api/no-existe"`, ejecuta de nuevo y observa el aviso de error HTTP. Restablece después `"api/productos"`.
+
+
+### Taller de refactor P4.2: comprobar las fronteras antes y después
+
+El objetivo de la práctica no es añadir una segunda pantalla; es transformar el diseño conservando resultados. Antes de tocar el código, escribe qué se mantiene invariable: al abrir el catálogo remoto aparecen los productos, al crear Regla aparece una confirmación, el servidor puede rechazar datos inválidos y la falta de conexión se presenta como error. El catálogo local del módulo 3 sigue funcionando por separado.
+
+**Inventario anterior.** En el archivo de P4.1 el componente conoce IHttpClientFactory, el nombre ProductosApi, la ruta api/productos y los métodos GetFromJsonAsync y PostAsJsonAsync. Estas dependencias funcionan, pero convierten a la presentación en responsable de detalles de comunicación. El ejercicio consiste en desplazar esos detalles a una clase sin alterar las decisiones visuales.
+
+**Primera transformación.** Crea la interfaz IProductosApiService con dos operaciones. No agregues todavía un tercer método que no se utilice. La firma de ObtenerAsync devuelve una colección de solo lectura; la firma de CrearAsync recibe un objeto sin ID y devuelve un objeto completo con ID. Comprueba que el proyecto compila después de crear la interfaz y antes de cambiar el componente.
+
+**Segunda transformación.** Implementa la clase ProductosApiService. La clase recibe HttpClient por su constructor primario y usa exactamente las rutas del contrato. Si el proyecto no compila, revisa los espacios de nombres y las declaraciones de los DTO antes de añadir manejo de errores o cambiar la URL. De esta forma separas problemas de tipos de problemas de HTTP.
+
+**Tercera transformación.** Sustituye el registro con nombre por el registro tipado. No dejes ambos registros funcionando para el mismo ejemplo: si una variante vieja continúa presente, el alumno podría creer que la página está usando una configuración que en realidad ya no se consulta. Conserva en cambio los servicios de Blazor y el servicio de memoria de M03.
+
+**Cuarta transformación.** En CatalogoRemoto.razor cambia la inyección de IHttpClientFactory por IProductosApiService, reemplaza el GET por ObtenerAsync y sustituye el bloque HTTP del POST por CrearAsync. Debe seguir existiendo una validación de nombre y precio en el componente y una notificación visual tras el alta. El servicio nuevo no se encarga de dibujar mensajes.
+
+**Quinta transformación.** Arranca ambos procesos y compara el comportamiento con P4.1. Si funciona igual, la refactorización ha conservado los resultados. Si ha cambiado, investiga primero la transformación concreta que acabas de ejecutar en vez de modificar a la vez el servidor.
+
+### Program.cs completo del estado P4.2
+
+El siguiente archivo muestra el registro del cliente tipado en el contexto real de la aplicación. Conserva los servicios utilizados por las páginas de M03. Léelo después de completar el registro manual para contrastar qué líneas han cambiado.
+
+
+~~~csharp
+using CursoWeb.Blazor.Components;
+using CursoWeb.Blazor.Services;
+
+var builder = WebApplication.CreateBuilder(args);
+// Servicios necesarios para componentes Razor y circuitos Interactive Server.
+builder.Services.AddRazorComponents().AddInteractiveServerComponents();
+// PASO 3.6.1: inyección por interfaz. No existe HttpClient ni API aún.
+builder.Services.AddScoped<IProductosMemoriaService, ProductosMemoriaService>();
+// P4.1: cliente HTTP con nombre, consumido desde la pantalla remota.
+// P4.2: cliente tipado; el componente solo conoce IProductosApiService.
+builder.Services.AddHttpClient<IProductosApiService, ProductosApiService>(cliente =>
+{
+    cliente.BaseAddress = new Uri(
+        builder.Configuration["ProductosApi:BaseUrl"] ?? "http://localhost:5081/");
+    cliente.Timeout = TimeSpan.FromSeconds(10);
+});
+var app = builder.Build();
+if (!app.Environment.IsDevelopment()) app.UseExceptionHandler("/error");
+app.UseStaticFiles();
+app.UseAntiforgery();
+// El modo Interactive Server necesita tanto servicios como endpoint.
+app.MapRazorComponents<App>().AddInteractiveServerRenderMode();
+app.Run();
+public partial class Program { }
+
+~~~
+
+
+### CatalogoRemoto.razor completo después del refactor
+
+Comprueba que la página ya no crea ni nombra un HttpClient. El componente conoce ObtenerAsync y CrearAsync, mantiene cargando, enviando y los mensajes de estado, y conserva sus eventos Razor. Todo acceso a la ruta HTTP se concentra en ProductosApiService.
+
+
+~~~razor
+@page "/catalogo-remoto"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject IProductosApiService CatalogoApi
+<PageTitle>Productos desde API</PageTitle>
+
+<h1>Catálogo remoto · P4.1</h1>
+<p>Esta página consume una API HTTP. El catálogo local de M03 sigue disponible en /productos.</p>
+@if (cargando)
+{
+    <p id="estado-api" role="status">Cargando catálogo remoto...</p>
+}
+else if (error is not null)
+{
+    <p id="error-api" role="alert">@error</p>
+}
+else
+{
+    <p id="estado-api">Catálogo remoto disponible</p>
+    <ul id="productos-api">
+        @foreach (var producto in productos)
+        {
+            <li>@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+        }
+    </ul>
+}
+<section>
+    <h2>Crear producto</h2>
+    <label>Nombre: <input id="nombre-api" @bind="nombreNuevo" /></label>
+    <label>Precio: <input id="precio-api" type="number" min="0" step="0.01" @bind="precioNuevo" /></label>
+    <button id="crear-api" disabled="@enviando" @onclick="CrearAsync">Crear en API</button>
+    @if (mensaje is not null)
+    {
+        <p id="resultado-api" role="status">@mensaje</p>
+    }
+</section>
+
+@code {
+    private List<ProductoDto> productos = [];
+    private bool cargando = true;
+    private string? error;
+    private string nombreNuevo = string.Empty;
+    private decimal precioNuevo;
+    private bool enviando;
+    private string? mensaje;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            productos = (await CatalogoApi.ObtenerAsync()).ToList();
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo obtener el catálogo remoto.";
+        }
+        catch (TaskCanceledException)
+        {
+            error = "La petición superó el tiempo disponible.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            error = "La API no devolvió un catálogo JSON válido.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task CrearAsync()
+    {
+        if (string.IsNullOrWhiteSpace(nombreNuevo) || precioNuevo <= 0)
+        {
+            mensaje = "Indica un nombre y un precio mayor que cero.";
+            return;
+        }
+
+        enviando = true;
+        mensaje = null;
+        try
+        {
+            var creado = await CatalogoApi.CrearAsync(new CrearProductoDto(nombreNuevo.Trim(), precioNuevo));
+            productos.Add(creado);
+            nombreNuevo = string.Empty;
+            precioNuevo = 0;
+            mensaje = $"Producto creado: {creado.Nombre} (id {creado.Id}).";
+        }
+        catch (HttpRequestException)
+        {
+            mensaje = "La API no pudo completar el alta.";
+        }
+        catch (TaskCanceledException)
+        {
+            mensaje = "Se agotó el tiempo al crear el producto.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            mensaje = "La respuesta de alta no contiene JSON válido.";
+        }
+        catch (InvalidOperationException)
+        {
+            mensaje = "La respuesta de alta está incompleta.";
+        }
+        finally
+        {
+            enviando = false;
+        }
+    }
+
+    /* RETO P4.2: comprobar que la ruta "api/productos" solo aparece en
+       ProductosApiService, nunca en las llamadas del componente. */
+}
+
+~~~
+
+
+### P4.2 — Ejercicios de regresión guiada
+
+#### Escenario 1: los datos siguen siendo remotos
+
+Arranca la API en el puerto 5081 y abre /catalogo-remoto. Debes ver dos productos. Detén la API y recarga: debe aparecer una condición de fallo. Si continúan apareciendo los dos productos sin ninguna petición, comprueba si estás observando por error la página local /productos o una copia antigua de la aplicación.
+
+#### Escenario 2: la creación conserva su contrato
+
+Reinicia la API y crea Regla por 1,75. El mensaje debe incluir el nombre y el ID real. Recarga la página y verifica que la entrada continúa en la colección de memoria del servidor. Después reinicia la API y comprueba que el catálogo vuelve a dos elementos. Esa persistencia temporal pertenece al proceso API, no al servicio tipado ni al componente.
+
+#### Escenario 3: la interfaz ya no contiene rutas HTTP
+
+Busca la cadena api/productos en CatalogoRemoto.razor. El resultado esperado es cero. Haz la búsqueda en ProductosApiService.cs; el resultado debe localizar los métodos correspondientes a consulta y creación. Ahora cambia temporalmente la ruta en el servicio, ejecuta y observa el fallo. Restablece después el contrato original.
+
+No elimines el estado error del componente por considerar que el servicio se ocupa de las excepciones. La clase de infraestructura puede identificar un problema de HTTP, pero la vista sigue siendo responsable de informar al usuario.
+
+#### Escenario 4: una dependencia sin registrar
+
+Como ejercicio razonado, imagina que comentamos por accidente AddHttpClient<IProductosApiService, ProductosApiService> pero el componente continúa solicitando IProductosApiService. Antes de probar, predice el resultado: el problema aparecerá al resolver la dependencia, antes de que se envíe una petición HTTP. Restaurar la configuración de DI soluciona la causa; cambiar el puerto no tendría efecto.
+
+#### Escenario 5: el servidor funciona pero el puerto no coincide
+
+Mantén el registro de DI correcto y cambia temporalmente la URL base para apuntar a un puerto en el que no hay API. El componente podrá obtener una instancia de su servicio, pero la consulta no llegará al servidor esperado. Este resultado es diferente del escenario anterior y permite distinguir configuración de dependencias y conectividad.
+
+#### Escenario 6: compatibilidad de DTO
+
+Examina el JSON de respuesta de GET y compara sus campos con ProductoDto. Reflexiona sobre qué ocurriría si la API enviara un objeto de resumen en vez de una lista. La implementación de ProductosApiService es el lugar donde se detectaría el desacuerdo de contrato, mientras que la vista transformaría la incidencia en un mensaje visible.
+
+#### Escenario 7: regresión del módulo 3
+
+Abre la página local /productos. Debe continuar operativa, porque mantenemos IProductosMemoriaService y los componentes originales. Si esa pantalla falla al iniciar, revisa los servicios que has eliminado en Program.cs: la práctica no autorizaba retirar ninguna dependencia utilizada por el estado anterior.
+
+### Matriz de responsabilidades tras P4.2
+
+| Responsabilidad | Componente Razor | Servicio tipado | API |
+|---|---|---|---|
+| Dibujar lista | Sí | No | No |
+| Leer valores del formulario | Sí | No | No |
+| Elegir endpoint HTTP | No | Sí | Publica ruta |
+| Configurar HttpClient | No | Registro DI | No |
+| Serializar solicitud JSON | No | Sí | Deserializa |
+| Asignar identificador | No | No | Sí |
+| Validar entrada del servidor | No sustituye servidor | No | Sí |
+| Mostrar error al usuario | Sí | Comunica fallo | Devuelve estado |
+
+La evidencia final no es simplemente que un archivo compiló. Es que el comportamiento visible se mantiene y que el componente dejó de conocer detalles HTTP. Al cumplir ambas condiciones hemos efectuado un refactor que el alumno puede justificar.
 
 ### Consolidación
 
