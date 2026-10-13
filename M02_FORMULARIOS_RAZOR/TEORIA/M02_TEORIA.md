@@ -24,6 +24,31 @@ Al finalizar el día, el producto será un catálogo que permita crear, consulta
 
 # 2.1. Formularios HTML, GET y POST, model binding y antiforgery
 
+## El formulario como origen de una solicitud HTTP: demostración integral
+
+Después de M01 sabemos mostrar el catálogo; ahora otra persona introduce nombre y precio. El navegador envía esos campos como pares de nombre y valor en una solicitud POST. La vista define la estructura HTML y el token antiforgery, pero el servidor es quien recibe la información y decide cómo responder. En este estado seguimos trabajando sin base de datos.
+
+**Ejemplo completo de la etapa 2.1:** Views/Productos/Crear.cshtml. El código incluye comentarios de variantes que corresponden a decisiones docentes; solo se activan cuando el alumno llega a ellas.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Crear producto";
+}
+<h1>Crear producto — P2.1</h1>
+<p>Este primer formulario permite observar el envío de datos, pero todavía no persiste productos.</p>
+<form method="post" action="/Productos/Crear">
+    @Html.AntiForgeryToken()
+    <div><label for="Nombre">Nombre</label><input id="Nombre" name="Nombre" value="@Model.Nombre" /></div>
+    <div><label for="Precio">Precio</label><input id="Precio" name="Precio" type="number" step="0.01" value="@Model.Precio.ToString(System.Globalization.CultureInfo.InvariantCulture)" /></div>
+    <button type="submit">Enviar producto</button>
+</form>
+<p><a href="/Productos">Volver al catálogo</a></p>
+~~~
+
+El formulario se muestra primero mediante GET. Una acción POST puede convertir los campos en propiedades de un objeto C# mediante model binding. El token antiforgery no es una contraseña escrita por el alumno: es una protección de la solicitud que debe conservarse durante los cambios de marcado. P2.1 reproduce el ciclo completo y distingue respuesta correcta de rechazo.
+
+
 ## El problema que resuelve un formulario
 
 Hasta ahora, el usuario de nuestro catálogo podía navegar entre la portada, la lista de productos y una ficha individual. Las tres posibilidades pertenecían, principalmente, al mundo de las **consultas**. Una URL como `/Productos/Detalle/2` permite identificar qué información queremos recuperar; el servidor determina qué objeto `Producto` corresponde al identificador y genera una página HTML.
@@ -254,6 +279,68 @@ El antiforgery se comprende mejor como comprobación de procedencia de una solic
 
 
 # 2.2. Tag Helpers: de los atributos HTML escritos a mano al enlace tipado con MVC
+
+## De HTML escrito a mano a Tag Helpers tipados: demostración integral
+
+La idea del formulario no cambia; cambia la manera de generar rutas, nombres de campos y etiquetas relacionadas con un modelo C#. Los Tag Helpers reciben metadatos de Razor y producen elementos HTML para el navegador. La aplicación sigue enviando GET y POST, y el servidor continúa realizando model binding.
+
+**Ejemplo completo de la etapa 2.2:** Views/Productos/Crear.cshtml. El código incluye comentarios de variantes que corresponden a decisiones docentes; solo se activan cuando el alumno llega a ellas.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Crear producto";
+}
+<h1>Crear producto — P2.2</h1>
+<p>Transformaremos el formulario HTML de P2.1 en un formulario con Tag Helpers, sin cambiar la acción ni los datos.</p>
+
+@* PASO 2.2.2 — FORM TAG HELPER, alternativa comentada:
+   Sustituye la etiqueta de apertura del formulario por:
+   <form asp-controller="Productos" asp-action="Crear" method="post">
+   Al activarlo, RETIRA la línea @Html.AntiForgeryToken() de abajo:
+   FormTagHelper genera automáticamente el token para este POST.
+   Conserva el mismo </form> final.
+*@
+<form method="post" action="/Productos/Crear">
+    @Html.AntiForgeryToken()
+    <div class="campo">
+        @* PASO 2.2.3 — LABEL TAG HELPER, alternativa comentada:
+           <label asp-for="Nombre"></label>
+           Sustituye solamente el label HTML siguiente y comprueba el atributo for generado.
+        *@
+        <label for="Nombre">Nombre</label>
+
+        @* PASO 2.2.4 — INPUT TAG HELPER, alternativa comentada:
+           <input asp-for="Nombre" />
+           Sustituye solamente el input HTML siguiente; comprueba id y name generados.
+        *@
+        <input id="Nombre" name="Nombre" value="@Model.Nombre" />
+    </div>
+    <div class="campo">
+        @* PASO 2.2.3 — LABEL TAG HELPER, alternativa comentada:
+           <label asp-for="Precio"></label>
+        *@
+        <label for="Precio">Precio</label>
+
+        @* PASO 2.2.4 — INPUT TAG HELPER, alternativa comentada:
+           <input asp-for="Precio" type="number" step="0.01" />
+           El atributo step permite escribir centésimas; no es una regla de negocio.
+        *@
+        <input id="Precio" name="Precio" type="number" step="0.01" value="@Model.Precio.ToString(System.Globalization.CultureInfo.InvariantCulture)" />
+    </div>
+    <button type="submit">Enviar producto</button>
+</form>
+
+@* PASO 2.2.5 — ANCHOR TAG HELPER, alternativa comentada:
+   Sustituye el enlace HTML siguiente por:
+   <p><a asp-controller="Productos" asp-action="Index">Volver al catálogo</a></p>
+   Compara el href final con el enlace HTML que acabas de reemplazar.
+*@
+<p><a href="/Productos">Volver al catálogo</a></p>
+~~~
+
+Compara asp-for, asp-action y asp-controller con el HTML resultante. No debemos conservar dos formularios superpuestos ni duplicar mecanismos antiforgery. P2.2 sustituye el marcado progresivamente sin desechar la acción del controlador aprendida en P2.1.
+
 
 ## La misma aplicación, un nuevo problema de mantenimiento
 
@@ -545,6 +632,48 @@ Otra confusión habitual es atribuir al Tag Helper el comportamiento de JavaScri
 
 
 # 2.3. Validación de formularios con DataAnnotations y ModelState
+
+## Validación del modelo de entrada y conservación de errores: demostración integral
+
+Un formulario y una entidad persistente son conceptos diferentes. ProductoFormulario representa la información que llega del navegador; las anotaciones declarativas permiten comprobar ausencias, longitudes e intervalos numéricos. El ModelState reúne errores de vinculación y validación, y la vista los muestra sin tener que borrar el resto de campos.
+
+**Ejemplo completo de la etapa 2.3:** Models/ProductoFormulario.cs. El código incluye comentarios de variantes que corresponden a decisiones docentes; solo se activan cuando el alumno llega a ellas.
+
+~~~csharp
+using System.ComponentModel.DataAnnotations;
+
+namespace CursoWeb.Mvc.Models;
+
+/// <summary>
+/// P2.3: contrato de entrada del formulario, separado de la entidad Producto.
+/// No contiene Id: el navegador no debe determinar el identificador persistente.
+/// </summary>
+public sealed class ProductoFormulario
+{
+    // PASO 2.3.2 (ACTIVAR): descomenta las dos reglas del nombre.
+    // Comprueba primero el envío con Nombre vacío y luego con un solo carácter.
+    // [Required(ErrorMessage = "Indica el nombre.")]
+    // [StringLength(60, MinimumLength = 2, ErrorMessage = "El nombre debe tener entre 2 y 60 caracteres.")]
+    public string? Nombre { get; set; }
+
+    // PASO 2.3.2 (ACTIVAR): descomenta ambas reglas del precio.
+    // decimal? diferencia un campo ausente de un valor numérico real.
+    // [Required(ErrorMessage = "Indica el precio.")]
+    // [Range(typeof(decimal), "0.01", "9999.99", ParseLimitsInInvariantCulture = true, ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
+    public decimal? Precio { get; set; }
+
+    // APLICACION 2.3.6 (ESCRIBIR): prueba una etiqueta Display(Name = "Nombre del producto")
+    // sobre Nombre y observa la salida del Label Tag Helper sin renombrar la propiedad.
+
+    // RETO 2.3 (ACTIVAR y probar): más adelante, añade una regla opcional
+    // para impedir nombres que incluyan solo espacios después de [Required].
+    // Pista: [Required] ya rechaza cadenas compuestas exclusivamente por espacios;
+    // estudia ese comportamiento antes de añadir una regla que duplique la protección.
+}
+~~~
+
+Una cadena alfabética enviada como precio produce un problema de conversión diferente de un decimal fuera del rango permitido. El navegador puede bloquear entradas triviales, pero la aplicación debe validar igualmente en el servidor. P2.3 debe conservar Tag Helpers y antiforgery de P2.2 y enseñar por qué devolver la misma vista con errores es una respuesta prevista.
+
 
 ## La nueva pregunta: no basta con recibir datos
 
@@ -848,6 +977,201 @@ La validación de navegador mejora la experiencia, pero funciona en un entorno c
 
 
 # 2.4. CRUD persistente de productos con EF Core y SQL Server Express LocalDB
+
+## Convertir un formulario validado en operaciones persistentes: demostración integral
+
+Hasta ahora el POST podía confirmar información sin conservarla. En P2.4 el controlador usa un DbContext para consultar, insertar, editar y eliminar objetos. El modelo de entrada sigue siendo ProductoFormulario; la entidad Producto contiene los datos que EF Core persiste. Esto evita confundir una solicitud mal formada con una entidad preparada para guardarse.
+
+**Ejemplo completo de la etapa 2.4:** Controllers/ProductosController.cs. El código incluye comentarios de variantes que corresponden a decisiones docentes; solo se activan cuando el alumno llega a ellas.
+
+~~~csharp
+using CursoWeb.Mvc.Data;
+using CursoWeb.Mvc.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace CursoWeb.Mvc.Controllers;
+
+/// <summary>
+/// P2.4: la misma aplicación MVC utiliza ahora EF Core y LocalDB.
+/// El itinerario avanza de consultas a Create, Edit y Delete.
+///
+/// El alumno activa los bloques 2.4.3, 2.4.4 y 2.4.5
+/// SIN eliminar las comprobaciones de ModelState ni antiforgery.
+/// Los ejercicios se basan en los cinco proyectos escalonados del curso.
+/// </summary>
+public class ProductosController : Controller
+{
+    private readonly AppDbContext _db;
+
+    // PASO 2.4.1: DbContext se obtiene por inyección de dependencias;
+    // no se crea manualmente una conexión SQL en cada acción.
+    public ProductosController(AppDbContext db) => _db = db;
+
+    // PASO 2.4.2: READ — consultar la base sin seguimiento para una lista.
+    [HttpGet]
+    public async Task<IActionResult> Index()
+    {
+        var productos = await _db.Productos
+            .AsNoTracking()
+            .OrderBy(p => p.Id)
+            .ToListAsync();
+        return View(productos);
+    }
+
+    [HttpGet]
+    public IActionResult Estado() => Content("Catalogo MVC disponible", "text/plain");
+
+    [HttpGet]
+    public async Task<IActionResult> Detalle(int id)
+    {
+        if (id <= 0) return BadRequest("El identificador debe ser mayor que cero.");
+        var producto = await _db.Productos.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id);
+        return producto is null ? NotFound() : View(producto);
+    }
+
+    [HttpGet("/catalogo/ficha/{id:int}")]
+    public async Task<IActionResult> Ficha(int id)
+    {
+        var producto = await _db.Productos.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id);
+        return producto is null ? NotFound() : View("Detalle", producto);
+    }
+
+    // PASO 2.4.3: GET muestra el formulario de creación ya aprendido.
+    [HttpGet]
+    public IActionResult Crear() => View(new ProductoFormulario());
+
+    // PASO 2.4.3 (ACTIVAR): descomentar el método POST completo.
+    // Antes de activarlo, enviar el formulario no modifica la base de datos.
+    /* PASO 2.4.3 INICIO
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Crear(ProductoFormulario entrada)
+    {
+        // Regla central aprendida en P2.3: no persistir entradas inválidas.
+        if (!ModelState.IsValid)
+            return View(entrada);
+
+        // ProductoFormulario no tiene Id; el cliente no lo asigna.
+        var producto = new Producto
+        {
+            Nombre = entrada.Nombre!,
+            Precio = entrada.Precio!.Value
+        };
+
+        // Add marca una entidad nueva; SaveChangesAsync ejecuta el INSERT.
+        _db.Productos.Add(producto);
+        await _db.SaveChangesAsync();
+
+        // El identificador ya ha sido asignado por SQL Server.
+        // PRG evita reenvíos accidentales al recargar la página de detalle.
+        return RedirectToAction(nameof(Detalle), new { id = producto.Id });
+    }
+    PASO 2.4.3 FIN */
+
+    // PASO 2.4.4 (ACTIVAR): GET carga el producto desde LocalDB
+    // y POST actualiza solamente las dos propiedades admitidas del formulario.
+    /* PASO 2.4.4 INICIO
+    [HttpGet]
+    public async Task<IActionResult> Editar(int id)
+    {
+        if (id <= 0) return BadRequest();
+        var producto = await _db.Productos.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id);
+        if (producto is null) return NotFound();
+
+        ViewData["ProductoId"] = producto.Id;
+        return View(new ProductoFormulario
+        {
+            Nombre = producto.Nombre,
+            Precio = producto.Precio
+        });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Editar(int id, ProductoFormulario entrada)
+    {
+        if (id <= 0) return BadRequest();
+        // Leer la entidad existente, sin aceptar un objeto Producto
+        // directamente desde el cliente: evita sobrepublicación de Id.
+        var producto = await _db.Productos
+            .FirstOrDefaultAsync(p => p.Id == id);
+        if (producto is null) return NotFound();
+
+        if (!ModelState.IsValid)
+        {
+            ViewData["ProductoId"] = id;
+            return View(entrada);
+        }
+
+        producto.Nombre = entrada.Nombre!;
+        producto.Precio = entrada.Precio!.Value;
+        // EF Core realiza UPDATE sobre la entidad seguida por el contexto.
+        await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(Detalle), new { id });
+    }
+    PASO 2.4.4 FIN */
+
+    // PASO 2.4.5 (ACTIVAR): GET solo muestra una confirmación;
+    // la eliminación de datos sucede EXCLUSIVAMENTE mediante POST protegido.
+    /* PASO 2.4.5 INICIO
+    [HttpGet]
+    public async Task<IActionResult> Eliminar(int id)
+    {
+        if (id <= 0) return BadRequest();
+        var producto = await _db.Productos.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id);
+        return producto is null ? NotFound() : View(producto);
+    }
+
+    [HttpPost, ActionName("Eliminar")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EliminarConfirmado(int id)
+    {
+        if (id <= 0) return BadRequest();
+        var producto = await _db.Productos
+            .FirstOrDefaultAsync(p => p.Id == id);
+        if (producto is null) return NotFound();
+
+        _db.Productos.Remove(producto);
+        await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(Index));
+    }
+    PASO 2.4.5 FIN */
+
+    // RETO 2.4 (ACTIVAR): búsqueda de texto ejecutada en el servidor.
+    // Usa SQL Server y no reutiliza datos fijos del módulo anterior.
+    /* RETO 2.4 INICIO
+    [HttpGet("/catalogo/buscar")]
+    public async Task<IActionResult> Buscar(string? nombre)
+    {
+        var consulta = _db.Productos.AsNoTracking();
+        if (!string.IsNullOrWhiteSpace(nombre))
+            consulta = consulta.Where(p => p.Nombre.Contains(nombre));
+
+        var encontrados = await consulta.OrderBy(p => p.Id).ToListAsync();
+        return View("Index", encontrados);
+    }
+    RETO 2.4 FIN */
+
+    // RETO opcional histórico de M01. No es necesario para P2.4.
+    /* RETO 1.4 INICIO
+    [HttpGet("/catalogo/resumen/{id:int}")]
+    public async Task<IActionResult> Resumen(int id)
+    {
+        var producto = await _db.Productos.AsNoTracking()
+            .FirstOrDefaultAsync(p => p.Id == id);
+        return producto is null ? NotFound() : Ok(new { producto.Id, producto.Nombre });
+    }
+    RETO 1.4 FIN */
+}
+~~~
+
+Observa cómo las acciones de escritura comprueban ModelState antes de llamar a SaveChangesAsync, cómo las lecturas se hacen con AsNoTracking cuando no se va a editar el objeto y cómo Delete utiliza una confirmación GET y una operación POST protegida. P2.4 continúa el catálogo anterior; un reinicio de Kestrel no borra una base de datos existente.
+
 
 ## Cuando una confirmación deja de ser suficiente
 
@@ -1307,6 +1631,89 @@ La eliminación muestra claramente por qué GET y POST tienen papeles diferentes
 
 
 # 2.5. Razor Pages: otra organización para el mismo ciclo HTTP
+
+## Una Razor Page compara una organización, no crea otra aplicación: demostración integral
+
+En MVC la selección de acción ocurre en ProductosController; en Razor Pages las operaciones GET y POST pueden organizarse junto a la página mediante métodos OnGet y OnPost de su PageModel. Ambas propuestas utilizan peticiones HTTP, model binding, validación y respuestas HTML; el cambio reside en cómo estructuramos sus responsables.
+
+**Ejemplo completo de la etapa 2.5:** Pages/Comparacion.cshtml.cs. El código incluye comentarios de variantes que corresponden a decisiones docentes; solo se activan cuando el alumno llega a ellas.
+
+~~~csharp
+using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+
+namespace CursoWeb.Mvc.Pages;
+
+// P2.5: comparación acotada con MVC, dentro del mismo host.
+// Es una página demostrativa: NO altera el catálogo ni escribe en LocalDB.
+public sealed class ComparacionModel : PageModel
+{
+    // PASO 2.5.3: a diferencia de Crear(ProductoFormulario entrada) en MVC,
+    // la propiedad enlazada vive en el PageModel.
+    // BindProperty recibe valores en POST; no implica SupportsGet=true.
+    [BindProperty]
+    // PASO 2.5.4 (ACTIVAR): descomenta ambas anotaciones y compara el resultado
+    // de un nombre ausente, uno de un carácter y uno correcto.
+    // [Required(ErrorMessage = "Introduce un nombre.")]
+    // [StringLength(60, MinimumLength = 2,
+    //     ErrorMessage = "El nombre debe tener entre 2 y 60 caracteres.")]
+    public string? Nombre { get; set; }
+
+    public string Mensaje { get; private set; } = string.Empty;
+
+    // PASO 2.5.2: un GET ejecuta OnGet, no una acción de ProductosController.
+    public void OnGet()
+    {
+        Mensaje = "OnGet prepara la página sin enviar un formulario.";
+    }
+
+    // PASO 2.5.3 (ACTIVAR): el POST de la misma URL ejecutará OnPost.
+    /* PASO 2.5.3 INICIO
+    public IActionResult OnPost()
+    {
+        // PASO 2.5.4: la comprobación da sentido a DataAnnotations.
+        // Repetimos la página con errores y conservamos la entrada escrita.
+        if (!ModelState.IsValid)
+            return Page();
+
+        // Antes de activar [Required], esta salvaguarda evita aceptar
+        // el nombre vacío; no reemplaza la validación declarativa.
+        if (string.IsNullOrWhiteSpace(Nombre))
+        {
+            ModelState.AddModelError(nameof(Nombre), "Introduce un nombre.");
+            return Page();
+        }
+
+        Mensaje = $"OnPost ha recibido: {Nombre.Trim()}";
+        return Page();
+    }
+    PASO 2.5.3 FIN */
+
+    // RETO 2.5 (ACTIVAR): dos handlers POST para una sola Razor Page.
+    // El alumno deberá crear en Comparacion.cshtml un botón
+    // con asp-page-handler="Mayusculas", además del botón inicial.
+    /* RETO 2.5 INICIO
+    public IActionResult OnPostMayusculas()
+    {
+        if (!ModelState.IsValid)
+            return Page();
+
+        if (string.IsNullOrWhiteSpace(Nombre))
+        {
+            ModelState.AddModelError(nameof(Nombre), "Introduce un nombre.");
+            return Page();
+        }
+
+        Mensaje = $"Nombre en mayúsculas: {Nombre.Trim().ToUpperInvariant()}";
+        return Page();
+    }
+    RETO 2.5 FIN */
+}
+~~~
+
+La Razor Page de comparación no debe modificar el catálogo persistente sin que el enunciado lo pida. Sus propiedades enlazadas y sus handlers se enseñan para comparar el flujo, no para abandonar los controladores anteriores. P2.5 conserva la misma WebApplication, el mismo catálogo, los servicios de EF Core y los mecanismos de seguridad, añadiendo una ruta de demostración.
+
 
 ## Del catálogo MVC a una página centrada en sí misma
 
