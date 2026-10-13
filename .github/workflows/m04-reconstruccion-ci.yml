@@ -24,6 +24,18 @@ jobs:
           for point in 4.1 4.3; do
             dotnet build "M04_APIS_SEGURIDAD/PROYECTO/$point/CursoWeb.ProductosApi/CursoWeb.ProductosApi.csproj" -c Release
           done
+      - name: Comprobar que M03 /productos está activado en todos los estados M04
+        shell: bash
+        run: |
+          set -euo pipefail
+          for point in 4.1 4.2 4.3 4.4; do
+            file="M04_APIS_SEGURIDAD/PROYECTO/$point/CursoWeb.Blazor/Components/Pages/Productos.razor"
+            grep -q 'protected override async Task OnInitializedAsync()' "$file"
+            if grep -q '/\* PASO 3.6.2 INICIO' "$file"; then
+              echo "ERROR: carga local M03 sigue comentada en $file"
+              exit 1
+            fi
+          done
       - name: Construir desde cero API de la práctica (estado final P4.3)
         shell: bash
         run: |

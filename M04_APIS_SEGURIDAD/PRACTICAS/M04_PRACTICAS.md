@@ -81,6 +81,24 @@ Realiza la copia solamente cuando el destino esté vacío. Si ya existe un traba
 
 La API suministrada puede arrancarse desde su ruta versionada. No necesitas copiarla ni modificarla para completar los dos primeros puntos. Cuando llegue P4.3, crearás una aplicación servidor independiente y podrás comparar sus archivos con los del recurso suministrado.
 
+#### Preparación E2 bis. Activar el estado final de M03 antes de continuar
+
+El proyecto de referencia de M03 conserva intencionadamente comentado el método de carga del paso 3.6.2 para que el alumno pueda activarlo. **La copia de trabajo de M04 debe partir del estado de M03 con ese paso ya realizado.** En la copia —nunca en la baseline de M03— abre `Components/Pages/Productos.razor`, localiza el bloque `PASO 3.6.2` y retira solamente sus delimitadores de comentario. El método resultante será:
+
+~~~csharp
+protected override async Task OnInitializedAsync()
+{
+    estado = "Cargando productos...";
+    productos = (await Catalogo.ObtenerAsync()).ToList();
+    cargando = false;
+    estado = "Lista preparada";
+}
+~~~
+
+Abre `/productos` y confirma que termina la carga y se muestran los productos locales. **No actives simultáneamente la variante `RETO INTEGRADOR 3.6.7`**, porque introduce otra implementación de `OnInitializedAsync` que se utiliza como alternativa. Este paso garantiza que las prácticas M04 no arranquen de una pantalla M03 permanentemente pendiente.
+
+Los proyectos de referencia acumulativos `PROYECTO/4.1` a `PROYECTO/4.4` incorporan ya la activación anterior. Se trata de una precondición de continuidad, no de una nueva funcionalidad HTTP.
+
 #### Preparación E3. Mantener abiertas dos terminales
 
 En la primera terminal inicia la API:

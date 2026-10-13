@@ -52,7 +52,7 @@
     // P3.6: se deja vacía al empezar; el servicio cargará el catálogo inicial.
     private List<Producto> productos = [];
     private bool cargando = true;
-    private string estado = "Servicio pendiente de activar";
+    private string estado = "Cargando productos...";
 
     // P3.4: estado del editor, el alta y los filtros, conservado.
     private string seleccion = "ninguno";
@@ -134,7 +134,7 @@
         eliminacionPendiente = null;
     }
 
-    /* PASO 3.6.2 INICIO
+    // PASO 3.6.2: activado en el estado acumulativo M04.
     protected override async Task OnInitializedAsync()
     {
         estado = "Cargando productos...";
@@ -142,7 +142,6 @@
         cargando = false;
         estado = "Lista preparada";
     }
-    PASO 3.6.2 FIN */
 
     /* RETO INTEGRADOR 3.6.7 INICIO
     private bool simularError;
