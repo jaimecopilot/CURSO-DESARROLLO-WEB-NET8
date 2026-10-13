@@ -4,6 +4,7 @@ on:
     branches: [desarrollo/m04-reescritura-docente-integral]
     paths:
       - 'M04_APIS_SEGURIDAD/**'
+      - 'VERIFICACION_INTERNA/m04_verificar_practica_api.py'
       - '.github/workflows/m04-reconstruccion-ci.yml'
   workflow_dispatch:
 jobs:
@@ -36,6 +37,8 @@ jobs:
               exit 1
             fi
           done
+      - name: Compilar y ejecutar estados literales de P4.3 desde el Markdown
+        run: python VERIFICACION_INTERNA/m04_verificar_practica_api.py
       - name: Construir desde cero API de la práctica (estado final P4.3)
         shell: bash
         run: |
