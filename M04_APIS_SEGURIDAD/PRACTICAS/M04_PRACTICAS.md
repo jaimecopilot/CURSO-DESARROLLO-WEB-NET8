@@ -261,6 +261,39 @@ Crea `Services/ProductosApiService.cs`, usando la clase completa expuesta y expl
 
 No envíes desde el cliente un ID inventado en `CrearProductoDto`: la API asignará el valor y devolverá `ProductoDto`.
 
+### Código íntegro del servicio HTTP (paso 4.2.2)
+
+Crea este archivo en `Services/ProductosApiService.cs`, además de la interfaz del paso 4.2.1. Este es el código que compilará al resolver la dependencia `IProductosApiService` mediante DI:
+
+```csharp
+using System.Net.Http.Json;
+using CursoWeb.Blazor.Models;
+
+namespace CursoWeb.Blazor.Services;
+
+public sealed class ProductosApiService(HttpClient cliente) : IProductosApiService
+{
+    public async Task<IReadOnlyList<ProductoDto>> ObtenerAsync()
+    {
+        return await cliente.GetFromJsonAsync<List<ProductoDto>>(
+            "api/productos") ?? [];
+    }
+
+    public async Task<ProductoDto> CrearAsync(CrearProductoDto solicitud)
+    {
+        using var respuesta = await cliente.PostAsJsonAsync(
+            "api/productos", solicitud);
+        respuesta.EnsureSuccessStatusCode();
+
+        return await respuesta.Content.ReadFromJsonAsync<ProductoDto>()
+               ?? throw new InvalidOperationException(
+                   "La API confirmó un alta sin devolver un producto.");
+    }
+}
+```
+
+**Comprobación intermedia:** antes de modificar la página, registra el servicio como se muestra en el paso siguiente y compila. La clase depende de que existan `IProductosApiService`, `ProductoDto` y `CrearProductoDto`. Si falta un `using` o el namespace no coincide, el compilador lo indicará antes de que intervenga HTTP.
+
 ### Paso 4.2.3. Registrar el typed client
 
 En `Program.cs` elimina el registro de cliente con nombre `AddHttpClient("ProductosApi", ...)` que se utilizó en 4.1 y coloca el registro tipado `AddHttpClient<IProductosApiService, ProductosApiService>(...)` de teoría 4.2.3.
