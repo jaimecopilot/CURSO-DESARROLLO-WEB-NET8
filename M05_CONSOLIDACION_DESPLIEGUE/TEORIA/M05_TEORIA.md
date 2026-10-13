@@ -604,6 +604,96 @@ Kestrel no es exclusivo de `dotnet run`. La publicación ASP.NET Core también p
 
 El alumno podrá explicar qué proceso recibe las solicitudes, cómo conoce su puerto, qué sucede ante una colisión de dirección y cómo demostrar con una petición HTTP que una ruta concreta funciona.
 
+
+### 5.3.7. El proceso que recibe la petición y el proceso que construyó el programa
+
+La palabra «servidor» puede designar una máquina, un programa o una función de ASP.NET Core. En nuestro laboratorio necesitamos ser precisos: Kestrel es el servidor HTTP integrado en el host ASP.NET Core, mientras que el proceso `dotnet` es la ejecución concreta que lo inicia. La máquina Windows es el entorno que aloja ese proceso.
+
+Cuando ejecutamos la DLL publicada, el código de `Program.cs` construye el host y configura servicios, middleware y rutas. Si no falla una dependencia previa, se inicia la escucha HTTP. Una vez iniciado, **cada petición no vuelve a ejecutar todo `Program.cs` desde cero**. El proceso conserva sus servicios según sus ámbitos de vida y atiende las solicitudes mediante el pipeline configurado.
+
+Esa distinción ayuda a interpretar el ciclo de vida de los recursos. Una instancia de LocalDB puede sobrevivir al proceso web porque es un servicio de datos separado. Una colección estática mantenida dentro de una API de demostración no tiene esa misma garantía al reiniciar el proceso. Aunque ambos servidores se ejecuten con `dotnet`, sus datos no tienen el mismo ciclo de vida.
+
+### 5.3.8. Escuchar, recibir, enrutar y responder son etapas diferentes
+
+Que un programa escriba «Now listening on...» en la consola informa de su dirección de escucha. No demuestra que una ruta específica esté definida ni que la acción MVC pueda completarse. El servidor puede aceptar conexiones correctamente y devolver 404 porque no existe el recurso, o devolver 503 porque una función está deshabilitada para ese escenario.
+
+Consideremos la secuencia completa de una solicitud `GET /Productos/Estado`:
+
+1. Un cliente interpreta la dirección y decide el destino de la conexión.
+2. El sistema operativo dirige el tráfico al proceso que escucha el puerto.
+3. Kestrel interpreta la solicitud HTTP recibida.
+4. El middleware ASP.NET Core participa en el procesamiento.
+5. El enrutamiento encuentra un controlador y una acción compatibles.
+6. La acción produce un resultado HTTP, con código de estado y cuerpo.
+7. El servidor transmite esa respuesta al cliente, que la interpreta.
+
+Si obtenemos un 404, las etapas iniciales pueden haber funcionado perfectamente. Si recibimos un texto esperado con 200, hemos demostrado mucho más que la existencia de un socket: también se ejecutó una acción determinada. Si la página inicial funciona pero el CSS no, el problema puede estar en la ruta de recursos estáticos y no en el arranque del host.
+
+### 5.3.9. `localhost` no es una dirección universal de todas las máquinas
+
+En este curso utilizamos intencionadamente `localhost` porque las demostraciones son locales. Es importante comprender que ese nombre se refiere al propio entorno desde el que se interpreta. Una URL `http://localhost:5091/` utilizada desde el navegador del alumno pretende conectar con el proceso que escucha en su máquina. La misma URL abierta en otro equipo apunta a **ese otro equipo**, no al primero.
+
+Este detalle cobra importancia al introducir Docker. Dentro de un contenedor, `localhost` se refiere al espacio de red del propio contenedor. Para publicar una aplicación desde ese entorno utilizaremos una dirección de escucha apropiada en el contenedor y un mapeo de puertos hacia el host. No debemos trasladar de forma literal la noción de `localhost` entre procesos y entornos de red diferentes.
+
+En Kestrel Windows del laboratorio, la exposición local es suficiente. No configuramos direcciones accesibles desde Internet ni certificados públicos; ese trabajo implicaría decisiones de seguridad e infraestructura que exceden M05.
+
+### 5.3.10. La dirección solicitada puede no coincidir con la dirección efectiva
+
+Una aplicación ASP.NET Core recibe opciones de escucha desde la línea de comandos y otras fuentes de configuración. Es posible que el alumno ejecute un comando con un puerto, pero otra configuración explícita del host lo modifique. Por ello no basta con recordar el número que se pretendía usar: debemos comprobar la dirección anunciada por el proceso y el resultado de una solicitud.
+
+El procedimiento de diagnóstico no empieza cambiando puertos de forma aleatoria. Primero observamos qué URL utiliza realmente el proceso. Después comprobamos si hay otro servicio escuchando en el puerto previsto. Por último, si es necesario, elegimos un puerto distinto y repetimos una petición a una ruta conocida.
+
+En Windows, este ejemplo de PowerShell permite observar los procesos asociados a un puerto sin matar ninguno:
+
+~~~powershell
+Get-NetTCPConnection -LocalPort 5091 -ErrorAction SilentlyContinue |
+    Select-Object LocalAddress, LocalPort, State, OwningProcess
+~~~
+
+La ausencia de filas no prueba por sí sola una única causa; puede depender de permisos, de cómo escucha el proceso o de cuándo se realizó la comprobación. El comando es una evidencia complementaria a los mensajes del host y a una petición HTTP.
+
+### 5.3.11. Una colisión de puerto no es una excepción de controlador
+
+Supongamos que mantenemos la aplicación original abierta desde Visual Studio en el puerto 5091 y luego intentamos iniciar la DLL publicada en ese mismo puerto. Si ambos procesos solicitan una combinación incompatible de dirección y puerto, el segundo no podrá iniciar normalmente su escucha.
+
+¿Qué debemos hacer? Identificar qué proceso está atendiendo la dirección, detener el que ya no necesitamos o elegir una dirección diferente para el ensayo. **No debemos modificar HomeController, reinstalar EF Core ni cambiar el nombre de las vistas**, porque el problema ocurre antes de que una solicitud alcance esas capas.
+
+Cuando el objetivo es aprender, es útil provocar deliberadamente una colisión y observar el error. Pero al terminar debemos dejar solo un proceso utilizando el puerto; de otro modo, la siguiente práctica podría consultar sin darse cuenta una instancia anterior y atribuirle resultados al código recién publicado.
+
+### 5.3.12. La petición HTTP como prueba y como límite de una afirmación
+
+Examinemos este comando:
+
+~~~powershell
+curl.exe -i http://localhost:5091/Productos/Estado
+~~~
+
+La opción `-i` solicita mostrar las cabeceras junto al cuerpo. Si recibimos `HTTP/1.1 200 OK` y el texto esperado, podemos afirmar que el servidor ha atendido correctamente **esa ruta** en ese momento.
+
+No podemos afirmar sin más que el CRUD funciona o que la base SQL Server está disponible. Esa segunda afirmación requeriría ejecutar una acción real de lectura o modificación que use EF Core y comprobar su resultado. Las pruebas tienen alcance: deben corresponder a lo que decimos haber demostrado.
+
+El código 503 también es una respuesta HTTP válida. En el modo sin LocalDB, el middleware de MVC A la genera para rutas que dependen de SQL. Esto demuestra que el proceso atiende la conexión, identifica la limitación y la expresa. No es la misma situación que un navegador incapaz de conectar porque no hay servidor escuchando.
+
+### 5.3.13. Ejemplo razonado de un diagnóstico de tres capas
+
+El alumno abre `http://localhost:5091/` y recibe una página HTML. Después consulta `/Productos` y recibe 503. Finalmente consulta `/css/site.css` y obtiene 200. ¿Dónde está el fallo?
+
+No es correcto afirmar que Kestrel está caído: ha respondido en las tres solicitudes. Tampoco podemos concluir que falta la hoja de estilos. La evidencia apunta a una restricción aplicada al conjunto de rutas dependientes de SQL Server, algo coherente con el modo `Despliegue:SinLocalDb=true`.
+
+En otro caso, el navegador no logra conectar con ninguna ruta y la consola del proceso muestra un error de dirección ocupada. Aquí la causa se sitúa **antes** del enrutamiento. De nuevo, investigar `ProductosController` sería improductivo.
+
+En un tercer caso, `/` devuelve 200, `/Productos/Estado` devuelve 404 y `/css/site.css` devuelve 200. El servidor parece operativo, pero el endpoint concreto no está disponible. Debemos revisar el código que realmente se publicó y sus rutas, así como asegurarnos de no estar hablando con un proceso antiguo que permanece escuchando.
+
+### 5.3.14. Qué significa detener correctamente la demostración
+
+Al terminar una práctica, detener el proceso no es una formalidad. Permite liberar la dirección de escucha, evitar el consumo de recursos y garantizar que el siguiente resultado proceda del nuevo modo de hospedaje y no de la aplicación anterior.
+
+En una terminal que ejecuta `dotnet`, Ctrl+C normalmente inicia la terminación. Después conviene comprobar que la ventana o el proceso ya no sigue anunciando el puerto y que una solicitud no recibe la misma respuesta. Si todavía responde, puede existir otro proceso distinto usando la dirección.
+
+El alumno debe poder describir tres evidencias: el proceso de publicación se inició desde los artefactos, una ruta concreta respondió por HTTP y el proceso dejó de atender al detenerlo. Ese recorrido de inicio, operación y parada es la base para comprender el hospedaje posterior en IIS y el ciclo de vida del contenedor Docker.
+
+
+
 ## 5.4. Publicación elemental de ASP.NET Core en IIS
 
 ### 5.4.1. El problema que IIS resuelve
