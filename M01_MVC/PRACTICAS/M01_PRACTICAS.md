@@ -316,7 +316,7 @@ La teoría de 1.1 ha explicado cómo una petición llega a ASP.NET Core. Para po
 </Project>
 ~~~
 
-**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+**Qué comprobar.** Ejecuta `dotnet build` y confirma que el proyecto se compila como aplicación web para `net8.0`. Este archivo no responde a ninguna URL: si cambias `TargetFramework` o el SDK puedes afectar a la compilación, pero no estás modificando una acción MVC ni el HTML de una vista.
 
 ### P1.1 · Program.cs
 
@@ -345,7 +345,7 @@ app.MapControllerRoute(
 app.Run();
 ~~~
 
-**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+**Qué comprobar.** Inicia la aplicación y solicita `/`: el patrón convencional debe llevar la petición a `HomeController.Index`. Solicita también `/css/site.css` para comprobar que `UseStaticFiles()` atiende un recurso sin pasar por el controlador. Distingue así el pipeline común de la acción concreta que terminará generando la página.
 
 ### P1.1 · Controllers/HomeController.cs
 
@@ -377,7 +377,7 @@ public class HomeController : Controller
 }
 ~~~
 
-**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+**Qué comprobar.** Antes de activar el paso 1.1.4, `GET /` debe devolver la vista sin la cabecera `X-Curso-Paso`. Tras activar únicamente esa línea, el cuerpo HTML sigue procediendo de la misma vista pero la respuesta incorpora la nueva cabecera. Esto demuestra que cabeceras HTTP y representación HTML son partes distintas de una misma respuesta.
 
 ### P1.1 · Views/Home/Index.cshtml
 
@@ -407,7 +407,7 @@ PASO 1.1.5 (fin) *@
 RETO 1.1 (fin) *@
 ~~~
 
-**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+**Qué comprobar.** Observa el HTML inicial y, después, activa solo el bloque 1.1.5: debe aparecer `#marca-paso-1-1-5` sin necesidad de cambiar la acción. Inspecciona el HTML recibido por el navegador y confirma que no contiene las directivas Razor ni los delimitadores de comentario del archivo fuente.
 
 ### P1.1 · Views/Shared/_Layout.cshtml
 
@@ -438,7 +438,7 @@ RETO 1.1 (fin) *@
 </html>
 ~~~
 
-**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+**Qué comprobar.** Navega a `/` y verifica que título, navegación, cuerpo y pie forman un único documento aunque procedan del layout y de la vista. El contenido específico aparece en `@RenderBody()`. Si el CSS no se aplica a ninguna página, revisa el enlace compartido del layout antes de modificar cada vista por separado.
 
 ### P1.1 · Views/_ViewImports.cshtml
 
@@ -451,7 +451,7 @@ RETO 1.1 (fin) *@
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 ~~~
 
-**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+**Qué comprobar.** No esperes una URL propia para `_ViewImports.cshtml`. Su efecto se observa al procesar vistas que usan funcionalidades importadas, como los Tag Helpers. Si una directiva compartida falta, el problema pertenece al contexto Razor de las vistas, no al routing del navegador.
 
 ### P1.1 · Views/_ViewStart.cshtml
 
@@ -465,7 +465,7 @@ RETO 1.1 (fin) *@
 }
 ~~~
 
-**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+**Qué comprobar.** Abre la página principal y confirma que se renderiza con `_Layout` sin que `Index.cshtml` tenga que declararlo explícitamente. Cambiar temporalmente el nombre de layout permite entender la dependencia, pero el estado del ejercicio debe conservar `Layout = "_Layout"`.
 
 ### P1.1 · Properties/launchSettings.json
 
@@ -488,7 +488,7 @@ RETO 1.1 (fin) *@
 }
 ~~~
 
-**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+**Qué comprobar.** Si ejecutas desde Visual Studio o con un perfil de lanzamiento, el perfil puede abrir `http://localhost:5091` y establecer `Development`. Si utilizas los comandos del cuaderno con `--no-launch-profile --urls ...`, esos parámetros de línea de comandos sustituyen deliberadamente al perfil; no confundas una URL de ejecución con una ruta MVC.
 
 ### P1.1 · appsettings.json
 
@@ -508,7 +508,7 @@ RETO 1.1 (fin) *@
 }
 ~~~
 
-**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+**Qué comprobar.** Arranca la aplicación sin modificar este archivo y observa que la página funciona: `Logging` y `AllowedHosts` configuran el host, pero no generan contenido visible por sí mismos. Más adelante, cuando se añada una clave del curso, `Program.cs` podrá leerla a través de `Configuration` sin convertir `appsettings.json` en código C#.
 
 ### P1.1 · wwwroot/css/site.css
 
@@ -532,7 +532,7 @@ section { border-left: 4px solid #16324f; padding-left: 1rem; }
 footer { text-align: center; font-size: 0.9rem; color: #4b5563; padding: 2rem; }
 ~~~
 
-**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+**Qué comprobar.** Solicita `/css/site.css` y confirma una respuesta correcta; después recarga `/` y relaciona las reglas con el aspecto del documento generado. Si el recurso devuelve 404, investiga `UseStaticFiles`, la ruta bajo `wwwroot` y el enlace del layout, no `HomeController.Index`.
 
 ### P1.1 · README.md
 
@@ -568,7 +568,7 @@ Abrir http://localhost:5091. Detener con Ctrl+C.
 Las explicaciones y el recorrido completo se encuentran en la sección 1.1 de ../../../PRACTICAS/M01_PRACTICAS.md .
 ~~~~
 
-**Qué comprobar al ejecutarlo.** Vuelve al paso práctico que corresponde a este archivo y diferencia el comportamiento observable del contenido que solamente configura la solución. No actives todos los comentarios a la vez: si la etiqueta PASO o RETO aparece dentro del código, se trata de una variante que se realiza en su momento.
+**Qué comprobar.** Sigue los comandos del README y confirma que reproducen el mismo proyecto descrito en P1.1. Editar el README no cambia la aplicación ni requiere recompilarla: sirve para documentar el punto de partida, las rutas y la secuencia de activación de los bloques didácticos.
 
 **Continuidad hacia P1.2.** El host, la vista de inicio, el layout y los recursos de este primer proyecto no se reemplazan cuando se incorpora el catálogo. En P1.2 se añadirán el modelo Producto, su controlador y su vista. Los archivos que no cambian siguen siendo exactamente los explicados aquí; así cada nueva instantánea representa un incremento sobre la anterior.
 
@@ -1191,7 +1191,7 @@ public class ProductosController : Controller
 }
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.2. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** En el estado inicial la acción puede devolver la vista sin colección; al activar el paso 1.2.3 crea objetos `Producto` y los entrega con `View(productos)`. Comprueba que la responsabilidad del controlador es seleccionar y entregar datos, mientras que la decisión de cómo se muestran permanece en `Index.cshtml`.
 
 ### P1.2 — Models/Producto.cs
 
@@ -1212,7 +1212,7 @@ public sealed class Producto
 }
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.2. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** `Producto` define el contrato común que usan controlador y vista: `Id`, `Nombre` y `Precio`. Cambiar el nombre o el tipo de una propiedad obliga a adaptar el código que la consume, lo que permite observar que el modelo conecta ambas capas sin conocer ni HTTP ni HTML.
 
 ### P1.2 — Views/Productos/Index.cshtml
 
@@ -1248,7 +1248,7 @@ else
 }
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.2. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** Antes de recibir datos la vista puede representar el caso `Model is null`; después de activar la entrega desde el controlador debe mostrar el número de elementos y recorrerlos. Comprueba que los nombres y precios visibles proceden del modelo recibido y no de cadenas duplicadas en el marcado Razor.
 
 ### P1.2 — Views/Home/Index.cshtml
 
@@ -1275,7 +1275,7 @@ PASO 1.1.5 (fin) *@
 RETO 1.1 (fin) *@
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.2. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** Esta portada conserva el comportamiento de P1.1 y sirve como regresión: añadir el catálogo no debe romper la página inicial. Comprueba `/` y `/Productos` por separado para distinguir dos acciones y dos vistas que comparten el mismo host y el mismo layout.
 
 ### P1.2 — Views/Shared/_Layout.cshtml
 
@@ -1307,7 +1307,7 @@ RETO 1.1 (fin) *@
 </html>
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.2. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** Al activar el enlace de Productos, todas las páginas siguen compartiendo el mismo menú y estructura. El layout solo ofrece la navegación; la URL `/Productos` será resuelta por routing y `ProductosController`, de modo que añadir un enlace no equivale a implementar la acción que lo atiende.
 
 ### P1.2 — README.md
 
@@ -1347,7 +1347,7 @@ Detener y volver a ejecutar para observar los cambios de cada estado.
 La práctica completa está en `../../../PRACTICAS/M01_PRACTICAS.md`, sección P1.2.
 ~~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.2. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** Usa el README como mapa de activación de P1.2 y contrasta cada instrucción con el archivo real al que apunta. El README no crea modelos ni renderiza vistas: documenta cómo pasar del estado heredado de P1.1 al flujo completo Producto → controlador → vista sin perder lo anterior.
 
 ## Aplicación autónoma P1.2 — el primer producto sin duplicar sus datos
 
@@ -1879,7 +1879,7 @@ app.MapControllerRoute(
 app.Run();
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** Descomenta únicamente el log del paso 1.3.3 y arranca la aplicación: el host debe leer `Curso:Nombre` desde configuración y escribirlo en el registro. Después comprueba que `/` y `/Productos` continúan funcionando; añadir lectura de configuración no sustituye el routing ni el catálogo heredado.
 
 ### P1.3 — appsettings.json
 
@@ -1901,7 +1901,7 @@ app.Run();
 }
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** La clave `Curso:Nombre` se recupera mediante la ruta jerárquica `Curso:Nombre`. Cambia el valor de forma controlada y reinicia para observar el nuevo mensaje de log; no esperes que aparezca en una vista mientras ningún controlador o vista utilice esa configuración.
 
 ### P1.3 — Views/Shared/_Layout.cshtml
 
@@ -1941,7 +1941,7 @@ app.Run();
 </html>
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** Activa el enlace a `/css/catalogo.css` y comprueba que todas las vistas que usan el layout cargan el recurso. Activa después los enlaces didácticos de recursos cuando corresponda. El layout referencia URLs compartidas; `UseStaticFiles()` decide si existe un archivo público para ellas.
 
 ### P1.3 — wwwroot/css/catalogo.css
 
@@ -1956,7 +1956,7 @@ main.container {
 }
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** Cuando el layout referencia `/css/catalogo.css`, el navegador debe obtener este archivo desde `wwwroot` y aplicar el borde y el espaciado de `main.container`. Si el CSS responde 200 pero no cambia la página, inspecciona el selector y el enlace; no añadas una acción MVC para servirlo.
 
 ### P1.3 — wwwroot/recursos/guia-publica.txt
 
@@ -1968,7 +1968,7 @@ Este archivo se sirve desde wwwroot mediante UseStaticFiles.
 No es necesario crear un controlador para atender esta URL.
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** Solicita `/recursos/guia-publica.txt`: debe responder como archivo estático porque su ruta física está bajo `wwwroot`. Comprueba que la petición no necesita `ProductosController` y compara este resultado con un archivo de `DOCUMENTACION`, que no debe publicarse de forma predeterminada.
 
 ### P1.3 — wwwroot/recursos/aviso-laboratorio.txt
 
@@ -1980,7 +1980,7 @@ El documento esta dentro de wwwroot y puede solicitarse como recurso estatico.
 El enlace de navegacion del reto se activa por separado en _Layout.cshtml.
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** Este segundo recurso permite repetir la misma regla con el bloque del reto: al estar bajo `wwwroot`, puede obtenerse por su URL correspondiente. La diferencia respecto de `guia-publica.txt` es didáctica, no arquitectónica; ambos dependen de archivos estáticos y no de una acción MVC.
 
 ### P1.3 — DOCUMENTACION/nota-interna.txt
 
@@ -1992,7 +1992,7 @@ Al estar fuera de wwwroot, UseStaticFiles no la publica de forma predeterminada.
 No colocar secretos reales en el repositorio: esta nota solo ilustra una convencion.
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** Intenta solicitar una URL equivalente a este archivo y confirma que no se publica automáticamente. Estar incluido en el proyecto o en el repositorio no significa estar expuesto por HTTP. Esta separación explica por qué `wwwroot` funciona como raíz pública del contenido estático.
 
 ### P1.3 — DOCUMENTACION/ejercicio-publicacion.txt
 
@@ -2010,7 +2010,7 @@ UseStaticFiles expone el recurso sin añadir un controlador MVC.
 No publiques contraseñas, claves, datos personales ni documentación interna real.
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** Comprueba primero que el documento situado en `DOCUMENTACION` no es accesible por URL. Después realiza la copia indicada a `wwwroot/recursos/ejercicio-publicacion.txt` y repite la petición: la transición de 404 a 200 debe deberse únicamente a la ubicación pública del archivo, no a un nuevo controlador.
 
 ### P1.3 — Controllers/ProductosController.cs
 
@@ -2045,7 +2045,7 @@ public class ProductosController : Controller
 }
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** Mientras realizas los ejercicios de configuración y archivos estáticos, vuelve a `/Productos` y confirma que el controlador sigue entregando la misma colección. Esta regresión demuestra que publicar recursos o leer configuración son responsabilidades adicionales del host, no una reescritura del flujo MVC construido en P1.2.
 
 ### P1.3 — Views/Productos/Index.cshtml
 
@@ -2077,7 +2077,7 @@ else
 }
 ~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** El catálogo debe seguir mostrando los productos de P1.2 mientras el layout incorpora recursos de P1.3. Si la vista funciona pero el nuevo CSS no se aplica, el problema está en la referencia o en la entrega del recurso estático; si no aparecen productos, investiga el controlador o el modelo.
 
 ### P1.3 — README.md
 
@@ -2115,7 +2115,7 @@ Abrir `/` y `/Productos`. Ambos muestran sus páginas previas. No se utilizan se
 Consulta [la práctica P1.3](../../../PRACTICAS/M01_PRACTICAS.md) para el desarrollo completo y la comprobación en el navegador.
 ~~~~
 
-**Relación teoría-práctica.** Localiza la declaración o expresión que realiza la responsabilidad descrita, predice su resultado y ejecútala en el proyecto 1.3. Conserva las partes del código que se introdujeron en puntos anteriores y no sustituyas el proyecto entero por un fragmento de este archivo.
+**Relación teoría-práctica.** Utiliza el README para reconstruir la secuencia de P1.3: lectura de configuración, incorporación del CSS, publicación de recursos y contraste con documentación privada. Verifica cada paso contra los archivos reales y conserva el catálogo y la navegación heredados de P1.2.
 
 ## Reto: aplicación de los pasos
 
