@@ -24,7 +24,7 @@ IResult ObtenerCatalogo()
         return Results.Ok(Array.Empty<ProductoApi>());
 
     if (escenarioCatalogo == "json-invalido")
-        return Results.Text("{\\\"productos\\\":[", "application/json");
+        return Results.Text("{\"productos\":[", "application/json");
 
     // Modo normal: se conserva el contrato real de M04 y el resto de endpoints.
     return Results.Ok(productos.Values.OrderBy(p => p.Id));
