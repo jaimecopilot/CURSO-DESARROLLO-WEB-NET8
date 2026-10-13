@@ -1,0 +1,84 @@
+name: M04 - publicar PDF canónicos revisados
+on:
+  push:
+    branches: [desarrollo/m04-reescritura-docente-integral]
+    paths:
+      - '.github/workflows/m04-publicar-pdfs.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: m04-publicacion-pdf-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Dependencias de documentos
+        run: |
+          python -m pip install 'markdown-it-py>=3,<5' 'pygments>=2.17,<3' 'weasyprint>=63,<69' 'pypdf>=5,<8' 'pymupdf>=1.24,<2' 'beautifulsoup4>=4.12,<5'
+          sudo apt-get update -qq
+          sudo apt-get install -y graphviz fonts-dejavu-core
+      - name: Probar la API construida desde los pasos literales de P4.3
+        run: python VERIFICACION_INTERNA/m04_verificar_practica_api.py
+      - name: Generar y comprobar PDF desde Markdown canónicos
+        run: python M04_APIS_SEGURIDAD/DOCS/generar_m04_pdf.py
+      - name: Puertas editoriales y examen de todas las páginas
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import fitz
+          from markdown_it import MarkdownIt
+          base=Path('M04_APIS_SEGURIDAD')
+          for kind in ('TEORIA','PRACTICAS'):
+              md=(base/kind/f'M04_{kind}.md').read_text(encoding='utf-8')
+              assert chr(92)+chr(96) not in md, f'{kind}: código Markdown escapado'
+              fences=[x for x in MarkdownIt('commonmark').parse(md) if x.type=='fence']
+              assert len(fences)>=40, (kind,len(fences))
+              doc=fitz.open(base/kind/f'M04_{kind}.pdf')
+              assert 75<=len(doc)<=100, f'{kind}: {len(doc)} páginas fuera de objetivo'
+              assert len(doc[1].get_links())==4, f'{kind}: índice sin enlaces a capítulos'
+              assert len(doc[1].get_text().strip())>300, f'{kind}: página 2 insuficiente'
+              for i,page in enumerate(doc):
+                  assert page.get_text().strip(), f'{kind}: página {i+1} vacía'
+                  pix=page.get_pixmap(matrix=fitz.Matrix(.6,.6),alpha=False)
+                  assert pix.width>300 and pix.height>400
+              print(f'{kind}: {len(doc)} páginas, {len(fences)} bloques de código, índice navegable, ninguna página vacía')
+          PY
+      - name: Conservar PDF y evidencias de esta revisión
+        uses: actions/upload-artifact@v4
+        with:
+          name: m04-publicacion-final-pdfs-y-fidelidad
+          path: |
+            M04_APIS_SEGURIDAD/TEORIA/M04_TEORIA.pdf
+            M04_APIS_SEGURIDAD/PRACTICAS/M04_PRACTICAS.pdf
+            M04_APIS_SEGURIDAD/TEORIA/M04_TEORIA.md
+            M04_APIS_SEGURIDAD/PRACTICAS/M04_PRACTICAS.md
+            VERIFICACION_INTERNA/M04_PDFS_VALIDACION.md
+          if-no-files-found: error
+      - name: Publicar solo en esta rama y sin sobrescribir HEAD posterior
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add M04_APIS_SEGURIDAD/TEORIA/M04_TEORIA.pdf M04_APIS_SEGURIDAD/PRACTICAS/M04_PRACTICAS.pdf VERIFICACION_INTERNA/M04_PDFS_VALIDACION.md
+          if git diff --cached --quiet; then
+            echo "Los PDF ya están publicados y coinciden con los MD"
+          else
+            git commit -m "docs(m04): publicar PDFs canónicos tras revisión pedagógica y pruebas"
+            remote_sha="$(git ls-remote origin "refs/heads/$GITHUB_REF_NAME" | cut -f1)"
+            if [ "$remote_sha" != "$GITHUB_SHA" ]; then
+              echo "::warning::La rama avanzó: no publicar PDF construidos con un HEAD anterior."
+              exit 0
+            fi
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
