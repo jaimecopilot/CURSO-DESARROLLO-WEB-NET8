@@ -69,10 +69,11 @@ def html_from_md(source,kind):
     css=(CSS.replace("__MD_COURSE__",cssq(course))
             .replace("__MD_TYPE__",cssq(label))
             .replace("__MD_AUTHOR__",cssq(author)))
-    if kind == "TEORIA":
-        # No alterar tipografía, interlineado ni márgenes de M01.
-        # Evitar que dos cambios de capítulo dejen páginas semivacías.
-        css += "\n#punto-3, #punto-4 { break-before: auto; }\n"
+    # Mismo estilo de M01: sin cambiar fuentes, márgenes ni interlineado.
+    # Los capítulos 2-4 pueden comenzar tras el texto precedente;
+    # se evita una página casi vacía únicamente por el salto forzado.
+    # El capítulo 1 mantiene su inicio tras la portada y el índice.
+    css += "\n#punto-2, #punto-3, #punto-4 { break-before: auto; }\n"
     return ('<!doctype html><html lang="es"><head><meta charset="utf-8">'
        +'<style>'+css+'</style></head><body>'+rendered+'</body></html>')
 
