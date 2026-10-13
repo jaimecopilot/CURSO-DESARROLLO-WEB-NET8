@@ -3357,31 +3357,326 @@ En appsettings.json escribe únicamente los identificadores públicos del contra
 
 El emisor y la audiencia permiten decidir qué tokens acepta la API; no son claves secretas. Los tokens emitidos con una clave distinta de la configurada no serán válidos aunque tengan el mismo emisor.
 
-#### Paso J3. Añadir usuarios y roles persistentes
+#### Paso J3. Construir Identity y comprobar las tablas LocalDB
 
-Declara `IdentidadDbContext` derivado de `IdentityDbContext<IdentityUser>` y registra `UseSqlServer` con la cadena `ConnectionStrings:IdentityDb`. La base de prácticas se creará en la instancia `(localdb)\\MSSQLLocalDB` de SQL Server Express LocalDB instalada con Visual Studio; no se utiliza SQLite ni un archivo `.db`. Registra IdentityCore, roles, stores de EF Core y SignInManager.
+Comenzamos por **un estado que compila, arranca y crea tablas**, sin credenciales ni JWT. En la plantilla `dotnet new web`, escribe al principio:
 
-La contraseña debe comprobarse con las operaciones de Identity, no mediante una comparación con un valor escrito en Program.cs. UserManager.CreateAsync almacenará el hash gestionado por Identity; SignInManager.CheckPasswordSignInAsync verificará las credenciales y aplicará las reglas de bloqueo del ensayo.
+~~~csharp
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 
-El ejemplo utiliza `EnsureCreatedAsync` para crear en LocalDB las tablas `AspNetUsers`, `AspNetRoles` y sus relaciones. En Visual Studio puedes abrir la base `CursoWeb_M04_IdentityJwt` y consultar estas tablas después de ejecutar el servidor. Solo debe eliminarse **la base de prácticas identificada con ese nombre** si se quiere recomenzar desde cero; no elimines ninguna otra base de tu instancia. No es una sustitución de migraciones para una aplicación que deba mantenerse en producción.
+var builder = WebApplication.CreateBuilder(args);
+if (!builder.Environment.IsDevelopment())
+    throw new InvalidOperationException("Laboratorio solo para Development.");
+~~~
 
-#### Paso J4. Crear el registro sin escalada de permisos
+Antes de `builder.Build()` añade el siguiente registro **real** del contexto y los servicios; no inventes un repositorio de usuarios adicional ni sustituyas LocalDB por SQLite:
 
-Implementa POST /auth/registro con un DTO de correo y contraseña. Si el registro tiene éxito, asigna exclusivamente el rol Alumno. No aceptes que el cliente indique Formador en el cuerpo de su solicitud.
+~~~csharp
+var conexion = builder.Configuration.GetConnectionString("IdentityDb")
+    ?? throw new InvalidOperationException(
+        "Configura ConnectionStrings:IdentityDb apuntando a SQL Server Express LocalDB.");
 
-Un alta válida devuelve 201 con identificador y correo, sin contraseña ni hash. Una clave que no satisface las reglas de Identity produce una respuesta de validación. El usuario ya existe en la base LocalDB después de confirmar la creación.
+builder.Services.AddDbContext<IdentidadDbContext>(opciones =>
+    opciones.UseSqlServer(conexion));
 
-#### Paso J5. Verificar antes de emitir el JWT
+builder.Services.AddIdentityCore<IdentityUser>(opciones =>
+{
+    opciones.User.RequireUniqueEmail = true;
+    opciones.Password.RequiredLength = 8;
+    opciones.Password.RequireDigit = true;
+    opciones.Password.RequireUppercase = true;
+    opciones.Password.RequireLowercase = true;
+    opciones.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+    opciones.Lockout.MaxFailedAccessAttempts = 5;
+    opciones.Lockout.AllowedForNewUsers = true;
+})
+.AddRoles<IdentityRole>()
+.AddEntityFrameworkStores<IdentidadDbContext>()
+.AddSignInManager()
+.AddDefaultTokenProviders();
+~~~
 
-Implementa POST /auth/login. Busca el usuario por correo y verifica su contraseña mediante SignInManager. Si falla, responde 401 sin emitir un token. Si la verificación es correcta, consulta los roles y crea claims para sujeto, emisor, audiencia, expedición, caducidad y roles.
+Inmediatamente después incorpora el estado ejecutable:
 
-Firma el JWT con HMAC SHA-256 y el secreto configurado en la terminal. No coloques contraseñas dentro del payload. La respuesta contiene accessToken, tokenType y expiresAtUtc. Un JWT de Alumno es una credencial de identidad válida, pero no otorga autorización para todos los recursos.
+~~~csharp
+var app = builder.Build();
+using (var alcance = app.Services.CreateScope())
+{
+    var db = alcance.ServiceProvider.GetRequiredService<IdentidadDbContext>();
+    await db.Database.EnsureCreatedAsync();
 
-#### Paso J6. Proteger dos recursos reales
+    var roles = alcance.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    foreach (var nombre in new[] { "Alumno", "Formador" })
+        if (!await roles.RoleExistsAsync(nombre))
+            await roles.CreateAsync(new IdentityRole(nombre));
+}
+app.MapGet("/", () => Results.Ok("Identity y LocalDB disponibles"));
+app.Run();
+~~~
 
-Registra AddAuthentication con JwtBearerDefaults.AuthenticationScheme y AddJwtBearer. Activa la comprobación de firma, emisor, audiencia y expiración. Ejecuta UseAuthentication antes de UseAuthorization.
+Al final de `Program.cs`, **después de `app.Run()`**, define:
 
-Protege GET /api/identidad/yo con RequireAuthorization y GET /api/identidad/formador con RequireRole("Formador"). El primer endpoint necesita un token válido; el segundo necesita, además, el rol indicado. Una petición anónima debe recibir 401, mientras que Alumno autenticado debe obtener 403 en el recurso Formador.
+~~~csharp
+sealed class IdentidadDbContext(DbContextOptions<IdentidadDbContext> opciones)
+    : IdentityDbContext<IdentityUser>(opciones) { }
+~~~
+
+Ejecuta `dotnet build`; después arranca en Development con `dotnet run --urls http://localhost:5086`. La raíz debe responder 200. Comprueba `AspNetUsers`, `AspNetRoles` y `AspNetUserRoles` desde el Explorador de objetos SQL Server de Visual Studio. **Todavía no hay registro ni JWT.** Si falla el arranque, investiga instancia `(localdb)\MSSQLLocalDB`, conexión o permisos antes de continuar.
+
+#### Paso J4. Incorporar el registro, sin autenticar todavía
+
+En el mismo `Program.cs`, **antes de `app.Run()`**, añade este endpoint que ya se explicó en la teoría:
+
+~~~csharp
+// P4.5.4: Identity aplica hash de contraseñas; no las almacenamos manualmente.
+app.MapPost("/auth/registro", async (RegistrarDto entrada,
+    UserManager<IdentityUser> usuarios) =>
+{
+    if (string.IsNullOrWhiteSpace(entrada.Email) ||
+        string.IsNullOrWhiteSpace(entrada.Password))
+        return Results.BadRequest("Correo y contraseña obligatorios.");
+
+    var nuevo = new IdentityUser
+    {
+        UserName = entrada.Email.Trim(),
+        Email = entrada.Email.Trim()
+    };
+    var resultado = await usuarios.CreateAsync(nuevo, entrada.Password);
+    if (!resultado.Succeeded)
+        return Results.ValidationProblem(
+            resultado.Errors.GroupBy(e => e.Code)
+                .ToDictionary(g => g.Key, g => g.Select(e => e.Description).ToArray()));
+
+    var asignacion = await usuarios.AddToRoleAsync(nuevo, "Alumno");
+    if (!asignacion.Succeeded)
+        return Results.Problem("No se pudo configurar el rol del usuario.");
+
+    return Results.Created("/api/identidad/yo", new
+    {
+        id = nuevo.Id,
+        email = nuevo.Email,
+        rol = "Alumno"
+    });
+});
+~~~
+
+Después de `app.Run()`, junto al contexto, declara:
+
+~~~csharp
+record RegistrarDto(string Email, string Password);
+~~~
+
+Ahora compila. En Visual Studio crea `registro.http` con la solicitud:
+
+~~~http
+POST http://localhost:5086/auth/registro
+Content-Type: application/json
+
+{"email":"alumno@ejemplo.local","password":"ClaveAlumnoSegura-2026!"}
+~~~
+
+La primera solicitud devuelve 201, con `id`, correo y rol Alumno. Observa su fila en `AspNetUsers` y la asociación de rol en LocalDB. Repite exactamente la solicitud: 400 porque el correo existe. Envía una contraseña débil: también 400 por reglas de Identity. **No intentes acceder a /auth/login aún:** todavía no lo has construido, y no puedes deducir de un registro exitoso que exista una sesión.
+
+#### Paso J5. Preparar clave, comprobar contraseña y emitir JWT firmado
+
+Al inicio del fichero incorpora los `using` necesarios:
+
+~~~csharp
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.IdentityModel.Tokens;
+~~~
+
+Inmediatamente después de crear `builder` (antes del contexto) coloca la validación de configuración:
+
+~~~csharp
+var firma = builder.Configuration["Jwt:SigningKey"]
+    ?? throw new InvalidOperationException("Define Jwt__SigningKey fuera del repositorio.");
+var bytesFirma = Encoding.UTF8.GetBytes(firma);
+if (bytesFirma.Length < 32)
+    throw new InvalidOperationException("Se requieren al menos 32 bytes de clave.");
+var emisor = builder.Configuration["Jwt:Issuer"]
+    ?? throw new InvalidOperationException("Falta Jwt:Issuer.");
+var audiencia = builder.Configuration["Jwt:Audience"]
+    ?? throw new InvalidOperationException("Falta Jwt:Audience.");
+~~~
+
+El secreto debe estar definido en la terminal como se explicó en J2; no lo confirmes en Git. **Antes de `app.Run()`** añade POST `/auth/login`:
+
+~~~csharp
+// P4.5.5: comprueba contraseñas y bloqueo mediante SignInManager.
+app.MapPost("/auth/login", async (AccederDto entrada,
+    UserManager<IdentityUser> usuarios,
+    SignInManager<IdentityUser> acceso) =>
+{
+    var usuario = await usuarios.FindByEmailAsync(entrada.Email ?? "");
+    if (usuario is null)
+        return Results.Unauthorized();
+
+    var resultado = await acceso.CheckPasswordSignInAsync(
+        usuario, entrada.Password ?? "", lockoutOnFailure: true);
+    if (!resultado.Succeeded)
+        return Results.Unauthorized();
+
+    var roles = await usuarios.GetRolesAsync(usuario);
+    var ahora = DateTime.UtcNow;
+    var caducidad = ahora.AddMinutes(15);
+    var claims = new List<Claim>
+    {
+        new(JwtRegisteredClaimNames.Sub, usuario.Id),
+        new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
+        new(JwtRegisteredClaimNames.Iat,
+            DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(),
+            ClaimValueTypes.Integer64),
+        new(ClaimTypes.NameIdentifier, usuario.Id),
+        new(ClaimTypes.Email, usuario.Email ?? "")
+    };
+    claims.AddRange(roles.Select(rol => new Claim(ClaimTypes.Role, rol)));
+
+    var token = new JwtSecurityToken(
+        issuer: emisor,
+        audience: audiencia,
+        claims: claims,
+        notBefore: ahora,
+        expires: caducidad,
+        signingCredentials: new SigningCredentials(
+            new SymmetricSecurityKey(bytesFirma),
+            SecurityAlgorithms.HmacSha256));
+
+    return Results.Ok(new
+    {
+        accessToken = new JwtSecurityTokenHandler().WriteToken(token),
+        tokenType = "Bearer",
+        expiresAtUtc = caducidad
+    });
+});
+~~~
+
+Al final del fichero define el DTO nuevo:
+
+~~~csharp
+record AccederDto(string Email, string Password);
+~~~
+
+Compila y envía un POST con el usuario ya registrado y su contraseña. Espera 200, `accessToken` y expiración. Cambia solo la contraseña: se espera 401. Localiza en el código dónde `CheckPasswordSignInAsync` valida la clave, dónde `GetRolesAsync` obtiene roles y dónde `SigningCredentials` firma el JWT. **El servidor ya emite JWT pero aún no ha añadido el esquema JwtBearer para validarlos.**
+
+#### Paso J6. Validar Bearer y comprobar autorización por rol
+
+Añade al comienzo:
+
+~~~csharp
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+~~~
+
+**Antes de `builder.Build()`** registra autenticación y autorización usando la misma clave, emisor y audiencia que emiten los JWT:
+
+~~~csharp
+// P4.5.2: JWT de verdad, validando firma, emisor, audiencia y expiración.
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(opciones =>
+    {
+        opciones.MapInboundClaims = false;
+        opciones.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = emisor,
+            ValidateAudience = true,
+            ValidAudience = audiencia,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(bytesFirma),
+            ValidateLifetime = true,
+            RequireExpirationTime = true,
+            RequireSignedTokens = true,
+            ClockSkew = TimeSpan.FromSeconds(5),
+            NameClaimType = ClaimTypes.NameIdentifier,
+            RoleClaimType = ClaimTypes.Role
+        };
+    });
+builder.Services.AddAuthorization();
+~~~
+
+No dupliques `builder.Build()`: se mantiene una sola instancia de `app`. **Después del bloque que inicializa LocalDB y los roles**, pero antes de publicar rutas, añade:
+
+~~~csharp
+app.UseAuthentication();
+app.UseAuthorization();
+~~~
+
+Ahora, antes de `app.Run()`, publica los recursos protegidos:
+
+~~~csharp
+// P4.5.6: sin Bearer válido devuelve 401.
+app.MapGet("/api/identidad/yo", (ClaimsPrincipal principal) =>
+    Results.Ok(new
+    {
+        id = principal.FindFirstValue(ClaimTypes.NameIdentifier),
+        email = principal.FindFirstValue(ClaimTypes.Email),
+        roles = principal.FindAll(ClaimTypes.Role).Select(c => c.Value).ToArray()
+    }))
+    .RequireAuthorization();
+
+// P4.5.7: un token de Alumno es auténtico pero carece del rol => 403.
+app.MapGet("/api/identidad/formador", () =>
+    Results.Ok(new { mensaje = "Recurso reservado a Formador" }))
+    .RequireAuthorization(p => p.RequireRole("Formador"));
+~~~
+
+Compila y ejecuta. Comprueba secuencialmente:
+
+- `GET /api/identidad/yo` sin Authorization: **401**.
+- `POST /auth/login` con contraseña correcta: **200** y JWT firmado.
+- `GET /api/identidad/yo` con `Authorization: Bearer <token>`: **200**, Alumno.
+- `GET /api/identidad/formador` con ese mismo JWT de Alumno: **403**, porque el rol no cumple `RequireRole("Formador")`.
+
+No cambies la política para conseguir que Alumno entre como Formador. Para demostrar 200 con Formador, añade **después** la inicialización docente opcional al bloque de ámbito de servicios de J3:
+
+~~~csharp
+// Cuenta docente opcional: email y clave SOLO de variables de entorno.
+    var correoDocente = builder.Configuration["DemoFormador:Email"];
+    var claveDocente = builder.Configuration["DemoFormador:Password"];
+    if (!string.IsNullOrWhiteSpace(correoDocente) &&
+        !string.IsNullOrWhiteSpace(claveDocente))
+    {
+        var usuarios = alcance.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+        var existente = await usuarios.FindByEmailAsync(correoDocente);
+        if (existente is null)
+        {
+            existente = new IdentityUser { UserName = correoDocente, Email = correoDocente };
+            var creado = await usuarios.CreateAsync(existente, claveDocente);
+            if (!creado.Succeeded)
+                throw new InvalidOperationException("Cuenta docente inválida: " +
+                    string.Join("; ", creado.Errors.Select(e => e.Description)));
+        }
+        else if (!await usuarios.IsInRoleAsync(existente, "Formador"))
+        {
+            // Nunca elevar a Formador una cuenta previamente registrada por el público.
+            throw new InvalidOperationException(
+                "El correo de Formador ya pertenece a otra cuenta. Usa una base de ensayo limpia.");
+        }
+        if (!await usuarios.IsInRoleAsync(existente, "Formador"))
+        {
+            var resultadoRol = await usuarios.AddToRoleAsync(existente, "Formador");
+            if (!resultadoRol.Succeeded)
+                throw new InvalidOperationException("No se pudo asignar Formador.");
+        }
+    }
+~~~
+
+El bloque utiliza `DemoFormador__Email` y `DemoFormador__Password` desde variables del entorno. No permite que un correo registrado por el público se convierta accidentalmente en Formador. Comprueba el inicio de sesión con esa cuenta y vuelve a solicitar el endpoint: ahora sí se espera 200.
+
+#### Evidencias progresivas antes de consultar la solución
+
+| Estado | Debe compilar | Resultado directamente observable |
+|---|---|---|
+| J3: servicios y tablas | Sí | 200 en raíz, tablas Identity en LocalDB |
+| J4: POST registro | Sí | 201 cuenta nueva, 400 duplicado y clave débil |
+| J5: POST login | Sí | 200 JWT firmado; 401 contraseña incorrecta |
+| J6: middleware y recursos | Sí | 401 anónimo, 200 /yo, 403 Alumno, 200 Formador |
+
+Estos estados son **acumulativos**. Se parte siempre del código que acabas de escribir; no sustituyas todos los archivos con la solución final. Si J5 falla, el resultado correcto de J4 sigue siendo tu referencia de depuración. El `Program.cs` completo de J7 es solo la comparación final después de haber implementado y comprobado las etapas.
 
 #### Paso J7. Construir el estado final sin saltarse los anteriores
 
