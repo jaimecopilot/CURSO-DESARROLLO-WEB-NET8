@@ -111,7 +111,7 @@ def t34(p):
         edit(p,f,src,dst)
 def verify34(page):
     page.goto(BASE+"/productos",wait_until="networkidle")
-    page.locator('[data-producto-id="2"] button').click()
+    page.locator('[data-elemento-id="2"] button').click()
     page.get_by_text("Seleccionado: Lápiz").wait_for(timeout=12000)
     page.locator("#limpiar").click()
     page.get_by_text("Seleccionado: ninguno").wait_for(timeout=12000)
@@ -124,38 +124,67 @@ def t35(p):
     child="Components/TarjetaProducto.razor"
     parent="Components/Pages/Productos.razor"
     for id in ("PASO 3.5.2","RETO 3.5"):
-        enable_block(p,child,id);enable_block(p,parent,id)
+        enable_block(p,child,id)
+    enable_block(p,parent,"RETO 3.5")
     for src,dst in [
         ('@* <button @onclick="NotificarSeleccion">Seleccionar</button> *@','<button @onclick="NotificarSeleccion">Seleccionar</button>'),
         ('@* <button @onclick="NotificarQuitar">Quitar</button> *@','<button @onclick="NotificarQuitar">Quitar</button>')
     ]: edit(p,child,src,dst)
     a=(p/parent).read_text(encoding="utf-8")
     original='<TarjetaProducto Producto="producto" />'
-    replacement='<TarjetaProducto Producto="producto" AlSeleccionar="Seleccionar" AlQuitar="Quitar" />'
+    replacement='<TarjetaProducto Producto="producto" AlSeleccionar="SeleccionarParaEditar" AlQuitar="Quitar" />'
     assert a.count(original)==1
     a=a.replace(original,replacement)
-    # Eliminar las dos variantes comentadas, que ya no hacen falta.
     a=re.sub(r'^\s*@\* <TarjetaProducto Producto="producto".*?\*@\s*\n','',a,flags=re.M)
+    a=a.replace('<button class="seleccionar-padre" @onclick="() => SeleccionarParaEditar(producto.Id)">Seleccionar</button>','')
     (p/parent).write_text(a,encoding="utf-8")
 def verify35(page):
     page.goto(BASE+"/productos",wait_until="networkidle")
     page.locator('[data-producto-id="2"]').get_by_role("button",name="Seleccionar").click()
     page.get_by_text("Seleccionado: Lápiz").wait_for(timeout=12000)
+    page.locator("#editar-nombre").fill("Lápiz integrado")
+    page.locator("#guardar-cambio").click()
+    page.get_by_text("Seleccionado: Lápiz integrado").wait_for(timeout=12000)
+    expect(page.locator('[data-producto-id="2"]')).to_contain_text("Lápiz integrado")
+    page.locator("#nombre-nuevo").fill("Regla")
+    page.locator("#agregar").click()
+    page.get_by_text("Total: 4").wait_for(timeout=12000)
+    page.locator("#buscar").fill("regla")
+    page.get_by_text("Mostrando 1 de 4 productos").wait_for(timeout=12000)
+    page.locator("#buscar").fill("")
+    page.get_by_text("Mostrando 4 de 4 productos").wait_for(timeout=12000)
     page.locator('[data-producto-id="2"]').get_by_role("button",name="Quitar").click()
-    page.get_by_text("Total: 2").wait_for(timeout=12000)
+    page.get_by_text("Total: 3").wait_for(timeout=12000)
     assert page.locator('[data-producto-id="2"]').count()==0
 def t36(p):
     enable_block(p,"Components/Pages/Productos.razor","PASO 3.6.2")
     edit(p,"Components/Pages/Productos.razor",
-         '@* @if (!cargando && productos.Count == 0) { <p id="sin-productos">No hay productos para mostrar.</p> } *@',
-         '@if (!cargando && productos.Count == 0) { <p id="sin-productos">No hay productos para mostrar.</p> }')
+         '@* @if (productos.Count == 0 && estado == "Lista preparada") { <p id="sin-productos">No hay productos para mostrar.</p> } *@',
+         '@if (productos.Count == 0 && estado == "Lista preparada") { <p id="sin-productos">No hay productos para mostrar.</p> }')
 def verify36(page):
     page.goto(BASE+"/productos")
     page.get_by_text("Lista preparada").wait_for(timeout=18000)
     assert page.locator(".tarjeta").count()==3
     assert page.locator("#estado-carga").inner_text()=="Lista preparada"
-
-
+    # Continuidad completa: el servicio no elimina lo construido en P3.4/P3.5.
+    page.locator('[data-producto-id="2"]').get_by_role("button",name="Seleccionar").click()
+    page.get_by_text("Seleccionado: Lápiz").wait_for(timeout=12000)
+    page.locator("#editar-nombre").fill("Lápiz recuperado")
+    page.locator("#guardar-cambio").click()
+    page.get_by_text("Seleccionado: Lápiz recuperado").wait_for(timeout=12000)
+    expect(page.locator('[data-producto-id="2"]')).to_contain_text("Lápiz recuperado")
+    page.locator("#nombre-nuevo").fill("Regla")
+    page.locator("#agregar").click()
+    page.get_by_text("Total: 4").wait_for(timeout=12000)
+    page.locator("#buscar").fill("regla")
+    page.get_by_text("Mostrando 1 de 4 productos").wait_for(timeout=12000)
+    page.locator("#buscar").fill("")
+    page.get_by_text("Mostrando 4 de 4 productos").wait_for(timeout=12000)
+    page.locator('[data-producto-id="2"]').get_by_role("button",name="Quitar").click()
+    page.get_by_text("Total: 3").wait_for(timeout=12000)
+    page.locator("#deshacer").click()
+    page.get_by_text("Total: 4").wait_for(timeout=12000)
+    expect(page.locator('[data-producto-id="2"]')).to_contain_text("Lápiz recuperado")
 def t31reto(p):
     edit(p,"Components/Pages/Interactiva.razor",
          "private void Incrementar() => contador++;",
@@ -227,7 +256,7 @@ def t34editor(p):
        '<button id="guardar-cambio" @onclick="GuardarCambio">Guardar nombre</button>')
 def v34editor(page):
     page.goto(BASE+"/productos",wait_until="networkidle")
-    page.locator('[data-producto-id="2"] button').click()
+    page.locator('[data-elemento-id="2"] button').click()
     page.get_by_text("Seleccionado: Lápiz").wait_for(timeout=12000)
     assert page.locator("#editar-nombre").input_value()=="Lápiz"
     page.locator("#editar-nombre").fill("Lápiz rojo")
@@ -281,8 +310,8 @@ def t35deshacer(p):
     t35(p)
     rel="Components/Pages/Productos.razor"
     enable_block(p,rel,"RETO INTEGRADOR 3.5.5")
-    edit(p,rel,'<TarjetaProducto Producto="producto" AlSeleccionar="Seleccionar" AlQuitar="Quitar" />',
-         '<TarjetaProducto Producto="producto" AlSeleccionar="Seleccionar" AlQuitar="QuitarConDeshacer" />')
+    edit(p,rel,'<TarjetaProducto Producto="producto" AlSeleccionar="SeleccionarParaEditar" AlQuitar="Quitar" />',
+         '<TarjetaProducto Producto="producto" AlSeleccionar="SeleccionarParaEditar" AlQuitar="QuitarConDeshacer" />')
     edit(p,rel,'@* <button id="deshacer" disabled="@(eliminacionPendiente is null)" @onclick="DeshacerEliminacion">Deshacer última eliminación</button> *@',
          '<button id="deshacer" disabled="@(eliminacionPendiente is null)" @onclick="DeshacerEliminacion">Deshacer última eliminación</button>')
     edit(p,rel,'@* <p id="estado-deshacer">@TextoDeshacer</p> *@',
@@ -310,7 +339,7 @@ def t36reintento(p):
     original='''    protected override async Task OnInitializedAsync()
     {
         estado = "Cargando productos...";
-        productos = await Catalogo.ObtenerAsync();
+        productos = (await Catalogo.ObtenerAsync()).ToList();
         cargando = false;
         estado = "Lista preparada";
     }
