@@ -35,6 +35,8 @@ El trabajo del alumno distingue tres acciones: **observar** código ya activo pa
 
 **Proyecto a abrir:** M02_FORMULARIOS_RAZOR/PROYECTO/2.1/CursoWeb.Mvc/CursoWeb.Mvc.csproj. Trabajaremos con Visual Studio y .NET 8 en Windows, aunque los ejemplos de compilación y navegación también pueden comprenderse con una terminal. No es necesario tener instalado LocalDB hasta P2.4.
 
+**Continuidad documental con M01.** La instantánea P2.1 conserva el código y los recursos funcionales del estado P1.5, pero ya no incluye el `README.md` específico de aquella instantánea. Ese README servía como guía local de activación de P1.5; en M02 esa función la asume este cuaderno de prácticas. Su retirada no elimina ninguna ruta, vista, modelo, recurso estático ni comportamiento ejecutable de la aplicación. Si necesitas reproducir exactamente P1.5, su carpeta permanece intacta en M01.
+
 Desde la raíz del repositorio, ejecuta:
 
 ~~~bash
