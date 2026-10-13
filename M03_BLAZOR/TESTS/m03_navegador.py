@@ -168,6 +168,7 @@ def verify36(page):
     assert page.locator("#estado-carga").inner_text()=="Lista preparada"
     # Continuidad completa: el servicio no elimina lo construido en P3.4/P3.5.
     page.locator('[data-producto-id="2"]').get_by_role("button",name="Seleccionar").click()
+    print("P3.6 diagnóstico selección:",page.locator("#seleccion").inner_text(),flush=True)
     page.get_by_text("Seleccionado: Lápiz").wait_for(timeout=12000)
     page.locator("#editar-nombre").fill("Lápiz recuperado")
     page.locator("#guardar-cambio").click()
