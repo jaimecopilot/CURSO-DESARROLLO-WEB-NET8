@@ -25,9 +25,9 @@ Referencia oficial: https://dotnet.microsoft.com/es-es/platform/support/policy
 
 **Aplicación Blazor B:** Blazor Web App net8.0, modo principal Interactive Server. No se crea una WebAssembly standalone. En M03 los datos proceden de un servicio en memoria; en M04 se sustituye/añade acceso mediante HttpClient al API auxiliar.
 
-**API auxiliar:** proyecto ASP.NET Core Web API net8.0 pequeño, proporcionado por el curso; endpoints GET y POST de productos, datos en memoria. No requiere SQL Server ni credenciales remotas.
+**API auxiliar:** proyecto ASP.NET Core Web API net8.0 pequeño, proporcionado inicialmente para P4.1 y P4.2; endpoints GET y POST de productos, datos en memoria. En P4.3 el alumno construye desde una plantilla vacía una implementación compatible y la prueba con el mismo cliente Blazor. La API de productos no requiere SQL Server ni credenciales remotas.
 
-**Demostración de seguridad:** ejemplo local incluido y preconfigurado con identidad de demostración; sin depender de servicios externos de identidad. Contará con instrucciones completas y advertencia clara sobre el carácter didáctico. Su implementación concreta se verificará antes de entregar P4.4.
+**Demostración de seguridad P4.4:** ejemplo local de cookies incluido, con identidad de demostración; no depende de servicios externos. **Ampliación autónoma P4.4.6:** construcción progresiva de una API ASP.NET Core Identity y JWT Bearer con usuarios y roles almacenados en SQL Server Express LocalDB real. Requiere Windows, LocalDB y un secreto de firma definido mediante configuración de entorno, nunca versionado. Esta ampliación no forma parte de las seis horas obligatorias.
 
 **Comprobaciones en navegador:** cada práctica indica qué URL abrir, qué datos introducir y qué resultado debe observarse.
 
@@ -76,7 +76,7 @@ Comprobar antes de comenzar cada jornada:
 - **M01:** plantilla MVC net8.0 restaurada/compilable y navegación local.
 - **M02:** instancia `(localdb)\MSSQLLocalDB` disponible en Windows (`sqllocaldb info`), Visual Studio capaz de conectarse a ella y paquete EF Core 8 para SQL Server disponible. El alumno debe poder crear y modificar su base de datos `CursoWebProductos` sin permisos administrativos.
 - **M03:** plantilla Blazor Web App net8.0 con Interactive Server, comprobando que un @onclick responde realmente.
-- **M04:** API incluida accesible por HTTP; Blazor tiene su URL configurada; demostración local de autenticación funcional.
+- **M04:** API inicial accesible por HTTP; Blazor tiene su URL configurada; API construida por el alumno comprobable de manera independiente; demostración con cookies funcional. Para la ampliación P4.4.6, comprobar además LocalDB real, creación de las tablas Identity, emisión de JWT y respuestas 401, 403 y 200.
 - **M05:** `dotnet publish` produce archivos ejecutables; IIS/Hosting Bundle funciona; Docker hace build y ejecuta con mapeo a 8080.
 - Abrir y comprobar los proyectos en el puesto donde se impartirán; atender a los resultados visibles antes de iniciar las actividades.
 
