@@ -703,6 +703,185 @@ Si el alumno terminara copiando toda la lógica de diagnóstico a cada pantalla,
 
 El alumno debe volver a dejar operativa la API al terminar, porque P4.2 parte de un catálogo remoto funcional. La página de diagnóstico puede mantenerse en el proyecto de 4.1 como material de exploración, sin integrarla en los estados siguientes.
 
+
+### Ampliación autónoma P4.1 — Una lista remota no se actualiza sola: construir «Consultar servidor»
+
+Durante el primer ejercicio el componente obtuvo el catálogo al iniciarse. Es un comportamiento correcto para una primera pantalla, pero no significa que todas las modificaciones que otros clientes realicen en la API aparezcan automáticamente en la lista ya representada. Vamos a demostrar esta diferencia con una página independiente que **solo obtiene datos cuando el alumno pulsa un botón**.
+
+El objetivo no es crear un mecanismo avanzado de sincronización. Queremos observar una instantánea local, una modificación externa y una nueva petición GET que trae los cambios. Esta actividad complementaria no es necesaria para pasar a 4.2.
+
+#### Paso R1. Preparar los dos procesos y un estado inicial
+
+Inicia la API del ejercicio en 5081. En otra terminal inicia Blazor desde el proyecto de 4.1. Consulta directamente GET /api/productos para confirmar que existen Cuaderno y Lápiz.
+
+No ejecutes un POST todavía. El propósito del primer estado es disponer de una colección de referencia cuyo contenido conozcamos. Si la API conserva productos de intentos anteriores, detén completamente ese proceso y reinícialo antes de comenzar.
+
+#### Paso R2. Crear una página distinta del catálogo principal
+
+En la copia del proyecto Blazor crea el archivo Components/Pages/ActualizarRemoto.razor. Define la ruta /actualizar-remoto, el modo Interactive Server y la inyección de IHttpClientFactory. Esta página coexistirá con /catalogo-remoto y no modificará la interfaz del ejercicio obligatorio.
+
+La nueva página tendrá un botón Consultar servidor, un mensaje de estado, una lista visual y un aviso de error. La decisión clave es que no consultará automáticamente en OnInitializedAsync: esperará a que el usuario pulse el botón.
+
+Escribe el archivo siguiente por completo y compílalo antes de ejecutar:
+
+
+~~~razor
+@page "/actualizar-remoto"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Net.Http.Json
+@inject IHttpClientFactory Clientes
+
+<h1>Actualización explícita de un catálogo remoto</h1>
+<p>La lista se obtiene cuando se pulsa Consultar. Otro cliente puede modificar
+   el servidor sin actualizar automáticamente esta copia visual.</p>
+
+<button id="consultar-remoto" disabled="@consultando" @onclick="ConsultarAsync">
+    @(consultando ? "Consultando..." : "Consultar servidor")
+</button>
+
+<p id="estado-consulta" role="status">@estado</p>
+
+@if (productos.Count == 0 && !consultando && consultado && error is null)
+{
+    <p id="sin-coincidencias">El catálogo remoto está vacío.</p>
+}
+@if (error is not null)
+{
+    <p role="alert" id="error-consulta">@error</p>
+}
+<ul id="lista-consultada">
+    @foreach (var producto in productos)
+    {
+        <li>@producto.Id — @producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+    }
+</ul>
+
+@code {
+    private bool consultado;
+    private bool consultando;
+    private string estado = "Todavía no se ha consultado el servidor.";
+    private string? error;
+    private List<ProductoDto> productos = [];
+
+    private async Task ConsultarAsync()
+    {
+        consultando = true;
+        error = null;
+        estado = "Esperando GET /api/productos...";
+
+        try
+        {
+            var cliente = Clientes.CreateClient("ProductosApi");
+            var recibidos = await cliente
+                .GetFromJsonAsync<List<ProductoDto>>("api/productos");
+
+            productos = recibidos ?? [];
+            estado = $"Consulta correcta: {productos.Count} producto(s).";
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo consultar la API. Comprueba el host y el puerto.";
+            estado = "Consulta fallida.";
+        }
+        catch (TaskCanceledException)
+        {
+            error = "La espera de la consulta ha terminado.";
+            estado = "Consulta interrumpida.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            error = "La API no devolvió una lista JSON compatible.";
+            estado = "Contrato incompatible.";
+        }
+        finally
+        {
+            consultado = true;
+            consultando = false;
+        }
+    }
+}
+
+~~~
+
+
+#### Paso R3. Examinar por qué no se consulta durante la inicialización
+
+Localiza los campos consultado y consultando. El primero indica si se ha ejecutado alguna vez una petición; el segundo señala si hay una operación pendiente en ese momento. No son equivalentes.
+
+Al abrir la página por primera vez, consultado es falso y productos es una lista vacía. Eso no significa todavía que el servidor haya confirmado un catálogo vacío. Por ello mostramos un mensaje que dice que aún no hemos consultado. Si representáramos «No hay productos» desde el primer instante, estaríamos transmitiendo una conclusión que aún no está respaldada por una respuesta HTTP.
+
+Después de una consulta correcta cuyo resultado sea una lista vacía, consultado será verdadero y el mensaje de catálogo vacío tendrá sentido. El alumno debe poder explicar esa diferencia sin recurrir a detalles internos de Razor.
+
+#### Paso R4. Ejecutar el primer GET mediante el botón
+
+Abre /actualizar-remoto. Comprueba que todavía no aparecen productos ni un mensaje de error. Pulsa Consultar servidor. El método ConsultarAsync se ejecuta, crea un cliente con nombre ProductosApi y realiza GET /api/productos.
+
+Si la API está operativa, la respuesta se deserializa como List<ProductoDto>. El componente asigna la colección al campo productos y muestra el número de elementos recibidos. En un proceso recién iniciado deben aparecer dos elementos.
+
+Observa la variable consultando. Mientras espera, el botón se deshabilita y su texto cambia. Tras éxito o error, finally devuelve consultando a falso. Si se omitiera ese paso, el usuario podría quedar con el botón inutilizable después de un fallo de comunicación.
+
+#### Paso R5. Crear un producto desde otro cliente
+
+Deja la página abierta, sin pulsar Consultar. Desde PowerShell o el archivo ProductosApi.http envía un POST válido con nombre Regla y precio 1,75.
+
+Comprueba mediante una consulta HTTP directa que la API contiene ahora tres productos. No recargues todavía el navegador y no pulses el botón de la página Blazor.
+
+Observa el listado que permanece visible en /actualizar-remoto. Seguirá mostrando el estado de la última consulta que realizó, es decir, dos productos. Eso no es necesariamente un defecto: la pantalla no ha solicitado todavía otra instantánea al servidor.
+
+#### Paso R6. Consultar de nuevo y comparar ambas listas
+
+Pulsa Consultar servidor. La lista visual debe mostrar ahora tres productos. El nuevo DTO contiene el ID real de Regla, asignado por la API. La variable de estado pasa a reflejar el nuevo número de elementos.
+
+Esta operación no cambia los datos del servidor: es un GET. La diferencia visual aparece porque la interfaz ha reemplazado su colección local con una representación más reciente. El alumno puede describir la secuencia en términos de dos momentos: el servidor fue modificado por POST desde otro cliente y Blazor observó el cambio mediante un nuevo GET.
+
+#### Paso R7. Demostrar que un segundo cliente puede consultar sin usar Blazor
+
+Abre una nueva terminal y ejecuta GET /api/productos. Deberías recibir la misma colección de tres elementos mientras el proceso API no se haya reiniciado. Esto demuestra que los productos no están guardados en el componente ActualizarRemoto.
+
+Ahora crea otro producto utilizando una solicitud HTTP independiente. La página Blazor seguirá mostrando la lista anterior hasta que el alumno consulte de nuevo. No es necesario cambiar código para repetir el experimento con distintos números de elementos.
+
+#### Paso R8. Reiniciar el proceso servidor
+
+Detén completamente la API, sin detener Blazor. Vuelve a iniciarla. El diccionario temporal del servidor se reconstruirá con Cuaderno y Lápiz.
+
+La pantalla /actualizar-remoto puede seguir mostrando tres o cuatro productos porque esa colección está en el estado del componente. Pulsa Consultar servidor: la lista debe regresar a dos productos. El comportamiento enseña que **la copia visual y la memoria del servidor tienen ciclos de vida distintos**.
+
+No reescribas el componente para borrar automáticamente productos al detectar cualquier error. Si GET falla, la interfaz puede decidir conservar el último dato conocido y mostrar un aviso. Nuestra versión no borra la lista en el catch, precisamente para distinguir «no se obtuvo una actualización» de «la API devolvió una lista vacía».
+
+#### Paso R9. Distinguir errores sin borrar datos válidos anteriores
+
+Con la página mostrando dos productos, detén la API y pulsa Consultar. El componente intentará GET, recibirá un error de conexión y mostrará un mensaje. La lista anterior puede permanecer visible porque representa la última consulta que sí terminó correctamente.
+
+Explica por qué sería engañoso mostrar «Catálogo vacío» en ese instante: no hemos recibido una respuesta que confirme cero productos. Hemos perdido la capacidad de consultar. Si la pantalla decide conservar la última lista, debería informar además de que esos datos podrían estar desactualizados.
+
+Después inicia de nuevo la API y pulsa Consultar. El error debe desaparecer y la lista debe reflejar la respuesta nueva. No borres manualmente la variable error antes de cada petición sin comprobar qué sucederá si la siguiente consulta falla: el ejercicio la limpia al comienzo de una operación nueva y la vuelve a establecer si ocurre un problema.
+
+#### Paso R10. Convertir la lectura en un experimento de diseño
+
+La página usa IHttpClientFactory directamente, igual que el primer estado de 4.1. Pregúntate qué ocurriría si quisieras añadir el mismo botón a tres páginas distintas. Cada una tendría que conocer nombre del cliente, ruta y deserialización.
+
+Esta repetición es precisamente el motivo del refactor de 4.2. En el estado posterior, la página podría inyectar IProductosApiService y ejecutar ObtenerAsync en lugar de utilizar GetFromJsonAsync. El comportamiento visual seguiría siendo el mismo y los detalles de HTTP quedarían concentrados en una clase.
+
+No es obligatorio hacer ese segundo refactor sobre ActualizarRemoto.razor: el alumno ya lo realizará con CatalogoRemoto. El propósito de esta variante consiste en que la necesidad de separar responsabilidades surja de una situación observada.
+
+#### Paso R11. Reconocer los límites de esta solución
+
+Consultar manualmente no es una estrategia universal para una aplicación empresarial. En algunos sistemas se necesitan notificaciones del servidor, actualizaciones automáticas, gestión de caché o detección de cambios concurrentes. En nuestro ejercicio no aparecen esos requisitos y no debemos añadir infraestructura que no está justificada.
+
+La solución enseña una idea transferible: un componente consume una representación remota en un instante; si desea datos posteriores, tiene que establecer una estrategia para obtenerlos. El uso de HTTP no convierte por sí mismo una lista en un estado sincronizado en tiempo real.
+
+### Matriz de comprobación de la ampliación de actualización
+
+| Acción | Estado real de API | Estado visible antes de consultar | Después de consultar |
+|---|---|---|---|
+| Arranque limpio | Dos productos | Ninguna consulta | Dos productos |
+| POST Regla desde PowerShell | Tres productos | Dos productos | Tres productos |
+| Segundo POST externo | Cuatro productos | Tres productos | Cuatro productos |
+| Reinicio de API | Dos productos | Última lista visible | Dos productos |
+| API apagada | No responde | Última lista visible | Mensaje de error |
+
+Esta actividad complementaria debe concluir con el alumno capaz de explicar la diferencia entre el estado del servidor, el estado de la interfaz, una respuesta HTTP confirmada y una petición que no pudo completarse. No es necesario añadir un framework de sincronización para demostrarlo.
+
 ### Resultado y continuidad
 
 Al finalizar, `/productos` conserva el aprendizaje local de M03 y `/catalogo-remoto` demuestra GET, POST y errores HTTP entre dos procesos. La API auxiliar utilizada aquí se estudiará en detalle en P4.3; en **P4.2** extraeremos las llamadas del componente a `IProductosApiService`.
