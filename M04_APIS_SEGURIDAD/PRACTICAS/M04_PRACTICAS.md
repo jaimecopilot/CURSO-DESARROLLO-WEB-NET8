@@ -164,3 +164,86 @@ Mantén el `finally` que desactiva el indicador de carga. Puedes cambiar tempora
 ### Resultado y continuidad
 
 Al finalizar, `/productos` conserva el aprendizaje local de M03 y `/catalogo-remoto` demuestra GET, POST y errores HTTP entre dos procesos. La API auxiliar utilizada aquí se estudiará en detalle en P4.3; en **P4.2** extraeremos las llamadas del componente a `IProductosApiService`.
+
+## P4.2 — Extraer las llamadas HTTP a un servicio inyectable
+
+### Punto de partida
+
+Trabaja sobre una copia del estado `PROYECTO/4.1/CursoWeb.Blazor`. No sobrescribas el proyecto de 4.1 ni `M03_BLAZOR`. Conserva en ejecución la **misma API auxiliar** `PROYECTO/4.1/CursoWeb.ProductosApi` en `http://localhost:5081`. En `/catalogo-remoto` deben verse dos productos antes de empezar.
+
+**Resultado esperado:** el componente deja de conocer `HttpClient` y las rutas HTTP; un servicio tipado ejecuta la comunicación. El comportamiento visible de la página debe seguir siendo el mismo.
+
+### Paso 4.2.1. Declarar una interfaz explícita
+
+Crea `Services/IProductosApiService.cs`:
+
+```csharp
+using CursoWeb.Blazor.Models;
+
+namespace CursoWeb.Blazor.Services;
+
+public interface IProductosApiService
+{
+    Task<IReadOnlyList<ProductoDto>> ObtenerAsync();
+    Task<ProductoDto> CrearAsync(CrearProductoDto solicitud);
+}
+```
+
+Separa en tu explicación oral qué recibe la pantalla (`IReadOnlyList<ProductoDto>`) de cómo se obtuvo (desconocido para la interfaz). Compara esta interfaz con `IProductosMemoriaService` de M03; **no borres** ese servicio antiguo porque sigue siendo parte del aprendizaje previo.
+
+### Paso 4.2.2. Implementar la comunicación en una clase
+
+Crea `Services/ProductosApiService.cs`, usando la clase completa expuesta y explicada en teoría 4.2.2. Debe implementar **ambos métodos**. Al terminar, comprueba que en esa clase aparecen `GetFromJsonAsync`, `PostAsJsonAsync` y `EnsureSuccessStatusCode`.
+
+No envíes desde el cliente un ID inventado en `CrearProductoDto`: la API asignará el valor y devolverá `ProductoDto`.
+
+### Paso 4.2.3. Registrar el typed client
+
+En `Program.cs` elimina el registro de cliente con nombre `AddHttpClient("ProductosApi", ...)` que se utilizó en 4.1 y coloca el registro tipado `AddHttpClient<IProductosApiService, ProductosApiService>(...)` de teoría 4.2.3.
+
+**Mantén** los registros de componentes de Blazor y `IProductosMemoriaService`. Conserva la clave de configuración `ProductosApi:BaseUrl` y el puerto 5081. Si quitas accidentalmente el servicio de memoria, puedes provocar una regresión en la página `/productos`.
+
+### Paso 4.2.4. Sustituir el acceso HTTP de la página
+
+En `Components/Pages/CatalogoRemoto.razor` cambia:
+
+```razor
+@inject IHttpClientFactory Clientes
+```
+
+por:
+
+```razor
+@inject IProductosApiService CatalogoApi
+```
+
+En `OnInitializedAsync`, sustituye la creación del cliente y la llamada `GetFromJsonAsync` por:
+
+```csharp
+productos = (await CatalogoApi.ObtenerAsync()).ToList();
+```
+
+En `CrearAsync`, sustituye la construcción de `HttpClient`, `PostAsJsonAsync` y `ReadFromJsonAsync` por:
+
+```csharp
+var creado = await CatalogoApi.CrearAsync(
+    new CrearProductoDto(nombreNuevo.Trim(), precioNuevo));
+```
+
+**No cambies** el marcado HTML, la validación preliminar ni los mensajes de error. La finalidad de este punto es aprender a cambiar responsabilidades internas **sin cambiar la experiencia del usuario**.
+
+### Paso 4.2.5. Comparar el comportamiento
+
+Ejecuta la API y Blazor por separado. Desde el navegador abre `/catalogo-remoto`, comprueba los dos productos y crea «Regla» con precio 1,75. Refresca la página y verifica que la nueva entrada sigue en memoria de la API. Después detén la API y recarga: la pantalla debe mostrar el aviso de fallo, en lugar de afirmar que el catálogo está vacío. Reinicia la API al acabar.
+
+Abre también `/productos` y comprueba que continúa siendo accesible. Si algo falla, investiga primero el registro de servicios, el puerto de la API y la clave `ProductosApi:BaseUrl`.
+
+### Paso 4.2.6. Reto: comprobar que el componente ignora la ruta
+
+Localiza todos los lugares de `CatalogoRemoto.razor` donde aparezca la cadena `"api/productos"`. **El resultado debe ser ninguno**. Localiza ahora esa ruta en `ProductosApiService.cs`: aquí sí debe aparecer, porque es un detalle de comunicación.
+
+Como variante de exploración, cambia solo esa ruta por `"api/no-existe"`, ejecuta de nuevo y observa el aviso de error HTTP. Restablece después `"api/productos"`.
+
+### Consolidación
+
+El resultado de P4.2 no es una pantalla nueva, sino una frontera de responsabilidades: el componente presenta y gestiona el estado; `IProductosApiService` expresa las operaciones que necesita; `ProductosApiService` resuelve el transporte; y la API mantiene las reglas del servidor. En P4.3 estudiaremos y modificaremos esta última.

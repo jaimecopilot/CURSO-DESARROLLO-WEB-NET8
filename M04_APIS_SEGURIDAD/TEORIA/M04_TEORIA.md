@@ -323,3 +323,143 @@ Esta secuencia también evita un error pedagógico frecuente: **modificar la apl
 ### Síntesis de 4.1
 
 Consumir una API no consiste únicamente en escribir `await cliente.GetFromJsonAsync`. Requiere conocer el contrato HTTP, representar correctamente los datos intercambiados, configurar el cliente, distinguir éxito y fracaso y actualizar el estado visible de Blazor con una respuesta confiable. En el siguiente punto, 4.2, retiraremos esa responsabilidad de los componentes y la situaremos en un servicio especializado.
+
+## 4.2. Extraer el consumo HTTP a una capa de servicio
+
+### De un componente que hace todo a dos responsabilidades
+
+En 4.1 `CatalogoRemoto.razor` aprendió a hablar HTTP: creó un `HttpClient`, conoció la ruta `api/productos`, interpretó respuestas JSON y mostró resultados. Esa mezcla fue útil para comprender el mecanismo, pero ahora presenta un inconveniente: cualquier componente que necesite productos debería repetir esos detalles de red. Cambiar la ruta, el tratamiento de un error o el contrato JSON obligaría a editar varias páginas.
+
+La mejora consiste en separar **qué hace la interfaz** de **cómo se recuperan los datos**. El componente mantiene los formularios, los mensajes, la carga y el estado visual. Una clase de servicio conoce la API y concentra `GetFromJsonAsync`, `PostAsJsonAsync` y la conversión de errores.
+
+### 4.2.1. El contrato IProductosApiService
+
+Declaramos una interfaz con operaciones del negocio que necesita nuestra pantalla, no con detalles de transporte:
+
+```csharp
+using CursoWeb.Blazor.Models;
+
+namespace CursoWeb.Blazor.Services;
+
+public interface IProductosApiService
+{
+    Task<IReadOnlyList<ProductoDto>> ObtenerAsync();
+    Task<ProductoDto> CrearAsync(CrearProductoDto solicitud);
+}
+```
+
+El nombre `ObtenerAsync` expresa la intención de consultar productos; no revela si la implementación utiliza HTTP, un fichero o datos de prueba. El `Task` indica que la operación puede completarse más tarde. `IReadOnlyList` impide que un consumidor suponga que puede modificar la colección interna del servicio. La interfaz no valida formularios HTML ni determina cuándo aparece un botón de carga: esas decisiones pertenecen a Blazor.
+
+### 4.2.2. Implementación HTTP y gestión de errores
+
+La clase `ProductosApiService` recibe un `HttpClient` configurado por el contenedor y ejecuta las operaciones:
+
+```csharp
+using System.Net.Http.Json;
+using CursoWeb.Blazor.Models;
+
+namespace CursoWeb.Blazor.Services;
+
+public sealed class ProductosApiService(HttpClient cliente)
+    : IProductosApiService
+{
+    public async Task<IReadOnlyList<ProductoDto>> ObtenerAsync()
+    {
+        return await cliente.GetFromJsonAsync<List<ProductoDto>>(
+            "api/productos") ?? [];
+    }
+
+    public async Task<ProductoDto> CrearAsync(CrearProductoDto solicitud)
+    {
+        using var respuesta = await cliente.PostAsJsonAsync(
+            "api/productos", solicitud);
+        respuesta.EnsureSuccessStatusCode();
+
+        return await respuesta.Content.ReadFromJsonAsync<ProductoDto>()
+            ?? throw new InvalidOperationException(
+                "La API confirmó un alta sin devolver un producto.");
+    }
+}
+```
+
+El constructor primario de C# 12 deja explícita una única dependencia: `HttpClient`. `GetFromJsonAsync` puede lanzar `HttpRequestException` ante fallo de red o estado HTTP insatisfactorio, `TaskCanceledException` ante una operación cancelada o un tiempo límite, y `JsonException` ante JSON incompatible. La implementación no captura estas excepciones para devolver silenciosamente una lista vacía: hacerlo confundiría un error con un catálogo legítimamente vacío.
+
+En `CrearAsync`, la respuesta POST se examina antes de leer su JSON. `EnsureSuccessStatusCode` evita registrar como creado un producto cuando el servidor devolvió una respuesta de error. `using` libera el mensaje de respuesta. Este servicio no registra contraseñas, no escribe en la base de datos y no sustituye a la API.
+
+### 4.2.3. Registrar el servicio en Program.cs
+
+Una interfaz no es instanciable por sí misma. El contenedor de inyección de dependencias necesita saber qué implementación proporcionar y cómo construir sus dependencias. El registro **typed HttpClient** hace ambas cosas:
+
+```csharp
+builder.Services.AddHttpClient<IProductosApiService, ProductosApiService>(
+    cliente =>
+    {
+        cliente.BaseAddress = new Uri(
+            builder.Configuration["ProductosApi:BaseUrl"]
+            ?? "http://localhost:5081/");
+        cliente.Timeout = TimeSpan.FromSeconds(10);
+    });
+```
+
+Con este registro, cuando una página solicita `IProductosApiService`, el contenedor crea una instancia de `ProductosApiService` con un `HttpClient` ya configurado. `AddHttpClient` está diseñado para gestionar la creación de clientes y la reutilización de manejadores HTTP sin que cada componente gestione su vida útil.
+
+En 4.1 utilizábamos un cliente **con nombre**, recuperado con `IHttpClientFactory.CreateClient("ProductosApi")`. En este punto lo sustituimos por un cliente **tipado**. Son dos patrones legítimos, pero **no hace falta registrar los dos** para el mismo recorrido didáctico. Elegimos el cliente tipado porque el componente solo necesita la interfaz de negocio.
+
+### 4.2.4. Inyectar la interfaz desde Razor
+
+La página ya no necesita `IHttpClientFactory`:
+
+```razor
+@inject IProductosApiService CatalogoApi
+```
+
+Durante la inicialización, el componente espera un resultado que ya son DTO:
+
+```csharp
+protected override async Task OnInitializedAsync()
+{
+    try
+    {
+        productos = (await CatalogoApi.ObtenerAsync()).ToList();
+    }
+    catch (HttpRequestException)
+    {
+        error = "No se pudo obtener el catálogo remoto.";
+    }
+    catch (TaskCanceledException)
+    {
+        error = "La petición superó el tiempo disponible.";
+    }
+    catch (System.Text.Json.JsonException)
+    {
+        error = "La API no devolvió un catálogo JSON válido.";
+    }
+    finally
+    {
+        cargando = false;
+    }
+}
+```
+
+El formulario sigue validando nombre y precio antes de enviar los datos. El método de alta construye `CrearProductoDto`, llama a `await CatalogoApi.CrearAsync(...)` y añade a la colección el objeto que devolvió el servidor. **El HTML y el resultado que observa el usuario no tienen por qué cambiar** al reorganizar las dependencias.
+
+### 4.2.5. Distinguir responsabilidades y alcance
+
+| Responsabilidad | Componente Blazor | Servicio HTTP | API |
+|---|---|---|---|
+| Mostrar campos y mensajes | Sí | No | No |
+| Decidir cuándo cargar | Sí | No | No |
+| Construir petición HTTP y leer JSON | No | Sí | No |
+| Asignar ID del producto | No | No | Sí |
+| Validar reglas del servidor | No | No | Sí |
+| Gestionar indicadores visuales de carga | Sí | No | No |
+
+La validación preliminar de un formulario no sustituye la validación de la API. El cliente puede cambiarse o saltarse: la API debe seguir rechazando entradas inválidas.
+
+Esta separación facilita pruebas: un componente puede recibir una implementación falsa de `IProductosApiService` que devuelva datos conocidos, y el servicio real puede contrastarse contra la API de laboratorio. No añadimos aquí un framework de mocking ni una arquitectura compleja: el propósito es comprender por qué resulta útil tener un contrato inyectable.
+
+### 4.2.6. Comportamiento observable del refactor
+
+La comprobación decisiva no es que exista una clase nueva: es que, tras sustituir el acceso directo, `/catalogo-remoto` siga listando Cuaderno y Lápiz, permita crear Regla, notifique un rechazo o un servidor apagado y mantenga funcional la página local `/productos` de M03. En esta práctica modificamos la organización del código sin cambiar el contrato HTTP ni la API.
+
+En P4.3 abriremos la implementación de la API que ya proporcionamos al comenzar 4.1. De ese modo el alumno ya conoce el consumo y puede comprender ahora el origen de las respuestas sin introducir otra aplicación ajena al laboratorio.
