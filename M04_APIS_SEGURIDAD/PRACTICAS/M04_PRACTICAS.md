@@ -3277,7 +3277,7 @@ Por ello, una interfaz que oculta el enlace a un recurso no sustituye la exigenc
 
 ### P4.4.6. Ampliación autónoma: ASP.NET Core Identity y JWT Bearer
 
-Este laboratorio no sustituye la sesión de cookie del punto P4.4 ni aumenta el itinerario presencial de seis horas. Construiremos una API independiente desde una plantilla vacía, utilizaremos Identity con SQLite y emitiremos JWT firmados que validará JwtBearer. Después consumiremos esos JWT desde Blazor. La carpeta de referencia es M04_APIS_SEGURIDAD/PROYECTO/4.5; su numeración designa un estado ampliado del módulo, no un sexto día de formación.
+Este laboratorio no sustituye la sesión de cookie del punto P4.4 ni aumenta el itinerario presencial de seis horas. Construiremos una API independiente desde una plantilla vacía, utilizaremos Identity con SQL Server Express LocalDB de Visual Studio y emitiremos JWT firmados que validará JwtBearer. Después consumiremos esos JWT desde Blazor. La carpeta de referencia es M04_APIS_SEGURIDAD/PROYECTO/4.5; su numeración designa un estado ampliado del módulo, no un sexto día de formación.
 
 #### Paso J1. Crear el servidor
 
@@ -3294,11 +3294,43 @@ El proyecto inicial es una Minimal API vacía. No registra usuarios ni dispone d
 <ItemGroup>
   <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.*" />
   <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.*" />
-  <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.*" />
+  <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="8.0.*" />
 </ItemGroup>
 ~~~
 
 Ejecuta dotnet restore y dotnet build antes de introducir los endpoints. Las tres dependencias tienen responsabilidades diferentes: Identity administra credenciales, EF Core persiste usuarios y JwtBearer valida tokens recibidos.
+
+#### Paso J1 bis. Instalar y comprobar LocalDB en Visual Studio
+
+Este ejercicio se desarrolla en **Windows con Visual Studio y SQL Server Express LocalDB**. Abre el instalador de Visual Studio y comprueba que está instalada la característica SQL Server Express LocalDB, disponible en los componentes relacionados con desarrollo y almacenamiento de datos. No utilices SQLite para ejecutar este módulo.
+
+Abre PowerShell en tu equipo y comprueba la instancia:
+
+~~~powershell
+sqllocaldb info MSSQLLocalDB
+sqllocaldb start MSSQLLocalDB
+~~~
+
+Si el comando no existe, comprueba la instalación del componente LocalDB. Si la instancia todavía no existe, créala mediante `sqllocaldb create MSSQLLocalDB` solo cuando corresponda a tu instalación; no alteres instancias usadas por otros proyectos.
+
+En Visual Studio, abre **Ver > Explorador de objetos de SQL Server** y conecta a `(localdb)\\MSSQLLocalDB`, utilizando autenticación Windows. Identifica esta instancia antes de ejecutar el primer registro.
+
+En `appsettings.json` utiliza la cadena de conexión docente:
+
+~~~json
+{
+  "ConnectionStrings": {
+    "IdentityDb": "Server=(localdb)\\\\MSSQLLocalDB;Database=CursoWeb_M04_IdentityJwt;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true"
+  },
+  "Jwt": {
+    "Issuer": "CursoWeb.M04.IdentityJwt",
+    "Audience": "CursoWeb.M04.Cliente"
+  }
+}
+~~~
+
+En JSON deben aparecer dos barras invertidas para que el valor resultante utilice una. No incluyas credenciales SQL Server ni contraseñas en este archivo: `Trusted_Connection=True` utiliza la identidad Windows local.
+
 
 #### Paso J2. Configurar el secreto de firma sin publicarlo
 
@@ -3327,17 +3359,17 @@ El emisor y la audiencia permiten decidir qué tokens acepta la API; no son clav
 
 #### Paso J3. Añadir usuarios y roles persistentes
 
-Declara IdentidadDbContext derivado de IdentityDbContext<IdentityUser> y registra UseSqlite, apuntando a un archivo de ensayo bajo .work. No copies archivos de base de datos al repositorio. Registra IdentityCore, roles, stores de EF Core y SignInManager.
+Declara `IdentidadDbContext` derivado de `IdentityDbContext<IdentityUser>` y registra `UseSqlServer` con la cadena `ConnectionStrings:IdentityDb`. La base de prácticas se creará en la instancia `(localdb)\\MSSQLLocalDB` de SQL Server Express LocalDB instalada con Visual Studio; no se utiliza SQLite ni un archivo `.db`. Registra IdentityCore, roles, stores de EF Core y SignInManager.
 
 La contraseña debe comprobarse con las operaciones de Identity, no mediante una comparación con un valor escrito en Program.cs. UserManager.CreateAsync almacenará el hash gestionado por Identity; SignInManager.CheckPasswordSignInAsync verificará las credenciales y aplicará las reglas de bloqueo del ensayo.
 
-El ejemplo utiliza EnsureCreatedAsync para crear rápidamente las tablas de desarrollo. No es una sustitución de migraciones para una aplicación que deba mantenerse en producción.
+El ejemplo utiliza `EnsureCreatedAsync` para crear en LocalDB las tablas `AspNetUsers`, `AspNetRoles` y sus relaciones. En Visual Studio puedes abrir la base `CursoWeb_M04_IdentityJwt` y consultar estas tablas después de ejecutar el servidor. Solo debe eliminarse **la base de prácticas identificada con ese nombre** si se quiere recomenzar desde cero; no elimines ninguna otra base de tu instancia. No es una sustitución de migraciones para una aplicación que deba mantenerse en producción.
 
 #### Paso J4. Crear el registro sin escalada de permisos
 
 Implementa POST /auth/registro con un DTO de correo y contraseña. Si el registro tiene éxito, asigna exclusivamente el rol Alumno. No aceptes que el cliente indique Formador en el cuerpo de su solicitud.
 
-Un alta válida devuelve 201 con identificador y correo, sin contraseña ni hash. Una clave que no satisface las reglas de Identity produce una respuesta de validación. El usuario ya existe en SQLite después de confirmar la creación.
+Un alta válida devuelve 201 con identificador y correo, sin contraseña ni hash. Una clave que no satisface las reglas de Identity produce una respuesta de validación. El usuario ya existe en la base LocalDB después de confirmar la creación.
 
 #### Paso J5. Verificar antes de emitir el JWT
 
@@ -3384,12 +3416,14 @@ var emisor = builder.Configuration["Jwt:Issuer"]
 var audiencia = builder.Configuration["Jwt:Audience"]
     ?? throw new InvalidOperationException("Falta Jwt:Audience.");
 
-var datos = Path.Combine(builder.Environment.ContentRootPath, ".work");
-Directory.CreateDirectory(datos);
-var dbPath = Path.Combine(datos, "identity-m04.db");
+// SQL Server Express LocalDB, instalado con Visual Studio en Windows.
+// La cadena se lee de configuración; no se utiliza SQLite.
+var conexion = builder.Configuration.GetConnectionString("IdentityDb")
+    ?? throw new InvalidOperationException(
+        "Configura ConnectionStrings:IdentityDb apuntando a SQL Server Express LocalDB.");
 
 builder.Services.AddDbContext<IdentidadDbContext>(opciones =>
-    opciones.UseSqlite($"Data Source={dbPath}"));
+    opciones.UseSqlServer(conexion));
 
 builder.Services.AddIdentityCore<IdentityUser>(opciones =>
 {
@@ -3432,7 +3466,7 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// P4.5.3: tabla real de Identity en SQLite. EnsureCreated es SOLO docente.
+// P4.5.3: tablas reales de Identity en SQL Server Express LocalDB. EnsureCreated es SOLO docente.
 using (var alcance = app.Services.CreateScope())
 {
     var db = alcance.ServiceProvider.GetRequiredService<IdentidadDbContext>();
@@ -3603,7 +3637,7 @@ $registro = @{ email = "alumno@ejemplo.local"; password = "ClaveAlumnoSegura-202
 Invoke-WebRequest -Uri "http://localhost:5086/auth/registro" -Method Post -ContentType "application/json" -Body $registro
 ~~~
 
-El primer registro debe devolver 201; el mismo correo registrado dos veces o una contraseña débil deben ser rechazados. La nueva base SQLite se crea en la carpeta .work del proyecto.
+Comprueba también la existencia del usuario en `AspNetUsers` desde el Explorador de objetos SQL Server, sin copiar el valor de `PasswordHash` ni incluirlo en capturas. El primer registro debe devolver 201; el mismo correo registrado dos veces o una contraseña débil deben ser rechazados. La base `CursoWeb_M04_IdentityJwt` se crea en SQL Server Express LocalDB. Abre el Explorador de objetos SQL Server de Visual Studio y comprueba las tablas de Identity.
 
 Solicita después el JWT, sin imprimirlo ni almacenarlo en un archivo:
 
@@ -3818,4 +3852,4 @@ El ejemplo sirve para aprender autenticación y autorización, no para publicar 
 
 ### Cierre
 
-Hemos observado autenticación por cookie, autorización y representación visual de la identidad. La ampliación P4.4.6 añade Identity real con SQLite, emisión de JWT firmados y una API protegida con JwtBearer. No reutilices credenciales ni secretos de laboratorio en un despliegue público; ambos ejemplos requieren un diseño de identidad de producción distinto.
+Hemos observado autenticación por cookie, autorización y representación visual de la identidad. La ampliación P4.4.6 añade Identity real con SQL Server Express LocalDB, emisión de JWT firmados y una API protegida con JwtBearer. No reutilices credenciales ni secretos de laboratorio en un despliegue público; ambos ejemplos requieren un diseño de identidad de producción distinto.
