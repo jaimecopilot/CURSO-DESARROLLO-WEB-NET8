@@ -882,6 +882,112 @@ La solución enseña una idea transferible: un componente consume una representa
 
 Esta actividad complementaria debe concluir con el alumno capaz de explicar la diferencia entre el estado del servidor, el estado de la interfaz, una respuesta HTTP confirmada y una petición que no pudo completarse. No es necesario añadir un framework de sincronización para demostrarlo.
 
+
+### Ampliación autónoma P4.1 — Comparar el cliente de servidor con fetch del navegador
+
+En los pasos obligatorios, Blazor Interactive Server realiza peticiones desde su proceso ASP.NET Core mediante HttpClient. Ahora ejecutaremos una consulta similar desde JavaScript del navegador para identificar una diferencia que suele confundirse: **CORS depende del origen de la petición y del cliente que la realiza**.
+
+Este taller no es necesario para construir el catálogo remoto. No habilites CORS en la API del proyecto de referencia por defecto. Trabajaremos con una copia de la API y utilizaremos temporalmente la consola JavaScript del navegador para observar el comportamiento.
+
+#### Paso C1. Arrancar la API y Blazor en puertos distintos
+
+Inicia la API en http://localhost:5081 y comprueba con curl.exe que GET /api/productos responde 200 con los productos iniciales. Después inicia Blazor en http://localhost:5091 y abre /catalogo-remoto.
+
+La página debe poder consultar los productos desde su componente C# mientras el servicio con nombre y la URL estén correctamente configurados. Este es el funcionamiento de referencia: Blazor utiliza HttpClient desde el host servidor.
+
+Anota mentalmente los dos puertos. Aunque ambos utilicen localhost, el origen de la página en 5091 no es igual al de la API en 5081.
+
+#### Paso C2. Abrir herramientas de desarrollo del navegador
+
+Desde la página de Blazor abre las herramientas de desarrollo de tu navegador y selecciona la consola JavaScript. No cierres la página ni modifiques sus componentes. La consola ejecuta código en el navegador, no dentro del proceso .NET del servidor Blazor.
+
+Escribe:
+
+~~~javascript
+fetch("http://localhost:5081/api/productos")
+  .then(r => r.json())
+  .then(datos => console.log(datos))
+  .catch(error => console.error("Consulta del navegador:", error));
+~~~
+
+La solicitud se origina ahora en el navegador desde una página cuyo origen incluye el puerto 5091. Si la API no publica una política CORS que permita a ese origen leer la respuesta, el navegador puede informar de una restricción de origen cruzado.
+
+No concluyas que el endpoint GET ha dejado de funcionar por el mero mensaje de la consola. La petición directa desde curl.exe puede continuar devolviendo 200.
+
+#### Paso C3. Repetir la prueba con un cliente independiente del navegador
+
+Desde PowerShell ejecuta:
+
+~~~powershell
+curl.exe -i http://localhost:5081/api/productos
+~~~
+
+Deberías seguir observando el catálogo. Este comando no ejecuta la política CORS propia de una página JavaScript. Su resultado permite separar el funcionamiento del servidor de las restricciones de acceso que el navegador aplica al código de otro origen.
+
+Vuelve a /catalogo-remoto y consulta desde el componente Blazor. El cliente HttpClient de Interactive Server también debe seguir funcionando. La API puede estar operativa para ambos consumidores y, al mismo tiempo, impedir que un script de otro origen lea el resultado.
+
+#### Paso C4. Crear una copia para una política CORS restringida
+
+Conserva la API original. En una copia de la API de 4.3, antes de builder.Build agrega:
+
+~~~csharp
+builder.Services.AddCors(opciones =>
+{
+    opciones.AddPolicy("ClienteDesarrollo", politica =>
+        politica.WithOrigins("http://localhost:5091")
+                .AllowAnyHeader()
+                .WithMethods("GET", "POST"));
+});
+~~~
+
+Después de construir app y antes de ejecutar los endpoints, aplica:
+
+~~~csharp
+app.UseCors("ClienteDesarrollo");
+~~~
+
+Compila y arranca esta copia en 5081, deteniendo previamente el proceso API que utilizaba el puerto. La política representa una elección específica de origen y verbos, no un permiso global para cualquier cliente web.
+
+#### Paso C5. Repetir fetch desde el origen permitido
+
+Abre de nuevo la página alojada en 5091 y ejecuta la consulta JavaScript anterior. Si la política y los orígenes coinciden, el navegador debe poder acceder al JSON de la API. Comprueba que aparecen Cuaderno y Lápiz.
+
+Ahora cambia la URL de Blazor para abrir la misma aplicación desde otro host o puerto, si tienes preparada esa variante. Ese origen distinto no está incluido automáticamente en la política. El resultado sirve para explicar que permitir un origen concreto no equivale a permitir cualquiera.
+
+No modifiques la política para aceptar todos los orígenes solo con el fin de eliminar un mensaje de error. La finalidad de este paso es observar que la configuración responde a un requisito explícito del cliente.
+
+#### Paso C6. Diferenciar CORS de autorización
+
+La API de productos sigue siendo pública en el laboratorio. Si una página JavaScript tiene permiso CORS para leer su respuesta, eso no significa que se haya autenticado como Formador ni que el servidor conozca una identidad de usuario.
+
+Del mismo modo, una API protegida mediante una política de autorización no debería conceder acceso a una identidad sin permisos porque su origen estuviera permitido por CORS. Son mecanismos distintos y pertenecen a preguntas diferentes.
+
+El componente AuthorizeView del punto 4.4 tampoco cambia la política CORS del servidor API. Una regla visual aplicada en Blazor no configura cómo el navegador debe tratar respuestas HTTP de otro origen.
+
+#### Paso C7. Reconocer una solicitud preliminar
+
+Desde el navegador podrías intentar una operación POST con Content-Type application/json. Dependiendo de las condiciones de la solicitud, el navegador puede emitir antes una petición OPTIONS de comprobación. Esa solicitud no crea productos; pregunta si el origen tiene permiso para realizar la operación propuesta.
+
+En las herramientas de desarrollo del navegador examina las solicitudes de red y distingue OPTIONS de POST. No supongas que la presencia de una solicitud preliminar demuestra que el endpoint de creación recibió ya el cuerpo JSON.
+
+En esta ampliación no es necesario crear productos desde fetch; basta reconocer que la secuencia de red puede ser distinta de la utilizada por HttpClient entre procesos de servidor.
+
+#### Paso C8. Restaurar el estado del curso
+
+Cuando termines, detén la copia con CORS opcional y vuelve a utilizar la API original. El componente Blazor debe continuar consumiendo GET y POST sin necesitar que la API acepte expresamente el origen de su página.
+
+La conclusión formativa consiste en saber identificar dónde nació la petición. Si procede de C# en Interactive Server, analizamos comunicación HTTP entre servidores. Si procede de fetch en el navegador, puede ser necesario examinar CORS. Esta diferencia evita cambios de configuración innecesarios y diagnósticos incorrectos.
+
+### Comparación final de los clientes
+
+| Cliente | Dónde se ejecuta | Política CORS de navegador |
+|---|---|---|
+| curl.exe | Terminal local | No la aplica |
+| HttpClient de Blazor Interactive Server | Servidor Blazor | No la aplica |
+| fetch en consola JavaScript | Navegador | Puede aplicarla |
+
+Esta matriz no convierte CORS en una alternativa a autenticación ni autorización. Sirve para comprender que un mismo endpoint puede producir observaciones distintas según el contexto en que se ejecuta el cliente.
+
 ### Resultado y continuidad
 
 Al finalizar, `/productos` conserva el aprendizaje local de M03 y `/catalogo-remoto` demuestra GET, POST y errores HTTP entre dos procesos. La API auxiliar utilizada aquí se estudiará en detalle en P4.3; en **P4.2** extraeremos las llamadas del componente a `IProductosApiService`.
