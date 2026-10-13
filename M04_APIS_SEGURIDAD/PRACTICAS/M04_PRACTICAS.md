@@ -424,6 +424,148 @@ Como experimento razonado, imagina que el servidor respondiera con el objeto de 
 
 Al cerrar P4.1, el alumno debe poder explicar qué parte del flujo se ejecuta en el proceso Blazor y cuál se ejecuta en el proceso API. Esa explicación es la base del refactor de P4.2.
 
+
+### P4.1 — Taller complementario: comparar tres situaciones desde una misma página
+
+Ya hemos creado el catálogo remoto y hemos aprendido a mostrar errores. Ahora construiremos una **pantalla temporal de diagnóstico HTTP**, sin sustituir la aplicación principal. El objetivo es observar de forma diferenciada una respuesta correcta, un rechazo 404 y un fallo de conectividad, manteniendo la misma configuración de cliente.
+
+Esta variante pertenece exclusivamente al estado 4.1, donde el componente todavía utiliza el cliente con nombre ProductosApi. No se arrastra automáticamente a 4.2, porque allí sustituiremos el acceso directo a HttpClient por el servicio tipado. Podemos conservarla como referencia para explicar por qué queremos encapsular las rutas HTTP.
+
+#### Paso D1. Preparar un componente separado
+
+En Components/Pages crea DiagnosticoHttp.razor con la ruta /diagnostico-http. Declara el modo de renderizado InteractiveServer y utiliza IHttpClientFactory como en P4.1. Este componente no necesita un formulario POST: su función es consultar un recurso y presentar tanto el código recibido como cualquier error de transporte.
+
+No modifiques CatalogoRemoto.razor para esta variante. Mantener las dos páginas permite comparar el comportamiento habitual del catálogo con una herramienta de diagnóstico concebida para el aprendizaje. El archivo completo que debe crear el alumno aparece a continuación.
+
+
+~~~razor
+@page "/diagnostico-http"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Net.Http.Json
+@inject IHttpClientFactory Clientes
+
+<h1>Diagnóstico HTTP · variante P4.1</h1>
+<p>Esta pantalla compara un GET válido, una ruta 404 y un fallo de conexión.</p>
+<div>
+    <button id="diagnostico-correcto" disabled="@consultando"
+            @onclick='() => ConsultarAsync("api/productos")'>GET catálogo</button>
+    <button id="diagnostico-404" disabled="@consultando"
+            @onclick='() => ConsultarAsync("api/no-existe")'>GET ruta inexistente</button>
+</div>
+@if (consultando)
+{
+    <p role="status">Consultando la API...</p>
+}
+<p id="diagnostico-resultado" role="status">@resultado</p>
+@if (productos.Count > 0)
+{
+    <ul>
+        @foreach (var producto in productos)
+        {
+            <li>@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+        }
+    </ul>
+}
+
+@code {
+    private bool consultando;
+    private string resultado = "Selecciona una petición.";
+    private List<ProductoDto> productos = [];
+
+    private async Task ConsultarAsync(string ruta)
+    {
+        consultando = true;
+        resultado = "Esperando respuesta...";
+        productos.Clear();
+        try
+        {
+            var cliente = Clientes.CreateClient("ProductosApi");
+            using var respuesta = await cliente.GetAsync(ruta);
+            if (!respuesta.IsSuccessStatusCode)
+            {
+                resultado = $"Respuesta HTTP {(int)respuesta.StatusCode} ({respuesta.ReasonPhrase}).";
+                return;
+            }
+            productos = await respuesta.Content
+                .ReadFromJsonAsync<List<ProductoDto>>() ?? [];
+            resultado = $"HTTP {(int)respuesta.StatusCode}: {productos.Count} producto(s).";
+        }
+        catch (HttpRequestException)
+        {
+            resultado = "No existe una respuesta HTTP válida de la API: comprueba host y puerto.";
+        }
+        catch (TaskCanceledException)
+        {
+            resultado = "La consulta agotó el tiempo configurado.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            resultado = "El cuerpo JSON no se corresponde con una lista de productos.";
+        }
+        finally
+        {
+            consultando = false;
+        }
+    }
+}
+
+~~~
+
+
+#### Paso D2. Observar el estado inicial
+
+Arranca primero la API y después Blazor. Abre /diagnostico-http. Antes de pulsar ningún botón, la pantalla debe mostrar la instrucción Selecciona una petición. Este estado inicial no representa todavía una petición pendiente ni un error: simplemente no hemos lanzado una operación.
+
+Comprueba que los dos botones están disponibles. El primero utiliza api/productos y el segundo api/no-existe. Las dos rutas parten de la misma dirección base configurada mediante el cliente con nombre. Por ello, si la configuración apunta a un puerto incorrecto, ambos intentos encontrarán el mismo problema de conectividad.
+
+#### Paso D3. Consultar el catálogo válido
+
+Pulsa GET catálogo. Durante el tiempo en que la solicitud está pendiente, consultando es verdadero, se muestra el texto de espera y ambos botones quedan temporalmente deshabilitados. Al llegar una respuesta correcta, el componente lee la lista de productos y presenta el número de elementos.
+
+El resultado esperado en una API recién iniciada es un estado HTTP 200 y dos objetos, Cuaderno y Lápiz. Al consultar la lista, el contenido JSON se convierte a ProductoDto y los objetos aparecen en la pantalla. Este experimento también permite observar que obtener un 200 no evita tener que comprobar la forma del cuerpo antes de dibujar los datos.
+
+#### Paso D4. Solicitar una ruta inexistente
+
+Pulsa GET ruta inexistente. La URL llega al mismo servidor operativo, pero el endpoint api/no-existe no está publicado. La propiedad IsSuccessStatusCode será falsa. El componente leerá StatusCode y ReasonPhrase y presentará el resultado sin intentar deserializarlo como una lista de productos.
+
+La diferencia respecto al botón anterior aparece en la respuesta HTTP, no en el mecanismo de comunicación: ambos usan el mismo HttpClient, el mismo host y el mismo puerto. Si la página indica 404, la API ha recibido la solicitud y ha respondido. El error no equivale a que no haya conexión.
+
+#### Paso D5. Provocar ausencia de respuesta
+
+Deja abierta Blazor y detén el proceso API. Pulsa de nuevo GET catálogo. En esta ocasión el host destinatario ya no puede aceptar la petición. Se lanzará una excepción de comunicación y se mostrará el mensaje de conectividad. No inventamos un código HTTP 404, porque el servidor objetivo no ha enviado una respuesta válida.
+
+Este paso demuestra por qué una aplicación puede seguir mostrando una interfaz interactiva aunque el servidor de datos remoto esté apagado: Blazor y la API son procesos diferentes. También explica por qué un fallo de conexión no debería convertirse silenciosamente en una colección vacía.
+
+#### Paso D6. Restaurar el estado y comparar tiempos
+
+Vuelve a iniciar la API y pulsa GET catálogo. El funcionamiento debe recuperarse sin modificar el archivo Razor. Si sigue fallando, comprueba que la nueva ejecución escucha en el puerto configurado. No cambies simultáneamente la dirección base y la ruta: primero identifica cuál de las dos no coincide.
+
+Para observar la variable consultando, puedes ejecutar la misma operación mientras el servidor tarde algo más en responder. No es necesario incorporar Thread.Sleep al endpoint: lo importante es entender que durante una espera real el componente mantiene un estado visual y, en finally, lo restaura al terminar. No conviertas una pausa artificial de servidor en parte permanente de la API del alumno.
+
+#### Paso D7. Revisar la diferencia entre tres clases de fallo
+
+El componente distingue HttpRequestException, TaskCanceledException y JsonException. La primera representa problemas de comunicación o determinados estados HTTP, según qué método se utilice; la segunda puede aparecer cuando se supera el tiempo; la tercera indica que el contenido no se ha podido convertir al tipo esperado.
+
+No son tres nombres intercambiables para un mismo error. El alumno debe explicar qué observación tiene para decidir si revisa el puerto, el tiempo de espera o el contrato JSON. En un entorno real podrían existir más clases de excepción y políticas de observabilidad, pero aquí nos basta con aprender a no esconderlas bajo un mensaje ambiguo.
+
+### P4.1 — Ejercicio de contraste con el componente principal
+
+Abre nuevamente /catalogo-remoto. Allí la interfaz resume la consulta y muestra datos o un error. Después abre /diagnostico-http: esta pantalla expone deliberadamente el código HTTP para la demostración. Ambas utilizan el cliente ProductosApi y los DTO del proyecto, pero están diseñadas con fines de presentación distintos.
+
+Si el alumno terminara copiando toda la lógica de diagnóstico a cada pantalla, habría aumentado la duplicación. Esta observación prepara P4.2: la necesidad de situar la comunicación en una clase de servicio mientras los componentes conservan sus respectivas decisiones de presentación.
+
+### P4.1 — Resultados que deben poder explicarse
+
+| Acción | API disponible | Respuesta recibida | Mensaje principal |
+|---|---|---|---|
+| GET catálogo | Sí | 200 con lista | HTTP 200, número de productos |
+| GET inexistente | Sí | 404 | Código HTTP 404 |
+| GET catálogo | No | Sin respuesta del servidor | Problema de conectividad |
+| GET catálogo tras reinicio | Sí | 200 con lista | Recuperación de consulta |
+| JSON incompatible | Sí | Puede devolver 200 | Error de conversión de datos |
+
+El alumno debe volver a dejar operativa la API al terminar, porque P4.2 parte de un catálogo remoto funcional. La página de diagnóstico puede mantenerse en el proyecto de 4.1 como material de exploración, sin integrarla en los estados siguientes.
+
 ### Resultado y continuidad
 
 Al finalizar, `/productos` conserva el aprendizaje local de M03 y `/catalogo-remoto` demuestra GET, POST y errores HTTP entre dos procesos. La API auxiliar utilizada aquí se estudiará en detalle en P4.3; en **P4.2** extraeremos las llamadas del componente a `IProductosApiService`.
