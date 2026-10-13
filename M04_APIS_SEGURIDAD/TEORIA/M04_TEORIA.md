@@ -1,5 +1,14 @@
 # M04 — Integración de APIs y seguridad básica
 
+## Desarrollo Web con ASP.NET Core MVC, Razor y Blazor en .NET 8
+
+**CURSO: Desarrollo Web con ASP.NET Core MVC, Razor y Blazor en .NET 8**
+
+**TIPO: TEORÍA**
+
+**AUTOR: JAIME GALLO**
+
+
 ## 4.1. Consumir una API HTTP desde Blazor: contratos, JSON, operaciones asíncronas y errores
 
 ### Objetivo y conexión con el módulo anterior
@@ -852,7 +861,7 @@ La tercera es construir una API nueva y olvidar que la antigua sigue ocupando 50
 
 Estas incidencias se estudian aquí porque proporcionan criterios transferibles a otras integraciones: distinguir alojamiento, contrato y estado de aplicación.
 
-### 4.3.6. Probar el contrato sin depender de la pantalla
+### 4.3.8. Probar el contrato sin depender de la pantalla
 
 Para diagnosticar una integración conviene separar observaciones. Primero ejecutamos la API y probamos GET, POST y errores con un cliente HTTP independiente. Después abrimos Blazor para comprobar que conserva su comportamiento. Si el GET directo funciona, pero la página falla, investigaremos URL configurada, puerto, servicio tipado, DTO o estado del componente. Si el GET directo también falla, examinaremos el proceso API y sus rutas.
 
@@ -1024,6 +1033,67 @@ El token antifalsificación dificulta que un sitio externo envíe solicitudes qu
 La demostración es intencionalmente superficial. Identity, proveedores externos, permisos de producción y protección del catálogo completo quedan fuera de este curso de 30 horas.
 
 
+### 4.4.6. Autenticación por cookie: seguir el intercambio completo
+
+Cuando el usuario completa correctamente el formulario de demostración, el navegador envía una petición HTTP POST al servidor Blazor. El servidor compara el código local del laboratorio, crea una identidad con claims y ejecuta `SignInAsync`. En la respuesta aparece una cookie de autenticación; en solicitudes posteriores el navegador la envía al servidor correspondiente. El middleware vuelve a interpretar esa cookie y crea el principal asociado al usuario.
+
+Es útil distinguir tres instantes. **Antes de entrar**, el navegador no presenta una cookie reconocida y el principal es anónimo. **Después del POST correcto**, la respuesta establece la sesión y redirige a la página de demostración. **Después de salir**, el servidor solicita al navegador que elimine o invalide la cookie y una navegación posterior vuelve a producir una identidad anónima.
+
+Esto explica por qué no debemos intentar emitir una cookie dentro de un evento cualquiera de un componente interactivo cuando ya se ha iniciado la respuesta HTTP. El formulario POST convencional facilita que el servidor controle la respuesta y sus cabeceras.
+
+En el laboratorio la autenticación ocurre en el servidor Blazor. No implica que el proceso de la API REST auxiliar acepte automáticamente esa misma identidad ni que comparta el mismo esquema de cookies. Autenticación y autorización deben diseñarse explícitamente en los límites de cada aplicación.
+
+### 4.4.7. Comprender el antiforgery en un formulario de entrada
+
+Un navegador autenticado envía automáticamente cookies apropiadas al servidor. Esta comodidad introduce un riesgo: otro sitio podría intentar provocar un POST usando la sesión del navegador. El token antifalsificación permite al servidor comprobar que la solicitud proviene de un formulario que recibió un token legítimo.
+
+En Razor declaramos:
+
+```razor
+<form method="post" action="/demo/salir" data-enhance="false">
+    <AntiforgeryToken />
+    <button type="submit">Cerrar sesión</button>
+</form>
+```
+
+En un endpoint de demostración que lee el formulario directamente, conviene hacer explícita la comprobación:
+
+```csharp
+app.MapPost("/demo/salir",
+    async (HttpContext http, IAntiforgery antiforgery) =>
+{
+    if (!await antiforgery.IsRequestValidAsync(http))
+        return Results.BadRequest("Token antifalsificación inválido.");
+
+    await http.SignOutAsync("CookiesDemo");
+    return Results.Redirect("/seguridad");
+});
+```
+
+El código requiere el espacio de nombres `Microsoft.AspNetCore.Antiforgery` y `Microsoft.AspNetCore.Authentication`, así como la configuración adecuada del middleware. El resultado de un POST sin token no es una salida válida sino una respuesta de error. El token no sustituye la comprobación del usuario ni convierte un código fijo de laboratorio en una contraseña segura.
+
+### 4.4.8. ¿Qué diferencia hay entre 401 y 403?
+
+La semántica es importante aunque algunas aplicaciones web redirijan al formulario de acceso. **401 Unauthorized** indica que no existe una autenticación válida para acceder al recurso. **403 Forbidden** corresponde a una identidad reconocida que carece del permiso exigido. Con autenticación por cookie, los manejadores pueden convertir esas situaciones en redirecciones a páginas de entrada o de acceso denegado. En un endpoint consultado como API puede ser preferible conservar los códigos HTTP para que el cliente los interprete.
+
+Nuestro endpoint de laboratorio requiere el rol `Formador`. Una persona anónima no satisface esa política. Un principal autenticado con otro rol tampoco, pero la razón es diferente: ya sabemos quién es y lo que falta es autorización.
+
+En pruebas, no basta con ver que un botón está oculto: debemos consultar directamente el endpoint y comprobar que el servidor rechaza la solicitud cuando falta la identidad o el permiso.
+
+### 4.4.9. Los límites concretos de una demostración segura
+
+Un proyecto de aula con código fijo de acceso debe expresar su finalidad. No es un sistema de identidad para Internet. No debe reutilizarse en un despliegue y no debe almacenar datos sensibles. Para mantener controlado el ejemplo, sus rutas especiales pueden registrarse únicamente bajo `app.Environment.IsDevelopment()`.
+
+Los mecanismos que faltarían en un producto real incluyen verificación de credenciales mediante un proveedor adecuado, gestión del ciclo de vida de usuarios, configuración segura de cookies, HTTPS, protección de secretos, políticas de acceso y procedimientos de recuperación. No se desarrollan aquí porque la finalidad de M04 es observar los conceptos básicos dentro de seis horas.
+
+### 4.4.10. Diagnóstico guiado de un acceso fallido
+
+Si la página continúa mostrando una identidad anónima después de enviar el formulario, comprueba primero que el POST se ha enviado a la ruta correcta y que el navegador no lo ha tratado como una navegación parcial que impide observar la nueva cookie. Comprueba después que el token antifalsificación se envió y que el servidor aceptó la solicitud. Si la respuesta es satisfactoria, observa si la cookie se almacenó y si el navegador la envía al volver a consultar el servidor.
+
+Si la página muestra el usuario pero el recurso protegido deniega acceso, revisa la autorización del endpoint. Una identidad autenticada puede carecer del claim de rol requerido. Si la interfaz muestra el rol y aun así el endpoint rechaza la solicitud, revisa si ambas acciones se están ejecutando en el mismo host y bajo el mismo esquema de autenticación.
+
+Este procedimiento está orientado a clasificar errores. No necesitamos integrar un sistema de gestión de cuentas para aprender a diferenciar identidad, permisos, HTTP y presentación.
+
 ### 4.4.11. Del navegador a la identidad: seguir el primer acceso
 
 Antes de comenzar la autenticación, la aplicación Blazor puede dibujar páginas y consumir la API auxiliar. El navegador no presenta una cookie de sesión reconocida por el esquema de demostración. En ese estado, el principal es anónimo y AuthorizeView muestra la rama NotAuthorized. Esta vista condicional no decide todavía el permiso de un recurso remoto; solo permite presentar información adecuada al estado de autenticación conocido por el componente.
@@ -1106,39 +1176,35 @@ Si la aplicación se ejecuta en producción y el formulario deja de funcionar, d
 Esta tabla describe fronteras, no una obligación de multiplicar proyectos. Saber qué proceso ejecuta cada acción evita atribuir a AuthorizeView una protección que en realidad depende del servidor.
 
 
-### Conclusión del módulo
-
-4.1 enseña a consumir HTTP; 4.2 separa interfaz y servicios; 4.3 explica el servidor; 4.4 distingue la identidad, la decisión de acceso del servidor y la presentación condicional de Blazor.
-
-## Laboratorio de razonamiento transversal: una operación vista desde cuatro límites
+### Taller transversal: una operación vista desde cuatro límites
 
 Este apartado relaciona los cuatro conceptos del módulo mediante un mismo caso: una persona desea crear un producto nuevo llamado «Agenda», con precio 6,40. Seguir la operación de un extremo a otro ayuda a detectar errores que quedan ocultos cuando se estudian las tecnologías como listas de instrucciones.
 
-### El límite de la interfaz
+#### El límite de la interfaz
 
 En Blazor la persona escribe un nombre y un precio. Estos valores viven inicialmente en el estado del componente. Puede haber un control de formulario que evite enviar campos vacíos, pero no podemos interpretar esa comprobación como una garantía del servidor: cualquiera que conozca la dirección de la API puede enviar otra petición.
 
 El componente debe gestionar un estado de envío: antes del POST desactiva el botón para evitar pulsaciones duplicadas y después muestra el resultado. Si ocurre un fallo, mantiene los valores para facilitar una corrección. Añadir a la lista un producto antes de recibir confirmación sería una **actualización optimista**; aquí preferimos esperar el producto que devuelve la API, porque contiene el identificador real asignado.
 
-### El límite del servicio
+#### El límite del servicio
 
 El componente no conoce la URL; solo pide al servicio que cree un producto. El servicio transforma la operación de negocio en una petición HTTP, serializando `CrearProductoDto` con `PostAsJsonAsync`. Debe comprobar el estado de respuesta antes de leer el producto creado, porque un 400 representa una operación rechazada.
 
 Este diseño permite cambiar el puerto o la implementación remota sin modificar cada componente. Por el contrario, no elimina las fallas de red: solo ofrece un lugar único para tratar las particularidades de HTTP.
 
-### El límite del servidor
+#### El límite del servidor
 
 La API recibe el JSON, crea un objeto de entrada y comprueba sus reglas. En nuestro laboratorio, un nombre sin contenido o un precio igual o inferior a cero produce 400. Si la entrada es válida, se asigna un ID y la API responde 201 con el producto. En este punto el servidor no conoce componentes Blazor ni `AuthorizeView`; sus reglas funcionan igualmente para otro cliente HTTP.
 
 Si un servidor devuelve 201 pero el cliente pierde la conexión antes de recibirlo, el cliente podría desconocer que el alta se realizó. Por eso el reintento automático de POST no se presenta como una decisión inocua. Un sistema real necesitaría valorar idempotencia, identificadores de petición o reconciliación, pero no añadiremos esa infraestructura al ejercicio.
 
-### El límite de la identidad
+#### El límite de la identidad
 
 La demostración de 4.4 protege únicamente `/demo/privado`. Es importante evitar una conclusión falsa: que el usuario haya iniciado sesión en Blazor **no convierte el POST público de productos en una operación protegida**. Las políticas se aplican en cada recurso del servidor correspondiente. El control visual de una pantalla no autoriza ni desautoriza una petición HTTP.
 
 Para ampliar la aplicación en un proyecto futuro, habría que determinar qué operaciones requieren autenticación y qué política aplica a cada una. Ese análisis es distinto de decidir si la interfaz muestra un botón.
 
-### Secuencia de diagnóstico de un fallo
+#### Secuencia de diagnóstico de un fallo
 
 Supongamos que «Agenda» no aparece después del envío. Antes de reescribir el componente, realizamos comprobaciones en orden:
 
@@ -1150,7 +1216,7 @@ Supongamos que «Agenda» no aparece después del envío. Antes de reescribir el
 
 Este recorrido clasifica los errores por responsabilidad: presentación, comunicación, contrato o regla del servidor. Cambiar simultáneamente cuatro archivos ante un único fallo dificulta aprender qué ocurrió.
 
-### Dos pruebas que parecen iguales y no lo son
+#### Dos pruebas que parecen iguales y no lo son
 
 **Prueba A:** detener la API y abrir `/catalogo-remoto`. Se espera un mensaje de conectividad; no un 404, porque la conexión no ha llegado al endpoint.
 
@@ -1158,75 +1224,20 @@ Este recorrido clasifica los errores por responsabilidad: presentación, comunic
 
 Este contraste justifica el reto del punto 4.1 y sirve para decidir si una aplicación necesita mensajes más específicos sin llenar la pantalla de detalles técnicos.
 
-### Cómo razonar sobre una respuesta parcialmente correcta
+#### Cómo razonar sobre una respuesta parcialmente correcta
 
 Imaginemos una API que responde 200 con `{"cantidad":2,"precioTotal":3.30}`. El JSON es válido y la respuesta es satisfactoria, pero **no corresponde a una lista de `ProductoDto`**. Si el servicio de catálogo intenta leerlo como lista, fallará el contrato. En 4.3 añadimos el resumen como ruta diferenciada precisamente para no alterar el cuerpo que espera el cliente existente.
 
 La compatibilidad de contratos es uno de los motivos por los que una API no debería cambiar de forma arbitraria el tipo de respuesta de un endpoint ya consumido.
 
-### Actividad razonada antes de practicar
+#### Actividad razonada antes de practicar
 
 Sin escribir todavía código, responde: ¿qué componente conoce el puerto 5081? ¿Qué capa debe saber que existe `api/productos`? ¿Quién asigna el identificador? ¿Dónde se comprueba el rol `Formador` para `/demo/privado`? Si las respuestas sitúan el puerto en configuración/cliente HTTP, la ruta en servicio/API, el ID en la API y la autorización en el servidor, la separación de responsabilidades está bien comprendida.
 
 Estas decisiones serán observables en los proyectos de 4.1–4.4 y no dependen de nombres de clases memorísticos: derivan del recorrido completo de la petición.
 
-### 4.4.6. Autenticación por cookie: seguir el intercambio completo
 
-Cuando el usuario completa correctamente el formulario de demostración, el navegador envía una petición HTTP POST al servidor Blazor. El servidor compara el código local del laboratorio, crea una identidad con claims y ejecuta `SignInAsync`. En la respuesta aparece una cookie de autenticación; en solicitudes posteriores el navegador la envía al servidor correspondiente. El middleware vuelve a interpretar esa cookie y crea el principal asociado al usuario.
+### Conclusión del módulo
 
-Es útil distinguir tres instantes. **Antes de entrar**, el navegador no presenta una cookie reconocida y el principal es anónimo. **Después del POST correcto**, la respuesta establece la sesión y redirige a la página de demostración. **Después de salir**, el servidor solicita al navegador que elimine o invalide la cookie y una navegación posterior vuelve a producir una identidad anónima.
+4.1 enseña a consumir HTTP; 4.2 separa interfaz y servicios; 4.3 explica el servidor; 4.4 distingue la identidad, la decisión de acceso del servidor y la presentación condicional de Blazor.
 
-Esto explica por qué no debemos intentar emitir una cookie dentro de un evento cualquiera de un componente interactivo cuando ya se ha iniciado la respuesta HTTP. El formulario POST convencional facilita que el servidor controle la respuesta y sus cabeceras.
-
-En el laboratorio la autenticación ocurre en el servidor Blazor. No implica que el proceso de la API REST auxiliar acepte automáticamente esa misma identidad ni que comparta el mismo esquema de cookies. Autenticación y autorización deben diseñarse explícitamente en los límites de cada aplicación.
-
-### 4.4.7. Comprender el antiforgery en un formulario de entrada
-
-Un navegador autenticado envía automáticamente cookies apropiadas al servidor. Esta comodidad introduce un riesgo: otro sitio podría intentar provocar un POST usando la sesión del navegador. El token antifalsificación permite al servidor comprobar que la solicitud proviene de un formulario que recibió un token legítimo.
-
-En Razor declaramos:
-
-```razor
-<form method="post" action="/demo/salir" data-enhance="false">
-    <AntiforgeryToken />
-    <button type="submit">Cerrar sesión</button>
-</form>
-```
-
-En un endpoint de demostración que lee el formulario directamente, conviene hacer explícita la comprobación:
-
-```csharp
-app.MapPost("/demo/salir",
-    async (HttpContext http, IAntiforgery antiforgery) =>
-{
-    if (!await antiforgery.IsRequestValidAsync(http))
-        return Results.BadRequest("Token antifalsificación inválido.");
-
-    await http.SignOutAsync("CookiesDemo");
-    return Results.Redirect("/seguridad");
-});
-```
-
-El código requiere el espacio de nombres `Microsoft.AspNetCore.Antiforgery` y `Microsoft.AspNetCore.Authentication`, así como la configuración adecuada del middleware. El resultado de un POST sin token no es una salida válida sino una respuesta de error. El token no sustituye la comprobación del usuario ni convierte un código fijo de laboratorio en una contraseña segura.
-
-### 4.4.8. ¿Qué diferencia hay entre 401 y 403?
-
-La semántica es importante aunque algunas aplicaciones web redirijan al formulario de acceso. **401 Unauthorized** indica que no existe una autenticación válida para acceder al recurso. **403 Forbidden** corresponde a una identidad reconocida que carece del permiso exigido. Con autenticación por cookie, los manejadores pueden convertir esas situaciones en redirecciones a páginas de entrada o de acceso denegado. En un endpoint consultado como API puede ser preferible conservar los códigos HTTP para que el cliente los interprete.
-
-Nuestro endpoint de laboratorio requiere el rol `Formador`. Una persona anónima no satisface esa política. Un principal autenticado con otro rol tampoco, pero la razón es diferente: ya sabemos quién es y lo que falta es autorización.
-
-En pruebas, no basta con ver que un botón está oculto: debemos consultar directamente el endpoint y comprobar que el servidor rechaza la solicitud cuando falta la identidad o el permiso.
-
-### 4.4.9. Los límites concretos de una demostración segura
-
-Un proyecto de aula con código fijo de acceso debe expresar su finalidad. No es un sistema de identidad para Internet. No debe reutilizarse en un despliegue y no debe almacenar datos sensibles. Para mantener controlado el ejemplo, sus rutas especiales pueden registrarse únicamente bajo `app.Environment.IsDevelopment()`.
-
-Los mecanismos que faltarían en un producto real incluyen verificación de credenciales mediante un proveedor adecuado, gestión del ciclo de vida de usuarios, configuración segura de cookies, HTTPS, protección de secretos, políticas de acceso y procedimientos de recuperación. No se desarrollan aquí porque la finalidad de M04 es observar los conceptos básicos dentro de seis horas.
-
-### 4.4.10. Diagnóstico guiado de un acceso fallido
-
-Si la página continúa mostrando una identidad anónima después de enviar el formulario, comprueba primero que el POST se ha enviado a la ruta correcta y que el navegador no lo ha tratado como una navegación parcial que impide observar la nueva cookie. Comprueba después que el token antifalsificación se envió y que el servidor aceptó la solicitud. Si la respuesta es satisfactoria, observa si la cookie se almacenó y si el navegador la envía al volver a consultar el servidor.
-
-Si la página muestra el usuario pero el recurso protegido deniega acceso, revisa la autorización del endpoint. Una identidad autenticada puede carecer del claim de rol requerido. Si la interfaz muestra el rol y aun así el endpoint rechaza la solicitud, revisa si ambas acciones se están ejecutando en el mismo host y bajo el mismo esquema de autenticación.
-
-Este procedimiento está orientado a clasificar errores. No necesitamos integrar un sistema de gestión de cuentas para aprender a diferenciar identidad, permisos, HTTP y presentación.
