@@ -119,7 +119,7 @@ No hace falta ejecutar la API Identity/JWT: su dirección existe en configuraci�
 
 ### Paso P5.1.4. Añadir la consulta explícita «Consultar servidor»
 
-La versión de trabajo de M04 obtenía productos durante `OnInitializedAsync`. Queremos permitir una segunda consulta sin reconstruir toda la página. En `Components/Pages/CatalogoRemoto.razor`, debajo del párrafo introductorio, añade:
+La versión de trabajo de M04 obtenía productos durante `OnInitializedAsync`. El archivo de partida se conserva como **variante inicial fuera del proyecto compilable**, en `PROYECTO/VARIANTES/P5.1_ANTES/Components/Pages/CatalogoRemoto.razor`. Si ya has recibido el proyecto final M05, compara con esta variante antes de realizar manualmente la transformación. Queremos permitir una segunda consulta sin reconstruir toda la página. En `Components/Pages/CatalogoRemoto.razor`, debajo del párrafo introductorio, añade:
 
 ~~~razor
 <button id="recargar-api"
@@ -268,7 +268,7 @@ Observa el mensaje de finalización y la carpeta `bin/Release/net8.0` del proyec
 
 ### Paso P5.2.2. Comprobar que la aplicación sigue siendo la de M02
 
-Abre el archivo `Program.cs`. Localiza las dos responsabilidades que llegan del módulo anterior:
+Abre el archivo `Program.cs`. Puedes contrastarlo con la versión acumulativa original del módulo M02, guardada fuera del proyecto compilable en `PROYECTO/VARIANTES/P5.2_ANTES/Program.cs`; esa variante es solo una referencia inicial para reconocer el añadido de M05. Localiza las dos responsabilidades que llegan del módulo anterior:
 
 ~~~csharp
 builder.Services.AddControllersWithViews();
