@@ -3321,14 +3321,14 @@ sqllocaldb start MSSQLLocalDB
 
 Si el comando no existe, comprueba la instalación del componente LocalDB. Si la instancia todavía no existe, créala mediante `sqllocaldb create MSSQLLocalDB` solo cuando corresponda a tu instalación; no alteres instancias usadas por otros proyectos.
 
-En Visual Studio, abre **Ver > Explorador de objetos de SQL Server** y conecta a `(localdb)\\MSSQLLocalDB`, utilizando autenticación Windows. Identifica esta instancia antes de ejecutar el primer registro.
+En Visual Studio, abre **Ver > Explorador de objetos de SQL Server** y conecta a `(localdb)\MSSQLLocalDB`, utilizando autenticación Windows. Identifica esta instancia antes de ejecutar el primer registro.
 
 En `appsettings.json` utiliza la cadena de conexión docente:
 
 ~~~json
 {
   "ConnectionStrings": {
-    "IdentityDb": "Server=(localdb)\\\\MSSQLLocalDB;Database=CursoWeb_M04_IdentityJwt;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true"
+    "IdentityDb": "Server=(localdb)\\MSSQLLocalDB;Database=CursoWeb_M04_IdentityJwt;Trusted_Connection=True;TrustServerCertificate=True;MultipleActiveResultSets=true"
   },
   "Jwt": {
     "Issuer": "CursoWeb.M04.IdentityJwt",
