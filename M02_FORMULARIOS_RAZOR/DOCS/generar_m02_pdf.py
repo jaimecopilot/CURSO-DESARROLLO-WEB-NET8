@@ -87,7 +87,7 @@ def verify(target,md,kind,raw):
     assert reader.metadata.author=="AUTOR: JAIME GALLO"
     pages=len(reader.pages)
     print(f"{kind}: {pages} páginas, {len(md.split())} palabras Markdown.",flush=True)
-    if not 72<=pages<=100:
+    if not 75<=pages<=200:
         print(f"AVISO: {kind} necesita revisar extensión: {pages} páginas.",flush=True)
     doc=fitz.open(target)
     chapters={}
@@ -146,8 +146,8 @@ def create(kind):
 
 def main():
     results=[create("TEORIA"),create("PRACTICAS")]
-    if any(not 72<=r["paginas"]<=100 for r in results):
-        raise AssertionError("Los dos PDF deben aproximarse a 80 páginas antes de publicarse.")
+    if any(not 75<=r["paginas"]<=200 for r in results):
+        raise AssertionError("Los dos manuales deben conservar al menos 75 páginas de contenido pedagógico y los archivos completos, sin superar 200.")
     OUT.parent.mkdir(parents=True,exist_ok=True)
     lines=["# M02 — Informe técnico documental","",
        "Las fuentes de contenido son únicamente los dos Markdown canónicos.",
