@@ -324,6 +324,101 @@ Esta secuencia también evita un error pedagógico frecuente: **modificar la apl
 
 Consumir una API no consiste únicamente en escribir `await cliente.GetFromJsonAsync`. Requiere conocer el contrato HTTP, representar correctamente los datos intercambiados, configurar el cliente, distinguir éxito y fracaso y actualizar el estado visible de Blazor con una respuesta confiable. En el siguiente punto, 4.2, retiraremos esa responsabilidad de los componentes y la situaremos en un servicio especializado.
 
+
+### 4.1.11. Laboratorio conceptual: interpretar HTTP antes de escribir Razor
+
+En el catálogo local del módulo anterior una llamada C# permanecía dentro del mismo proceso. La integración remota introduce un protocolo y, por tanto, un conjunto de situaciones que antes no aparecían: el host podría no estar iniciado, la ruta podría ser incorrecta, el servidor podría rechazar una entrada o la respuesta podría ser válida como JSON pero incompatible con el contrato del cliente.
+
+Consideremos un usuario que visita la página /catalogo-remoto. La navegación lleva a un componente de Blazor Interactive Server. Su código C# se ejecuta en el servidor que aloja Blazor, no automáticamente dentro del proceso de la API ni dentro del JavaScript del navegador. Desde ese proceso se emite la petición HTTP a otro servidor, la API auxiliar del laboratorio. Ese servidor busca un endpoint, lee sus productos y devuelve JSON. La aplicación Blazor deserializa la respuesta y actualiza el estado del componente, y el navegador recibe los cambios de su interfaz.
+
+Ese recorrido explica por qué tres direcciones no deben confundirse: la URL de la página Blazor, la dirección base del cliente HTTP y la ruta del endpoint de la API. La primera permite navegar hasta una pantalla; la segunda indica a qué host y puerto se envía la petición; la tercera identifica el recurso dentro de la API.
+
+Una respuesta 200 con un arreglo vacío significa que no existen elementos disponibles, pero el protocolo ha funcionado. Una respuesta 404 implica que el servidor recibió la petición y no encontró el recurso. Una excepción por conexión rechazada significa que no obtuvimos respuesta HTTP de la API. La distinción parece elemental, pero determina mensajes de usuario, diagnósticos y decisiones de implementación muy diferentes.
+
+### 4.1.12. El DTO como contrato, no como duplicación accidental
+
+Los DTO del cliente son tipos que describen los datos intercambiados. El servidor puede utilizar sus propios tipos equivalentes sin referenciar el proyecto Blazor. El acoplamiento que realmente importa aparece en el contrato JSON: campos, tipos, forma de la colección y significados.
+
+Comparemos tres documentos JSON:
+
+~~~json
+[
+  { "id": 1, "nombre": "Cuaderno", "precio": 2.50 }
+]
+~~~
+
+~~~json
+[]
+~~~
+
+~~~json
+{ "cantidad": 1, "precioTotal": 2.50 }
+~~~
+
+Los dos primeros son arreglos JSON compatibles con una lista de ProductoDto. El tercero es un objeto válido, pero no es un catálogo. Aunque el servidor devolviera código 200, intentar deserializarlo como una lista sería un error. Por eso el endpoint de resumen de 4.3 conserva su propia ruta y no sustituye la salida del listado.
+
+El identificador es otro aspecto del contrato. El DTO de lectura tiene Id porque la API ya ha creado el recurso. El DTO de creación lo omite porque la asignación corresponde al servidor. Si el componente asignara su propio identificador, dos clientes distintos podrían producir decisiones contradictorias. Nuestro laboratorio no modela un sistema distribuido completo, pero sí mantiene clara la frontera de responsabilidad.
+
+Usamos decimal para precios porque representa cantidades de base decimal y evita algunas dificultades de aproximación de los números binarios de coma flotante. No estamos construyendo un motor de facturación: no se modelan monedas, impuestos, reglas de redondeo ni transacciones.
+
+### 4.1.13. Asincronía explicada con estados observables
+
+Una operación await no equivale a ejecutar permanentemente otra tarea en un hilo dedicado. Su función en el consumo HTTP es permitir que el código de la aplicación espere una operación de entrada/salida de manera asíncrona. El método devuelve una tarea, y la continuación se ejecuta cuando la operación finaliza o falla.
+
+El componente necesita conservar un estado claro durante la espera. Al comenzar la carga, cargando es verdadero. Después de obtener datos o capturar un error, finalmente pasa a falso. Esta última transición debe producirse incluso cuando se lanza una excepción; por eso la situamos en finally. De lo contrario un error de conectividad podría dejar el texto Cargando catálogo visible indefinidamente.
+
+En la creación de productos interviene otra transición: enviando permanece verdadero mientras se realiza POST, para impedir que el usuario pulse el botón varias veces por impaciencia. Eso limita duplicaciones desde la interfaz, pero no hace que POST sea una operación idempotente ni evita peticiones repetidas procedentes de otros clientes. La API valida los datos con independencia del botón de Blazor.
+
+Un principio útil es actualizar el catálogo después de recibir confirmación del servidor, no antes. Si el servidor devuelve un producto con un ID nuevo, incorporamos ese DTO a la pantalla. Si el POST falla, conservamos nombre y precio para que el usuario pueda corregirlos y reintentar cuando corresponda.
+
+### 4.1.14. Elegir el nivel de abstracción HTTP
+
+La familia GetFromJsonAsync combina consulta, validación básica de respuesta y deserialización. Resulta clara para un primer GET, porque deja ver cuál es el dato que espera recibir el componente.
+
+Si necesitamos analizar con exactitud el código HTTP antes de leer el cuerpo, podemos separar las operaciones:
+
+~~~csharp
+using var respuesta = await cliente.GetAsync("api/productos");
+if (!respuesta.IsSuccessStatusCode)
+{
+    error = $"La API respondió {(int)respuesta.StatusCode}.";
+    return;
+}
+productos = await respuesta.Content
+    .ReadFromJsonAsync<List<ProductoDto>>() ?? [];
+~~~
+
+El código es más largo, pero también permite distinguir los distintos rechazos del servidor. No debemos intentar leer una respuesta de error arbitraria como si necesariamente contuviera un catálogo válido. Un 400 o un 500 podrían devolver un objeto de diagnóstico, una cadena u otro contrato diferente.
+
+En escenarios avanzados existe SendAsync junto con HttpRequestMessage, que permite configurar la solicitud de manera detallada. No necesitamos introducirlo como requisito práctico de este módulo; conocer que existe ayuda a situar GetAsync y PostAsJsonAsync dentro de la misma abstracción HTTP.
+
+### 4.1.15. Interpretación de situaciones que parecen iguales
+
+| Experimento | Significado del resultado | Qué debe hacer la interfaz |
+|---|---|---|
+| GET correcto devuelve dos objetos | El contrato funciona | Presentar los dos productos |
+| GET correcto devuelve arreglo vacío | Catálogo sin elementos | Mostrar vacío sin acusar fallo |
+| GET recibe 404 | Ruta o recurso inexistente | Mostrar fallo HTTP |
+| POST recibe 400 | Datos no aceptados | Conservar la entrada y explicar rechazo |
+| Se apaga la API | No se obtiene respuesta HTTP | Mostrar error de conectividad |
+| La respuesta no corresponde al DTO | Desajuste de contrato | Informar incompatibilidad |
+| La operación supera el timeout | Cliente dejó de esperar | Informar de demora |
+| POST confirma 201 y un ID | Alta realizada | Añadir objeto real y limpiar formulario |
+
+La fila del timeout merece atención: cuando el cliente deja de esperar una respuesta, no podemos deducir sin más que el servidor dejó de trabajar. Un POST puede haberse procesado aunque su confirmación no llegara. Esa es una razón para no programar reintentos ciegos de operaciones de creación en este laboratorio.
+
+### 4.1.16. Diagnóstico sistemático de una pantalla sin productos
+
+El diagnóstico se realiza desde los límites del sistema. Primero se comprueba si la API está escuchando y responde directamente en la URL del listado. Segundo, se verifica que la respuesta tiene la forma de una lista y los campos esperados. Tercero, se comprueba que la URL de configuración del cliente apunta al mismo servidor y que la ruta relativa compone la dirección prevista. Cuarto, se estudia el tratamiento de errores del servicio y finalmente el estado visual de la pantalla.
+
+No se cambia el componente, la configuración y el servidor a la vez. Modificar varios límites simultáneamente hace imposible averiguar cuál de ellos contenía el fallo. Separar observaciones y decisiones es parte del aprendizaje sobre integración, no una actividad administrativa.
+
+### 4.1.17. Relación entre configuración y despliegue
+
+La dirección local usada en el laboratorio permite ejecutar dos procesos en la misma máquina. No significa que la API pública de producción deba utilizar HTTP sin cifrar ni un puerto fijo de desarrollo. En otro entorno, la dirección base será distinta y se configurará de forma apropiada. El contrato del componente no debe depender de escribir ese valor como una cadena dentro de cada pantalla.
+
+Este módulo mantiene deliberadamente una configuración sencilla. La jornada siguiente presentará mecanismos elementales de ejecución y publicación, pero no es necesario introducir ahora balanceadores, descubrimiento de servicios ni una plataforma de contenedores para comprender la llamada HTTP.
+
 ## 4.2. Extraer el consumo HTTP a una capa de servicio
 
 ### De un componente que hace todo a dos responsabilidades
