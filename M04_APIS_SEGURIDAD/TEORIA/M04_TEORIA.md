@@ -762,6 +762,103 @@ El valor didáctico del refactor queda así conectado con 4.3: construir otro se
 
 La razón para separar estas cuatro categorías es que cada una se manifiesta en un límite distinto. Cuando el alumno aprende a situar el fallo, empieza a poder investigar aplicaciones que no conoce de antemano.
 
+
+### 4.2.15. La extracción como una transformación que podemos observar línea a línea
+
+El primer componente del laboratorio obtiene un cliente a partir de IHttpClientFactory. Para obtener los productos combina creación del cliente, ejecución de GET, comprobación implícita de respuesta y conversión del JSON. Para crear uno utiliza POST, comprueba el estado y transforma el cuerpo de respuesta. Es razonable empezar así porque el alumno ve el protocolo sin intermediarios propios de nuestra aplicación.
+
+El inconveniente aparece cuando queremos reutilizar la misma lógica. Imaginemos que, además del catálogo, añadimos una tarjeta resumen que necesita obtener los productos para contar cuántos existen. Si copiamos la llamada HTTP en cada componente, dispersamos la ruta y repetimos el comportamiento de deserialización. Un cambio de contrato puede obligar a localizar todas esas copias. También sería fácil que una de ellas mostrara un catálogo vacío ante un error mientras otra informara de fallo.
+
+El refactor de 4.2 concentra esas operaciones en una implementación única. El componente ya no sabe cómo realizar un GET; expresa que necesita productos. Eso no hace desaparecer HTTP, simplemente coloca su código donde podemos estudiarlo, modificarlo y verificarlo sin contaminar todas las páginas.
+
+Para evaluar la transformación utilizamos dos perspectivas. La primera es **la conducta observable**: lista, formulario y errores permanecen como antes. La segunda es **la responsabilidad interna**: solo ProductosApiService conoce api/productos. Un cambio que satisfaga una perspectiva pero falle la otra no cumple el objetivo del ejercicio.
+
+### 4.2.16. Por qué el constructor primario no altera la inyección de dependencias
+
+La implementación está escrita con la sintaxis de constructor primario de C# 12:
+
+~~~csharp
+public sealed class ProductosApiService(HttpClient cliente)
+    : IProductosApiService
+{
+    public async Task<IReadOnlyList<ProductoDto>> ObtenerAsync()
+    {
+        return await cliente.GetFromJsonAsync<List<ProductoDto>>(
+            "api/productos") ?? [];
+    }
+}
+~~~
+
+La sintaxis abreviada no significa que el servicio obtenga un cliente global. Al registrar AddHttpClient<IProductosApiService, ProductosApiService>, ASP.NET Core prepara la creación del objeto concreto y proporciona la instancia configurada de HttpClient cuando resuelve la dependencia. El nombre del parámetro cliente pertenece al constructor de la clase, no a la ruta de la página.
+
+Podríamos escribir una versión equivalente con un constructor convencional, un campo privado y una asignación explícita. La decisión entre ambas sintaxis no cambia el contrato del servicio. Utilizamos la forma breve porque el curso ya presupone C# y queremos mantener visible el recorrido del dato, no detenernos a impartir construcciones básicas del lenguaje.
+
+### 4.2.17. El servicio no decide cómo dibujar un error
+
+Supongamos que ObtenerAsync lanza HttpRequestException. La implementación del servicio indica que no ha podido obtener los datos previstos. El componente recibe esa situación y decide mostrar un mensaje al usuario. Las dos acciones son diferentes: una interpreta un problema de infraestructura y la otra define la experiencia de presentación.
+
+Una mala extracción consistiría en mover al servicio no solo HTTP, sino también la cadena HTML que se dibujará, la variable cargando y el estado del formulario. Eso haría que la clase necesitara conocer detalles de Razor y perdería el propósito de separarla.
+
+La separación tampoco exige esconder toda excepción. En el ejemplo dejaremos que los fallos de HTTP o de serialización lleguen al componente, que conserva sus bloques catch. Así puede distinguir un error de conectividad de una respuesta que no se puede convertir al DTO. En un producto de mayor tamaño podría definirse un tipo resultado explícito o un modelo centralizado de errores, pero no resulta necesario para comprender la frontera que estamos enseñando.
+
+### 4.2.18. Sustituir temporalmente el servidor sin sustituir la pantalla
+
+El contrato IProductosApiService hace posible imaginar implementaciones alternativas. No es obligatorio instalar herramientas de mocking para entender su utilidad. Pensemos en una clase que devuelve una lista predefinida de productos y asigna un ID de ejemplo cuando se le pide crear. Mientras implemente los mismos métodos y devuelva tipos coherentes, el componente podría trabajar con ella.
+
+Este experimento conceptual sirve para responder una pregunta: si la UI puede representar datos sin que su código conozca HttpClient, hemos separado de verdad la presentación del transporte. Por supuesto, una implementación de prueba no demostraría que la API real responde 201 o valida entradas; esas responsabilidades se verificarán sobre el servidor en 4.3.
+
+El alumno debe distinguir **aislar la vista** de **probar el contrato HTTP**. Son evidencias diferentes y ninguna sustituye a la otra. En nuestro itinerario primero validamos GET y POST reales, luego refactorizamos sin regresiones y después construimos un servidor compatible.
+
+### 4.2.19. Un diagrama del refactor y sus fronteras
+
+~~~mermaid
+flowchart TB
+    A["Componente CatalogoRemoto"] --> B["IProductosApiService"]
+    B --> C["ProductosApiService"]
+    C --> D["HttpClient tipado"]
+    D --> E["API GET y POST"]
+    E --> F["Memoria de productos"]
+~~~
+
+La flecha de la interfaz al servicio concreto debe interpretarse como la resolución efectuada por DI, no como una construcción manual desde Razor. El componente solicita una abstracción y el contenedor decide qué implementación proporcionar. La API es un proceso independiente: recibe HTTP, valida operaciones y devuelve JSON.
+
+Este diagrama también permite detectar dónde debe ir una configuración. El puerto pertenece al registro del cliente, la ruta a la implementación HTTP, el nombre del producto creado al formulario y el ID del nuevo recurso al servidor API. Son cuatro decisiones repartidas entre partes distintas del mismo caso de uso.
+
+### 4.2.20. Una variación que no debería provocar modificaciones en la UI
+
+El docente cambia temporalmente la dirección base para apuntar a otra API que conserva el mismo contrato. El componente no debe cambiar. Si hubiera que buscar una URL en CatalogoRemoto.razor, el refactor habría dejado parte de la infraestructura en la vista.
+
+Ahora supongamos una variación distinta: la API deja de publicar POST /api/productos y lo sustituye por POST /api/articulos. El cliente que conoce la ruta necesita adaptarse, y la API y el servicio deben coordinar ese cambio. No tenemos que cambiar el método @onclick ni la presentación, porque la operación de dominio sigue siendo CrearAsync.
+
+Por último, cambiemos la respuesta para que el servidor deje de devolver el ID. En este caso la compatibilidad se rompe a nivel de DTO y la API debe restablecer el contrato o negociarse una nueva versión. Un servicio no puede inventar siempre una traducción correcta para datos que faltan. Una arquitectura con capas no elimina la obligación de acordar contratos entre procesos.
+
+### 4.2.21. Distinguir un defecto de resolución de un fallo de conexión
+
+Si olvidamos registrar IProductosApiService en el contenedor, la aplicación no podrá construir el componente que lo solicita. El problema aparece antes de ejecutar un GET. Cambiar la dirección de la API no ayudará, porque todavía no existe una implementación resuelta para iniciar la petición.
+
+Si el registro de DI es correcto pero apunta a un puerto donde no existe un servidor, el componente sí obtiene su servicio, aunque la operación HTTP falla. Ahora las pruebas directas sobre el destino pueden señalar la causa.
+
+Si tanto el registro como la conexión funcionan, pero la API devuelve un objeto en lugar de una lista, entramos en una tercera categoría: desajuste de contrato. Si el servicio devuelve la lista correctamente y la página permanece en cargando, la cuarta categoría es el estado del componente.
+
+Estas cuatro clases de fallo dan una técnica de diagnóstico más valiosa que memorizar el orden de unas líneas de Program.cs. Al alumno se le pide explicar qué frontera ha dejado de funcionar y qué observación permitiría confirmarlo.
+
+### 4.2.22. Alcance de un servicio tipado en una aplicación Blazor Interactive Server
+
+El servicio vive en el host Blazor y utiliza la infraestructura HTTP de ese proceso. No se ha convertido en una API adicional ni en un microservicio separado por el hecho de implementar una interfaz. Su papel consiste en abstraer la comunicación con la API que ya existe.
+
+El contenedor de ASP.NET Core gestiona la construcción de dependencias según el registro. No necesitamos utilizar un patrón Singleton manual para reutilizar HttpClient ni almacenar clientes en variables estáticas del componente. La fábrica integrada permite administrar los manejadores necesarios.
+
+Aunque un equipo profesional pueda incorporar circuitos de resiliencia, autenticación de clientes, trazas distribuidas y políticas de reintento, no las introducimos de manera automática. Cada una resolvería un problema adicional y requeriría criterios propios. En particular, reintentar POST de creación sin controlar duplicados puede cambiar el resultado de negocio.
+
+### 4.2.23. Criterios razonados de éxito del refactor
+
+Al revisar el estado final de 4.2 esperamos que el componente todavía contenga las variables productos, nombreNuevo, precioNuevo, cargando, enviando y mensaje. Son estados de presentación vinculados con el usuario. También esperamos encontrar ObtenerAsync y CrearAsync, porque son las operaciones que la vista necesita.
+
+No esperamos encontrar rutas HTTP, PostAsJsonAsync o GetFromJsonAsync dentro del componente. Esos detalles deben aparecer en ProductosApiService, donde son coherentes con la responsabilidad de comunicación. A su vez, no esperamos encontrar llamadas a @onclick ni marcado HTML dentro del servicio.
+
+El hecho de que las cadenas y tipos estén bien ubicados no prueba por sí solo el comportamiento. Debemos volver a ejecutar GET, POST, un fallo de red y la regresión de la página /productos anterior. Una buena separación de responsabilidades se reconoce tanto leyendo el código como observando que la aplicación sigue haciendo lo que hacía.
+
+
 ## 4.3. Comprender y modificar la API auxiliar de Productos
 
 ### Por qué estudiamos ahora el servidor
