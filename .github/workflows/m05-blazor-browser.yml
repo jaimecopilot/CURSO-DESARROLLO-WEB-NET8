@@ -45,3 +45,56 @@ jobs:
             sleep 1
           done
           node VERIFICACION_INTERNA/m05_catalogo_browser.cjs
+
+      - name: Verificar en Chromium los estados catálogo vacío y JSON inválido
+        shell: bash
+        run: |
+          set -euo pipefail
+          api=M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/API/CursoWeb.ProductosApi
+          cp "$api/Program.cs" "$RUNNER_TEMP/M05-API-original.cs"
+          cp M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/VARIANTES/P5.1_DIAGNOSTICO/Program.cs "$api/Program.cs"
+          dotnet build "$api/CursoWeb.ProductosApi.csproj" -c Release
+          cp "$RUNNER_TEMP/M05-API-original.cs" "$api/Program.cs"
+          Laboratorio__EscenarioCatalogo=vacio dotnet run -c Release --no-build --no-launch-profile --project "$api/CursoWeb.ProductosApi.csproj" --urls http://127.0.0.1:5081 > api-vacia.log 2>&1 &
+          apid=$!
+          dotnet run -c Release --no-build --no-launch-profile --project M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/BLAZOR/CursoWeb.Blazor/CursoWeb.Blazor.csproj --urls http://127.0.0.1:5092 > blazor-variantes.log 2>&1 &
+          bid=$!
+          trap 'kill $apid $bid 2>/dev/null || true; tail -40 api-vacia.log; tail -40 blazor-variantes.log' EXIT
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5081/api/productos > /dev/null &&
+               curl -fsS http://127.0.0.1:5092/catalogo-remoto > /dev/null; then break; fi
+            sleep 1
+          done
+          node - <<'JS'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            try{
+              const p=await b.newPage();
+              await p.goto('http://127.0.0.1:5092/catalogo-remoto',{waitUntil:'domcontentloaded'});
+              await p.locator('#estado-api').getByText('no hay productos disponibles',{exact:false}).waitFor({timeout:30000});
+              if(await p.locator('#error-api').count())throw Error('Lista vacía no es fallo JSON');
+              console.log('Blazor Interactive Server: colección [] con mensaje correcto');
+            }finally{await b.close();}
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
+          kill "$apid"
+          wait "$apid" || true
+          Laboratorio__EscenarioCatalogo=json-invalido dotnet run -c Release --no-build --no-launch-profile --project "$api/CursoWeb.ProductosApi.csproj" --urls http://127.0.0.1:5081 > api-invalida.log 2>&1 &
+          apid=$!
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:5081/api/productos > /dev/null; then break; fi
+            sleep 1
+          done
+          node - <<'JS'
+          const {chromium}=require('playwright');
+          (async()=>{
+            const b=await chromium.launch({headless:true});
+            try{
+              const p=await b.newPage();
+              await p.goto('http://127.0.0.1:5092/catalogo-remoto',{waitUntil:'domcontentloaded'});
+              await p.locator('#error-api').getByText('JSON válido',{exact:false}).waitFor({timeout:30000});
+              console.log('Blazor Interactive Server: HTTP 200 con JSON inválido muestra error');
+            }finally{await b.close();}
+          })().catch(e=>{console.error(e);process.exit(1)});
+          JS
