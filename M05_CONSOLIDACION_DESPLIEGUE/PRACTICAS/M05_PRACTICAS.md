@@ -655,6 +655,128 @@ Comprueba también el registro de la dirección base en `Program.cs` y el valor 
 
 
 
+
+### Paso P5.1.21. Construir un resumen de los productos realmente visibles
+
+**Fundamento:** 5.1.29–5.1.34. Hasta ahora la pantalla muestra cada producto del catálogo remoto. Como actividad de consolidación construiremos un pequeño resumen que dependa de la **lista que el componente tiene cargada**, no de una consulta adicional a la API.
+
+El objetivo es comprobar que comprendemos el estado de interfaz. Añadiremos un contador de productos visibles y una suma de sus precios. Esa suma no significa un importe de ventas ni un dato persistente de SQL Server. Representa exclusivamente la colección recibida más recientemente por el componente.
+
+**Estado inicial:** el proyecto Blazor B conserva `CatalogoRemoto.razor`, con consulta GET, creación POST, botón de recarga y tratamiento de errores. El servicio tipado y la API de referencia permanecen inalterados. La ampliación solo afecta a la representación Razor.
+
+Abre:
+
+`M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/BLAZOR/CursoWeb.Blazor/Components/Pages/CatalogoRemoto.razor`
+
+Busca el bloque de renderizado que contiene `<ul id="productos-api">`. Después del cierre de esa lista, pero **antes** de cerrar la rama `else` que representa un catálogo con elementos, añade:
+
+~~~razor
+<p id="resumen-catalogo-api">
+    Productos visibles: @productos.Count;
+    importe total mostrado: @productos.Sum(p => p.Precio).ToString("0.00") €.
+</p>
+~~~
+
+La propiedad `Count` consulta el número de objetos de la lista local. La expresión `Sum` recorre los DTO que esa misma lista contiene y acumula sus precios. No se envía una petición HTTP nueva porque `productos` ya estaba en memoria del componente.
+
+**Por qué colocarlo dentro de esa rama:** cuando hay un error o todavía está cargando, no queremos presentar un resumen como si correspondiera a una respuesta reciente. Cuando la API devuelve `[]`, el componente muestra su mensaje específico de catálogo vacío. La ampliación cuantifica el estado visible solamente cuando hay productos.
+
+### Paso P5.1.22. Comparar el código editado con una variante completa y reversible
+
+Para evitar que un alumno reconstruya un archivo entero desde fragmentos incompletos, se ha incluido una variante completa de la página:
+
+`M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/VARIANTES/P5.1_RESUMEN/Components/Pages/CatalogoRemoto.razor`
+
+Este archivo contiene **la página completa** de M05 y el párrafo de resumen ya integrado. Puedes trabajar editando manualmente la página actual con el bloque anterior o sustituir temporalmente su contenido por el archivo completo de variante.
+
+Si eliges sustituirla, detén primero Blazor y conserva una copia de la página original. Desde la raíz del repositorio:
+
+~~~powershell
+$pagina = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\BLAZOR\CursoWeb.Blazor\Components\Pages\CatalogoRemoto.razor"
+$variante = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\VARIANTES\P5.1_RESUMEN\Components\Pages\CatalogoRemoto.razor"
+Copy-Item $pagina "$pagina.p521-original" -Force
+Copy-Item $variante $pagina -Force
+~~~
+
+No crees otra página con la misma directiva `@page "/catalogo-remoto"` dentro del mismo proyecto: tendríamos rutas duplicadas y la práctica dejaría de partir del estado previsto. La variante se encuentra deliberadamente fuera de la carpeta compilable.
+
+**Resultado intermedio:** el archivo dentro del proyecto contiene una sola implementación de `ConsultarAsync`, una sola acción de crear y un párrafo de resumen. El resto de los servicios sigue idéntico.
+
+### Paso P5.1.23. Compilar antes de atribuir cualquier fallo al servidor HTTP
+
+La modificación se hizo dentro de un archivo Razor. La primera operación debe ser compilar Blazor, no reconstruir la API:
+
+~~~powershell
+dotnet build .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\BLAZOR\CursoWeb.Blazor\CursoWeb.Blazor.csproj -c Release
+~~~
+
+Si la compilación falla, comprueba los delimitadores Razor, la ubicación del bloque y la sintaxis de las expresiones `Count` y `Sum`. No modifiques la ruta `api/productos` para arreglar un error sintáctico de la vista.
+
+Después inicia la API normal y Blazor con las direcciones utilizadas en P5.1.2 y P5.1.3. Abre `http://localhost:5092/catalogo-remoto`. Deben aparecer los dos productos iniciales y el resumen correspondiente a esos elementos.
+
+El valor numérico del resumen procede de los precios que la API entrega. No escribas a mano un total fijo para los dos productos, porque la suma debe cambiar después de una creación y de una recarga.
+
+### Paso P5.1.24. Comprobar que una creación afecta a la colección y al resumen
+
+Con la API normal, introduce un producto de nombre Regla y precio 1,75 desde el formulario Blazor. El servicio recibe la representación creada y el componente incorpora el DTO a `productos`. El resumen debe reflejar ahora un elemento adicional y su precio sumado.
+
+La operación no modifica el código del servicio. Si el resumen sigue mostrando el número anterior aunque el producto aparezca en la lista, revisa si el párrafo está leyendo la misma colección y si la actualización de interfaz se ha producido.
+
+No confundas la suma de precios con la asignación del ID. El identificador lo proporciona el servidor; el resumen se calcula localmente sobre DTO ya recibidos. Son dos responsabilidades diferentes y ambas pueden verificarse sin modificar la API.
+
+Desde otra terminal realiza GET directo a `/api/productos` y confirma que el producto existe en el proceso API. El resumen local no sustituye esa comprobación de estado remoto.
+
+### Paso P5.1.25. Demostrar que el resumen puede quedar temporalmente obsoleto
+
+Mantén la página Blazor abierta, con el resumen visible. Desde otra terminal envía un POST válido a la API para crear un nuevo producto. No pulses todavía «Consultar servidor».
+
+**Observación esperada:** el servicio remoto ha añadido el nuevo producto, pero el componente no ha recibido una notificación. Su lista y su resumen pueden seguir representando el estado anterior. No es correcto considerar la suma antigua un fallo de cálculo; es una suma correcta sobre una colección que aún no se ha actualizado.
+
+Pulsa «Consultar servidor». La lista se reemplaza por la nueva respuesta del servidor. El contador y la suma cambian conjuntamente porque se calculan sobre los objetos que ahora están en `productos`.
+
+Este resultado permite demostrar visualmente la idea fundamental de M05: el componente presenta una representación local de datos remotos y depende de una operación explícita para obtener otra instantánea.
+
+### Paso P5.1.26. Diferenciar un resumen vacío de un error de comunicación
+
+Detén Blazor y cambia temporalmente la API por la variante de diagnóstico explicada en P5.1.9. Iníciala en modo `vacio` para producir HTTP 200 con un arreglo `[]`, vuelve a arrancar Blazor y abre el catálogo remoto.
+
+La página debe mostrar el mensaje de catálogo vacío válido, no un resumen con importes inventados. El bloque que añadimos se encuentra dentro de la rama que se usa cuando existen productos; por ello no aparece en este caso.
+
+Detén después la API y realiza una nueva consulta desde Blazor. La pantalla debe presentar el mensaje de error correspondiente, no «el importe total es cero» como si existiera una respuesta satisfactoria. Así comprobamos que el orden de renderizado sigue siendo coherente con los estados enseñados en teoría.
+
+Una vez terminada la observación, restaura la API original y elimina la variable de escenario. No dejes activo un `Program.cs` que devuelve respuestas deliberadamente defectuosas.
+
+### Paso P5.1.27. Restaurar el componente y el servidor tras la ampliación
+
+Si realizaste la transformación copiando la variante completa, detén el host Blazor y restaura el archivo original:
+
+~~~powershell
+$pagina = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\BLAZOR\CursoWeb.Blazor\Components\Pages\CatalogoRemoto.razor"
+Copy-Item "$pagina.p521-original" $pagina -Force
+Remove-Item "$pagina.p521-original"
+dotnet build .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\BLAZOR\CursoWeb.Blazor\CursoWeb.Blazor.csproj
+~~~
+
+Si editaste manualmente el párrafo, puedes conservar la ampliación en tu copia de trabajo para seguir aprendiendo, pero el proyecto de referencia del repositorio permanece con el estado canónico. La variante completa permite repetir el ejercicio sin duplicar componentes dentro de la aplicación.
+
+Vuelve a iniciar la API normal y comprueba que el catálogo responde. El ejercicio se considera finalizado cuando puedes explicar cuándo se calcula el resumen, qué información utiliza y por qué un POST de otro cliente no actualiza por sí solo la pantalla.
+
+### Paso P5.1.28. Diagnóstico final del flujo Blazor/API mediante observaciones independientes
+
+Resume la actividad sin limitarte a decir «funciona». Debes ser capaz de establecer:
+
+- Qué proceso ejecuta el componente interactivo.
+- Qué servicio compone la solicitud HTTP.
+- Qué servidor conserva los productos.
+- Qué respuesta confirma una creación.
+- Qué acción actualiza la representación visible.
+- Por qué un contador de elementos de la pantalla puede ser distinto del número actual de recursos en la API.
+- Qué diferencia una respuesta válida vacía de un error de conexión.
+
+Estas preguntas no exigen crear otra arquitectura. Relacionan todos los archivos ya utilizados en M03, M04 y M05 y explican un caso realista de divergencia temporal entre interfaz y servidor. La respuesta satisfactoria debe mencionar las evidencias observadas en HTTP y en la pantalla, no únicamente las intenciones del código.
+
+
+
 ### Resultado final y conexión con P5.2
 
 La aplicación B está consolidada cuando GET, POST, validación, error y recarga quedan comprensibles y reproducibles. Detén ambos procesos al terminar. Desde P5.2 dejamos de utilizar Blazor y su API: los tres mecanismos de publicación siguientes se comprobarán **solo con la aplicación MVC A**, evitando ejecutar servicios adicionales que no participan en ese ensayo.
