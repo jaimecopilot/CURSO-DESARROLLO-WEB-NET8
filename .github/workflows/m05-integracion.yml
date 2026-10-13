@@ -107,6 +107,26 @@ jobs:
           kill "$pid2"
           wait "$pid2" || true
 
+          for caso in no-encontrado error-servidor; do
+            if [ "$caso" = "no-encontrado" ]; then esperado=404; else esperado=500; fi
+            (cd "$salida"; Laboratorio__EscenarioCatalogo="$caso" dotnet CursoWeb.ProductosApi.dll --urls http://127.0.0.1:5097) > "api-$caso.log" 2>&1 &
+            pid3=$!
+            observado=000
+            for i in $(seq 1 40); do
+              observado=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5097/api/productos || true)
+              if [ "$observado" = "$esperado" ]; then break; fi
+              sleep 1
+            done
+            kill "$pid3" 2>/dev/null || true
+            wait "$pid3" || true
+            if [ "$observado" != "$esperado" ]; then
+              cat "api-$caso.log"
+              echo "Escenario $caso: esperado $esperado, recibido $observado"
+              exit 1
+            fi
+            echo "Escenario API $caso: HTTP $esperado comprobado"
+          done
+
       - name: Publicar MVC y comprobar Kestrel real con modo sin LocalDB
         shell: bash
         run: |
