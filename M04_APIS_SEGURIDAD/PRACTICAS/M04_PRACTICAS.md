@@ -1643,9 +1643,11 @@ El resultado de P4.2 no es una pantalla nueva, sino una frontera de responsabili
 
 ### Objetivo y material inicial
 
-Partimos de **la API entregada en 4.1**, `PROYECTO/4.1/CursoWeb.ProductosApi`, y hacemos una copia acumulativa en `PROYECTO/4.3/CursoWeb.ProductosApi`. Para la interfaz usamos el proyecto refactorizado de 4.2; lo conservaremos en `PROYECTO/4.3/CursoWeb.Blazor`. No se crea una API alternativa sin relación con lo aprendido.
+El punto de partida de **los ejercicios obligatorios** es el cliente Blazor que el alumno construyó en P4.2. Durante P4.1 y P4.2 utilizamos **la API suministrada**, ubicada en `PROYECTO/4.1/CursoWeb.ProductosApi`; no la modificaremos ni la copiaremos como solución.
 
-Al terminar, la nueva API seguirá ofreciendo GET, POST, respuestas 400/404 y una operación adicional `GET /api/productos/resumen`. El cliente Blazor seguirá consultando `/api/productos` sin cambiar su código HTTP.
+Ahora el alumno **creará una segunda implementación de API desde una plantilla ASP.NET Core vacía**, en su propia carpeta local de trabajo. No se trata de duplicar código: la API nueva debe ofrecer **el mismo contrato HTTP** para que el cliente Blazor pueda consumirla sin modificaciones. La carpeta `PROYECTO/4.3/CursoWeb.ProductosApi` contiene **el resultado docente de referencia** con el que se compara el trabajo del alumno, no el punto de partida que hay que copiar.
+
+Al concluir la construcción obligatoria tendremos GET de lista y detalle, POST con validación, respuestas 201/400/404 y el cliente Blazor conectado a la API creada por el alumno. La ruta `GET /api/productos/resumen` es una **ampliación posterior**; no forma parte de las cinco etapas esenciales.
 
 ### Recorrido obligatorio P4.3 — construir el servidor antes de estudiarlo como referencia
 
@@ -1657,11 +1659,15 @@ Al terminar la etapa 5, el contrato está demostrado. Las siguientes tareas —r
 
 En 4.1 y 4.2 era indispensable disponer de una API operativa mientras aprendíamos a consumirla. Ahora podemos construir una nueva implementación desde cero y poner a prueba que **responde exactamente al mismo contrato HTTP**.
 
-**Preparación del escenario.** Mantén el proyecto suministrado como referencia, sin editarlo. En otra carpeta de trabajo —por ejemplo, `PROYECTO/4.3/CursoWeb.ProductosApi.Construida`— crea una aplicación vacía con:
+**Preparación del escenario.** Conserva los proyectos suministrados sin editarlos. Desde la raíz del repositorio, crea la API en una carpeta local de trabajo separada; esta ruta no sustituye ninguna carpeta versionada en Git:
 
 ```powershell
-dotnet new web -n CursoWeb.ProductosApi -f net8.0
+New-Item -ItemType Directory -Force .work\M04\api-alumno | Out-Null
+dotnet new web -n CursoWeb.ProductosApi -f net8.0 -o .work\M04\api-alumno\CursoWeb.ProductosApi
+dotnet build .work\M04\api-alumno\CursoWeb.ProductosApi\CursoWeb.ProductosApi.csproj
 ```
+
+Abre ese `.csproj` desde Visual Studio y escribe cada estado en **su** `Program.cs`. Mantén otra ventana para el cliente Blazor de P4.2. Al consultar las rutas `PROYECTO/4.3` en este manual, recuerda que son **soluciones de referencia**, no la ubicación donde debes desarrollar el ejercicio.
 
 Detén la API de 4.1 antes de arrancar la nueva en el puerto 5081. Esta secuencia debe realizarse por etapas; después de cada una, compila y observa la respuesta para localizar los errores en el momento en que se introducen.
 
@@ -1751,6 +1757,8 @@ curl.exe -i -X POST http://localhost:5081/api/productos -H "Content-Type: applic
 ```
 
 Debe obtenerse **201 Created**, un producto nuevo con ID asignado por el servidor y una cabecera `Location`. Repite GET del listado y comprueba que existe Regla. Cambia el precio del JSON a 0 y repite: debe devolverse **400 Bad Request**, sin añadir otro producto. Si vuelves a introducir datos válidos, el contador puede seguir creciendo; es normal mientras no se reinicie el proceso.
+
+**Comprobación de independencia.** Detén la API suministrada y arranca únicamente la API que construiste en `.work/M04/api-alumno`. Comprueba GET y POST desde un archivo `.http` antes de iniciar Blazor. Solo después modifica la dirección de configuración si tu API escucha en un puerto distinto. El cliente `/catalogo-remoto` debe seguir funcionando con el servicio tipado **sin copiar ni reemplazar sus componentes por la solución de referencia**.
 
 **Etapa 5 — integración con el cliente Blazor que ya construimos.** Mantén la API recién creada en 5081 y abre Blazor desde `PROYECTO/4.2/CursoWeb.Blazor`. Consulta `/catalogo-remoto`. Si el contrato se ha conservado, verás los productos sin reescribir `CatalogoRemoto.razor` ni `ProductosApiService.cs`. Envía un nuevo producto desde la interfaz y comprueba el 201 indirectamente observando que se añade al listado.
 
