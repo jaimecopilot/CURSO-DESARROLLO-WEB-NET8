@@ -26,6 +26,12 @@ IResult ObtenerCatalogo()
     if (escenarioCatalogo == "json-invalido")
         return Results.Text("{\"productos\":[", "application/json");
 
+    if (escenarioCatalogo == "no-encontrado")
+        return Results.NotFound();
+
+    if (escenarioCatalogo == "error-servidor")
+        return Results.Problem("Fallo simulado del laboratorio.", statusCode: 500);
+
     // Modo normal: se conserva el contrato real de M04 y el resto de endpoints.
     return Results.Ok(productos.Values.OrderBy(p => p.Id));
 }
