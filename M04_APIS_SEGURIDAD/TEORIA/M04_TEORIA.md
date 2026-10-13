@@ -544,6 +544,44 @@ Este ejercicio anticipa la necesidad de 4.2. Observa que podemos comenzar con un
 
 Al terminar 4.1, el alumnado debe poder describir con sus palabras al menos cuatro contrastes: consulta local frente a consulta remota; lista vacía frente a error; petición enviada frente a creación confirmada; fallo de ruta frente a fallo de conexión. Esos contrastes proporcionan una base conceptual que una simple demostración de GetFromJsonAsync no ofrece.
 
+
+### 4.1.25. Las cabeceras HTTP también forman parte de la comunicación
+
+Al consumir una API conviene examinar algo más que el cuerpo JSON. Una petición POST incluye Content-Type para indicar cómo debe interpretarse el contenido enviado. Cuando el cuerpo está serializado como JSON, ese valor es application/json. La respuesta del servidor puede incluir igualmente un Content-Type para describir qué datos devuelve.
+
+La cabecera Accept permite expresar el formato que prefiere el cliente para la respuesta. Nuestro laboratorio utiliza JSON y no implementa un sistema de formatos alternativos, pero distinguir Accept de Content-Type evita una confusión frecuente: el primero se refiere a la representación que el cliente desea recibir, mientras que el segundo describe la representación del cuerpo que realmente se envía.
+
+Consideremos este intercambio:
+
+~~~http
+POST /api/productos HTTP/1.1
+Host: localhost:5081
+Accept: application/json
+Content-Type: application/json
+
+{"nombre":"Agenda","precio":6.40}
+~~~
+
+El servidor lee el cuerpo de acuerdo con el formato de entrada, valida los campos y devuelve el recurso creado. Si el servidor responde 201, la aplicación cliente todavía debe leer correctamente el objeto que acompaña a la respuesta. La confirmación HTTP y la conversión de datos son etapas distintas.
+
+Cuando se produce un rechazo, el servidor puede elegir otro formato para describirlo. En la API sencilla del curso devolvemos mensajes reducidos; no implantamos un modelo corporativo de errores. Esa limitación explica por qué el cliente debe comprobar el código de estado antes de interpretar el cuerpo como ProductoDto: el contenido de un 400 no tiene por qué tener la forma de un producto creado.
+
+### 4.1.26. El significado de una respuesta se compone de varias piezas
+
+Una operación HTTP tiene método, ruta, cabeceras, cuerpo opcional y un resultado. Ninguna pieza aislada describe por completo lo que ha ocurrido. Un 200 puede incluir un catálogo válido, una lista vacía o un cuerpo incompatible con el DTO. Un 201 puede indicar que se ha creado un recurso, pero el consumidor aún necesita conocer cuál se ha creado y con qué identificador.
+
+Cuando diseñamos un formulario Blazor que publica productos, debemos leer esas piezas en un orden comprensible: se construye CrearProductoDto, se envía POST con JSON, se comprueba el estado de respuesta, se lee el ProductoDto confirmado y se actualiza la pantalla. Si se rechaza la petición, el componente conserva los valores del usuario y presenta el error. Si el servidor no responde, el cliente no inventa un estado HTTP.
+
+Esta secuencia sirve para evaluar código que aparentemente funciona. Un componente que añade el producto antes de recibir respuesta está presentando una creación que todavía no se ha confirmado. Un servicio que devuelve una lista vacía al capturar toda excepción puede esconder un servidor apagado. Una API que acepta cualquier precio porque confía en el formulario de Blazor no está validando su propio contrato.
+
+### 4.1.27. Una guía de lectura de errores para el estudiante
+
+Cuando GET o POST falla, pregúntate en primer lugar si existe una respuesta HTTP. Si no la hay, revisa el proceso API, el puerto, la dirección y el tiempo de espera. Si la hay, revisa método y ruta, código de estado y forma del cuerpo. Solo después estudia qué hace el componente con el resultado.
+
+Para GET correcto, el cuerpo debe ser una lista de ProductoDto. Para POST correcto, un ProductoDto que incorpora el ID asignado. Para un error de reglas, la respuesta no representa un producto creado, de modo que no debe incorporarse a la lista. Para una ruta inexistente, el servidor puede devolver 404 y el cliente debe comunicar que no obtuvo el recurso previsto.
+
+Esta manera de razonar permite mantener el material del curso centrado en cuatro conocimientos: HTTP, contratos, responsabilidades y estados visuales. La sintaxis de las llamadas ayuda a ejecutarlos, pero la competencia profesional consiste en poder explicar qué sucedió cuando una de esas fronteras no respondió como esperábamos.
+
 ## 4.2. Extraer el consumo HTTP a una capa de servicio
 
 ### De un componente que hace todo a dos responsabilidades
