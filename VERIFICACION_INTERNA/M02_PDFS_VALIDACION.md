@@ -5,8 +5,8 @@ Cada PDF incluye su Markdown completo, adjunto idéntico byte por byte.
 
 | Documento | Palabras MD | Páginas PDF |
 |---|---:|---:|
-| TEORIA | 22385 | 75 |
-| PRACTICAS | 22146 | 76 |
+| TEORIA | 24626 | 84 |
+| PRACTICAS | 32982 | 125 |
 
 ## Detalle de comprobaciones
 
@@ -16,32 +16,32 @@ La inspección visual humana página a página no se sustituye por estas comprob
 [
   {
     "tipo": "TEORIA",
-    "paginas": 75,
-    "palabras_md": 22385,
-    "cobertura_palabras_visibles": 0.999956,
+    "paginas": 84,
+    "palabras_md": 24626,
+    "cobertura_palabras_visibles": 0.999961,
     "palabras_faltantes_en_extraccion": [
       [
         "trustservercertificate",
         1
       ]
     ],
-    "caracteres_md": 154753,
-    "bytes_pdf": 499247,
-    "sha256_md": "b2a6eef1052093e55ac643f2635981fbc67540b1a9c6614ab1be8321247a7cd1",
+    "caracteres_md": 173196,
+    "bytes_pdf": 551002,
+    "sha256_md": "f484c33b985bfd623111f47e2c44d0387845b290cda2c2268bb7f9e4a727ec63",
     "fuente_md_incrustada_identica": true,
     "capitulos_inicio": {
       "1": 3,
-      "2": 15,
-      "3": 30,
-      "4": 46,
-      "5": 66
+      "2": 16,
+      "3": 32,
+      "4": 49,
+      "5": 73
     }
   },
   {
     "tipo": "PRACTICAS",
-    "paginas": 76,
-    "palabras_md": 22146,
-    "cobertura_palabras_visibles": 0.999912,
+    "paginas": 125,
+    "palabras_md": 32982,
+    "cobertura_palabras_visibles": 0.999914,
     "palabras_faltantes_en_extraccion": [
       [
         "aplicación",
@@ -50,18 +50,22 @@ La inspección visual humana página a página no se sustituye por estas comprob
       [
         "cshtml",
         1
+      ],
+      [
+        "trustservercertificate",
+        1
       ]
     ],
-    "caracteres_md": 150911,
-    "bytes_pdf": 479596,
-    "sha256_md": "484a4c20745e933f0983633a3001b8a8dcfa077043de8cccb3f6ae52acb542a5",
+    "caracteres_md": 239964,
+    "bytes_pdf": 735237,
+    "sha256_md": "3afeeb54b084a3cc90a71bdfef01b58044b0b474d0a7d3df9ffe5e3261bf5c8c",
     "fuente_md_incrustada_identica": true,
     "capitulos_inicio": {
       "1": 3,
-      "2": 17,
-      "3": 30,
-      "4": 48,
-      "5": 68
+      "2": 24,
+      "3": 43,
+      "4": 70,
+      "5": 105
     }
   }
 ]
