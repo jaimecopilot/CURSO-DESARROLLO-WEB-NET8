@@ -21,7 +21,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          dotnet run --no-build -c Release --no-launch-profile --project M04_APIS_SEGURIDAD/PROYECTO/4.4/CursoWeb.Blazor/CursoWeb.Blazor.csproj --urls http://127.0.0.1:5094 > /tmp/p44.log 2>&1 &
+          ASPNETCORE_ENVIRONMENT=Development dotnet run --no-build -c Release --no-launch-profile --project M04_APIS_SEGURIDAD/PROYECTO/4.4/CursoWeb.Blazor/CursoWeb.Blazor.csproj --urls http://127.0.0.1:5094 > /tmp/p44.log 2>&1 &
           pid=$!
           trap 'kill "$pid" || true; cat /tmp/p44.log' EXIT
           for i in $(seq 1 40); do
@@ -32,3 +32,5 @@ jobs:
           grep -q 'blazor.web.js' /tmp/seguridad.html
           status=$(curl -s -o /tmp/p44-denegado -w '%{http_code}' http://127.0.0.1:5094/demo/privado)
           test "$status" = "401"
+          bad=$(curl -s -o /dev/null -w '%{http_code}' -X POST -d 'codigo=curso-demo-44' http://127.0.0.1:5094/demo/entrar)
+          test "$bad" = "400"
