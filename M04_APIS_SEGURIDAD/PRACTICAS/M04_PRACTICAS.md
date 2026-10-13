@@ -70,6 +70,70 @@ El **código de referencia completo y razonado** está en teoría 4.1.6. Escribe
 
 Una observación importante: el GET se realiza desde el proceso de Blazor en Interactive Server, no desde el navegador; no necesitamos añadir una política CORS ficticia a la API de este laboratorio.
 
+### Código íntegro de consulta remota (paso 4.1.4)
+
+El siguiente archivo es el **estado de partida compilable** de `Components/Pages/CatalogoRemoto.razor` antes de añadir POST. Escríbelo después de registrar el cliente HTTP y los DTO; así puedes comprobar GET de forma independiente sin anticipar el resultado del paso siguiente.
+
+```razor
+@page "/catalogo-remoto"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Net.Http.Json
+@inject IHttpClientFactory Clientes
+
+<h1>Catálogo remoto</h1>
+@if (cargando)
+{
+    <p role="status">Cargando catálogo...</p>
+}
+else if (error is not null)
+{
+    <p role="alert">@error</p>
+}
+else
+{
+    <ul>
+        @foreach (var producto in productos)
+        {
+            <li>@producto.Nombre — @producto.Precio</li>
+        }
+    </ul>
+}
+
+@code {
+    private List<ProductoDto> productos = [];
+    private bool cargando = true;
+    private string? error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var cliente = Clientes.CreateClient("ProductosApi");
+            productos = await cliente.GetFromJsonAsync<List<ProductoDto>>(
+                "api/productos") ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo obtener el catálogo remoto.";
+        }
+        catch (TaskCanceledException)
+        {
+            error = "La petición superó el tiempo disponible.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            error = "La API no devolvió un catálogo JSON válido.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+}
+```
+
+La directiva `@rendermode` activa el circuito interactivo, aunque la consulta inicial se efectúe desde el servidor Blazor. Antes de pasar a POST, arranca primero la API y luego Blazor. Comprueba que aparecen Cuaderno y Lápiz. Detén la API y recarga la página: debe aparecer el aviso de fallo y nunca un catálogo vacío presentado como éxito.
+
 ### Paso 4.1.5. Añadir un formulario de alta
 
 A la pantalla anterior incorpora dos campos, `Nombre` y `Precio`, y un botón «Crear en API». El botón llama a un método `async Task`:
