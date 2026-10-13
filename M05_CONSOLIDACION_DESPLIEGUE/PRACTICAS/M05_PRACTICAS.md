@@ -501,6 +501,160 @@ El resultado final debe ser de nuevo el catálogo normal, con Blazor capaz de co
 
 
 
+
+### Paso P5.1.14. Reconstruir el recorrido completo de consulta desde la interfaz
+
+**Origen conceptual:** 5.1.27–5.1.29. **Objetivo:** reconocer qué partes de una operación pertenecen al navegador, al componente Interactive Server, al servicio tipado y a la API sin crear una aplicación adicional. La secuencia se basa en el código real de B y de la API auxiliar entregados en M04.
+
+Prepara Visual Studio con dos proyectos abiertos. En la aplicación Blazor localiza `Components/Pages/CatalogoRemoto.razor` y `Services/ProductosApiService.cs`. En la API localiza `Program.cs`. No edites todavía ninguno: primero identifica sus puntos de conexión.
+
+En `CatalogoRemoto.razor`, busca la directiva que resuelve el servicio:
+
+~~~razor
+@inject IProductosApiService CatalogoApi
+~~~
+
+Esta línea no envía una petición por sí sola. Solicita que el sistema de inyección de dependencias proporcione un objeto capaz de cumplir el contrato. Continúa hasta `OnInitializedAsync`, que delega la consulta a `ConsultarAsync`. Localiza exactamente la llamada `CatalogoApi.ObtenerAsync()`: aquí el componente solicita datos, pero todavía no conoce cómo se forma el mensaje HTTP.
+
+Abre ahora el servicio concreto. Comprueba que utiliza `GetFromJsonAsync<List<ProductoDto>>("api/productos")`. Esta operación utiliza una dirección base configurada durante el arranque de Blazor. Dirígete a `Program.cs` de B y busca el registro de cliente HTTP tipado, así como la lectura de `ProductosApi:BaseUrl`.
+
+**Explicación de la cadena:** el componente solicita una operación de dominio; el servicio utiliza HttpClient; la API atiende GET; el servicio deserializa JSON; el componente asigna su colección y Razor genera la representación. Que aparezcan muchas clases no exige crear más proyectos: cada archivo ya existe en el itinerario anterior.
+
+Finalmente abre `Program.cs` de la API y busca el endpoint GET:
+
+~~~csharp
+app.MapGet("/api/productos", () =>
+    Results.Ok(productos.Values.OrderBy(p => p.Id)));
+~~~
+
+La colección de productos no pertenece al componente Blazor. Vive en el proceso de API y se convierte en contenido JSON de la respuesta. Anota, para cada eslabón, el archivo exacto que lo implementa.
+
+**Comprobación observable:** inicia ambos servidores desde las rutas conocidas, abre Blazor y realiza un GET directo a la API. Los mismos nombres de producto deben aparecer en la página y en la respuesta JSON. Si la página falla pero el GET directo responde correctamente, no declares rota la API: continúa investigando el servicio y la configuración.
+
+### Paso P5.1.15. Encontrar la dirección equivocada sin alterar el código del servicio
+
+**Origen conceptual:** 5.1.27 y 5.1.28. **Objetivo:** observar que la aplicación Blazor puede arrancar correctamente aunque su servicio HTTP apunte a un destino inadecuado.
+
+Parte de un entorno funcional: la API atiende `http://localhost:5081/api/productos` y Blazor muestra los productos en `http://localhost:5092/catalogo-remoto`. Detén **solo Blazor**. Abre el archivo de configuración del proyecto B y guarda una copia temporal antes de editarlo:
+
+~~~powershell
+$cfg = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\BLAZOR\CursoWeb.Blazor\appsettings.json"
+Copy-Item $cfg "$cfg.p515-copia" -Force
+~~~
+
+En ese archivo encuentra la clave `ProductosApi:BaseUrl`. Sustituye temporalmente su valor por `http://localhost:5082/`, conservando las otras propiedades y la estructura JSON. No cambies las direcciones de `IdentityJwtApi`, porque no interviene en esta demostración.
+
+Arranca otra vez Blazor con su comando habitual:
+
+~~~powershell
+dotnet run --project .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\BLAZOR\CursoWeb.Blazor\CursoWeb.Blazor.csproj --no-launch-profile --urls http://localhost:5092
+~~~
+
+La página web puede abrirse; su consulta a la API debe fallar si no existe ningún servicio escuchando en 5082. Comprueba con el navegador o con `curl.exe` que la API real continúa funcionando en 5081. La conclusión es concreta: **la API está disponible, el componente existe, pero la configuración del cliente indica una dirección equivocada**.
+
+No modifiques `ProductosApiService.cs` para introducir manualmente `5081` dentro de cada método. Esa corrección duplicaría información que el propio sistema de configuración está diseñado para centralizar.
+
+Detén Blazor, restaura la copia y elimina el respaldo:
+
+~~~powershell
+Copy-Item "$cfg.p515-copia" $cfg -Force
+Remove-Item "$cfg.p515-copia"
+~~~
+
+Vuelve a iniciar Blazor. El catálogo debe cargarse normalmente. Si no lo hace, comprueba que eliminaste el cambio temporal y que el servicio de API continúa escuchando en 5081.
+
+### Paso P5.1.16. Demostrar que el componente no asigna el identificador de creación
+
+**Origen conceptual:** 5.1.30–5.1.32. **Objetivo:** comparar los campos que envía el formulario con los que devuelve la API, sin introducir un identificador inventado en Blazor.
+
+Con ambos servidores operativos, abre `Models` en el proyecto Blazor y localiza `CrearProductoDto` y `ProductoDto`. Compara sus propiedades. El primero representa el cuerpo de entrada y el segundo la representación recibida después de una operación satisfactoria.
+
+Prepara un cuerpo de prueba fuera del proyecto:
+
+~~~json
+{
+  "nombre": "Goma",
+  "precio": 0.65
+}
+~~~
+
+Guárdalo como `nuevo-producto-p516.json` en una carpeta de trabajo. Ejecuta desde esa carpeta:
+
+~~~powershell
+curl.exe -i -X POST http://localhost:5081/api/productos -H "Content-Type: application/json" --data-binary "@nuevo-producto-p516.json"
+~~~
+
+Busca en el cuerpo de respuesta el identificador asignado por el servidor. No lo presupongas: su valor depende de los productos que se hayan creado durante esa ejecución de API. Comprueba también la cabecera `Location`, cuya dirección describe el recurso creado.
+
+A continuación consulta directamente `GET /api/productos` y localiza Goma. Desde Blazor pulsa «Consultar servidor». El producto debe aparecer en pantalla después de la nueva consulta, aunque lo creaste desde una herramienta independiente del componente.
+
+**Pregunta obligatoria del ejercicio:** ¿sería correcto utilizar `productos.Count + 1` como identificador de Goma? Explica por qué la colección visual pudo estar desactualizada y por qué la respuesta 201 es la fuente de información apropiada para conocer la identidad asignada.
+
+### Paso P5.1.17. Reproducir una secuencia de estados sin confundir datos iniciales y remotos
+
+**Origen conceptual:** 5.1.29 y 5.1.34. **Objetivo:** distinguir una colección creada vacía en memoria del componente, una respuesta de servidor y un estado visual actualizado.
+
+Detén la API y reiníciala para comenzar con los dos productos iniciales del laboratorio. Abre de nuevo el catálogo remoto y observa la pantalla durante la consulta. La bandera de carga representa una operación en curso, no una lista vacía confirmada.
+
+Cuando la API responda, la pantalla mostrará los productos iniciales. Ejecuta una creación mediante `curl.exe` desde una segunda terminal. Antes de pulsar el botón, observa que la pantalla puede conservar su representación anterior. El servicio remoto ha cambiado, pero el componente no ha recibido ninguna actualización automática.
+
+Pulsa «Consultar servidor» y compara el resultado. Debe aparecer el nuevo recurso. A continuación detén únicamente la API y deja Blazor abierto. La pantalla puede seguir mostrando los datos recibidos antes; al solicitar una nueva consulta, se debe presentar un fallo de comunicación. No sustituyas ese error por la frase «no existen productos»: no hemos recibido una respuesta 200 con colección vacía.
+
+Vuelve a iniciar la API, que utiliza memoria. La consulta vuelve a mostrar sus datos iniciales. Describe qué operación causó cada cambio: reinicio del servidor, petición GET, POST externo o modificación de la colección del componente. No utilices «el navegador borró la base» para explicar la desaparición de un objeto que solo vivía en la memoria del proceso de API.
+
+### Paso P5.1.18. Leer una respuesta inválida sin esconder la causa detrás del componente
+
+**Origen conceptual:** 5.1.20 y 5.1.25. **Objetivo:** utilizar la variante reversible ya preparada para comprender una respuesta HTTP 200 que no satisface el contrato JSON esperado.
+
+Si ya completaste P5.1.9, conoces cómo realizar una copia de `Program.cs` y sustituir temporalmente la API original por `PROYECTO/VARIANTES/P5.1_DIAGNOSTICO/Program.cs`. Si la variante ya estaba restaurada, repite su procedimiento de respaldo y copia. No edites las rutas normales de Blazor.
+
+Inicia la variante de API con:
+
+~~~powershell
+$env:Laboratorio__EscenarioCatalogo = "json-invalido"
+dotnet run --project .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\CursoWeb.ProductosApi.csproj --no-launch-profile --urls http://localhost:5081
+~~~
+
+Primero consulta el endpoint de la API con `curl.exe -i` y observa el cuerpo literal. Después, sin alterar el servicio tipado, pulsa «Consultar servidor» en Blazor. El error resultante se origina al interpretar un contenido no válido para la lista de productos; no se debe atribuir a que Blazor haya intentado abrir un puerto inexistente.
+
+Completa una comparación oral o escrita: ¿qué parte de la operación fue satisfactoria y cuál falló? La conexión llegó al servidor y este generó una respuesta HTTP 200; la interpretación JSON no pudo producir la colección esperada. Es una situación diferente de un 404, un 500 y una conexión rechazada.
+
+Finalmente detén la API, restaura el archivo y elimina la variable de escenario siguiendo la restauración de P5.1.10. La siguiente ejecución debe comenzar de nuevo con la API normal.
+
+### Paso P5.1.19. Verificar que el error no deja bloqueado el botón de consulta
+
+**Origen conceptual:** 5.1.13 y 5.1.22. **Objetivo:** observar por qué la asignación `cargando = false` pertenece al bloque `finally`.
+
+Mantén Blazor abierto. Detén temporalmente la API y pulsa «Consultar servidor» una vez. Espera al mensaje de error. Comprueba que, cuando termina la operación fallida, el botón vuelve a estar disponible. Ahora reinicia la API y pulsa otra vez el botón. La página debe poder recuperarse y mostrar la lista.
+
+Inspecciona el método `ConsultarAsync`. La asignación de la bandera de carga se realiza antes de la petición, y su restauración después aparece en el `finally`. Un tratamiento de excepciones que dejara la bandera activada impediría que el usuario iniciara una nueva consulta aunque el servidor ya se hubiera recuperado.
+
+Para estudiar el fallo **sin dejar un archivo incorrecto en el proyecto**, razona sobre este fragmento deliberadamente incompleto:
+
+~~~csharp
+cargando = true;
+productos = (await CatalogoApi.ObtenerAsync()).ToList();
+cargando = false;
+~~~
+
+Si `ObtenerAsync` produce una excepción, la ejecución no llega a la última asignación. El ejemplo explica por qué el proyecto real necesita gestionar los estados mediante `try`, capturas apropiadas y `finally`. No copies este fragmento defectuoso sobre el método correcto; no constituye una variante de ejecución del curso.
+
+El resultado del ejercicio es un comportamiento observable de recuperación y una explicación de su causa, no un formulario adicional.
+
+### Paso P5.1.20. Confirmar que el servicio tipado concentra la ruta HTTP
+
+**Origen conceptual:** 5.1.18–5.1.19. **Objetivo:** impedir que una corrección aparente multiplique rutas HTTP dentro de la interfaz.
+
+En Visual Studio abre `IProductosApiService.cs`, `ProductosApiService.cs` y `CatalogoRemoto.razor`. Busca el texto `api/productos` en cada archivo. Debe encontrarse en el servicio HTTP, mientras el componente llama a las operaciones `ObtenerAsync` y `CrearAsync`.
+
+No modifiques el proyecto para copiar la ruta dentro de `ConsultarAsync`. El reto consiste en explicar por qué ese cambio reduciría la mantenibilidad: ante un cambio de endpoint habría que buscarlo en más archivos, y cada componente podría empezar a tratar errores de manera diferente.
+
+Comprueba también el registro de la dirección base en `Program.cs` y el valor `ProductosApi:BaseUrl` en `appsettings.json`. El contrato queda distribuido de manera intencional: configuración para localizar el host, servicio para conocer la ruta y componente para representar el resultado.
+
+**Cierre del punto:** realiza una secuencia final con API normal: GET directo 200, Blazor lista dos productos, POST válido desde la interfaz, POST inválido desde cliente externo, consulta explícita de actualización y recuperación después de una caída temporal del proceso API. Esta secuencia reúne los aprendizajes sin añadir persistencia, Identity/JWT ni ninguna aplicación nueva.
+
+
+
 ### Resultado final y conexión con P5.2
 
 La aplicación B está consolidada cuando GET, POST, validación, error y recarga quedan comprensibles y reproducibles. Detén ambos procesos al terminar. Desde P5.2 dejamos de utilizar Blazor y su API: los tres mecanismos de publicación siguientes se comprobarán **solo con la aplicación MVC A**, evitando ejecutar servicios adicionales que no participan en ese ensayo.
