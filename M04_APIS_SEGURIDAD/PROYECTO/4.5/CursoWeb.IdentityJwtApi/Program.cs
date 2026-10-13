@@ -100,6 +100,12 @@ using (var alcance = app.Services.CreateScope())
                 throw new InvalidOperationException("Cuenta docente inválida: " +
                     string.Join("; ", creado.Errors.Select(e => e.Description)));
         }
+        else if (!await usuarios.IsInRoleAsync(existente, "Formador"))
+        {
+            // Nunca elevar a Formador una cuenta previamente registrada por el público.
+            throw new InvalidOperationException(
+                "El correo de Formador ya pertenece a otra cuenta. Usa una base de ensayo limpia.");
+        }
         if (!await usuarios.IsInRoleAsync(existente, "Formador"))
         {
             var resultadoRol = await usuarios.AddToRoleAsync(existente, "Formador");
