@@ -384,11 +384,14 @@ def check_pdf(file: Path, md: str, diagram_count: int, source_bytes: bytes, file
     if len(chapter_titles)!=5:
         raise AssertionError(f"{file.name}: se esperan cinco títulos de capítulo en Markdown")
     current_chapter="Índice del módulo"
+    # El cuerpo empieza después del margen superior de 23 mm definido en @page.
+    # Una transcripción puede comenzar justo al principio del cuerpo y contener
+    # literalmente "AUTOR: ..."; por eso la cabecera se identifica por quedar
+    # completamente dentro del margen, no por un umbral y0 que invada el cuerpo.
+    header_bottom=23 * 72 / 25.4
     for i,p in enumerate(doc):
         all_boxes=p.search_for(author)
-        # Los README transcritos pueden mostrar el autor en el cuerpo del capítulo.
-        # Para cabeceras, contamos únicamente la aparición en la banda superior.
-        boxes=all_boxes if i==0 else [box for box in all_boxes if box.y0 <= 70]
+        boxes=all_boxes if i==0 else [box for box in all_boxes if box.y1 < header_bottom]
         if len(boxes)!=1:
             raise AssertionError(f"{file.name}, página {i+1}: autor en portada/cabecera aparece {len(boxes)} veces; total visible {len(all_boxes)}")
         if i==0:
@@ -397,7 +400,7 @@ def check_pdf(file: Path, md: str, diagram_count: int, source_bytes: bytes, file
             if "Índice del módulo" in p.get_text("text"):
                 raise AssertionError(f"{file.name}: índice mezclado con la portada")
         else:
-            if boxes[0].y0 > 70:
+            if boxes[0].y1 >= header_bottom:
                 raise AssertionError(f"{file.name}, página {i+1}: falta el autor en la cabecera superior")
             header=p.get_text("text",clip=fitz.Rect(0,0,p.rect.width,84))
             normalized_header=normalize(header)
