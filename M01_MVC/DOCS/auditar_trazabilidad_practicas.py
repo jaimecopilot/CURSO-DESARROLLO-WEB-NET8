@@ -64,7 +64,6 @@ SPECS={
  ("RETO 1.5","Views/Shared/_TarjetaProducto.cshtml","RETO 1.5",["Model.Precio < 3m",'class="etiqueta-economico"']),
 ]
 }
-expected_counts={"1.1":7,"1.2":5,"1.3":5,"1.4":6,"1.5":6}
 
 def require(test: bool, label: str):
     if not test: raise AssertionError(label)
@@ -95,7 +94,8 @@ def audit():
         test=script.read_text(encoding="utf-8")
         require("run_scenario" in test,f"{point}: script sin ejecución de escenarios")
         require("reto" in test.lower(),f"{point}: script sin reto")
-        require(expected_counts[point]>=5,f"{point}: recuento E2E")
+        scenario_count=len(re.findall(r'(?m)^run_scenario\\s+"',test))
+        require(scenario_count>=5,f"{point}: se esperaban al menos cinco escenarios E2E y hay {scenario_count}")
         require(f"RETO {point}" in ptext or f"Reto {point}" in ptext, f"{point}: reto ausente del MD")
         seen={}
         for label,relpath,marker,fragments in specs:
@@ -126,7 +126,7 @@ def audit():
                 f"{point}: ausencia de pasos guiados en el MD")
         entries=len(specs)
         total+=entries
-        lines.append(f"| P{point} | {len(seen)} etapas distintas, incluido reto | {entries} | {expected_counts[point]} escenarios |")
+        lines.append(f"| P{point} | {len(seen)} etapas distintas, incluido reto | {entries} | {scenario_count} escenarios |")
     lines+=["",f"**Total: {total} correspondencias de código comprobadas.**","",
             "## Matriz detallada paso → archivo → comprobación","",
             "| Paso/reto | Archivo real del proyecto | Marca en fuente | Fragmentos contrastados |",
