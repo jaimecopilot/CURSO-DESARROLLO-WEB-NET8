@@ -1,0 +1,88 @@
+# M04 · P4.3 · Peticiones que puede ejecutar el alumno en Visual Studio
+# Arrancar antes la API en http://localhost:5081
+# Los resultados de POST dependen del estado temporal del proceso.
+@BaseUrl = http://localhost:5081
+
+### A. Catálogo inicial: 200 y colección de dos elementos
+GET {{BaseUrl}}/api/productos
+Accept: application/json
+
+### B. Detalle existente: 200, Cuaderno
+GET {{BaseUrl}}/api/productos/1
+Accept: application/json
+
+### C. Identificador inexistente: 404
+GET {{BaseUrl}}/api/productos/999
+Accept: application/json
+
+### D. Ruta inexistente: 404 por enrutamiento
+GET {{BaseUrl}}/api/catalogo
+Accept: application/json
+
+### E. Creación correcta: 201 + Location
+POST {{BaseUrl}}/api/productos
+Content-Type: application/json
+Accept: application/json
+
+{
+  "nombre": "Regla",
+  "precio": 1.75
+}
+
+### F. Revisar el catálogo tras la creación
+GET {{BaseUrl}}/api/productos
+Accept: application/json
+
+### G. Rechazo de precio cero: 400
+POST {{BaseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "Regla",
+  "precio": 0
+}
+
+### H. Rechazo de nombre vacío: 400
+POST {{BaseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "",
+  "precio": 1.75
+}
+
+### I. Rechazo de nombre formado por espacios: 400
+POST {{BaseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "   ",
+  "precio": 1.75
+}
+
+### J. Rechazo de precio negativo: 400
+POST {{BaseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "Regla",
+  "precio": -0.01
+}
+
+### K. Nombre con espacios a normalizar: 201
+POST {{BaseUrl}}/api/productos
+Content-Type: application/json
+
+{
+  "nombre": "   Agenda   ",
+  "precio": 6.40
+}
+
+### L. Resumen (ACTIVAR PASO 4.3.3): 200, cantidad y precioTotal
+GET {{BaseUrl}}/api/productos/resumen
+Accept: application/json
+
+### M. Resumen extendido (ACTIVAR RETO 4.3.5 EN VEZ DEL PASO):
+# El resultado incluye hayProductos; no activar ambas rutas a la vez.
+GET {{BaseUrl}}/api/productos/resumen
+Accept: application/json
