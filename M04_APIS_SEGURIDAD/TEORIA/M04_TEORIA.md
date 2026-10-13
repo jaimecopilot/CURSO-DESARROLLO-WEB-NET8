@@ -428,6 +428,122 @@ La dirección local usada en el laboratorio permite ejecutar dos procesos en la 
 
 Este módulo mantiene deliberadamente una configuración sencilla. La jornada siguiente presentará mecanismos elementales de ejecución y publicación, pero no es necesario introducir ahora balanceadores, descubrimiento de servicios ni una plataforma de contenedores para comprender la llamada HTTP.
 
+
+### 4.1.18. Caso de estudio: el catálogo devuelve 200, pero Blazor no presenta productos
+
+Consideremos una incidencia deliberadamente diseñada para aprender a diagnosticar contratos. La API responde en la dirección correcta y, al consultar desde una herramienta HTTP, observamos la respuesta siguiente:
+
+~~~http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"productos":[{"id":1,"nombre":"Cuaderno","precio":2.50}]}
+~~~
+
+El servidor existe, la ruta coincide y el cuerpo es JSON válido. Sin embargo, el servicio Blazor intenta convertirlo directamente a una lista de ProductoDto. El problema reside en la forma del contrato: el servidor ha enviado un objeto con una propiedad productos, no un arreglo como raíz.
+
+Hay dos correcciones posibles, pero no son equivalentes. Podemos restaurar en el servidor el arreglo esperado, manteniendo el contrato original de GET /api/productos, o podemos cambiar el cliente y definir un DTO contenedor que corresponda a la nueva forma. En nuestro laboratorio elegimos la primera opción porque ya existen consumidores que dependen del contrato original y no hemos planteado una versión nueva de la API.
+
+Ahora imaginemos otra respuesta:
+
+~~~http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+[{"id":1,"nombre":"Cuaderno","precio":"dos euros"}]
+~~~
+
+Aquí la raíz sí es un arreglo, pero el tipo de precio no corresponde a decimal. Un campo de texto no numérico no debe convertirse silenciosamente en un precio válido. La API tiene que recuperar el contrato declarado o el cliente tendría que implementar una transformación explícita que justificara esa diferencia. No corregiríamos esta incidencia cambiando el modo de renderizado de Blazor: la incompatibilidad sucede antes de representar la lista.
+
+El procedimiento didáctico consiste en formular hipótesis y comprobarlas una por una. Primero confirmamos el estado HTTP, después inspeccionamos el cuerpo, comparamos raíz y propiedades con los DTO y finalmente verificamos que la página transforma correctamente los datos recibidos. Esta secuencia permite distinguir una incidencia de comunicación de una incidencia de serialización.
+
+### 4.1.19. Caso de estudio: el botón responde, pero se crean dos productos
+
+Un usuario pulsa dos veces el botón Crear porque la interfaz tarda en responder. Si ambas pulsaciones originan un POST, el servidor puede crear dos recursos distintos: una primera respuesta 201 con ID 3 y una segunda respuesta 201 con ID 4. Cada operación ha sido correcta individualmente, aunque el resultado conjunto no era el deseado.
+
+La primera medida didáctica consiste en mantener una variable enviando en el componente y deshabilitar el botón mientras se espera. Observemos por qué ese mecanismo es solamente una medida de presentación. Un cliente HTTP diferente, una automatización o una conexión que repita una petición siguen pudiendo enviar POST adicionales a la API. No existe ninguna garantía de unicidad de la operación por haber cambiado una propiedad HTML.
+
+Por eso tampoco introducimos un reintento automático indiscriminado cuando se agota el tiempo de POST. La excepción en el cliente indica que dejó de recibir el resultado a tiempo; no demuestra que la API no haya procesado la solicitud. Un diseño profesional podría incorporar claves de idempotencia o una regla de negocio que impidiera crear duplicados, pero eso excede la pequeña API didáctica de esta jornada.
+
+El alumno debe poder explicar esta diferencia en términos de protocolo: dos GET suelen representar dos lecturas independientes del mismo recurso; dos POST de creación pueden representar dos cambios de estado. La semántica HTTP orienta nuestras decisiones de diseño incluso antes de elegir qué componente Razor dibuja el botón.
+
+### 4.1.20. Caso de estudio: falla solo después de cambiar el puerto
+
+La API suministrada escucha en 5081 y el cliente usa la clave ProductosApi:BaseUrl. El docente desea demostrar que la ubicación de un servicio es configuración y arranca una nueva API en 5088. Su contrato permanece igual, pero el cliente sigue apuntando a 5081.
+
+En esa situación no debemos modificar ProductoDto, ni PostAsJsonAsync ni el marcado HTML. Primero comprobamos con un cliente HTTP que la nueva API responde en 5088. Después cambiamos la dirección base de la aplicación Blazor, reiniciamos cuando sea necesario para aplicar la configuración y volvemos a consultar la página.
+
+El hecho de que la API responda en otra dirección no significa que el contrato haya cambiado. Tampoco debemos suponer que una misma ruta relativa funciona sin configurar correctamente su host. Esta distinción vuelve a aparecer cuando una aplicación se ejecuta bajo Kestrel, IIS o Docker en el módulo 5: el destino puede variar mientras que las operaciones GET y POST mantienen su significado.
+
+Podemos plantear un experimento inverso: conservamos el puerto pero cambiamos solamente el nombre de la ruta a api/catalogo. Ahora la conectividad HTTP existe, pero la API no publica el recurso que el cliente solicita. La prueba directa devolverá un error de ruta y el componente podrá mostrarlo. El alumno debe describir qué ha cambiado: en el primer caso, la ubicación; en el segundo, el contrato de endpoint.
+
+### 4.1.21. Lectura guiada de un intercambio POST completo
+
+Consideremos una solicitud correcta de creación:
+
+~~~http
+POST /api/productos HTTP/1.1
+Host: localhost:5081
+Content-Type: application/json
+Accept: application/json
+
+{"nombre":"Regla","precio":1.75}
+~~~
+
+La API deserializa el cuerpo como CrearProductoApi y comprueba que el nombre no está vacío y que el precio es mayor que cero. Después asigna un identificador que pertenece al estado de su servidor. La respuesta representa la creación efectiva:
+
+~~~http
+HTTP/1.1 201 Created
+Location: /api/productos/3
+Content-Type: application/json
+
+{"id":3,"nombre":"Regla","precio":1.75}
+~~~
+
+¿Qué debe hacer el componente con esa información? Primero comprobar que la operación fue satisfactoria, después deserializar el objeto creado y finalmente incorporarlo a la lista. La cabecera Location permite conocer la dirección relativa de la nueva entidad. La respuesta 201 no exige que el componente navegue automáticamente allí; la interfaz de este curso permanece en el catálogo y actualiza sus elementos.
+
+Ahora cambiamos la solicitud:
+
+~~~http
+POST /api/productos HTTP/1.1
+Host: localhost:5081
+Content-Type: application/json
+
+{"nombre":"","precio":0}
+~~~
+
+El servidor rechaza la entrada con 400 y no asigna un identificador. El cliente no debe interpretar ese cuerpo como un producto. Por eso la implementación usa EnsureSuccessStatusCode antes de intentar leer ProductoDto. Si queremos mostrar en pantalla la razón exacta del rechazo, habría que diseñar un contrato estable de error para la API y leerlo en el cliente; no basta con suponer que todas las respuestas de error tienen la misma forma que las de éxito.
+
+Esta comparación es especialmente útil para estudiantes que ya conocen Web API: no se trata de memorizar los nombres GET y POST, sino de reconocer qué consecuencias tiene para la aplicación receptora cada decisión de estado y cuerpo.
+
+### 4.1.22. La carga inicial es una transición del componente
+
+En Blazor Interactive Server, OnInitializedAsync permite iniciar una operación asíncrona relacionada con la inicialización del componente. Nuestro catálogo utiliza ese lugar para obtener la lista inicial. Elegimos prerender: false en el ejemplo para que la demostración resulte más simple al observar cuándo comienza la operación interactiva. Esa elección no es una regla general sobre cómo deben construirse todas las aplicaciones Blazor.
+
+Durante la espera, cargando es verdadero. Cuando la operación termina correctamente, productos contiene el resultado y la interfaz puede presentar la lista. Cuando hay una excepción, error contiene un mensaje y la interfaz muestra la situación correspondiente. El bloque finally desactiva cargando tanto en éxito como en fallo.
+
+Si el alumno utiliza una página que conserva siempre cargando=true, lo primero es comprobar si el método de carga se está ejecutando, si contiene una excepción no tratada o si nunca se restaura el estado. La ausencia de productos en pantalla no prueba, por sí misma, que la API haya devuelto un arreglo vacío.
+
+También distinguimos el estado de consulta del estado de creación. cargando representa la obtención inicial de la lista; enviando representa un POST iniciado por el usuario. Una aplicación más compleja podría modelar estados independientes de actualización, paginación y cancelación, pero en el laboratorio basta con evitar que una única variable signifique varias operaciones distintas.
+
+### 4.1.23. ¿Qué significa realmente que el cliente sea asíncrono?
+
+Imaginemos una API que tarda tres segundos en responder a un GET. El código await permite continuar cuando llega la respuesta sin bloquear de forma síncrona todo el tiempo. No convierte la operación en instantánea ni garantiza que el usuario la perciba como rápida. De hecho, esa demora nos obliga a diseñar un estado de carga comprensible.
+
+Comparar await con una llamada bloqueante ayuda a entender la decisión. Si utilizáramos Result sobre una tarea HTTP desde código de servidor, podríamos bloquear hilos innecesariamente y complicar la ejecución. Con async/await, la operación de E/S se integra en el flujo asincrónico normal de ASP.NET Core y Blazor.
+
+Otra cuestión es la cancelación. HttpClient dispone de opciones de timeout y puede recibir CancellationToken para controlar operaciones. En este módulo configuramos un tiempo máximo sencillo. No implementamos todavía una experiencia completa de cancelación de peticiones, porque esa ampliación requiere decidir qué ocurre con el estado de UI, con el servidor y con operaciones de escritura ya iniciadas.
+
+El alumno debe conservar una idea precisa: asíncrono significa esperar de manera apropiada una operación sin bloquear su ejecución como si fuera puramente síncrona. La calidad de la experiencia depende además de gestionar estados, errores y confirmaciones.
+
+### 4.1.24. Un ejercicio de diseño antes de continuar
+
+Supón que se desea añadir un botón Actualizar que vuelva a consultar el catálogo. ¿Qué debería reutilizarse? El código de obtención HTTP debería tener una ubicación clara y la interfaz debería mantener su estado cargando y error. Si ya hubiéramos encapsulado la llamada en un servicio tipado, el botón necesitaría invocar ObtenerAsync y actualizar la colección, no conocer una URL.
+
+Este ejercicio anticipa la necesidad de 4.2. Observa que podemos comenzar con un componente completamente funcional y descubrir una responsabilidad repetible a partir del uso real. Eso produce una refactorización motivada, en lugar de introducir interfaces antes de que el alumno entienda qué problema están resolviendo.
+
+Al terminar 4.1, el alumnado debe poder describir con sus palabras al menos cuatro contrastes: consulta local frente a consulta remota; lista vacía frente a error; petición enviada frente a creación confirmada; fallo de ruta frente a fallo de conexión. Esos contrastes proporcionan una base conceptual que una simple demostración de GetFromJsonAsync no ofrece.
+
 ## 4.2. Extraer el consumo HTTP a una capa de servicio
 
 ### De un componente que hace todo a dos responsabilidades
