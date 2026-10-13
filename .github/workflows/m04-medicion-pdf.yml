@@ -39,8 +39,29 @@ jobs:
                 img=page.get_pixmap(matrix=fitz.Matrix(0.65,0.65),alpha=False)
                 assert img.width>300 and img.height>400
                 assert page.get_text().strip(),(kind,i+1)
+                out=Path('VERIFICACION_INTERNA/M04_VISTAS_PAGINA')/kind
+                out.mkdir(parents=True,exist_ok=True)
+                img.save(out/f'{i+1:03d}.png')
               print(f'{kind}: {len(doc)} páginas procesadas, ninguna vacía')
           PY
+      - name: Adjuntar PDF de ensayo, Markdown y resultados de fidelidad
+        uses: actions/upload-artifact@v4
+        with:
+          name: m04-pdfs-desde-md-para-revision
+          path: |
+            M04_APIS_SEGURIDAD/TEORIA/M04_TEORIA.pdf
+            M04_APIS_SEGURIDAD/PRACTICAS/M04_PRACTICAS.pdf
+            M04_APIS_SEGURIDAD/TEORIA/M04_TEORIA.md
+            M04_APIS_SEGURIDAD/PRACTICAS/M04_PRACTICAS.md
+            VERIFICACION_INTERNA/M04_PDFS_VALIDACION.md
+            VERIFICACION_INTERNA/M04_PDF_EXTENSION_OK.txt
+          if-no-files-found: error
+      - name: Adjuntar previsualizaciones de todas las páginas
+        uses: actions/upload-artifact@v4
+        with:
+          name: m04-vistas-pagina-a-pagina
+          path: VERIFICACION_INTERNA/M04_VISTAS_PAGINA
+          if-no-files-found: error
       - name: No publicar PDF de documentación insuficiente
         run: |
           if [ "$(cat VERIFICACION_INTERNA/M04_PDF_EXTENSION_OK.txt)" != "OK" ]; then
