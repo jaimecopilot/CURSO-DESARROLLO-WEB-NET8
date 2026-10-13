@@ -74,6 +74,7 @@ with tempfile.TemporaryDirectory(prefix="m04-identity-desde-md-") as temp:
     # El servidor del alumno se ejecuta DE VERDAD sobre LocalDB Windows
     # y no comparte base con la implementación de referencia.
     p=root/"J6"
+    (p/"appsettings.json").write_text((ROOT/"M04_APIS_SEGURIDAD/PROYECTO/4.5/CursoWeb.IdentityJwtApi/appsettings.json").read_text(encoding="utf-8"),encoding="utf-8")
     db=os.environ.get("ConnectionStrings__IdentityDb","")
     if "(localdb)" not in db:
         raise AssertionError("Esta prueba requiere SQL Server Express LocalDB real.")
