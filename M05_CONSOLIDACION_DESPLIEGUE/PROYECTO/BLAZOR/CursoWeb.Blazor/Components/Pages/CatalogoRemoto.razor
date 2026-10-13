@@ -60,6 +60,11 @@ else
         {
             productos = (await CatalogoApi.ObtenerAsync()).ToList();
         }
+        // PASO P5.1.12: un 404 recibido no es lo mismo que no obtener respuesta.
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            error = "La API respondió 404: no existe la ruta del catálogo.";
+        }
         catch (HttpRequestException)
         {
             error = "No se pudo obtener el catálogo remoto.";
