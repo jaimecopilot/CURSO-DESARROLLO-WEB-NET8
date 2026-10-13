@@ -13,7 +13,7 @@
 - [4.1 — Integración HTTP con Blazor](#punto-1)
 - [4.2 — Servicios tipados e inyección de dependencias](#punto-2)
 - [4.3 — Construcción de una API REST](#punto-3)
-- [4.4 — Autenticación, autorización y AuthorizeView](#punto-4)
+- [4.4 — Autenticación, autorización, Identity y JWT (ampliación)](#punto-4)
 
 ## Orientación de lectura
 
@@ -2916,5 +2916,5 @@ Estas decisiones serán observables en los proyectos de 4.1–4.4 y no dependen 
 
 ### Conclusión del módulo
 
-4.1 enseña a consumir HTTP; 4.2 separa interfaz y servicios; 4.3 explica el servidor; 4.4 distingue la identidad, la decisión de acceso del servidor y la presentación condicional de Blazor.
+4.1 enseña a consumir HTTP; 4.2 separa interfaz y servicios; 4.3 explica el servidor; 4.4 distingue identidad, decisión de acceso y presentación condicional. Como ampliación autónoma, 4.4.6 incorpora ASP.NET Core Identity real, persistencia EF Core y JWT firmados con validación y políticas de rol. La jornada presencial sigue siendo de seis horas.
 
