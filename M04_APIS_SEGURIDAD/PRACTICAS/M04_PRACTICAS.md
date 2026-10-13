@@ -1178,9 +1178,9 @@ El resultado de P4.2 no es una pantalla nueva, sino una frontera de responsabili
 
 ### Objetivo y material inicial
 
-Partimos de **la API entregada en 4.1**, \`PROYECTO/4.1/CursoWeb.ProductosApi\`, y hacemos una copia acumulativa en \`PROYECTO/4.3/CursoWeb.ProductosApi\`. Para la interfaz usamos el proyecto refactorizado de 4.2; lo conservaremos en \`PROYECTO/4.3/CursoWeb.Blazor\`. No se crea una API alternativa sin relación con lo aprendido.
+Partimos de **la API entregada en 4.1**, `PROYECTO/4.1/CursoWeb.ProductosApi`, y hacemos una copia acumulativa en `PROYECTO/4.3/CursoWeb.ProductosApi`. Para la interfaz usamos el proyecto refactorizado de 4.2; lo conservaremos en `PROYECTO/4.3/CursoWeb.Blazor`. No se crea una API alternativa sin relación con lo aprendido.
 
-Al terminar, la nueva API seguirá ofreciendo GET, POST, respuestas 400/404 y una operación adicional \`GET /api/productos/resumen\`. El cliente Blazor seguirá consultando \`/api/productos\` sin cambiar su código HTTP.
+Al terminar, la nueva API seguirá ofreciendo GET, POST, respuestas 400/404 y una operación adicional `GET /api/productos/resumen`. El cliente Blazor seguirá consultando `/api/productos` sin cambiar su código HTTP.
 
 ### Recorrido obligatorio P4.3 — construir el servidor antes de estudiarlo como referencia
 
@@ -1192,30 +1192,30 @@ Al terminar la etapa 5, el contrato está demostrado. Las siguientes tareas —r
 
 En 4.1 y 4.2 era indispensable disponer de una API operativa mientras aprendíamos a consumirla. Ahora podemos construir una nueva implementación desde cero y poner a prueba que **responde exactamente al mismo contrato HTTP**.
 
-**Preparación del escenario.** Mantén el proyecto suministrado como referencia, sin editarlo. En otra carpeta de trabajo —por ejemplo, \`PROYECTO/4.3/CursoWeb.ProductosApi.Construida\`— crea una aplicación vacía con:
+**Preparación del escenario.** Mantén el proyecto suministrado como referencia, sin editarlo. En otra carpeta de trabajo —por ejemplo, `PROYECTO/4.3/CursoWeb.ProductosApi.Construida`— crea una aplicación vacía con:
 
-\`\`\`powershell
+```powershell
 dotnet new web -n CursoWeb.ProductosApi -f net8.0
-\`\`\`
+```
 
 Detén la API de 4.1 antes de arrancar la nueva en el puerto 5081. Esta secuencia debe realizarse por etapas; después de cada una, compila y observa la respuesta para localizar los errores en el momento en que se introducen.
 
-**Etapa 1 — arranque y primer endpoint.** Abre \`Program.cs\` y escribe:
+**Etapa 1 — arranque y primer endpoint.** Abre `Program.cs` y escribe:
 
-\`\`\`csharp
+```csharp
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
 app.MapGet("/", () => Results.Ok("API de Productos disponible"));
 
 app.Run();
-\`\`\`
+```
 
-Ejecuta \`dotnet run --urls http://localhost:5081\` desde el directorio del proyecto. Al solicitar \`http://localhost:5081/\` se debe recibir 200 y un mensaje. Una respuesta positiva indica que hay un host operativo, pero todavía no que exista un catálogo de productos.
+Ejecuta `dotnet run --urls http://localhost:5081` desde el directorio del proyecto. Al solicitar `http://localhost:5081/` se debe recibir 200 y un mensaje. Una respuesta positiva indica que hay un host operativo, pero todavía no que exista un catálogo de productos.
 
-**Etapa 2 — modelos y listado.** Sustituye \`Program.cs\` por:
+**Etapa 2 — modelos y listado.** Sustituye `Program.cs` por:
 
-\`\`\`csharp
+```csharp
 using System.Collections.Concurrent;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -1232,24 +1232,24 @@ app.MapGet("/api/productos", () =>
 app.Run();
 
 record ProductoApi(int Id, string Nombre, decimal Precio);
-\`\`\`
+```
 
-Arranca de nuevo. El navegador debe mostrar dos objetos en un arreglo JSON cuando consultas \`/api/productos\`. Comprueba además que \`/api/productos/1\` todavía **no** devuelve un detalle válido: esa ruta aún no existe y esa ausencia es esperable antes de la etapa siguiente.
+Arranca de nuevo. El navegador debe mostrar dos objetos en un arreglo JSON cuando consultas `/api/productos`. Comprueba además que `/api/productos/1` todavía **no** devuelve un detalle válido: esa ruta aún no existe y esa ausencia es esperable antes de la etapa siguiente.
 
-**Etapa 3 — consulta individual.** Antes de \`app.Run()\`, añade:
+**Etapa 3 — consulta individual.** Antes de `app.Run()`, añade:
 
-\`\`\`csharp
+```csharp
 app.MapGet("/api/productos/{id:int}", (int id) =>
     productos.TryGetValue(id, out var producto)
         ? Results.Ok(producto)
         : Results.NotFound());
-\`\`\`
+```
 
-Reinicia y verifica \`/api/productos/1\`: debe aparecer Cuaderno. Después solicita \`/api/productos/999\` y observa 404. No confundas este resultado con un puerto cerrado: el servidor está respondiendo correctamente, pero el recurso no existe.
+Reinicia y verifica `/api/productos/1`: debe aparecer Cuaderno. Después solicita `/api/productos/999` y observa 404. No confundas este resultado con un puerto cerrado: el servidor está respondiendo correctamente, pero el recurso no existe.
 
-**Etapa 4 — creación y validación.** Antes de \`app.Run()\`, añade:
+**Etapa 4 — creación y validación.** Antes de `app.Run()`, añade:
 
-\`\`\`csharp
+```csharp
 var siguienteId = 2;
 
 app.MapPost("/api/productos", (CrearProductoApi entrada) =>
@@ -1262,38 +1262,38 @@ app.MapPost("/api/productos", (CrearProductoApi entrada) =>
     productos[id] = creado;
     return Results.Created($"/api/productos/{id}", creado);
 });
-\`\`\`
+```
 
-Al final del archivo, junto a \`ProductoApi\`, añade:
+Al final del archivo, junto a `ProductoApi`, añade:
 
-\`\`\`csharp
+```csharp
 record CrearProductoApi(string Nombre, decimal Precio);
-\`\`\`
+```
 
-Prepara un archivo \`nuevo-producto.json\`:
+Prepara un archivo `nuevo-producto.json`:
 
-\`\`\`json
+```json
 {
   "nombre": "Regla",
   "precio": 1.75
 }
-\`\`\`
+```
 
 Con la API iniciada ejecuta, desde una terminal donde el fichero sea accesible:
 
-\`\`\`powershell
+```powershell
 curl.exe -i -X POST http://localhost:5081/api/productos -H "Content-Type: application/json" --data-binary "@nuevo-producto.json"
-\`\`\`
+```
 
-Debe obtenerse **201 Created**, un producto nuevo con ID asignado por el servidor y una cabecera \`Location\`. Repite GET del listado y comprueba que existe Regla. Cambia el precio del JSON a 0 y repite: debe devolverse **400 Bad Request**, sin añadir otro producto. Si vuelves a introducir datos válidos, el contador puede seguir creciendo; es normal mientras no se reinicie el proceso.
+Debe obtenerse **201 Created**, un producto nuevo con ID asignado por el servidor y una cabecera `Location`. Repite GET del listado y comprueba que existe Regla. Cambia el precio del JSON a 0 y repite: debe devolverse **400 Bad Request**, sin añadir otro producto. Si vuelves a introducir datos válidos, el contador puede seguir creciendo; es normal mientras no se reinicie el proceso.
 
-**Etapa 5 — integración con el cliente Blazor que ya construimos.** Mantén la API recién creada en 5081 y abre Blazor desde \`PROYECTO/4.2/CursoWeb.Blazor\`. Consulta \`/catalogo-remoto\`. Si el contrato se ha conservado, verás los productos sin reescribir \`CatalogoRemoto.razor\` ni \`ProductosApiService.cs\`. Envía un nuevo producto desde la interfaz y comprueba el 201 indirectamente observando que se añade al listado.
+**Etapa 5 — integración con el cliente Blazor que ya construimos.** Mantén la API recién creada en 5081 y abre Blazor desde `PROYECTO/4.2/CursoWeb.Blazor`. Consulta `/catalogo-remoto`. Si el contrato se ha conservado, verás los productos sin reescribir `CatalogoRemoto.razor` ni `ProductosApiService.cs`. Envía un nuevo producto desde la interfaz y comprueba el 201 indirectamente observando que se añade al listado.
 
-Para diagnosticar un fallo, recorre en orden estas preguntas: ¿responde la API directamente?, ¿coinciden la ruta y el puerto?, ¿el JSON conserva \`id\`, \`nombre\` y \`precio\`?, ¿la clase \`CrearProductoApi\` admite los datos enviados?, ¿la página recibe un error HTTP o un error de red?
+Para diagnosticar un fallo, recorre en orden estas preguntas: ¿responde la API directamente?, ¿coinciden la ruta y el puerto?, ¿el JSON conserva `id`, `nombre` y `precio`?, ¿la clase `CrearProductoApi` admite los datos enviados?, ¿la página recibe un error HTTP o un error de red?
 
 **Etapa 6 — repetición controlada y persistencia.** Detén y vuelve a iniciar el servidor. La lista debe regresar a Cuaderno y Lápiz porque el almacenamiento era de memoria. Este comportamiento no supone un defecto oculto: es un límite expresamente elegido para concentrarse en comunicación HTTP. No incorpores EF Core en esta etapa.
 
-**Reto de sustitución del servidor.** Sin modificar el cliente, cambia temporalmente la cadena \`"Cuaderno"\` de la API construida por \`"Cuaderno A4"\`, reinicia y consulta Blazor. El nombre debe reflejar el cambio de servidor. Después restaura el dato de referencia y explica por qué la interfaz no necesitó recompilarse para recibir una respuesta JSON con el mismo contrato.
+**Reto de sustitución del servidor.** Sin modificar el cliente, cambia temporalmente la cadena `"Cuaderno"` de la API construida por `"Cuaderno A4"`, reinicia y consulta Blazor. El nombre debe reflejar el cambio de servidor. Después restaura el dato de referencia y explica por qué la interfaz no necesitó recompilarse para recibir una respuesta JSON con el mismo contrato.
 
 
 ### Ampliación P4.3 — comparar con la API de referencia y activar el resumen
@@ -1302,31 +1302,31 @@ Este apartado es posterior a la construcción autónoma. Ahora resulta útil lee
 
 ### Paso 4.3.1. Identificar las piezas del proceso servidor
 
-Abre \`CursoWeb.ProductosApi/Program.cs\` e identifica el \`WebApplication.CreateBuilder\`, \`Build\`, \`MapGet\`, \`MapPost\` y \`Run\`. Localiza los registros Cuaderno y Lápiz que se cargan al arrancar, y observa que se guardan en \`ConcurrentDictionary<int, ProductoApi>\`, no en una base de datos.
+Abre `CursoWeb.ProductosApi/Program.cs` e identifica el `WebApplication.CreateBuilder`, `Build`, `MapGet`, `MapPost` y `Run`. Localiza los registros Cuaderno y Lápiz que se cargan al arrancar, y observa que se guardan en `ConcurrentDictionary<int, ProductoApi>`, no en una base de datos.
 
 Ejecuta la API:
 
-\`\`\`powershell
+```powershell
 dotnet run --project M04_APIS_SEGURIDAD/PROYECTO/4.3/CursoWeb.ProductosApi/CursoWeb.ProductosApi.csproj --urls http://localhost:5081
-\`\`\`
+```
 
-Si otra instancia usa 5081, detén esa instancia antes de iniciar la de 4.3. Abre \`http://localhost:5081/api/productos\` y verifica que aparecen dos productos.
+Si otra instancia usa 5081, detén esa instancia antes de iniciar la de 4.3. Abre `http://localhost:5081/api/productos` y verifica que aparecen dos productos.
 
 ### Paso 4.3.2. Seguir un GET y un POST
 
-En el código, localiza \`Results.Ok\` y \`Results.Created\`. Consulta \`/api/productos/999\` para obtener 404. Envía un POST con nombre «Regla» y precio 1,75 usando un cliente HTTP (por ejemplo, \`curl.exe\` con un fichero JSON para evitar problemas de comillas):
+En el código, localiza `Results.Ok` y `Results.Created`. Consulta `/api/productos/999` para obtener 404. Envía un POST con nombre «Regla» y precio 1,75 usando un cliente HTTP (por ejemplo, `curl.exe` con un fichero JSON para evitar problemas de comillas):
 
-\`\`\`json
+```json
 { "nombre": "Regla", "precio": 1.75 }
-\`\`\`
+```
 
-Observa la respuesta 201, el identificador asignado y la cabecera \`Location\`. Envía ahora un nombre vacío y precio cero para obtener 400. Comprueba que un producto inválido no aparece en la lista GET.
+Observa la respuesta 201, el identificador asignado y la cabecera `Location`. Envía ahora un nombre vacío y precio cero para obtener 400. Comprueba que un producto inválido no aparece en la lista GET.
 
 ### Paso 4.3.3. Añadir una ruta de resumen
 
-Antes del \`app.Run();\` añade este endpoint, cuya finalidad y contrato se explican en teoría 4.3.4:
+Antes del `app.Run();` añade este endpoint, cuya finalidad y contrato se explican en teoría 4.3.4:
 
-\`\`\`csharp
+```csharp
 // PASO 4.3.3 — activar al llegar aquí.
 app.MapGet("/api/productos/resumen", () =>
 {
@@ -1337,25 +1337,25 @@ app.MapGet("/api/productos/resumen", () =>
         precioTotal = actuales.Sum(p => p.Precio)
     });
 });
-\`\`\`
+```
 
-El proyecto de laboratorio incluye el bloque **comentado** con marca \`PASO 4.3.3\`, para que puedas descomentarlo antes de ejecutarlo. Tras arrancar desde datos iniciales, \`GET /api/productos/resumen\` debe devolver \`cantidad\` 2 y \`precioTotal\` 3,30. Crea Regla y vuelve a consultar: los valores deberían ser 3 y 5,05. Si antes añadiste otros productos, reinicia el proceso para reproducir el estado de partida.
+El proyecto de laboratorio incluye el bloque **comentado** con marca `PASO 4.3.3`, para que puedas descomentarlo antes de ejecutarlo. Tras arrancar desde datos iniciales, `GET /api/productos/resumen` debe devolver `cantidad` 2 y `precioTotal` 3,30. Crea Regla y vuelve a consultar: los valores deberían ser 3 y 5,05. Si antes añadiste otros productos, reinicia el proceso para reproducir el estado de partida.
 
 ### Paso 4.3.4. Conectar la API ampliada con la pantalla del paso 4.2
 
-Ejecuta \`CursoWeb.Blazor\` del punto 4.3 en otro puerto; la API permanece en 5081. Abre \`/catalogo-remoto\` y crea un producto. Comprueba que sigue apareciendo en el listado y que \`/api/productos/resumen\` refleja la creación **si has activado** el bloque del paso anterior. Observa que no hemos tenido que editar el \`IProductosApiService\`: el nuevo endpoint es una capacidad del servidor que no interfiere con el contrato utilizado por el cliente.
+Ejecuta `CursoWeb.Blazor` del punto 4.3 en otro puerto; la API permanece en 5081. Abre `/catalogo-remoto` y crea un producto. Comprueba que sigue apareciendo en el listado y que `/api/productos/resumen` refleja la creación **si has activado** el bloque del paso anterior. Observa que no hemos tenido que editar el `IProductosApiService`: el nuevo endpoint es una capacidad del servidor que no interfiere con el contrato utilizado por el cliente.
 
 ### Paso 4.3.5. Reto: un segundo criterio de resumen
 
-A partir del endpoint de resumen, añade la propiedad \`hayProductos\` con valor booleano:
+A partir del endpoint de resumen, añade la propiedad `hayProductos` con valor booleano:
 
-\`\`\`csharp
+```csharp
 hayProductos = actuales.Length > 0
-\`\`\`
+```
 
-La variante está incluida como bloque \`RETO 4.3.5\` comentado en el proyecto. Para activarla, reemplaza el bloque de \`PASO 4.3.3\` por el bloque completo del reto: **no actives ambas versiones simultáneamente**, porque intentarían asignar la misma ruta GET.
+La variante está incluida como bloque `RETO 4.3.5` comentado en el proyecto. Para activarla, reemplaza el bloque de `PASO 4.3.3` por el bloque completo del reto: **no actives ambas versiones simultáneamente**, porque intentarían asignar la misma ruta GET.
 
-Haz otra llamada a \`/api/productos/resumen\` y comprueba que aparece \`"hayProductos": true\`. Explica por qué es un campo de un JSON distinto de \`ProductoDto\` y por qué el cliente de 4.2 no necesita cambios.
+Haz otra llamada a `/api/productos/resumen` y comprueba que aparece `"hayProductos": true`. Explica por qué es un campo de un JSON distinto de `ProductoDto` y por qué el cliente de 4.2 no necesita cambios.
 
 
 ### Ampliación P4.3 — Registro detallado de la construcción: del host vacío a una API compatible

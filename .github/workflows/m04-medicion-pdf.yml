@@ -22,6 +22,20 @@ jobs:
           python -m pip install 'markdown-it-py>=3,<5' 'pygments>=2.17,<3' 'weasyprint>=63,<69' 'pypdf>=5,<8' 'pymupdf>=1.24,<2' 'beautifulsoup4>=4.12,<5'
           sudo apt-get update -qq
           sudo apt-get install -y fonts-dejavu-core graphviz
+      - name: Comprobar delimitadores Markdown y bloques de código
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          from markdown_it import MarkdownIt
+          for kind in ('TEORIA','PRACTICAS'):
+              p=Path('M04_APIS_SEGURIDAD')/kind/f'M04_{kind}.md'
+              src=p.read_text(encoding='utf-8')
+              assert chr(92)+chr(96) not in src, f'{kind}: acentos graves escapados que ocultan código'
+              tokens=MarkdownIt('commonmark').parse(src)
+              fences=[x for x in tokens if x.type=='fence']
+              assert len(fences)>=15, f'{kind}: bloques de código insuficientemente renderizados ({len(fences)})'
+              print(f'{kind}: {len(fences)} bloques de código Markdown reconocidos')
+          PY
       - name: Medir extensión y fidelidad de PDF
         run: |
           python M04_APIS_SEGURIDAD/DOCS/generar_m04_pdf.py

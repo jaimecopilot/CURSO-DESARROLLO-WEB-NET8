@@ -952,11 +952,11 @@ El hecho de que las cadenas y tipos estén bien ubicados no prueba por sí solo 
 
 ### Por qué estudiamos ahora el servidor
 
-En 4.1 y 4.2 hemos consumido una API que ya estaba disponible: primero desde el componente Razor, después mediante \`IProductosApiService\`. Sabemos que \`GET /api/productos\` devuelve un catálogo y \`POST /api/productos\` crea una entrada, pero todavía no hemos seguido esa petición dentro del servidor. En este punto abriremos **el mismo proyecto** que se entregó al comenzar M04. No escribiremos una API empresarial ni repetiremos el temario previo de Web API: queremos entender las piezas que hacen posible el contrato que Blazor ya utiliza.
+En 4.1 y 4.2 hemos consumido una API que ya estaba disponible: primero desde el componente Razor, después mediante `IProductosApiService`. Sabemos que `GET /api/productos` devuelve un catálogo y `POST /api/productos` crea una entrada, pero todavía no hemos seguido esa petición dentro del servidor. En este punto abriremos **el mismo proyecto** que se entregó al comenzar M04. No escribiremos una API empresarial ni repetiremos el temario previo de Web API: queremos entender las piezas que hacen posible el contrato que Blazor ya utiliza.
 
 El recorrido completo es:
 
-\`\`\`text
+```text
 Blazor /catalogo-remoto
   → IProductosApiService
   → ProductosApiService (HttpClient)
@@ -965,22 +965,22 @@ Blazor /catalogo-remoto
   → respuesta HTTP + JSON
   → servicio cliente
   → estado de la pantalla
-\`\`\`
+```
 
-La API del laboratorio funciona en un proceso separado. Su modelo \`ProductoApi\` es propio; el cliente utiliza \`ProductoDto\`. Coinciden las propiedades públicas del contrato HTTP, pero no comparten necesariamente el mismo ensamblado.
+La API del laboratorio funciona en un proceso separado. Su modelo `ProductoApi` es propio; el cliente utiliza `ProductoDto`. Coinciden las propiedades públicas del contrato HTTP, pero no comparten necesariamente el mismo ensamblado.
 
 ### 4.3.1. El host mínimo en Program.cs
 
 La API se inicia con el patrón habitual de .NET 8:
 
-\`\`\`csharp
+```csharp
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 // Aquí se declaran rutas mediante app.MapGet y app.MapPost.
 app.Run();
-\`\`\`
+```
 
-\`CreateBuilder\` prepara configuración y servicios; \`Build\` crea la aplicación; \`MapGet\` y \`MapPost\` asocian un método HTTP y una ruta a un delegado que procesa la petición; \`Run\` mantiene el servidor atendiendo solicitudes. Este proyecto es pequeño porque el alumno ya conoce Web API: **Minimal APIs** nos permiten mostrar el contrato y las reglas sin añadir controladores y capas que no aportan aprendizaje a M04.
+`CreateBuilder` prepara configuración y servicios; `Build` crea la aplicación; `MapGet` y `MapPost` asocian un método HTTP y una ruta a un delegado que procesa la petición; `Run` mantiene el servidor atendiendo solicitudes. Este proyecto es pequeño porque el alumno ya conoce Web API: **Minimal APIs** nos permiten mostrar el contrato y las reglas sin añadir controladores y capas que no aportan aprendizaje a M04.
 
 
 #### Un servidor ASP.NET Core mínimo sigue siendo un servidor completo
@@ -1035,22 +1035,22 @@ El diagrama no afirma que MVC sea parte del recorrido de una petición de Blazor
 
 La colección se crea en memoria al arrancar:
 
-\`\`\`csharp
+```csharp
 var productos = new ConcurrentDictionary<int, ProductoApi>();
 productos[1] = new ProductoApi(1, "Cuaderno", 2.50m);
 productos[2] = new ProductoApi(2, "Lápiz", 0.80m);
-\`\`\`
+```
 
-\`ConcurrentDictionary\` permite accesos concurrentes seguros a las operaciones de diccionario que usamos. Los registros iniciales son datos del laboratorio, no datos de SQL Server. Esta línea publica el catálogo:
+`ConcurrentDictionary` permite accesos concurrentes seguros a las operaciones de diccionario que usamos. Los registros iniciales son datos del laboratorio, no datos de SQL Server. Esta línea publica el catálogo:
 
-\`\`\`csharp
+```csharp
 app.MapGet("/api/productos", () =>
     Results.Ok(productos.Values.OrderBy(p => p.Id)));
-\`\`\`
+```
 
-\`Results.Ok\` devuelve **200 OK**. ASP.NET Core serializa la colección en JSON: los nombres de propiedades se exponen en *camelCase* bajo las opciones web habituales. \`OrderBy\` evita presentar el orden interno de un diccionario concurrente como si fuera un criterio estable de listado.
+`Results.Ok` devuelve **200 OK**. ASP.NET Core serializa la colección en JSON: los nombres de propiedades se exponen en *camelCase* bajo las opciones web habituales. `OrderBy` evita presentar el orden interno de un diccionario concurrente como si fuera un criterio estable de listado.
 
-Si consultamos \`/api/productos/999\`, el endpoint de detalle devuelve \`Results.NotFound()\`. **404 no es una excepción de C# obligatoria**: es una decisión explícita de protocolo que el cliente debe interpretar.
+Si consultamos `/api/productos/999`, el endpoint de detalle devuelve `Results.NotFound()`. **404 no es una excepción de C# obligatoria**: es una decisión explícita de protocolo que el cliente debe interpretar.
 
 
 #### Rutas, verbos y datos de entrada
@@ -1102,27 +1102,27 @@ Conviene no transformar esta observación en la frase «Blazor nunca necesita CO
 
 La API recibe un objeto de entrada:
 
-\`\`\`csharp
+```csharp
 record CrearProductoApi(string Nombre, decimal Precio);
-\`\`\`
+```
 
 Ese contrato **no tiene Id**: el identificador lo asigna el servidor. El delegado de POST valida nombre y precio:
 
-\`\`\`csharp
+```csharp
 if (string.IsNullOrWhiteSpace(entrada.Nombre) || entrada.Precio <= 0)
     return Results.BadRequest("Nombre y precio deben ser válidos.");
-\`\`\`
+```
 
 Si los datos cumplen las reglas, se ejecuta:
 
-\`\`\`csharp
+```csharp
 var id = Interlocked.Increment(ref siguienteId);
 var creado = new ProductoApi(id, entrada.Nombre.Trim(), entrada.Precio);
 productos[id] = creado;
 return Results.Created($"/api/productos/{id}", creado);
-\`\`\`
+```
 
-\`Interlocked.Increment\` produce IDs distintos aunque dos peticiones se procesen simultáneamente. \`Results.Created\` devuelve **201 Created**, el cuerpo del producto creado y una cabecera \`Location\` que apunta a su recurso. Por eso nuestra API expone también \`GET /api/productos/{id}\`.
+`Interlocked.Increment` produce IDs distintos aunque dos peticiones se procesen simultáneamente. `Results.Created` devuelve **201 Created**, el cuerpo del producto creado y una cabecera `Location` que apunta a su recurso. Por eso nuestra API expone también `GET /api/productos/{id}`.
 
 El cliente no debe inventar el ID ni tratar una respuesta 400 como creación satisfactoria. La validación previa de la página Blazor facilita la experiencia de usuario, pero la API siempre vuelve a validar: el servidor no puede confiar en que todas las llamadas provienen de nuestro formulario.
 
@@ -1188,9 +1188,9 @@ También muestran por qué el componente no debería tratar su lista de DTO como
 
 ### 4.3.4. Modificar una respuesta de forma controlada
 
-Vamos a añadir una operación de lectura que no cambie el contrato que ya consume Blazor: \`GET /api/productos/resumen\`. Responderá con el número de productos y el valor agregado de sus precios.
+Vamos a añadir una operación de lectura que no cambie el contrato que ya consume Blazor: `GET /api/productos/resumen`. Responderá con el número de productos y el valor agregado de sus precios.
 
-\`\`\`csharp
+```csharp
 app.MapGet("/api/productos/resumen", () =>
 {
     var actuales = productos.Values.ToArray();
@@ -1200,17 +1200,17 @@ app.MapGet("/api/productos/resumen", () =>
         precioTotal = actuales.Sum(p => p.Precio)
     });
 });
-\`\`\`
+```
 
 El material devuelve, por ejemplo:
 
-\`\`\`json
+```json
 { "cantidad": 2, "precioTotal": 3.30 }
-\`\`\`
+```
 
-Tras crear Regla a 1,75, el resumen indicará tres productos y un precio total de 5,05. Son valores ilustrativos que dependen de partir del estado inicial de la API. **No cambiaremos** \`GET /api/productos\`, porque 4.1 y 4.2 dependen de que esa ruta siga devolviendo una lista. Esta es la idea del ejercicio: ampliar sin romper un cliente existente.
+Tras crear Regla a 1,75, el resumen indicará tres productos y un precio total de 5,05. Son valores ilustrativos que dependen de partir del estado inicial de la API. **No cambiaremos** `GET /api/productos`, porque 4.1 y 4.2 dependen de que esa ruta siga devolviendo una lista. Esta es la idea del ejercicio: ampliar sin romper un cliente existente.
 
-La ruta literal \`/api/productos/resumen\` no se confunde con \`/api/productos/{id:int}\`, porque esta última exige un parámetro entero. El resultado de resumen tiene su propia forma JSON; no debe deserializarse como \`ProductoDto\`.
+La ruta literal `/api/productos/resumen` no se confunde con `/api/productos/{id:int}`, porque esta última exige un parámetro entero. El resultado de resumen tiene su propia forma JSON; no debe deserializarse como `ProductoDto`.
 
 
 #### Añadir una ruta sin romper la ruta existente
@@ -1309,7 +1309,7 @@ No obliga a incorporar EF Core, Identity, paginación ni una interfaz adicional.
 
 ### 4.3.5. Diferencias entre JSON válido, reglas de negocio y persistencia
 
-Una petición puede tener JSON sintácticamente válido y, sin embargo, incumplir las reglas: \`{"nombre":"","precio":0}\` contiene JSON legible, pero no un producto aceptable. Una petición de JSON incompatible con el DTO puede producir una respuesta de error antes de que el delegado de POST ejecute su comprobación. Nuestro ejemplo no pretende normalizar todos los mensajes de error posibles.
+Una petición puede tener JSON sintácticamente válido y, sin embargo, incumplir las reglas: `{"nombre":"","precio":0}` contiene JSON legible, pero no un producto aceptable. Una petición de JSON incompatible con el DTO puede producir una respuesta de error antes de que el delegado de POST ejecute su comprobación. Nuestro ejemplo no pretende normalizar todos los mensajes de error posibles.
 
 Tampoco basta con que un POST devuelva 201 para afirmar que existe persistencia: **la información vive en memoria del proceso**. Al reiniciar la API se restauran Cuaderno y Lápiz; el producto añadido desaparece. La persistencia ya fue estudiada con EF Core en el contexto previo del alumnado; reintroducirla aquí impediría concentrarse en la comunicación Blazor–API.
 
@@ -1376,30 +1376,30 @@ Hasta ahora hemos leído la API suministrada. Para comprender cómo se llega a e
 
 **Estado A — el host responde.** Desde una terminal distinta de Blazor:
 
-\`\`\`powershell
+```powershell
 dotnet new web -n CursoWeb.ProductosApi -f net8.0
 cd CursoWeb.ProductosApi
 dotnet run --urls http://localhost:5081
-\`\`\`
+```
 
 El proyecto inicial permite arrancar Kestrel. Antes de repetir peticiones, detén la API preconstruida utilizada en 4.1 para evitar que ambos procesos intenten escuchar en el mismo puerto. El objetivo del primer estado no es devolver productos: es distinguir que el host está iniciado del hecho de que existan endpoints funcionales.
 
-Sustituye el contenido inicial de \`Program.cs\` por:
+Sustituye el contenido inicial de `Program.cs` por:
 
-\`\`\`csharp
+```csharp
 var builder = WebApplication.CreateBuilder(args);
 var app = builder.Build();
 
 app.MapGet("/", () => Results.Ok("API de Productos disponible"));
 
 app.Run();
-\`\`\`
+```
 
-Si el navegador puede consultar \`http://localhost:5081/\`, la comunicación básica funciona. Si no funciona, no tiene sentido investigar todavía DTO o serialización.
+Si el navegador puede consultar `http://localhost:5081/`, la comunicación básica funciona. Si no funciona, no tiene sentido investigar todavía DTO o serialización.
 
 **Estado B — aparecen datos con contrato público.** Incorporamos un modelo pequeño y un almacenamiento de memoria. La parte superior del archivo pasa a contener:
 
-\`\`\`csharp
+```csharp
 using System.Collections.Concurrent;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -1416,30 +1416,30 @@ app.MapGet("/api/productos", () =>
 app.Run();
 
 record ProductoApi(int Id, string Nombre, decimal Precio);
-\`\`\`
+```
 
-Ahora podemos comprobar dos contratos distintos: una respuesta de salud o bienvenida en la raíz y un arreglo de productos en \`/api/productos\`. Es importante observar la **forma** de la respuesta: Blazor espera una colección de objetos con Id, Nombre y Precio. No bastaría con devolver una cadena de texto que diga «hay dos productos».
+Ahora podemos comprobar dos contratos distintos: una respuesta de salud o bienvenida en la raíz y un arreglo de productos en `/api/productos`. Es importante observar la **forma** de la respuesta: Blazor espera una colección de objetos con Id, Nombre y Precio. No bastaría con devolver una cadena de texto que diga «hay dos productos».
 
-**Estado C — el servidor distingue un recurso inexistente.** Antes de \`app.Run\`, incorporamos:
+**Estado C — el servidor distingue un recurso inexistente.** Antes de `app.Run`, incorporamos:
 
-\`\`\`csharp
+```csharp
 app.MapGet("/api/productos/{id:int}", (int id) =>
     productos.TryGetValue(id, out var producto)
         ? Results.Ok(producto)
         : Results.NotFound());
-\`\`\`
+```
 
 En este punto tenemos una regla útil para razonar sobre 404: el servidor recibe una petición correctamente formada, pero el diccionario no contiene la clave solicitada. Esto no es un error de conexión; el servidor sigue operativo.
 
 **Estado D — el servidor crea productos.** Agregamos el segundo contrato, que no contiene identificador:
 
-\`\`\`csharp
+```csharp
 record CrearProductoApi(string Nombre, decimal Precio);
-\`\`\`
+```
 
-Y antes de \`app.Run\`, la acción:
+Y antes de `app.Run`, la acción:
 
-\`\`\`csharp
+```csharp
 var siguienteId = 2;
 
 app.MapPost("/api/productos", (CrearProductoApi entrada) =>
@@ -1452,13 +1452,13 @@ app.MapPost("/api/productos", (CrearProductoApi entrada) =>
     productos[id] = creado;
     return Results.Created($"/api/productos/{id}", creado);
 });
-\`\`\`
+```
 
-El contador comienza en 2 porque los productos iniciales tienen identificadores 1 y 2. \`Interlocked.Increment\` evita que dos peticiones simultáneas reciban el mismo identificador por una operación de incremento no atómica. No convierte la colección en una base de datos ni garantiza persistencia tras reiniciar. La validación de nombre y precio reside en el servidor incluso aunque el formulario de Blazor ya rechace esos valores.
+El contador comienza en 2 porque los productos iniciales tienen identificadores 1 y 2. `Interlocked.Increment` evita que dos peticiones simultáneas reciban el mismo identificador por una operación de incremento no atómica. No convierte la colección en una base de datos ni garantiza persistencia tras reiniciar. La validación de nombre y precio reside en el servidor incluso aunque el formulario de Blazor ya rechace esos valores.
 
 El resultado de este estado es una API compatible con los GET/POST que nuestro cliente consume. Por ello podemos detener la API suministrada, arrancar la construida por el alumno en el mismo puerto y **volver a utilizar Blazor sin cambiar su interfaz**.
 
-**Estado E — extensión de respuesta independiente.** Finalmente, podemos añadir el endpoint \`/api/productos/resumen\` mostrado en el apartado anterior. Devolverá una estructura diferente de la lista, sin alterar las rutas que el servicio tipado necesita. El objetivo no es acumular endpoints, sino entender qué significa extender un contrato público conservando sus consumidores.
+**Estado E — extensión de respuesta independiente.** Finalmente, podemos añadir el endpoint `/api/productos/resumen` mostrado en el apartado anterior. Devolverá una estructura diferente de la lista, sin alterar las rutas que el servicio tipado necesita. El objetivo no es acumular endpoints, sino entender qué significa extender un contrato público conservando sus consumidores.
 
 
 #### Reconstrucción, no copia: el propósito de los estados intermedios
@@ -1471,9 +1471,9 @@ La habilidad transferible no es recordar todas las líneas de memoria. Es poder 
 
 ### 4.3.7. Cómo reconocer tres fallos frecuentes en la construcción
 
-La primera equivocación habitual consiste en ubicar una declaración \`record\` en medio de las instrucciones de nivel superior de \`Program.cs\`, de forma que las instrucciones ejecutables posteriores ya no estén permitidas. Los tipos auxiliares pueden declararse al final del archivo, después de \`app.Run\`, como hemos hecho en los ejemplos.
+La primera equivocación habitual consiste en ubicar una declaración `record` en medio de las instrucciones de nivel superior de `Program.cs`, de forma que las instrucciones ejecutables posteriores ya no estén permitidas. Los tipos auxiliares pueden declararse al final del archivo, después de `app.Run`, como hemos hecho en los ejemplos.
 
-La segunda consiste en cambiar \`GET /api/productos\` para devolver una forma JSON diferente mientras Blazor sigue esperando \`List<ProductoDto>\`. El problema no se resuelve cambiando el puerto: es una incompatibilidad de contrato. Una vía de diagnóstico consiste en leer el JSON directamente y compararlo con el DTO esperado.
+La segunda consiste en cambiar `GET /api/productos` para devolver una forma JSON diferente mientras Blazor sigue esperando `List<ProductoDto>`. El problema no se resuelve cambiando el puerto: es una incompatibilidad de contrato. Una vía de diagnóstico consiste en leer el JSON directamente y compararlo con el DTO esperado.
 
 La tercera es construir una API nueva y olvidar que la antigua sigue ocupando 5081. Dos procesos no pueden escuchar normalmente en la misma dirección y puerto; uno fallará al arrancar. Antes de investigar HttpClient, verifica qué aplicación está escuchando.
 
