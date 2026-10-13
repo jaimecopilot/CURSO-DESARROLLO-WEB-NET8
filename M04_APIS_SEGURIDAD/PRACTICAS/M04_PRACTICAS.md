@@ -936,6 +936,189 @@ La variante está incluida como bloque \`RETO 4.3.5\` comentado en el proyecto. 
 
 Haz otra llamada a \`/api/productos/resumen\` y comprueba que aparece \`"hayProductos": true\`. Explica por qué es un campo de un JSON distinto de \`ProductoDto\` y por qué el cliente de 4.2 no necesita cambios.
 
+
+### P4.3 — Registro detallado de la construcción: del host vacío a una API compatible
+
+La construcción de la API debe realizarse por etapas porque cada etapa comprueba una decisión específica. Mantén abierta una terminal para el proceso servidor y otra para enviar peticiones. No incorpores EF Core ni utilices una base de datos: queremos que la evidencia de cada estado corresponda a un endpoint, una ruta o una regla HTTP.
+
+**Estado A: el host.** Después de crear la plantilla web, Program.cs configura la aplicación y publica una ruta raíz de bienvenida. Compila y arranca. Si el proceso informa de que el puerto está ocupado, detén la API suministrada: no modifiques Blazor para resolver un conflicto de puertos del servidor.
+
+**Estado B: GET del catálogo.** Introduce el modelo ProductoApi y los dos productos iniciales. Registra GET /api/productos y comprueba que devuelve un arreglo JSON con Cuaderno y Lápiz. No confundas la respuesta de la raíz con el catálogo: son endpoints distintos. Si GET /api/productos devuelve 404, revisa la ruta realmente registrada.
+
+**Estado C: detalle por ID.** Añade GET /api/productos/{id:int}. Ejecuta una consulta con ID 1 y comprueba que devuelve Cuaderno; después solicita ID 999 y comprueba 404. En este punto el código del endpoint puede ser correcto aunque la colección no incluya el ID solicitado. No interpretes un 404 como prueba de que el servidor está apagado.
+
+**Estado D: DTO de creación.** Declara CrearProductoApi con Nombre y Precio, sin Id. El cliente que crea un recurso todavía no conoce el identificador asignado. El enlace JSON debe permitir que el servidor construya el objeto de entrada a partir del cuerpo de POST.
+
+**Estado E: validación.** Antes de crear el recurso, comprueba que Nombre contiene texto significativo y que Precio es mayor que cero. Una entrada inválida produce 400 y no modifica la colección. Ejecuta un POST inválido y comprueba que el siguiente GET conserva el mismo número de objetos que antes.
+
+**Estado F: asignación de identidad.** Utiliza un contador compartido inicializado en 2 e Interlocked.Increment para obtener el identificador de una nueva creación. El producto devuelto debe contener ese ID real, que también se utiliza al formar la dirección Location. La colección temporal se actualiza con el objeto creado y el servidor responde 201.
+
+**Estado G: compatibilidad con Blazor.** Detén la API suministrada e inicia la API creada por el alumno en el mismo puerto. Abre /catalogo-remoto. Si los dos servidores cumplen el contrato, no necesitas reescribir el componente ni ProductosApiService. Si falla, compara las URL y los campos JSON antes de cambiar código de UI.
+
+**Estado H: resumen.** Después de dominar el contrato base, añade GET /api/productos/resumen. Debe devolver cantidad y precioTotal calculados a partir del contenido actual. No modifiques GET /api/productos: el cliente continúa esperando una lista, no un objeto resumen.
+
+**Estado I: variante de reto.** Sustituye temporalmente el endpoint de resumen por la variante que añade hayProductos. No registres simultáneamente las dos versiones del mismo método y ruta. Comprueba el JSON y restablece el estado base si vas a continuar con los ejemplos de otros apartados.
+
+### Código del proyecto suministrado: guía de correspondencia con la API creada
+
+Este es el Program.cs que acompaña al ejercicio. La API de 4.1 funciona desde el inicio para que los ejercicios de consumo no dependan de P4.3. En 4.3 puede compararse con el servidor reconstruido y localizar la equivalencia de sus endpoints. Los comentarios identifican el paso y el reto, que se activan por separado.
+
+
+~~~csharp
+using System.Collections.Concurrent;
+
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+// P4.1: API de laboratorio disponible antes de comenzar el cliente.
+// En P4.3 se explicará y modificará este mismo proyecto.
+var productos = new ConcurrentDictionary<int, ProductoApi>();
+productos[1] = new ProductoApi(1, "Cuaderno", 2.50m);
+productos[2] = new ProductoApi(2, "Lápiz", 0.80m);
+var siguienteId = 2;
+
+// GET 200 + catálogo JSON.
+app.MapGet("/api/productos", () =>
+    Results.Ok(productos.Values.OrderBy(p => p.Id)));
+
+// POST 400 para entradas inválidas; 201 y recurso creado si es válido.
+app.MapPost("/api/productos", (CrearProductoApi entrada) =>
+{
+    if (string.IsNullOrWhiteSpace(entrada.Nombre) || entrada.Precio <= 0)
+        return Results.BadRequest("Nombre y precio deben ser válidos.");
+
+    var id = Interlocked.Increment(ref siguienteId);
+    var creado = new ProductoApi(id, entrada.Nombre.Trim(), entrada.Precio);
+    productos[id] = creado;
+    return Results.Created($"/api/productos/{id}", creado);
+});
+
+// GET 404 sirve como ejemplo de respuesta no satisfactoria.
+app.MapGet("/api/productos/{id:int}", (int id) =>
+    productos.TryGetValue(id, out var producto)
+        ? Results.Ok(producto)
+        : Results.NotFound());
+
+
+// PASO 4.3.3 INICIO — quitar los delimitadores de comentario para activar la ruta.
+/*
+app.MapGet("/api/productos/resumen", () =>
+{
+    var actuales = productos.Values.ToArray();
+    return Results.Ok(new { cantidad = actuales.Length, precioTotal = actuales.Sum(p => p.Precio) });
+});
+*/
+// PASO 4.3.3 FIN
+
+// RETO 4.3.5 INICIO — variante alternativa; no activar junto al paso 4.3.3.
+/*
+app.MapGet("/api/productos/resumen", () =>
+{
+    var actuales = productos.Values.ToArray();
+    return Results.Ok(new
+    {
+        cantidad = actuales.Length,
+        precioTotal = actuales.Sum(p => p.Precio),
+        hayProductos = actuales.Length > 0
+    });
+});
+*/
+// RETO 4.3.5 FIN
+
+app.Run();
+
+record ProductoApi(int Id, string Nombre, decimal Precio);
+record CrearProductoApi(string Nombre, decimal Precio);
+
+~~~
+
+
+### Banco de pruebas HTTP reproducible
+
+#### Prueba 1 — Catálogo inicial
+
+Arranca la API sin haber creado productos adicionales y consulta GET /api/productos. La respuesta debe ser una colección de dos elementos. Registra sus identificadores y precios. Si observas más elementos, comprueba si estás reutilizando un proceso que ya recibió POST; reiniciarlo restaura el estado inicial de memoria.
+
+#### Prueba 2 — Identificador existente
+
+Consulta GET /api/productos/1. Comprueba que el JSON contiene id 1 y nombre Cuaderno. Esto demuestra que la plantilla de ruta y la lectura del diccionario están funcionando juntas.
+
+#### Prueba 3 — Identificador inexistente
+
+Consulta GET /api/productos/999. Comprueba que el servidor responde 404. El criterio de éxito de esta prueba no es recibir un objeto; es que un recurso inexistente se representa como no encontrado y no como error interno 500.
+
+#### Prueba 4 — Cuerpo de creación correcto
+
+Prepara nuevo-producto.json con nombre Regla y precio 1.75, y envíalo con curl.exe usando Content-Type application/json. La respuesta debe ser 201 y contener un producto con un ID nuevo. Comprueba la cabecera Location, que proporciona la dirección del recurso. Si el ID no coincide con el esperado en una ejecución limpia, observa si ha habido altas previas.
+
+#### Prueba 5 — GET después de POST
+
+Consulta GET /api/productos inmediatamente después del alta. La colección debe contener Regla. El servidor conserva los productos durante la vida del proceso, sin intervención de la página Blazor. Si no aparece, comprueba que GET y POST consultan el mismo diccionario de memoria y no listas creadas por separado.
+
+#### Prueba 6 — Nombre vacío
+
+Envía un cuerpo válido como JSON pero con nombre vacío. Se espera 400. Comprueba después la colección: no debe haber aumentado. Si aumenta, la validación está situada demasiado tarde o no cubre la regla definida.
+
+#### Prueba 7 — Solo espacios en el nombre
+
+Envía un nombre compuesto únicamente por espacios. También debe ser rechazado, porque string.IsNullOrWhiteSpace contempla el caso. Si se acepta, revisa que la comprobación de la API utiliza el método esperado y no solo una comparación con cadena vacía.
+
+#### Prueba 8 — Precio cero
+
+Envía un precio igual a cero. Se espera 400. Esta prueba es independiente de la validación previa de Blazor; puedes enviarla mediante una herramienta HTTP directa aunque el formulario de la página no permita hacerlo.
+
+#### Prueba 9 — Precio negativo
+
+Envía un valor menor que cero. Se espera 400. No es necesario que el nombre sea inválido: cada caso debe aislar una condición de rechazo. Cuando se prueban varias entradas inválidas simultáneamente, cuesta saber cuál de las reglas respondió.
+
+#### Prueba 10 — Nombre con espacios alrededor
+
+Envía un nombre con espacios al principio y al final, manteniendo un precio válido. La API utiliza Trim y devuelve el nombre sin esos espacios. Consulta el producto individual y comprueba que conserva el valor normalizado.
+
+#### Prueba 11 — Ruta inexistente
+
+Consulta una ruta no registrada, como GET /api/catalogo. Se espera 404. Esto no es lo mismo que solicitar un producto ID 999, pero ambos escenarios pueden producir el mismo estado protocolario: uno se debe al enrutamiento y el otro a la lógica del recurso.
+
+#### Prueba 12 — URL del resumen antes de activarlo
+
+Consulta GET /api/productos/resumen antes de añadir el endpoint. La ruta no está disponible. Esta observación representa el punto de partida del paso 4.3.3: cuando actives el código, habrá un cambio observable y no solo un bloque de código escrito.
+
+#### Prueba 13 — Resumen después de activarlo
+
+Activa exclusivamente el bloque PASO 4.3.3. Reinicia y consulta el resumen. Con los dos productos iniciales, cantidad debe ser 2 y precioTotal 3.30. La forma del cuerpo debe ser un objeto, no una lista de productos.
+
+#### Prueba 14 — Recalcular tras el alta
+
+Con el resumen activo, crea Regla por 1.75 y vuelve a consultarlo. La cantidad debe pasar a 3 y el precio total a 5.05. Así compruebas que el endpoint calcula a partir del diccionario actual y no muestra números fijos.
+
+#### Prueba 15 — Variante hayProductos
+
+Desactiva el bloque PASO 4.3.3 y activa RETO 4.3.5. Vuelve a compilar y consulta el resumen. Debe incluir hayProductos con valor true mientras la colección tenga productos. No mantengas dos endpoints GET para la misma ruta, porque el objetivo del reto es modificar un contrato de salida y no provocar ambigüedad de endpoints.
+
+#### Prueba 16 — Persistencia intencionadamente ausente
+
+Crea un producto y verifica que aparece en GET. Detén completamente la API y arráncala de nuevo. El catálogo debe regresar a Cuaderno y Lápiz. La ausencia de persistencia no es un fallo del código: es un límite conocido para este ejercicio de HTTP y memoria.
+
+#### Prueba 17 — Compatibilidad sin recompilar Blazor
+
+Ejecuta la API construida desde cero en el mismo puerto y abre la aplicación Blazor de P4.2. Consulta y crea productos. El cliente debe seguir funcionando. Si no lo hace, compara la respuesta JSON y la ruta que utiliza el servicio. En este laboratorio, sustituir el servidor conservando el contrato no debe requerir modificar el componente Razor.
+
+### Tabla de evidencias de P4.3
+
+| Operación | Petición | Estado esperado | Recurso final |
+|---|---|---:|---|
+| Consultar listado | GET /api/productos | 200 | Colección |
+| Consultar ID 1 | GET /api/productos/1 | 200 | Objeto |
+| Consultar ID 999 | GET /api/productos/999 | 404 | No encontrado |
+| Crear válido | POST /api/productos | 201 | Objeto con nuevo ID |
+| Crear nombre vacío | POST /api/productos | 400 | No se crea |
+| Crear precio cero | POST /api/productos | 400 | No se crea |
+| Resumen activado | GET /api/productos/resumen | 200 | Cantidad y precioTotal |
+| Resumen con reto | GET /api/productos/resumen | 200 | Incluye hayProductos |
+| Proceso reiniciado | GET /api/productos | 200 | Dos elementos iniciales |
+
+Esta tabla permite evaluar el contrato sin confundir éxito de compilación con éxito funcional. Es recomendable escribir el resultado observado junto a cada prueba cuando el alumno la ejecuta, aunque no incorporaremos un sistema de auditoría a su código fuente.
+
 ### Resultado del ejercicio
 
 Ahora puedes recorrer una petición desde Blazor hasta la API y viceversa, interpretar sus códigos HTTP y añadir un endpoint nuevo sin modificar rutas existentes. La API continúa funcionando en memoria: al reiniciarla se pierde todo lo creado durante la ejecución.
