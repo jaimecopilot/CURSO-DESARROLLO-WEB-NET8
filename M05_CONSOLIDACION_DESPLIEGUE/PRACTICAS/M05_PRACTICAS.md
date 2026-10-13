@@ -1239,6 +1239,184 @@ El resultado que debes ser capaz de explicar es una secuencia completa: arranque
 
 
 
+
+### Paso P5.3.11. Preparar un recorrido de solicitudes con evidencia suficiente
+
+**Fundamento:** 5.3.23–5.3.25. El objetivo de la actividad no es limitarse a abrir la portada. Queremos demostrar que la misma publicación puede servir una vista MVC, una acción de controlador y un recurso estático.
+
+Desde la raíz del repositorio identifica la publicación preparada en P5.2. Si no existe, vuelve a ejecutar `dotnet publish` con el proyecto MVC original y una salida conocida bajo `.work\M05`. No crees una nueva solución MVC.
+
+En una terminal PowerShell configura explícitamente el escenario sin LocalDB para aislar el hospedaje:
+
+~~~powershell
+$salida = ".\.work\M05\publicacion-mvc"
+$env:Despliegue__SinLocalDb = "true"
+Push-Location $salida
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5091
+~~~
+
+Mantén abierta la terminal. Observa la dirección de escucha que anuncia el host. Si la configuración efectiva utiliza otra dirección, no continúes solicitando 5091 sin comprobar la causa.
+
+En otra terminal, desde cualquier carpeta, consulta la página inicial:
+
+~~~powershell
+curl.exe -i http://localhost:5091/
+~~~
+
+Localiza una respuesta HTML correspondiente al recorrido inicial de MVC A. Una página con estado 200 es la primera evidencia, no el final de la prueba.
+
+Solicita la acción de estado:
+
+~~~powershell
+curl.exe -i http://localhost:5091/Productos/Estado
+~~~
+
+Debe devolver el texto `Catalogo MVC disponible`. La acción no consulta SQL Server; por eso constituye un buen punto de observación del host y del routing.
+
+Solicita por último el CSS:
+
+~~~powershell
+curl.exe -i http://localhost:5091/css/site.css
+~~~
+
+Esta respuesta permite comprobar que se ha publicado un recurso bajo `wwwroot` y que el middleware lo sirve. Si falla mientras Estado funciona, la causa no es necesariamente el puerto: el proceso sí está atendiendo otras rutas.
+
+### Paso P5.3.12. Distinguir una ruta inexistente de un servidor inexistente
+
+**Fundamento:** 5.3.30 y 5.3.33. Con Kestrel todavía iniciado solicita una ruta que no figura en MVC A:
+
+~~~powershell
+curl.exe -i http://localhost:5091/ruta-que-no-existe
+~~~
+
+Es razonable esperar un 404. Observa el código, no solo el aspecto del navegador. La respuesta demuestra que un proceso recibió la solicitud, pero no existe un endpoint que produzca el recurso esperado.
+
+Ahora detén Kestrel con Ctrl+C. Después, desde otra terminal, repite la consulta de Estado:
+
+~~~powershell
+curl.exe -i http://localhost:5091/Productos/Estado
+~~~
+
+Si no hay ningún otro proceso utilizando 5091, obtendrás un error de conexión en lugar de una respuesta 404 de MVC. No atribuyas automáticamente un código HTTP a un fallo en el que no se recibió respuesta alguna.
+
+**Pregunta razonada:** ¿por qué el 404 demuestra más acerca de la conectividad que una ventana del navegador que simplemente informa de que no puede establecer conexión? Porque el 404 es una respuesta generada después de que el servidor atienda una solicitud, mientras que el segundo caso puede no haber llegado a ningún endpoint.
+
+Vuelve a iniciar Kestrel antes de seguir y comprueba que Estado responde otra vez. La capacidad de recuperarse sin reconstruir el proyecto es parte del aprendizaje.
+
+### Paso P5.3.13. Investigar qué proceso escucha antes de detenerlo
+
+**Fundamento:** 5.3.28. Con el servidor en marcha en 5091 abre una tercera terminal PowerShell y ejecuta:
+
+~~~powershell
+$escuchas = Get-NetTCPConnection -State Listen -LocalPort 5091 -ErrorAction SilentlyContinue
+$escuchas | Select-Object LocalAddress, LocalPort, OwningProcess
+~~~
+
+Cuando exista una fila, consulta su proceso:
+
+~~~powershell
+$escuchas | ForEach-Object {
+    Get-Process -Id $_.OwningProcess -ErrorAction SilentlyContinue |
+        Select-Object Id, ProcessName, Path
+}
+~~~
+
+Compara el resultado con la terminal donde ejecutaste `dotnet CursoWeb.Mvc.dll`. No elimines procesos automáticamente por identificador. Si el puerto pertenece a otra aplicación y no la controlas, elige otro puerto para el ensayo y comunica el cambio al docente.
+
+Esta actividad corrige una práctica peligrosa: detener cualquier proceso que aparezca usando un puerto. El dato `OwningProcess` es una pista para investigar, no una autorización para cerrar aplicaciones ajenas.
+
+### Paso P5.3.14. Distinguir la ejecución de proyecto de la ejecución de publicación
+
+**Fundamento:** 5.3.31. Tenemos dos comandos que pueden producir la misma interfaz:
+
+~~~powershell
+dotnet run --project .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\MVC\CursoWeb.Mvc\CursoWeb.Mvc.csproj --no-launch-profile --urls http://localhost:5091
+~~~
+
+~~~powershell
+Push-Location .\.work\M05\publicacion-mvc
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5091
+~~~
+
+No ejecutes ambos a la vez en el mismo puerto. El primer comando utiliza el contexto de proyecto y puede compilar; el segundo ejecuta los artefactos publicados. Si la versión de archivos es la misma, la página recibida puede verse idéntica, pero la fuente del proceso es distinta.
+
+Realiza una prueba secuencial: ejecuta la primera modalidad, abre Estado, detén el proceso; ejecuta la segunda, abre Estado, detén el proceso. Anota qué cambió y qué se mantuvo. Los controladores, vistas y rutas pertenecen a la misma MVC A. El comando y la carpeta desde la que se ejecutan sí han cambiado.
+
+**Corrección de una interpretación frecuente:** Kestrel no aparece solo en la ejecución desde Visual Studio. También puede atender solicitudes al ejecutar la publicación. El mecanismo HTTP es el mismo, aunque el camino para crear e iniciar los artefactos sea distinto.
+
+### Paso P5.3.15. Provocar una colisión de puerto y verificar que la primera instancia sigue viva
+
+**Fundamento:** 5.3.26–5.3.27. Utiliza el modo sin base para que el experimento no dependa de una instancia SQL Server. Abre una terminal y ejecuta la DLL publicada en 5091. Comprueba Estado por HTTP.
+
+Sin cerrar la primera, abre otra terminal con la misma carpeta de publicación y el mismo puerto. El segundo proceso debería informar de una dirección ocupada, siempre que llegue a la fase de escucha. No cambies la ruta Home/Index ni el programa fuente para resolverlo.
+
+Después del fallo del segundo proceso, solicita otra vez:
+
+~~~powershell
+curl.exe -i http://localhost:5091/Productos/Estado
+~~~
+
+Debe continuar respondiendo el primero. Así demuestras que la colisión del segundo arranque no equivale a la caída de la instancia inicial.
+
+Detén el segundo proceso si continuara ejecutándose y libera el puerto principal solo al acabar el ensayo. No dejes dos terminales que parezcan estar sirviendo la misma aplicación.
+
+### Paso P5.3.16. Repetir el ensayo en un puerto alternativo sin cambiar una vista Razor
+
+**Fundamento:** 5.3.29. Mantén la instancia original en 5091. En otra terminal inicia la misma DLL en 5094:
+
+~~~powershell
+$env:Despliegue__SinLocalDb = "true"
+Push-Location .\.work\M05\publicacion-mvc
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5094
+~~~
+
+En una tercera terminal compara:
+
+~~~powershell
+curl.exe -i http://localhost:5091/Productos/Estado
+curl.exe -i http://localhost:5094/Productos/Estado
+~~~
+
+Ambas deberían devolver el mismo texto. No hemos creado otro proyecto, sino otra instancia de la misma publicación. La dirección de escucha pertenece al proceso y no exige duplicar las acciones MVC.
+
+Detén la instancia 5094 y comprueba que 5091 sigue respondiendo. Ahora detén también 5091. El resultado final es que ambos puertos quedan libres para otras prácticas. Ejecuta `Pop-Location` en las terminales en que lo utilizaste y elimina la variable temporal de cada una.
+
+### Paso P5.3.17. Describir por qué una portada correcta no acredita un catálogo persistente
+
+**Fundamento:** 5.3.32. Vuelve a iniciar la publicación en modo sin LocalDB, esta vez únicamente durante la comprobación:
+
+~~~powershell
+$env:Despliegue__SinLocalDb = "true"
+Push-Location .\.work\M05\publicacion-mvc
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5091
+~~~
+
+Abre `/`, `/Productos/Estado` y `/Productos` en pestañas distintas. Las dos primeras rutas deben funcionar y la última debe devolver 503. Es el resultado definido por el proyecto: el middleware impide mostrar un CRUD inexistente en ese modo de ejecución.
+
+Describe por qué no es correcto afirmar «la aplicación no funciona» sin precisar qué parte falla. También sería incorrecto afirmar «el CRUD funciona» por la portada. Lo que sabemos es que el hospedaje permite servir determinadas rutas mientras una funcionalidad dependiente de SQL Server está deshabilitada.
+
+No introduzcas SQLite, no modifiques `UseSqlServer` y no elimines el middleware de protección. Eso alteraría la tecnología acordada y eliminaría el límite que este ejercicio se propone reconocer.
+
+### Paso P5.3.18. Resolver tres incidentes a partir de observaciones diferentes
+
+**Incidente A:** la ejecución falla antes de mostrar una dirección de escucha. Se informa de un error de conexión a LocalDB. Antes de intervenir sobre Kestrel, comprueba si se utilizó el modo normal y si la base existe bajo el usuario actual. Para verificar solo el hospedaje puede activarse explícitamente el modo sin base, sin fingir que el CRUD se ha probado.
+
+**Incidente B:** la aplicación anuncia el puerto 5091 y la portada funciona, pero `/ruta-que-no-existe` devuelve 404. No reconstruyas el proyecto. El servidor ha respondido correctamente que esa ruta no está definida. Para comprobar MVC utiliza una ruta conocida, como Estado.
+
+**Incidente C:** Estado devuelve el texto esperado en 5094, pero el alumno sigue abriendo 5091. No cambies el controlador para que «responda» al puerto antiguo. Comprueba cuál fue la dirección indicada al iniciar el proceso y actualiza la URL solicitada.
+
+Cada incidente exige identificar un punto diferente del recorrido: dependencia previa, selección de ruta y dirección efectiva de escucha. La explicación forma parte del resultado, no es una pregunta ornamental.
+
+### Paso P5.3.19. Repetición final sin ayudas de copia
+
+Cierra las terminales de procesos previos. Desde la raíz del repositorio, sin modificar código, prepara la publicación si no existe; inicia la DLL en un puerto local libre y anota ese puerto. Después solicita una vista, una acción de texto y una hoja CSS. Observa también la respuesta de Productos bajo la configuración elegida y explica por qué puede ser 503.
+
+Detén el proceso y comprueba que no has dejado un listener de tu aplicación ocupando el puerto. Esta repetición final reconstruye el ciclo de vida completo: artefactos, proceso, dirección, solicitud, respuesta e interrupción controlada.
+
+**Estado de salida:** una publicación MVC A que ha respondido por Kestrel y cuyo resultado se puede vincular a un proceso y a una configuración determinados. IIS reutilizará sus artefactos y rutas, pero añadirá sitio, pool y módulo ASP.NET Core.
+
+
+
 ### Diagnóstico P5.3: qué comprobar y por qué
 
 | Problema | Comprobación directa | Corrección proporcionada |
