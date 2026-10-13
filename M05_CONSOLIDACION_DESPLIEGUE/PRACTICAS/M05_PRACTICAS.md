@@ -1161,6 +1161,115 @@ Estas tres situaciones son una evaluación formativa completa del concepto publi
 
 
 
+
+### Paso P5.2.17. Publicar MVC A desde Visual Studio sin cambiar de proyecto
+
+**Fundamento:** 5.2.21–5.2.24. Hemos utilizado `dotnet publish` desde PowerShell. Ahora reproduciremos el mismo concepto mediante Visual Studio, para que el alumno reconozca la correspondencia entre la experiencia gráfica del entorno y los artefactos de publicación.
+
+Abre en Visual Studio la solución o el proyecto que corresponde a MVC A dentro de `M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/MVC/CursoWeb.Mvc`. No abras accidentalmente la API auxiliar ni Blazor B: esos proyectos pertenecen al recorrido P5.1 y no son el objeto de despliegue de P5.2–P5.5.
+
+En el Explorador de soluciones selecciona **el proyecto web MVC**, no el nodo de la solución si aparecen otros proyectos. Utiliza la opción «Publicar» del menú contextual del proyecto. Crea un perfil nuevo y elige como destino una **carpeta**. No selecciones Azure, un contenedor ni IIS en esta fase, porque el objetivo es generar primero los archivos publicados para inspeccionarlos.
+
+Indica una carpeta de ensayo identificable, por ejemplo una subcarpeta de `.work\M05\publicacion-vs`, y elige una configuración de publicación Release dependiente del framework cuando el asistente la permita. Conserva las opciones de plataforma compatibles con .NET 8; no conviertas el proyecto a otra versión del framework.
+
+El asistente puede variar entre versiones de Visual Studio. Lo que importa no es memorizar la posición exacta de cada botón, sino registrar el **tipo de destino** y la **ruta física** que seleccionaste. Si una pantalla de tu versión utiliza otra denominación, no aceptes un destino distinto por su parecido visual: confirma que el resultado será una publicación a carpeta local.
+
+### Paso P5.2.18. Comparar la salida gráfica con la salida de `dotnet publish`
+
+Cuando Visual Studio informe de que la publicación terminó, abre PowerShell desde la raíz del repositorio. Localiza la carpeta que elegiste en el asistente. Si utilizaste la ruta de referencia, prepara una variable:
+
+~~~powershell
+$publicacionVs = ".\.work\M05\publicacion-vs"
+Get-ChildItem $publicacionVs | Select-Object Name, Length
+~~~
+
+Comprueba que el directorio contiene `CursoWeb.Mvc.dll`, `.deps.json`, `.runtimeconfig.json`, archivos de configuración y recursos de `wwwroot`. No supongas que porque se utilizó la interfaz gráfica el resultado dejó de ser una aplicación .NET ejecutable.
+
+Compara esa salida con la generada previamente desde consola:
+
+~~~powershell
+$publicacionCli = ".\.work\M05\publicacion-mvc"
+Get-ChildItem $publicacionCli | Select-Object Name, Length
+~~~
+
+Las carpetas pueden contener diferencias de fecha o de artefactos dependientes del perfil seleccionado. No es necesario que todos los tamaños de archivo sean idénticos para aprender el concepto. Lo importante es que ambas salidas corresponden a una publicación del proyecto web MVC correcto y contienen los recursos necesarios.
+
+Si Visual Studio genera una publicación en otra carpeta distinta de la prevista, revisa primero el perfil y la ruta seleccionada. No copies manualmente archivos sueltos desde `bin` a un directorio cualquiera para ocultar la discrepancia.
+
+### Paso P5.2.19. Ejecutar la publicación creada desde Visual Studio
+
+**Fundamento:** 5.2.22. La interfaz gráfica ha producido una carpeta. Todavía no existe necesariamente ningún servidor HTTP atendiendo su contenido. Vamos a iniciar la DLL desde la salida gráfica exactamente como hicimos con la CLI.
+
+Desde PowerShell, con cualquier instancia previa de MVC detenida:
+
+~~~powershell
+$env:Despliegue__SinLocalDb = "true"
+Push-Location ".\.work\M05\publicacion-vs"
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5094
+~~~
+
+Abre desde el navegador la dirección `http://localhost:5094/`. Después solicita Estado y el CSS publicado. El modo sin base permite concentrarse en el alojamiento sin necesitar una instancia LocalDB bajo una identidad diferente.
+
+Observa que la aplicación no necesita ejecutarse desde Visual Studio una vez publicada. La salida creada por su asistente tiene las mismas responsabilidades de ejecución que la salida producida mediante `dotnet publish`.
+
+Detén el proceso con Ctrl+C, regresa con `Pop-Location` y elimina la variable temporal en esa PowerShell. Si tienes otro proceso MVC abierto en el mismo puerto, libéralo antes de interpretar el resultado de la prueba.
+
+### Paso P5.2.20. Interpretar una publicación creada en el directorio incorrecto
+
+Un alumno cree haber publicado a `.work\M05\publicacion-vs`, pero ese directorio no existe. Visual Studio informó de éxito. ¿Qué paso debe comprobarse primero?
+
+La solución no es cambiar el controlador MVC. Debe revisar el perfil de publicación y la ruta física que figuraba como destino. Una ruta relativa puede haberse interpretado desde el directorio del proyecto o del perfil, por lo que el resultado puede existir en otra ubicación.
+
+Revisar el destino real es más útil que repetir el botón «Publicar» varias veces sin saber dónde se escribirán los artefactos. Cuando se identifica la carpeta correcta, se puede inspeccionar la DLL y los recursos y ejecutar la publicación desde ese directorio.
+
+Este caso es una adaptación del mismo principio enseñado con la CLI: el resultado de la operación depende tanto del proyecto seleccionado como del destino. El editor o la terminal no alteran esa necesidad de precisión.
+
+### Paso P5.2.21. Evitar que el perfil de Visual Studio se confunda con un sitio IIS
+
+Un perfil de publicación a carpeta no crea automáticamente un sitio en Internet Information Services. Genera una salida que después podrá alojarse de distintas maneras. En el siguiente punto esa salida se ejecuta con Kestrel; en P5.4 se coloca en un directorio físico utilizado por IIS; y en P5.5 Docker construye una imagen a partir del proyecto.
+
+Si el alumno elige un perfil de despliegue directo a IIS durante P5.2, habrá mezclado dos conceptos antes de aprenderlos. La secuencia acordada separa las fases para poder comprobar qué significa cada operación.
+
+El perfil tampoco crea automáticamente una instancia SQL Server Express LocalDB en otro equipo. La aplicación conserva su cadena de conexión, pero las condiciones de acceso a la base siguen dependiendo de la identidad y del entorno de ejecución. Esta distinción debe mantenerse cuando se estudie el Application Pool.
+
+### Paso P5.2.22. Comprobar que Visual Studio publicó MVC A y no Blazor B
+
+En cursos con varios proyectos web resulta fácil publicar el proyecto seleccionado por error. Para identificar MVC A, busca en la salida `CursoWeb.Mvc.dll` y solicita una ruta del recorrido MVC, como `/Productos/Estado`.
+
+Una salida de Blazor B tendrá otros ensamblados, componentes y rutas. Aunque ambas aplicaciones utilicen ASP.NET Core, no son intercambiables. No serviremos el catálogo remoto de Blazor para demostrar el hospedaje de la aplicación MVC A.
+
+**Pregunta razonada:** ¿por qué no basta con comprobar que la carpeta publicada contiene algún archivo `.dll`? Porque cualquier proyecto .NET puede producir un ensamblado. Necesitamos vincularlo a la aplicación y a las rutas concretas cuyo despliegue estamos ensayando.
+
+La comprobación del nombre de proyecto, de DLL y de ruta funcional permite corregir una publicación equivocada antes de comenzar IIS o Docker.
+
+### Paso P5.2.23. Distinguir una publicación antigua de una publicación nueva en Visual Studio
+
+Supongamos que el docente modifica el texto de Home/Index, vuelve a publicar desde Visual Studio y sigue viendo la portada anterior en un proceso Kestrel. Hay dos preguntas que deben responderse en orden.
+
+Primero, ¿en qué carpeta dejó Visual Studio la nueva publicación? Comprueba el destino real del perfil. Segundo, ¿qué directorio utiliza el proceso que está respondiendo la URL del navegador? Si continúa ejecutando la carpeta anterior, el contenido visible puede mantenerse antiguo aunque el asistente haya generado archivos nuevos.
+
+No se debe atribuir automáticamente el problema a la caché del navegador, a Entity Framework Core o a los controladores. La relación entre fuente, artefacto y proceso proporciona un diagnóstico más directo.
+
+La práctica P5.2.7 permitió comparar dos versiones con un marcador visible. Puedes utilizar esa experiencia para explicar el caso sin volver a modificar el proyecto.
+
+### Paso P5.2.24. Comparar dos interfaces para una misma operación técnica
+
+La publicación gráfica y la de terminal pueden producir artefactos compatibles para la misma aplicación. La diferencia principal es cómo se expresan las opciones y cómo se observa el resultado.
+
+En PowerShell elegimos proyecto, configuración y salida con argumentos como `-c Release` y `-o`. En Visual Studio elegimos el proyecto y un perfil de publicación a carpeta, y revisamos las opciones del asistente. En ambos casos debemos conocer el destino y el framework objetivo, y después ejecutar una comprobación HTTP independiente si queremos afirmar que la aplicación funciona.
+
+El alumnado debe poder explicar qué gana con la interfaz gráfica y qué aporta la CLI. No es necesario elegir una como universalmente superior. La primera facilita descubrir opciones con guía visual; la segunda permite reproducir una operación con comandos precisos. Ambas requieren comprender qué archivos se generan.
+
+### Paso P5.2.25. Consolidación del proceso antes del hospedaje real
+
+Termina esta ampliación asegurándote de que las carpetas publicadas no se han mezclado con el código fuente. Conserva las salidas de ensayo bajo `.work\M05`, detén los servidores temporales y restaura las variables de entorno utilizadas en las pruebas.
+
+El resultado que debes poder explicar es concreto: un proyecto MVC A fue compilado y publicado tanto desde terminal como desde Visual Studio; los artefactos se inspeccionaron y una DLL publicada atendió rutas HTTP mediante Kestrel.
+
+Ninguna de esas acciones sustituyó el proveedor EF Core SQL Server ni convirtió el proyecto en una aplicación diferente. El siguiente paso es estudiar otros mecanismos de alojamiento manteniendo constante la misma publicación MVC.
+
+
+
 ### Resultado y estado final P5.2
 
 La carpeta `.work\M05\publicacion-mvc` contiene los artefactos de MVC. El alumno sabe identificar qué cambió al publicar: no el código fuente ni las acciones, sino los archivos preparados para ejecutarse fuera de la estructura de desarrollo. No edites la fuente para corregir un problema que solo aparece por una variable del entorno de ejecución.
