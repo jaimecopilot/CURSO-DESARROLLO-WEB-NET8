@@ -1,7 +1,7 @@
 name: M05 - medir PDF canónico sin publicar
 on:
   push:
-    branches: [desarrollo/m05-reescritura-docente-integral]
+    branches: [desarrollo/m05-consolidacion-despliegue]
     paths:
       - 'M05_CONSOLIDACION_DESPLIEGUE/TEORIA/M05_TEORIA.md'
       - 'M05_CONSOLIDACION_DESPLIEGUE/PRACTICAS/M05_PRACTICAS.md'
