@@ -2749,6 +2749,263 @@ Reiniciar la aplicación y abrir `http://localhost:5091/Productos`. Debe aparece
 
 **Por qué activamos el enlace al final:** antes de crear `Detalle(int id)`, el enlace conduciría a una dirección sin acción válida. Ahora se ha comprobado antes el endpoint y después la navegación.
 
+## Construcción íntegra P1.4 — código y archivos que evolucionan
+
+Del catálogo que ya mostraba una lista pasamos a acciones con parámetros, rutas concretas, errores HTTP distinguibles y una ficha individual. Los archivos no modificados se conservan de P1.3; uno de los recursos temporales públicos/privados no se distribuye en los estados siguientes porque el ejercicio de estructura ya terminó. Los archivos que no cambian desde la etapa anterior continúan presentes y se usan exactamente como se explicó entonces.
+
+### P1.4 — Controllers/ProductosController.cs
+
+**Por qué se necesita este archivo.** Es el núcleo de routing: Index devuelve una colección, Estado produce texto y Detalle recibe un id. Las acciones con atributos crean rutas adicionales sin eliminar la convención básica. Analiza de forma separada BadRequest, NotFound y View. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
+
+~~~csharp
+using CursoWeb.Mvc.Models;
+using Microsoft.AspNetCore.Mvc;
+
+namespace CursoWeb.Mvc.Controllers;
+
+public class ProductosController : Controller
+{
+    // PASO 1.4.1 — Reutilización de los datos fijos por Index y Detalle.
+    // No hay base de datos: cada consulta genera una lista de ejemplo.
+    private static IReadOnlyList<Producto> ObtenerProductosEjemplo() =>
+        new List<Producto>
+        {
+            new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+            // RETO 1.2 (variante histórica del capítulo anterior):
+            // new() { Id = 1, Nombre = "Bloc", Precio = 4.50m },
+            new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+            new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+        };
+
+    [HttpGet]
+    public IActionResult Index()
+    {
+        return View(ObtenerProductosEjemplo());
+    }
+
+    // PASO 1.4.2: añadir acción sin modificar la ruta convencional.
+    /* PASO 1.4.2 INICIO
+    [HttpGet]
+    public IActionResult Estado()
+    {
+        return Content("Catalogo MVC disponible", "text/plain");
+    }
+    PASO 1.4.2 FIN */
+
+    // PASO 1.4.3: valor id desde la ruta; distinguir 200, 400 y 404.
+    /* PASO 1.4.3 INICIO
+    [HttpGet]
+    public IActionResult Detalle(int id)
+    {
+        if (id <= 0)
+        {
+            return BadRequest("El identificador debe ser mayor que cero.");
+        }
+
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        if (producto is null)
+        {
+            return NotFound();
+        }
+
+        return View(producto);
+    }
+    PASO 1.4.3 FIN */
+
+    // PASO 1.4.4: la ruta absoluta definida por atributos
+    // "/catalogo/ficha/{id:int}" exige un segmento que sea entero.
+    /* PASO 1.4.4 INICIO
+    [HttpGet("/catalogo/ficha/{id:int}")]
+    public IActionResult Ficha(int id)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        if (producto is null)
+        {
+            return NotFound();
+        }
+
+        return View("Detalle", producto);
+    }
+    PASO 1.4.4 FIN */
+
+    // APLICACION 1.4 — Escribe aquí una acción propia BuscarPorNombre(string nombre).
+    // Utiliza [HttpGet("/catalogo/buscar/{nombre}")], busca sin distinguir
+    // mayúsculas en ObtenerProductosEjemplo(), devuelve NotFound() si no hay
+    // coincidencia y reutiliza View("Detalle", producto) si existe.
+    // No copies el método Detalle: resuelve tú mismo el enlace del parámetro.
+    //
+    // RETO 1.4: comparar un resultado JSON de MVC con una vista HTML.
+    /* RETO 1.4 INICIO
+    [HttpGet("/catalogo/resumen/{id:int}")]
+    public IActionResult Resumen(int id)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        if (producto is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(new { producto.Id, producto.Nombre });
+    }
+    RETO 1.4 FIN */
+}
+~~~
+
+**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.4. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+
+### P1.4 — Program.cs
+
+**Por qué se necesita este archivo.** Revisa la configuración de rutas y middleware, y qué parte de la URL se convierte en acción y en parámetro. La declaración del patrón convencional interactúa con los atributos del controlador. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
+
+~~~csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// PASO 1.1.2 — Servicios necesarios para controladores MVC y vistas Razor.
+builder.Services.AddControllersWithViews();
+var app = builder.Build();
+
+// PASO 1.3.3 completado: el valor procede de appsettings.json.
+app.Logger.LogInformation("P1.3 configuracion: {Nombre}", app.Configuration["Curso:Nombre"]);
+
+app.UseStaticFiles();
+app.UseRouting();
+
+// PASO 1.4.1: ruta convencional. "id?" indica que el segmento es opcional.
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.Run();
+~~~
+
+**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.4. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+
+### P1.4 — Views/Productos/Detalle.cshtml
+
+**Por qué se necesita este archivo.** Nueva vista tipada para un producto: no recibe la lista completa y presenta las propiedades del objeto que Detalle ha elegido. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Detalle del producto";
+}
+<h1 id="titulo-detalle">1.4 | Detalle de producto</h1>
+<dl id="detalle-producto">
+    <dt>Identificador</dt><dd id="detalle-id">@Model.Id</dd>
+    <dt>Nombre</dt><dd id="detalle-nombre">@Model.Nombre</dd>
+    <dt>Precio</dt><dd id="detalle-precio">@Model.Precio.ToString("0.00") €</dd>
+</dl>
+<p><a href="/Productos">Volver al catálogo</a></p>
+~~~
+
+**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.4. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+
+### P1.4 — Views/Productos/Index.cshtml
+
+**Por qué se necesita este archivo.** Incorpora enlaces que incluyen el Id del producto y conserva el listado. La URL generada debe corresponder con una acción capaz de localizar el mismo objeto. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+@{
+    ViewData["Title"] = "Productos y responsabilidades MVC";
+}
+
+<h1>1.2 | Modelo, Vista y Controlador</h1>
+<p id="proposito-vista">La vista decide cómo presentar los datos, pero no inventa el catálogo.</p>
+@if (Model is null)
+{
+    <p id="sin-modelo">El controlador todavía no ha entregado una lista a la vista.</p>
+}
+else
+{
+    <p id="numero-productos">El controlador ha enviado <strong>@Model.Count</strong> productos.</p>
+    <ul id="listado-productos">
+    @foreach (var producto in Model)
+    {
+        <li data-id="@producto.Id">
+            @producto.Nombre — @producto.Precio.ToString("0.00") €
+            @* PASO 1.4.5 (inicio)
+            <a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
+            PASO 1.4.5 (fin) *@
+        </li>
+    }
+    </ul>
+}
+~~~
+
+**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.4. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+
+### P1.4 — Views/Shared/_Layout.cshtml
+
+**Por qué se necesita este archivo.** Mantiene el acceso a las páginas anteriores y prepara la navegación del nuevo escenario de detalle, sin duplicar la estructura HTML. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
+
+~~~cshtml
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Curso Web .NET 8</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+    <link rel="stylesheet" href="/css/catalogo.css" />
+</head>
+<body>
+    <header>
+        <nav aria-label="Navegación principal">
+            <a href="/">Inicio</a>
+            <a href="/Productos">Productos</a>
+            <a href="/recursos/guia-publica.txt">Guía pública</a>
+            @* RETO 1.3 — Variante opcional conservada de 1.3.
+            <a href="/recursos/aviso-laboratorio.txt">Aviso de laboratorio</a>
+            RETO 1.3 (fin) *@
+        </nav>
+    </header>
+    <main class="container">
+        @RenderBody()
+    </main>
+    <footer>Curso ASP.NET Core MVC · .NET 8</footer>
+</body>
+</html>
+~~~
+
+**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.4. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+
+### P1.4 — README.md
+
+**Por qué se necesita este archivo.** Describe los casos HTTP que se ensayan y qué alternativas están comentadas. Es apoyo docente y no define un endpoint. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
+
+~~~markdown
+# P1.4 — Controladores, acciones, parámetros y routing
+
+**AUTOR: JAIME GALLO**
+
+Este proyecto es la evolución del MVC de 1.3. El catálogo y las páginas anteriores siguen activos. La lista fija se ha extraído a `ObtenerProductosEjemplo()` para reutilizar los mismos productos sin base de datos.
+
+## Ejecutar
+
+Desde esta carpeta:
+
+~~~bash
+dotnet restore
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+En el estado inicial funcionan `/` y `/Productos`, pero aún no se han habilitado Estado, Detalle ni Ficha.
+
+## Pasos activables
+
+- **1.4.1:** identificar la ruta convencional en `Program.cs` y `ObtenerProductosEjemplo()` en `Controllers/ProductosController.cs`.
+- **1.4.2:** retirar las líneas delimitadoras del comentario `PASO 1.4.2` del controlador. Comprobar `GET /Productos/Estado` (200, texto).
+- **1.4.3:** retirar los delimitadores del comentario `PASO 1.4.3`. Comprobar `/Productos/Detalle/2` (200, HTML), `/Productos/Detalle/99` (404), `/Productos/Detalle/0` (400). La vista `Views/Productos/Detalle.cshtml` ya existe.
+- **1.4.4:** retirar los delimitadores del bloque `PASO 1.4.4`. La ruta por atributo `/catalogo/ficha/{id:int}` admite enteros, no texto arbitrario.
+- **1.4.5:** en `Views/Productos/Index.cshtml`, retirar los delimitadores del comentario Razor `PASO 1.4.5` para activar tres enlaces, uno por producto.
+- **RETO 1.4:** retirar las líneas delimitadoras de `RETO 1.4` en el controlador; `GET /catalogo/resumen/2` devuelve JSON; `/catalogo/resumen/99` devuelve 404. Un segmento no entero tampoco coincide con la plantilla.
+
+Los bloques están **incluidos en este proyecto** y se explican con el código completo en la sección P1.4 de `../../../PRACTICAS/M01_PRACTICAS.md`.
+~~~
+
+**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.4. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+
 ## Aplicación autónoma P1.4 — diseñar una búsqueda por nombre y reutilizar una vista
 
 Los pasos guiados ya enseñan a mostrar un detalle por identificador, responder 400 cuando el identificador no es aceptable y devolver 404 si el producto no existe. También has utilizado una ruta por atributos y has generado enlaces desde el catálogo. Ahora queremos resolver una necesidad que no estaba implementada: **abrir la ficha de un producto escribiendo su nombre en una URL**, sin duplicar la vista y sin convertir el controlador en una API diferente.
@@ -3579,6 +3836,300 @@ Una explicación adecuada del reto tiene que cubrir ambos resultados: presencia 
 **Cambio C: «El precio de Lápiz cambia en los datos».** El valor se encuentra en la fuente de datos preparada por el controlador. No debes escribir otro precio fijo en la parcial para simular que has cambiado el modelo.
 
 Este análisis permite separar cambios de datos, cambios de contenido compartido y cambios de estructura de página.
+
+## Construcción íntegra P1.5 — código y archivos que evolucionan
+
+La teoría de Razor muestra el marcado condicional, el modelo tipado, el layout y la parcial reutilizable. En P1.5 no creamos otro catálogo: reutilizamos los endpoints de 1.4 y cambiamos cómo se compone su HTML. Un cambio de diseño no debe desactivar las rutas o los casos de error ya aprendidos. Los archivos que no cambian desde la etapa anterior continúan presentes y se usan exactamente como se explicó entonces.
+
+### P1.5 — Controllers/ProductosController.cs
+
+**Por qué se necesita este archivo.** Conserva Index, Estado, Detalle y Ficha, además de variantes opcionales identificadas. No se elimina el comportamiento HTTP mientras se trabaja en la presentación Razor. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
+
+~~~csharp
+using CursoWeb.Mvc.Models;
+using Microsoft.AspNetCore.Mvc;
+
+namespace CursoWeb.Mvc.Controllers;
+
+public class ProductosController : Controller
+{
+    // La colección fija es compartida por Index, Detalle y Ficha.
+    // Se mantiene el dominio de productos de M01, sin base de datos.
+    private static IReadOnlyList<Producto> ObtenerProductosEjemplo() =>
+        new List<Producto>
+        {
+            new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+            new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+            new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+        };
+
+    [HttpGet]
+    public IActionResult Index()
+    {
+        return View(ObtenerProductosEjemplo());
+    }
+
+    [HttpGet]
+    public IActionResult Estado()
+    {
+        return Content("Catalogo MVC disponible", "text/plain");
+    }
+
+    [HttpGet]
+    public IActionResult Detalle(int id)
+    {
+        if (id <= 0)
+        {
+            return BadRequest("El identificador debe ser mayor que cero.");
+        }
+
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        return producto is null ? NotFound() : View(producto);
+    }
+
+    [HttpGet("/catalogo/ficha/{id:int}")]
+    public IActionResult Ficha(int id)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        return producto is null ? NotFound() : View("Detalle", producto);
+    }
+
+    // TRANSFERENCIA OPCIONAL P1.4 A P1.5:
+    // Este bloque permite conservar también la búsqueda autónoma por nombre
+    // realizada en la práctica anterior. No es parte de los pasos mínimos
+    // de P1.5: activar solamente durante el recorrido de integración final.
+    /* APLICACION P1.4 EN P1.5 INICIO
+    [HttpGet("/catalogo/buscar/{nombre}")]
+    public IActionResult BuscarPorNombre(string nombre)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(
+            p => string.Equals(p.Nombre, nombre, StringComparison.OrdinalIgnoreCase));
+        if (producto is null)
+        {
+            return NotFound();
+        }
+        return View("Detalle", producto);
+    }
+    APLICACION P1.4 EN P1.5 FIN */
+
+    // El reto 1.4 permanece identificado como variante histórica.
+    // P1.5 trabaja específicamente con presentación Razor y vistas parciales.
+    /* RETO 1.4 INICIO
+    [HttpGet("/catalogo/resumen/{id:int}")]
+    public IActionResult Resumen(int id)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        return producto is null ? NotFound() : Ok(new { producto.Id, producto.Nombre });
+    }
+    RETO 1.4 FIN */
+}
+~~~
+
+**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+
+### P1.5 — Views/Productos/Detalle.cshtml
+
+**Por qué se necesita este archivo.** Utiliza un Producto concreto y lo presenta reutilizando la misma parcial que el catálogo. Identifica la diferencia entre una ficha y el bucle del listado. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Detalle del producto";
+}
+
+<h1 id="titulo-detalle">1.4 | Detalle de producto</h1>
+<dl id="detalle-producto">
+    <dt>Identificador</dt><dd id="detalle-id">@Model.Id</dd>
+    <dt>Nombre</dt><dd id="detalle-nombre">@Model.Nombre</dd>
+    <dt>Precio</dt><dd id="detalle-precio">@Model.Precio.ToString("0.00") €</dd>
+</dl>
+<p><a href="/Productos">Volver al catálogo</a></p>
+
+@* PASO 1.5.3 (inicio)
+@section NotasPagina
+{
+    <p id="nota-pagina-detalle">Detalle construido con una vista Razor tipada.</p>
+}
+PASO 1.5.3 (fin) *@
+
+@* PASO 1.5.5 (inicio)
+<section id="tarjeta-detalle" aria-label="Ficha presentada como tarjeta">
+    <h2>Tarjeta reutilizada en el detalle</h2>
+    <partial name="_TarjetaProducto" model="Model" />
+</section>
+PASO 1.5.5 (fin) *@
+~~~
+
+**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+
+### P1.5 — Views/Productos/Index.cshtml
+
+**Por qué se necesita este archivo.** Introduce condiciones Razor y representación repetida de la parcial sin volver a escribir el artículo de la tarjeta en cada iteración. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+@{
+    ViewData["Title"] = "Catálogo de productos";
+}
+
+<h1>1.5 | Razor y presentación de productos</h1>
+<p id="proposito-vista">La vista representa datos del catálogo, sin consultas a base de datos.</p>
+
+@if (Model is null)
+{
+    <p id="sin-modelo">El controlador no ha proporcionado productos.</p>
+}
+else
+{
+    <p id="numero-productos">El controlador ha enviado <strong>@Model.Count</strong> productos.</p>
+
+    @* PASO 1.5.2 (inicio)
+    @if (Model.Count >= 3)
+    {
+        <p id="catalogo-completo">El catálogo contiene al menos tres productos.</p>
+    }
+    PASO 1.5.2 (fin) *@
+
+    <ul id="listado-productos">
+    @foreach (var producto in Model)
+    {
+        <li data-id="@producto.Id">
+            @producto.Nombre — @producto.Precio.ToString("0.00") €
+            <a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
+        </li>
+    }
+    </ul>
+
+    @* PASO 1.5.4 (inicio)
+    <section id="tarjetas-catalogo" aria-label="Tarjetas reutilizables de productos">
+        <h2>Vista de tarjetas</h2>
+        @foreach (var producto in Model)
+        {
+            <partial name="_TarjetaProducto" model="producto" />
+        }
+    </section>
+    PASO 1.5.4 (fin) *@
+}
+~~~
+
+**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+
+### P1.5 — Views/Shared/_TarjetaProducto.cshtml
+
+**Por qué se necesita este archivo.** Contrato de una vista parcial tipada: conoce un Producto y produce su tarjeta, conservando enlaces y variantes condicionales comentadas. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+
+@* PASO 1.5.4: vista parcial tipada. No declara @page ni layout propio. *@
+<article class="tarjeta-producto" data-producto-id="@Model.Id">
+    <h3>@Model.Nombre</h3>
+    <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
+
+    @* APLICACION 1.5 — Escribe aquí una condición Razor propia: si Model.Precio >= 4m, representa <strong class="etiqueta-destacada">Producto destacado</strong>. La misma parcial se reutiliza en listado y detalle. *@
+    @* APLICACION 1.5.B: tras activar la parcial, sustituye este enlace con href por un enlace con asp-controller, asp-action y asp-route-id. Conserva el mismo destino visible. *@
+    <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
+
+    @* RETO 1.5 (inicio)
+    @if (Model.Precio < 3m)
+    {
+        <strong class="etiqueta-economico">Precio económico</strong>
+    }
+    RETO 1.5 (fin) *@
+</article>
+~~~
+
+**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+
+### P1.5 — Views/Shared/_Layout.cshtml
+
+**Por qué se necesita este archivo.** Mantiene la plantilla compartida y añade los recursos de presentación o secciones que la práctica necesita. La parcial no sustituye al layout. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
+
+~~~cshtml
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Curso Web .NET 8</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+    <link rel="stylesheet" href="/css/catalogo.css" />
+</head>
+<body>
+    <header>
+        <nav aria-label="Navegación principal">
+            <a href="/">Inicio</a>
+            <a href="/Productos">Productos</a>
+            <a href="/recursos/guia-publica.txt">Guía pública</a>
+        </nav>
+    </header>
+    <main class="container">
+        @RenderBody()
+    </main>
+    @* PASO 1.5.3 (inicio)
+    <aside id="notas-del-layout" aria-label="Notas de la página">
+        @await RenderSectionAsync("NotasPagina", required: false)
+    </aside>
+    PASO 1.5.3 (fin) *@
+    <footer>Curso ASP.NET Core MVC · .NET 8</footer>
+</body>
+</html>
+~~~
+
+**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+
+### P1.5 — wwwroot/css/site.css
+
+**Por qué se necesita este archivo.** Las clases del listado y las tarjetas se representan con CSS; el navegador recibe ese recurso estático por separado, no desde un método de ProductosController. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
+
+~~~css
+body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #f8fafc; color: #1f2937; line-height: 1.55; }
+header { background: #16324f; padding: 1rem 2rem; }
+nav a { color: white; text-decoration: none; margin-right: 1.2rem; }
+.container { max-width: 850px; padding: 2rem; margin: auto; }
+h1 { margin-top: 0; }
+section { border-left: 4px solid #16324f; padding-left: 1rem; }
+.tarjeta-producto { margin: .6rem 0; padding: .7rem 1rem; border: 1px solid #aabcc6; background: #fff; border-radius: .35rem; }
+.tarjeta-producto h3 { margin: 0; }
+.etiqueta-economico { display: inline-block; margin-left: 1rem; padding: .1rem .45rem; border: 1px solid #285c4e; }
+#notas-del-layout { padding: .7rem 1.5rem; background: #eaf2f2; }
+footer { text-align: center; font-size: 0.9rem; color: #4b5563; padding: 2rem; }
+~~~
+
+**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+
+### P1.5 — README.md
+
+**Por qué se necesita este archivo.** Documenta la evolución 1.5 y las actividades autónomas para continuar sin perder el recorrido básico del módulo. Las marcas de comentario son parte de la secuencia práctica; no representan código que deba ejecutarse completo desde el primer paso.
+
+~~~markdown
+# P1.5 — Vistas Razor, layouts y vistas parciales
+
+**AUTOR: JAIME GALLO**
+
+Este proyecto continúa P1.4 en su estado **completo con los cinco pasos guiados activados** (Estado, Detalle, Ficha y enlaces), manteniendo el reto opcional histórico sin activar. Los archivos nuevos y los bloques de P1.5 están preparados para que el alumno los active por separado.
+
+## Iniciar
+
+Desde esta carpeta:
+~~~bash
+dotnet restore
+dotnet run --no-launch-profile --urls http://localhost:5091
+~~~
+
+## Pasos y reto
+
+- **1.5.1 (exploración):** estudiar los `@model` distintos de `Views/Productos/Index.cshtml`, `Views/Productos/Detalle.cshtml` y el valor `ViewData["Title"]`; no requiere descomentar.
+- **1.5.2:** en `Views/Productos/Index.cshtml`, retirar las líneas que delimitan el comentario Razor `PASO 1.5.2`; aparece una condición `@if` con el mensaje `catalogo-completo`.
+- **1.5.3:** activar los **dos** bloques `PASO 1.5.3`: uno en `Views/Shared/_Layout.cshtml` que representa una sección opcional, y otro en `Views/Productos/Detalle.cshtml` que la declara. El detalle incluirá `nota-pagina-detalle`; el listado seguirá funcionando sin declarar sección.
+- **1.5.4:** en `Views/Productos/Index.cshtml` activar el bloque `PASO 1.5.4`. El Partial Tag Helper `<partial name="_TarjetaProducto" model="producto" />` representa tres tarjetas adicionales usando `Views/Shared/_TarjetaProducto.cshtml`.
+- **1.5.5:** en `Views/Productos/Detalle.cshtml`, activar el bloque `PASO 1.5.5` para reutilizar la misma vista parcial en una ficha individual. La página contiene una tarjeta.
+- **RETO 1.5:** abrir `Views/Shared/_TarjetaProducto.cshtml` y eliminar las **dos líneas delimitadoras** del bloque Razor `RETO 1.5`. La condición `@if (Model.Precio < 3m)` añade `Precio económico` **solo a Lápiz** tanto en la lista de tarjetas como en su detalle.
+
+En `../../../PRACTICAS/M01_PRACTICAS.md` (sección P1.5) se explican todas las instrucciones, el código exacto, su comportamiento y los resultados esperados.
+~~~
+
+**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
 
 ## Reto: aplicación de los pasos
 
