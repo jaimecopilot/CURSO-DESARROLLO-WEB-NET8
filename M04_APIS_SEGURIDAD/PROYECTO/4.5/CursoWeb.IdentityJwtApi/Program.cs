@@ -25,12 +25,14 @@ var emisor = builder.Configuration["Jwt:Issuer"]
 var audiencia = builder.Configuration["Jwt:Audience"]
     ?? throw new InvalidOperationException("Falta Jwt:Audience.");
 
-var datos = Path.Combine(builder.Environment.ContentRootPath, ".work");
-Directory.CreateDirectory(datos);
-var dbPath = Path.Combine(datos, "identity-m04.db");
+// SQL Server Express LocalDB, instalado con Visual Studio en Windows.
+// La cadena se lee de configuración; no se utiliza SQLite.
+var conexion = builder.Configuration.GetConnectionString("IdentityDb")
+    ?? throw new InvalidOperationException(
+        "Configura ConnectionStrings:IdentityDb apuntando a SQL Server Express LocalDB.");
 
 builder.Services.AddDbContext<IdentidadDbContext>(opciones =>
-    opciones.UseSqlite($"Data Source={dbPath}"));
+    opciones.UseSqlServer(conexion));
 
 builder.Services.AddIdentityCore<IdentityUser>(opciones =>
 {
@@ -73,7 +75,7 @@ builder.Services.AddAuthorization();
 
 var app = builder.Build();
 
-// P4.5.3: tabla real de Identity en SQLite. EnsureCreated es SOLO docente.
+// P4.5.3: tablas reales de Identity en SQL Server Express LocalDB. EnsureCreated es SOLO docente.
 using (var alcance = app.Services.CreateScope())
 {
     var db = alcance.ServiceProvider.GetRequiredService<IdentidadDbContext>();
