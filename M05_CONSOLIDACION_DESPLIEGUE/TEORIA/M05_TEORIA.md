@@ -563,6 +563,138 @@ La mejora en el componente es limitada y pedagógica: permite explicar el caso 4
 
 
 
+
+### 5.1.27. Un sistema de cuatro procesos conceptuales que no deben confundirse
+
+Al integrar la aplicación Blazor B con la API de productos, es tentador hablar de «la aplicación» como si existiese una sola entidad. En realidad, incluso en un laboratorio local intervienen un navegador, el host ASP.NET Core que ejecuta Blazor, el host ASP.NET Core que ejecuta la API y, opcionalmente, herramientas externas de prueba como PowerShell. Cada uno posee responsabilidades propias. La ventana del navegador recibe HTML y mantiene la interacción; el servidor Blazor ejecuta el componente Interactive Server; el servicio HTTP tipado crea solicitudes dirigidas a la API; la API decide cómo responder. El segundo servidor no tiene por qué estar vivo para que el primero entregue su página inicial.
+
+Podemos estudiar un caso en el que Blazor continúa funcionando mientras la API está detenida. Al abrir la ruta `/catalogo-remoto`, el host Blazor genera el componente y trata de consultar el catálogo. Si la conexión a 5081 falla, el componente puede mostrar un mensaje de error. La presencia del mensaje demuestra precisamente que hubo suficiente ejecución Blazor como para representar el estado de fallo. Sería contradictorio concluir que todo Blazor está apagado cuando el propio componente ha comunicado la excepción.
+
+Un segundo caso invierte la situación: la API responde 200 a una consulta directa, pero el navegador no logra abrir 5092 porque Blazor está detenido. La API funciona, y eso no abre automáticamente una interfaz Blazor. La solución no consiste en cambiar el controlador de productos de la API. Hace falta iniciar el host que presenta los componentes.
+
+Un tercer caso presenta los dos hosts activos, pero la configuración de `ProductosApi:BaseUrl` apunta a 5082 en lugar de 5081. Las dos aplicaciones responden por separado, pero la comunicación entre ellas falla. El primer diagnóstico razonable es comprobar la URL que utiliza el servicio, no reescribir `ProductoDto`.
+
+Estas tres situaciones comparten el mismo escenario de aula y producen fallos visuales diferentes. Identificar **qué proceso está vivo, qué dirección utiliza cada uno y dónde se interrumpe la comunicación** es más importante que aprender una lista indiscriminada de posibles errores.
+
+### 5.1.28. El componente no se convierte en cliente HTTP por contener un botón
+
+El botón «Consultar servidor» enlaza un evento interactivo con un método del componente. Ese método delega en `IProductosApiService`, cuyo servicio concreto emplea `HttpClient`. No debe trasladarse la lógica de direcciones, serialización y códigos de estado al HTML de la página.
+
+La frontera resulta visible en un ejemplo conceptual de dos responsabilidades. En el componente:
+
+~~~csharp
+private async Task ConsultarAsync()
+{
+    cargando = true;
+    try
+    {
+        productos = (await CatalogoApi.ObtenerAsync()).ToList();
+        error = null;
+    }
+    catch (HttpRequestException)
+    {
+        error = "No fue posible recuperar los productos.";
+    }
+    finally
+    {
+        cargando = false;
+    }
+}
+~~~
+
+En el servicio:
+
+~~~csharp
+public async Task<IReadOnlyList<ProductoDto>> ObtenerAsync()
+{
+    var datos = await cliente.GetFromJsonAsync<List<ProductoDto>>(
+        "api/productos");
+    return datos ?? [];
+}
+~~~
+
+Ambos fragmentos presuponen sus tipos y registros de inyección de dependencias. El primero habla de estados visibles; el segundo de transporte y datos. Si la API cambia de puerto, corregiremos la dirección base del cliente, y no añadiremos una nueva URL dentro del botón. Si cambia el texto de carga, modificaremos la vista, y no el método HTTP.
+
+Esta separación evita una confusión especialmente frecuente al comienzo: pensar que reutilizar un servicio significa duplicar la misma llamada HTTP en cada componente. Reutilizar significa conservar la operación en un único lugar y llamarla desde los consumidores pertinentes.
+
+### 5.1.29. El estado inicial de un componente no es un resultado de la API
+
+Cuando un componente declara `private List<ProductoDto> productos = [];`, crea una colección inicialmente vacía. Esa instrucción no afirma nada sobre el catálogo remoto: se ejecuta incluso cuando el servidor API dispone de cientos de productos. Una lista inicial vacía permite construir el componente antes de completar la primera solicitud, pero no equivale a la respuesta HTTP `[]`.
+
+La bandera `cargando` ayuda a expresar esa incertidumbre. Durante la consulta inicial, la interfaz debe comunicar que todavía no dispone de datos confirmados. Después de una respuesta 200 con lista vacía, esa incertidumbre cambia: ahora sí sabemos que el servidor ha contestado con una colección sin elementos. En cambio, después de un error HTTP no podemos tratar la colección inicial como prueba de ausencia de productos.
+
+La diferencia puede representarse como una máquina de estados conceptual:
+
+~~~text
+Inicialización
+      |
+      v
+Consultando ---- error de red/HTTP/JSON ---> Error
+      |
+      +---- respuesta [] -----------------> Vacío válido
+      |
+      +---- respuesta [datos] ------------> Datos visibles
+                        ^
+                        |
+                  Nueva consulta
+~~~
+
+El diagrama simplifica el comportamiento: durante la siguiente consulta puede existir una representación anterior. Esa representación no deja de existir automáticamente cuando empieza una petición. La interfaz decide si la oculta mediante la rama de carga o si la mantiene visible con una indicación de actualización.
+
+El contrato del curso utiliza un orden explícito de comprobaciones: carga, error, vacío válido y datos. Reconocer el orden permite explicar por qué modificar una condición Razor cambia el significado del mensaje sin alterar la respuesta de la API.
+
+### 5.1.30. Un resultado externo requiere una operación observable de confirmación
+
+Si el alumno crea un producto desde Blazor y lo ve aparecer, tiene una evidencia inicial de que el componente ha recibido una representación satisfactoria. Pero una práctica completa necesita comprobar el servidor de forma independiente. Un GET directo a `/api/productos` después del POST permite contrastar lo que muestra la pantalla con lo que conserva la API.
+
+Es razonable preguntar qué sucedería si el método `CrearAsync` añadiera artificialmente un objeto local antes de enviar HTTP. La pantalla podría mostrar un producto que el servidor jamás recibió. Por eso el orden correcto del ejemplo real es enviar, comprobar el estado satisfactorio, interpretar el DTO recibido y entonces añadirlo a la lista visual.
+
+El ejercicio de creación desde `curl.exe` invierte el recorrido: el POST externo añade información al servidor sin que el componente Blazor participe. La página original no recibe una notificación automática. Solo una nueva consulta trae la información a la colección local. Con dos observaciones opuestas demostramos las dos direcciones de la separación: el componente no debe inventar el estado remoto y el servidor no modifica automáticamente los campos de un componente que no ha vuelto a consultar.
+
+Esta técnica es transferible a escenarios más grandes sin enseñarlos aquí: en cuanto existe un sistema externo, una actualización visual no sustituye una comprobación independiente de la fuente.
+
+### 5.1.31. Un identificador creado por el servidor no se puede deducir contando filas
+
+El producto creado por POST recibe un identificador a cargo del servidor. En la API docente, un contador atómico produce un nuevo valor; el cliente recibe una respuesta que contiene el identificador asignado. La interfaz no debe adivinarlo usando la longitud de la colección.
+
+Supongamos una lista visual de dos productos. Un cliente externo crea uno y obtiene ID 3. Otro cliente abre la pantalla antigua, ve solo dos elementos e intenta asignar el siguiente ID mediante `Count + 1`. El resultado también sería 3, aunque ya está ocupado. Si alguien eliminara un recurso en otro sistema, contar elementos tampoco produciría necesariamente un identificador libre.
+
+La consecuencia es sencilla: `CrearProductoDto` contiene los campos de entrada, mientras que `ProductoDto` de respuesta incluye la identidad asignada. El componente recibe ese resultado, no calcula la identidad. Aunque el laboratorio sea pequeño, esta responsabilidad no debe confundirse.
+
+El servidor también normaliza el nombre con `Trim()`. Enviar una cadena con espacios al principio y al final puede producir un recurso cuya representación devuelta no es idéntica carácter a carácter al formulario original. Por eso conviene utilizar el DTO resultante en lugar de reconstruirlo a partir del texto que escribió el usuario.
+
+### 5.1.32. El significado de 201 y la necesidad de leer el cuerpo
+
+La respuesta 201 Created confirma que el servidor ha atendido satisfactoriamente una creación según el contrato HTTP del endpoint. En la API del curso, el resultado contiene la representación creada y una ubicación del recurso. No significa que la información haya sido guardada en SQL Server, porque la API de referencia usa memoria.
+
+Un cliente de creación tiene que interpretar el resultado con cuidado. Primero verifica que el estado es satisfactorio. Después intenta leer el `ProductoDto`. Si el servidor devolviese un 201 sin cuerpo apropiado, el código del servicio no debería inventar un producto para actualizar la lista. La implementación muestra una excepción `InvalidOperationException` cuando el valor deserializado resulta nulo.
+
+Una respuesta 400 durante POST describe una entrada que incumple el contrato del servidor. No se debe añadir localmente un producto como si se hubiera creado. Una respuesta 500 describe una incidencia del servidor, no una garantía de que la operación se completó. Una interrupción de red durante POST plantea incluso una ambigüedad: no siempre sabemos si el servidor procesó la solicitud antes de que el cliente perdiera la conexión. El laboratorio no implementa reintentos automáticos de creación, precisamente porque repetir ciegamente un POST podría duplicar una operación cuando no tenemos confirmación suficiente.
+
+Este último matiz excede la implementación mínima, pero es fundamental para razonar sobre resultados inciertos: **una excepción del cliente no demuestra en todos los casos que el servidor no hizo nada**.
+
+### 5.1.33. Errores de validación local y de validación de servidor
+
+El formulario puede rechazar una entrada sin nombre o con precio no positivo antes de enviar HTTP. Esa comprobación mejora la experiencia y evita solicitudes inútiles. Pero el endpoint debe repetir su propia validación para no depender de la honestidad de un único cliente.
+
+La prueba con `curl.exe` demuestra este límite. Un cliente externo no ejecuta las condiciones C# del componente Blazor. Si envía un cuerpo inválido, el servidor debe contestar 400. Si la API aceptara el dato por depender solo del formulario, su contrato sería incorrecto.
+
+El alumno debe saber distinguir el origen de los dos mensajes. Un rechazo local puede representarse sin que la API haya recibido ningún POST. Un rechazo de servidor es una respuesta HTTP observable directamente desde otro cliente. Aunque ambas decisiones utilicen las mismas reglas básicas de nombre y precio, pertenecen a capas distintas.
+
+Este principio también aclara por qué la autenticación y la autorización del módulo anterior no se sustituyen ocultando controles visuales. Las decisiones que protegen un recurso deben aplicarse del lado del servidor. La interfaz puede adaptar lo que muestra, pero no debe ser la única barrera que impida operaciones no autorizadas.
+
+### 5.1.34. Una consulta correcta puede presentar información temporalmente obsoleta
+
+Tras un GET satisfactorio, los datos representados son correctos respecto a la respuesta recibida en ese instante. No necesariamente permanecerán actuales para siempre. En la API de memoria, un segundo cliente puede añadir productos; la primera página conserva la última lista que obtuvo.
+
+No debemos tratar este comportamiento como si Blazor hubiera perdido una señal obligatoria del servidor. El contrato del curso no introduce una conexión de notificaciones ni sincronización automática. El usuario pulsa «Consultar servidor» para obtener otra instantánea. Es una decisión didáctica: permite observar la diferencia entre datos locales y datos remotos sin incorporar SignalR personalizado o una infraestructura de eventos adicional.
+
+Si el nuevo GET falla, puede permanecer en memoria la lista antigua, pero la pantalla utiliza su rama de error. Si el GET termina con `[]`, la lista se sustituye por una colección vacía y la interfaz lo indica. Ambos comportamientos son coherentes con la implementación; las conclusiones cambian según el resultado obtenido.
+
+El aprendizaje esperado es expresar con precisión **cuándo se obtuvo la información**, **de dónde procede** y **qué operación la actualiza**. Esas preguntas evitan diagnósticos equivocados sobre persistencia y sobre renderizado.
+
+
+
 ## 5.2. Ejecutar, compilar y publicar una aplicación ASP.NET Core MVC
 
 ### 5.2.1. ¿Por qué compilar no equivale a publicar?
