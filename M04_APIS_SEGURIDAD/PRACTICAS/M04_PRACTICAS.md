@@ -375,6 +375,113 @@ En el código, localiza \`Results.Ok\` y \`Results.Created\`. Consulta \`/api/pr
 
 Observa la respuesta 201, el identificador asignado y la cabecera \`Location\`. Envía ahora un nombre vacío y precio cero para obtener 400. Comprueba que un producto inválido no aparece en la lista GET.
 
+### Taller de construcción autónoma: sustituir la API entregada
+
+En 4.1 y 4.2 era indispensable disponer de una API operativa mientras aprendíamos a consumirla. Ahora podemos construir una nueva implementación desde cero y poner a prueba que **responde exactamente al mismo contrato HTTP**.
+
+**Preparación del escenario.** Mantén el proyecto suministrado como referencia, sin editarlo. En otra carpeta de trabajo —por ejemplo, \`PROYECTO/4.3/CursoWeb.ProductosApi.Construida\`— crea una aplicación vacía con:
+
+\`\`\`powershell
+dotnet new web -n CursoWeb.ProductosApi -f net8.0
+\`\`\`
+
+Detén la API de 4.1 antes de arrancar la nueva en el puerto 5081. Esta secuencia debe realizarse por etapas; después de cada una, compila y observa la respuesta para localizar los errores en el momento en que se introducen.
+
+**Etapa 1 — arranque y primer endpoint.** Abre \`Program.cs\` y escribe:
+
+\`\`\`csharp
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+app.MapGet("/", () => Results.Ok("API de Productos disponible"));
+
+app.Run();
+\`\`\`
+
+Ejecuta \`dotnet run --urls http://localhost:5081\` desde el directorio del proyecto. Al solicitar \`http://localhost:5081/\` se debe recibir 200 y un mensaje. Una respuesta positiva indica que hay un host operativo, pero todavía no que exista un catálogo de productos.
+
+**Etapa 2 — modelos y listado.** Sustituye \`Program.cs\` por:
+
+\`\`\`csharp
+using System.Collections.Concurrent;
+
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+var productos = new ConcurrentDictionary<int, ProductoApi>();
+productos[1] = new ProductoApi(1, "Cuaderno", 2.50m);
+productos[2] = new ProductoApi(2, "Lápiz", 0.80m);
+
+app.MapGet("/", () => Results.Ok("API de Productos disponible"));
+app.MapGet("/api/productos", () =>
+    Results.Ok(productos.Values.OrderBy(p => p.Id)));
+
+app.Run();
+
+record ProductoApi(int Id, string Nombre, decimal Precio);
+\`\`\`
+
+Arranca de nuevo. El navegador debe mostrar dos objetos en un arreglo JSON cuando consultas \`/api/productos\`. Comprueba además que \`/api/productos/1\` todavía **no** devuelve un detalle válido: esa ruta aún no existe y esa ausencia es esperable antes de la etapa siguiente.
+
+**Etapa 3 — consulta individual.** Antes de \`app.Run()\`, añade:
+
+\`\`\`csharp
+app.MapGet("/api/productos/{id:int}", (int id) =>
+    productos.TryGetValue(id, out var producto)
+        ? Results.Ok(producto)
+        : Results.NotFound());
+\`\`\`
+
+Reinicia y verifica \`/api/productos/1\`: debe aparecer Cuaderno. Después solicita \`/api/productos/999\` y observa 404. No confundas este resultado con un puerto cerrado: el servidor está respondiendo correctamente, pero el recurso no existe.
+
+**Etapa 4 — creación y validación.** Antes de \`app.Run()\`, añade:
+
+\`\`\`csharp
+var siguienteId = 2;
+
+app.MapPost("/api/productos", (CrearProductoApi entrada) =>
+{
+    if (string.IsNullOrWhiteSpace(entrada.Nombre) || entrada.Precio <= 0)
+        return Results.BadRequest("Nombre y precio deben ser válidos.");
+
+    var id = Interlocked.Increment(ref siguienteId);
+    var creado = new ProductoApi(id, entrada.Nombre.Trim(), entrada.Precio);
+    productos[id] = creado;
+    return Results.Created($"/api/productos/{id}", creado);
+});
+\`\`\`
+
+Al final del archivo, junto a \`ProductoApi\`, añade:
+
+\`\`\`csharp
+record CrearProductoApi(string Nombre, decimal Precio);
+\`\`\`
+
+Prepara un archivo \`nuevo-producto.json\`:
+
+\`\`\`json
+{
+  "nombre": "Regla",
+  "precio": 1.75
+}
+\`\`\`
+
+Con la API iniciada ejecuta, desde una terminal donde el fichero sea accesible:
+
+\`\`\`powershell
+curl.exe -i -X POST http://localhost:5081/api/productos -H "Content-Type: application/json" --data-binary "@nuevo-producto.json"
+\`\`\`
+
+Debe obtenerse **201 Created**, un producto nuevo con ID asignado por el servidor y una cabecera \`Location\`. Repite GET del listado y comprueba que existe Regla. Cambia el precio del JSON a 0 y repite: debe devolverse **400 Bad Request**, sin añadir otro producto. Si vuelves a introducir datos válidos, el contador puede seguir creciendo; es normal mientras no se reinicie el proceso.
+
+**Etapa 5 — integración con el cliente Blazor que ya construimos.** Mantén la API recién creada en 5081 y abre Blazor desde \`PROYECTO/4.2/CursoWeb.Blazor\`. Consulta \`/catalogo-remoto\`. Si el contrato se ha conservado, verás los productos sin reescribir \`CatalogoRemoto.razor\` ni \`ProductosApiService.cs\`. Envía un nuevo producto desde la interfaz y comprueba el 201 indirectamente observando que se añade al listado.
+
+Para diagnosticar un fallo, recorre en orden estas preguntas: ¿responde la API directamente?, ¿coinciden la ruta y el puerto?, ¿el JSON conserva \`id\`, \`nombre\` y \`precio\`?, ¿la clase \`CrearProductoApi\` admite los datos enviados?, ¿la página recibe un error HTTP o un error de red?
+
+**Etapa 6 — repetición controlada y persistencia.** Detén y vuelve a iniciar el servidor. La lista debe regresar a Cuaderno y Lápiz porque el almacenamiento era de memoria. Este comportamiento no supone un defecto oculto: es un límite expresamente elegido para concentrarse en comunicación HTTP. No incorpores EF Core en esta etapa.
+
+**Reto de sustitución del servidor.** Sin modificar el cliente, cambia temporalmente la cadena \`"Cuaderno"\` de la API construida por \`"Cuaderno A4"\`, reinicia y consulta Blazor. El nombre debe reflejar el cambio de servidor. Después restaura el dato de referencia y explica por qué la interfaz no necesitó recompilarse para recibir una respuesta JSON con el mismo contrato.
+
 ### Paso 4.3.3. Añadir una ruta de resumen
 
 Antes del \`app.Run();\` añade este endpoint, cuya finalidad y contrato se explican en teoría 4.3.4:
