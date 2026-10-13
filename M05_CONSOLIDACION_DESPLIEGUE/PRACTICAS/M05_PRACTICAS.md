@@ -18,7 +18,7 @@
 
 ## Cómo utilizar este manual
 
-Aquí se realiza la construcción y comprobación, **después de haber estudiado las explicaciones y ejemplos del manual de teoría**. Las aplicaciones no aparecen mágicamente terminadas: M05 continúa los proyectos ya construidos en módulos anteriores. El repositorio contiene un estado docente de referencia que permite comparar el resultado, pero el alumno realizará cada transformación indicada y observará una respuesta antes de avanzar.
+Tras estudiar los ejemplos y explicaciones de teoría, el alumno **construye, ejecuta y observa** las transformaciones de proyectos iniciados en módulos anteriores. El repositorio proporciona estados de referencia para comparar los resultados, no ejercicios ya realizados por el alumno.
 
 Trabajaremos con dos aplicaciones y una API auxiliar:
 
@@ -28,7 +28,7 @@ Trabajaremos con dos aplicaciones y una API auxiliar:
 | API auxiliar de productos | `M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/API/CursoWeb.ProductosApi` | P5.1 |
 | Aplicación A MVC con EF Core/LocalDB de M02 | `M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/MVC/CursoWeb.Mvc` | P5.2–P5.5 |
 
-Las tres carpetas son estados del **mismo curso**, no aplicaciones empresariales independientes que deban rediseñarse. P5.1 usa B y API; P5.2–P5.5 usan siempre la misma A. El laboratorio utiliza Windows, Visual Studio con .NET 8 y SQL Server Express LocalDB allí donde el CRUD necesita persistencia. Para IIS se requiere Windows con IIS y Hosting Bundle 8; para Docker se requiere un motor Docker operativo con contenedores Linux. Una infraestructura ausente se anota como **no comprobada**, nunca como prueba aprobada.
+P5.1 utiliza Blazor B y su API; P5.2–P5.5 reutilizan MVC A. El puesto requiere Windows, Visual Studio/.NET 8 y SQL Server Express LocalDB para el CRUD. IIS precisa Windows y Hosting Bundle 8; Docker, un motor de contenedores Linux. **No se declara comprobado lo que carece de infraestructura.**
 
 ### Tiempo de la jornada
 
@@ -41,9 +41,7 @@ Las tres carpetas son estados del **mismo curso**, no aplicaciones empresariales
 | 5.5 Docker | 10 min | 45 min |
 | **Subtotal** | **60 min** | **270 min** |
 
-Se reservan otros **30 minutos** para dudas y recuperación. Las ampliaciones y el diagnóstico extendido no son nuevos ejercicios presenciales obligatorios.
-
-Conserva una terminal por proceso, comprueba desde qué carpeta ejecutas cada comando y no atribuyas resultados de un servicio a otro. Cada ejercicio concluye con un estado final comprobable, que sirve de punto de partida para el siguiente cuando corresponda.
+La jornada reserva otros **30 minutos** para dudas. Las ampliaciones y el diagnóstico extendido son autónomos. Usa una terminal por proceso, verifica las rutas de ejecución y conserva el estado final de cada ejercicio antes de avanzar.
 
 ## P5.1. Consolidar el catálogo Blazor y la API HTTP
 
