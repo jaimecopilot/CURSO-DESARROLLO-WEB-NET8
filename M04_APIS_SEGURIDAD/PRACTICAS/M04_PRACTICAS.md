@@ -1922,6 +1922,213 @@ Ahora supón lo contrario: el formulario Blazor parece mostrar un producto, pero
 
 Los dos casos demuestran por qué es útil disponer de un consumidor HTTP independiente incluso cuando el objetivo final es construir una interfaz agradable para el usuario.
 
+
+### Ampliación autónoma P4.3.7 — Actualizar y eliminar productos desde cero
+
+Esta ampliación continúa la API construida en P4.3. No es obligatoria durante la jornada de seis horas. Trabajaremos en una copia de la API para incorporar PUT y DELETE sin alterar el recorrido básico de GET y POST. El propósito es comprender contratos, estados HTTP, actualización condicional y eliminación; no crear una segunda aplicación completa.
+
+#### Paso A1. Preparar una copia y recuperar el estado conocido
+
+Desde la raíz del repositorio copia el proyecto de la API de 4.3 a una carpeta local nueva. Si existe trabajo previo en esa carpeta, elige otra para no sobrescribirlo. No modifiques la API suministrada en 4.1.
+
+~~~powershell
+New-Item -ItemType Directory -Force .work\M04\ampliacion-api | Out-Null
+Copy-Item -Path .\M04_APIS_SEGURIDAD\PROYECTO\4.3\CursoWeb.ProductosApi -Destination .\.work\M04\ampliacion-api\CursoWeb.ProductosApi -Recurse
+~~~
+
+Compila y arranca la copia en 5081 después de detener el servidor anterior. Verifica GET /api/productos y GET /api/productos/1. El estado de referencia contiene Cuaderno y Lápiz. No avances si la consulta inicial no devuelve esos datos: los siguientes pasos compararán sus cambios con ese estado conocido.
+
+#### Paso A2. Introducir el DTO de actualización
+
+Al final de Program.cs, junto a los records ProductoApi y CrearProductoApi, declara:
+
+~~~csharp
+record ActualizarProductoApi(string Nombre, decimal Precio);
+~~~
+
+¿Por qué no contiene ID? Porque la petición PUT utilizará la ruta /api/productos/{id:int} para seleccionar el recurso que se modifica. El cuerpo tendrá el nombre y el precio nuevo, pero no elegirá otro identificador. Esta decisión mantiene clara la autoridad del servidor sobre la identidad del producto.
+
+Compila. El archivo puede compilar aunque todavía no hayas registrado un endpoint PUT: el record es un tipo de datos, no una ruta. El paso siguiente publicará el comportamiento.
+
+#### Paso A3. Crear PUT con control de existencia
+
+Antes de app.Run añade:
+
+~~~csharp
+app.MapPut("/api/productos/{id:int}",
+    (int id, ActualizarProductoApi entrada) =>
+{
+    if (string.IsNullOrWhiteSpace(entrada.Nombre) ||
+        entrada.Precio <= 0)
+        return Results.BadRequest("Nombre y precio deben ser válidos.");
+
+    while (productos.TryGetValue(id, out var anterior))
+    {
+        var actualizado = new ProductoApi(
+            id, entrada.Nombre.Trim(), entrada.Precio);
+
+        if (productos.TryUpdate(id, actualizado, anterior))
+            return Results.Ok(actualizado);
+    }
+
+    return Results.NotFound();
+});
+~~~
+
+El manejador verifica primero los datos. Después intenta leer el recurso por ID. Si no existe, devuelve 404. Si existe, crea una nueva representación que conserva el identificador y utiliza TryUpdate para sustituir el valor si todavía coincide con el que acabamos de observar.
+
+En un laboratorio de memoria, esta forma permite estudiar una condición de actualización sin introducir un DbContext. No afirmamos que sea un sistema general de control de versiones: dos usuarios podrían enviar modificaciones basadas en información antigua. Lo importante aquí es distinguir validación de entrada, existencia de recurso y actualización del diccionario.
+
+#### Paso A4. Comprobar PUT correcto
+
+Crea actualizar.json:
+
+~~~json
+{
+  "nombre": "Cuaderno A4",
+  "precio": 3.20
+}
+~~~
+
+Envía el cuerpo desde PowerShell:
+
+~~~powershell
+curl.exe -i -X PUT http://localhost:5081/api/productos/1 -H "Content-Type: application/json" --data-binary "@actualizar.json"
+~~~
+
+Debe devolverse 200 junto a un objeto que conserve id igual a 1 y muestre Cuaderno A4 con precio 3,20. A continuación, consulta GET /api/productos/1. La respuesta debe reflejar exactamente la actualización.
+
+La segunda consulta es importante: no basta con comprobar que PUT devolvió un JSON de éxito; queremos demostrar que GET lee la misma colección de memoria y que su estado realmente cambió.
+
+#### Paso A5. Actualización de un identificador inexistente
+
+Repite PUT con el mismo cuerpo, pero utiliza /api/productos/999. Se espera 404. El JSON es válido, pero la ruta identifica un recurso que no está en el diccionario.
+
+Comprueba que GET /api/productos no ha incorporado un objeto con ID 999. En este contrato PUT no funciona como una creación cuando falta el elemento. La operación de creación sigue siendo POST y es el servidor quien asigna el nuevo ID.
+
+No cambies el código para crear automáticamente un recurso ausente: alterarías el comportamiento que hemos definido para la ampliación y mezclarías actualización con alta.
+
+#### Paso A6. Regla de precio y nombre
+
+Cambia actualizar.json para que Precio sea cero. Envía PUT sobre el ID 1: debe rechazarse con 400. Consulta GET del producto y confirma que el precio anterior permanece.
+
+Repite la prueba con nombre vacío y precio positivo. También debe devolver 400. Si mezclas nombre vacío y precio cero en una misma prueba, resulta más difícil comprobar qué condición provoca cada rechazo. Por eso ensayamos las reglas individualmente.
+
+El componente Blazor podría impedir que el usuario introduzca esos datos, pero la API debe rechazarlos aunque lleguen desde PowerShell. El fichero HTTP demuestra que la interfaz web no es el único consumidor posible.
+
+#### Paso A7. Publicar DELETE
+
+Antes de app.Run agrega:
+
+~~~csharp
+app.MapDelete("/api/productos/{id:int}", (int id) =>
+    productos.TryRemove(id, out _)
+        ? Results.NoContent()
+        : Results.NotFound());
+~~~
+
+Compila y reinicia. La petición DELETE recibe un ID desde la ruta, no un DTO con nombre y precio. Cuando encuentra el recurso, TryRemove lo elimina y el manejador devuelve 204 No Content. Si no lo encuentra, devuelve 404.
+
+El estado 204 significa que el servidor no entrega un objeto en el cuerpo de esta respuesta. No debemos intentar deserializarlo como ProductoApi en un cliente. La operación se valida observando el estado HTTP y consultando después la colección.
+
+#### Paso A8. Comprobar eliminación y repetición
+
+Primero consulta GET /api/productos/2 para confirmar que Lápiz existe. Ejecuta:
+
+~~~powershell
+curl.exe -i -X DELETE http://localhost:5081/api/productos/2
+~~~
+
+La respuesta debe ser 204. Repite GET del ID 2 y observa 404. El recurso ya no existe. Después vuelve a ejecutar DELETE sobre el mismo ID: nuestro contrato devuelve 404 porque la entrada ha sido eliminada.
+
+Este experimento permite razonar sobre idempotencia. El estado final tras dos eliminaciones es el mismo que después de una sola: el producto permanece ausente. No es obligatorio que los dos intentos tengan el mismo código de respuesta para que esa propiedad del efecto se mantenga.
+
+#### Paso A9. Crear después de eliminar
+
+Con Lápiz eliminado, envía POST /api/productos con Regla y un precio positivo. El servidor asignará un identificador mediante el contador; no se supone que reutilice el ID de un producto eliminado.
+
+Consulta el listado. Debes observar el estado resultante de las operaciones ejecutadas: un producto modificado, otro eliminado y uno nuevo. Si reinicias la API, la colección vuelve a Cuaderno y Lápiz originales. La ampliación no ha cambiado la ausencia deliberada de persistencia.
+
+No introduzcas EF Core para «arreglar» el reinicio en este ejercicio. La finalidad consiste en comprobar el contrato HTTP sobre memoria, con un estado que puede restaurarse fácilmente.
+
+#### Paso A10. Volver a Blazor sin modificar su contrato
+
+Arranca Blazor 4.2 contra la API ampliada. Abre /catalogo-remoto y ejecuta GET y POST. Ambas operaciones deben continuar funcionando, porque no hemos cambiado sus rutas ni sus DTO. El componente no necesita mostrar todavía botones de editar o eliminar: publicar operaciones nuevas en la API no obliga a que todas las pantallas las utilicen.
+
+Para incorporar una edición remota en una actividad posterior, habría que ampliar IProductosApiService, implementar la llamada HTTP en ProductosApiService y añadir el estado de edición a la UI. No pongas directamente PutAsJsonAsync dentro de CatalogoRemoto.razor si quieres conservar la separación aprendida en P4.2.
+
+#### Paso A11. Diseñar la operación de actualización para el servicio tipado
+
+En el cliente Blazor podríamos declarar un DTO:
+
+~~~csharp
+public sealed record ActualizarProductoDto(
+    string Nombre, decimal Precio);
+~~~
+
+La interfaz añadiría una operación:
+
+~~~csharp
+Task<ProductoDto> ActualizarAsync(
+    int id, ActualizarProductoDto solicitud);
+~~~
+
+Y la implementación HTTP contendría:
+
+~~~csharp
+public async Task<ProductoDto> ActualizarAsync(
+    int id, ActualizarProductoDto solicitud)
+{
+    using var respuesta = await cliente.PutAsJsonAsync(
+        $"api/productos/{id}", solicitud);
+    respuesta.EnsureSuccessStatusCode();
+
+    return await respuesta.Content
+        .ReadFromJsonAsync<ProductoDto>()
+        ?? throw new InvalidOperationException(
+            "La API no devolvió el producto actualizado.");
+}
+~~~
+
+No copies esta operación a una clase sin modificar también su contrato y sus tipos. La actividad de diseño muestra qué archivos cambiarían y qué responsabilidad conservaría cada uno, sin imponer una pantalla adicional durante la jornada presencial.
+
+#### Paso A12. Diseñar la operación de eliminación para el servicio tipado
+
+La interfaz podría expresar la eliminación mediante Task EliminarAsync(int id). En la implementación:
+
+~~~csharp
+public async Task EliminarAsync(int id)
+{
+    using var respuesta = await cliente.DeleteAsync(
+        $"api/productos/{id}");
+    respuesta.EnsureSuccessStatusCode();
+}
+~~~
+
+El componente retiraría el producto de su lista después de recibir confirmación. El método no devuelve ProductoDto porque la respuesta 204 del servidor no contiene un nuevo recurso. Si la API indica 404, la operación no se confirma del modo esperado y la UI puede informar al usuario.
+
+Así se conserva el mismo diseño que utilizamos para GET y POST: la interfaz solicita una operación de negocio, la implementación del servicio conoce HTTP y la API valida lo que ocurre sobre su colección.
+
+#### Paso A13. Restaurar un estado docente claro
+
+Conserva la API mínima y la versión ampliada en lugares identificados. Los pasos obligatorios del punto 4.3 continúan siendo suficientes para avanzar a seguridad básica. PUT y DELETE quedan como extensión autónoma que permite experimentar con nuevas rutas y estados.
+
+Reinicia la API antes de comparar resultados con el catálogo inicial y recuerda que el contador de identificadores no retrocede por eliminar un recurso. Este detalle debe poder justificarse a partir del ciclo de vida del proceso.
+
+### Comprobaciones de la ampliación
+
+| Petición | Código esperado | Evidencia |
+|---|---:|---|
+| PUT /api/productos/1 válido | 200 | GET devuelve Cuaderno A4 |
+| PUT /api/productos/999 | 404 | No se crea el ID 999 |
+| PUT con precio cero | 400 | No cambia el valor guardado |
+| DELETE /api/productos/2 | 204 | GET del ID devuelve 404 |
+| Segundo DELETE del mismo ID | 404 | El producto sigue ausente |
+| POST tras DELETE | 201 | Servidor asigna nuevo identificador |
+| GET tras reiniciar | 200 | Vuelven Cuaderno y Lápiz |
+
+El objetivo de esta ampliación es poder relacionar método, ruta, validación, respuesta y estado del recurso. No se evalúa por el número de endpoints añadidos, sino por la capacidad del alumno para explicar y ejecutar esos contratos de forma autónoma.
+
 ### Resultado del ejercicio
 
 Ahora puedes recorrer una petición desde Blazor hasta la API y viceversa, interpretar sus códigos HTTP y añadir un endpoint nuevo sin modificar rutas existentes. La API continúa funcionando en memoria: al reiniciarla se pierde todo lo creado durante la ejecución.
