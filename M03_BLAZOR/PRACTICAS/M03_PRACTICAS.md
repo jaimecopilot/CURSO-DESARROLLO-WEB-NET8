@@ -1395,6 +1395,7 @@ El código completo del estado inicial entregado para P3.6 está a continuación
 <h1>P3.6 | Catálogo acumulativo y OnInitializedAsync</h1>
 <p>Conservamos la selección, el alta, la edición, los filtros y la recuperación de P3.5. Ahora los datos iniciales proceden de un servicio.</p>
 <p id="estado-carga">@estado</p>
+<p id="seleccion">Seleccionado: @seleccion</p>
 @* RETO INTEGRADOR 3.6.7: error controlado y botón de reintento.
    Activa junto con la nueva versión de OnInitializedAsync y el servicio. *@
 @* <label>Simular fallo: <input id="simular-error" type="checkbox" @bind="simularError" /></label> *@
