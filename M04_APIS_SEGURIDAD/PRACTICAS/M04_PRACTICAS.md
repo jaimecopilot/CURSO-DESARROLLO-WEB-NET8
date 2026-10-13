@@ -1637,7 +1637,7 @@ Esta ampliación termina cuando el estudiante puede distinguir una prueba contro
 
 ### Consolidación
 
-El resultado de P4.2 no es una pantalla nueva, sino una frontera de responsabilidades: el componente presenta y gestiona el estado; `IProductosApiService` expresa las operaciones que necesita; `ProductosApiService` resuelve el transporte; y la API mantiene las reglas del servidor. En P4.3 estudiaremos y modificaremos esta última.
+El resultado de P4.2 no es una pantalla nueva, sino una frontera de responsabilidades: el componente presenta y gestiona el estado; `IProductosApiService` expresa las operaciones que necesita; `ProductosApiService` resuelve el transporte; y la API mantiene las reglas del servidor. En P4.3 construiremos desde una plantilla vacía una segunda API que conserve el mismo contrato; después compararemos esa implementación con la API suministrada que ya conocemos.
 
 ## P4.3 — Construir desde cero la API REST y conservar el contrato de Blazor
 
