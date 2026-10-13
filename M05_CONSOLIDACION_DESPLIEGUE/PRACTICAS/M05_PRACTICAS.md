@@ -514,6 +514,134 @@ Pop-Location
 
 No ejecutes las dos a la vez. La segunda es el punto de partida de P5.3 y presupone que la salida existe. Si `dotnet .\CursoWeb.Mvc.dll` falla por una dependencia LocalDB, comprueba si la base está disponible y recuerda que ese fallo de arranque no invalida por sí solo que los archivos se hayan publicado correctamente. Para el modo sin base existe una configuración explícita que utilizaremos más tarde.
 
+
+### Paso P5.2.6. Reconocer los artefactos imprescindibles sin confundirlos con fuentes
+
+**Relación con la teoría:** 5.2.7–5.2.11. Hemos publicado la misma aplicación que desarrollamos en M02; ahora debemos explicar qué representa cada archivo sin atribuirle capacidades que no posee.
+
+Mantén la variable `$salida` establecida en P5.2.1. No necesitas tener el servidor en ejecución para inspeccionar los archivos. Desde PowerShell, recorre el directorio:
+
+~~~powershell
+Get-ChildItem -Path $salida -File |
+    Sort-Object Name |
+    Select-Object Name, Length
+
+Get-ChildItem -Path (Join-Path $salida "wwwroot") -Recurse -File |
+    Select-Object Name, DirectoryName
+~~~
+
+Localiza `CursoWeb.Mvc.dll`, `.deps.json`, `.runtimeconfig.json`, `appsettings.json` y la carpeta `wwwroot`. Busca además `web.config` si la publicación lo ha generado. No reemplaces archivos porque no conozcas todavía su función. Para aprender a leerlos, responde en orden:
+
+**¿Cuál ejecuta el host?** La DLL del proyecto es un ensamblado de aplicación; se inicia con el host `dotnet` cuando el destino dispone del runtime adecuado.
+
+**¿Cuál ayuda a resolver dependencias?** El archivo `.deps.json` describe componentes que participan en la carga. No contiene instrucciones para modificar `HomeController`.
+
+**¿Cuál identifica condiciones del runtime?** El archivo `.runtimeconfig.json`. No instala por sí mismo un runtime faltante.
+
+**¿Dónde están los recursos estáticos?** Normalmente en `wwwroot`. Revisa si existe `css/site.css`; no basta con ver que la carpeta está creada.
+
+**¿Dónde se definen valores para la ejecución?** En archivos de configuración y otras fuentes como las variables de entorno. La configuración de LocalDB no instala ni copia SQL Server.
+
+**¿Para qué sirve `web.config` si existe?** Para colaborar con el hospedaje IIS mediante el mecanismo ASP.NET Core correspondiente. No convierte la publicación por sí sola en un sitio IIS.
+
+El resultado de este apartado no es un archivo nuevo. Es la capacidad de señalar la pieza correcta cuando una publicación falla por una causa determinada. Guarda la salida sin editar: la utilizaremos más adelante para ejecutar el host.
+
+### Paso P5.2.7. Una comparación reproducible entre dos versiones publicadas
+
+**Relación con la teoría:** 5.2.7 y 5.2.9. Si editamos una vista del proyecto, la publicación anterior no tiene por qué incorporar el cambio. Para comprobarlo construiremos dos salidas separadas de **la misma aplicación MVC**, cambiando una sola vista Razor entre una publicación y la siguiente.
+
+Este paso es una ampliación de consolidación que puede realizarse después de la jornada. No crea otra aplicación ni modifica el resto del curso. La variante de referencia está guardada como archivo Razor **completo** en:
+
+`M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/VARIANTES/P5.2_CAMBIO_VISTA/Views/Home/Index.cshtml`
+
+El archivo contiene el contenido original de `Views/Home/Index.cshtml` y añade un único párrafo identificable. Para reconstruir manualmente el cambio, abre el archivo del proyecto MVC y, debajo del elemento con identificador `resultado-inicial`, introduce:
+
+~~~razor
+@* AMPLIACIÓN P5.2: marca visible solo en la segunda publicación. *@
+<p id="marca-publicacion-m05">
+    Esta versión se publicó después de modificar la vista MVC.
+</p>
+~~~
+
+**Estado A — publicación original.** Detén cualquier proceso MVC que esté utilizando la carpeta de salida. Desde la raíz del repositorio prepara rutas de trabajo que no se versionan:
+
+~~~powershell
+$proyecto = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\MVC\CursoWeb.Mvc\CursoWeb.Mvc.csproj"
+$vista = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\MVC\CursoWeb.Mvc\Views\Home\Index.cshtml"
+$variante = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\VARIANTES\P5.2_CAMBIO_VISTA\Views\Home\Index.cshtml"
+$respaldo = "$vista.p52-original"
+$publicacionA = ".\.work\M05\publicacion-original"
+$publicacionB = ".\.work\M05\publicacion-cambio"
+
+Copy-Item $vista $respaldo -Force
+dotnet publish $proyecto -c Release -o $publicacionA
+~~~
+
+**Qué se espera:** `publicacion-original` contiene el estado de la vista antes de añadir la marca P5.2, porque se ha publicado desde el archivo de partida. No hace falta copiar ningún `.cshtml` manualmente a la carpeta de salida: el SDK prepara los artefactos de la aplicación.
+
+**Estado B — modificación de vista y publicación posterior.** Después de conservar el estado A, cambia el origen:
+
+~~~powershell
+Copy-Item $variante $vista -Force
+dotnet publish $proyecto -c Release -o $publicacionB
+~~~
+
+Si prefieres escribir la modificación manualmente en vez de copiar la variante, el resultado del archivo debe ser el mismo, sin duplicar el elemento `marca-publicacion-m05`. Para comprobarlo, abre la vista y verifica que ese identificador aparece **una sola vez**.
+
+Hasta aquí hemos producido dos directorios publicados, pero todavía no se ha probado ninguno por HTTP. Eso es intencional: separa lo que hace `dotnet publish` de la ejecución.
+
+### Paso P5.2.8. Ejecutar ambas publicaciones y localizar el cambio por HTTP
+
+Para esta comparación prescindiremos de la inicialización LocalDB porque solo necesitamos la portada MVC. En una primera terminal PowerShell, desde la raíz del repositorio:
+
+~~~powershell
+$env:Despliegue__SinLocalDb = "true"
+Push-Location .\.work\M05\publicacion-original
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5091
+~~~
+
+Mantén ese proceso iniciado. Abre una segunda terminal independiente en la raíz del repositorio:
+
+~~~powershell
+$env:Despliegue__SinLocalDb = "true"
+Push-Location .\.work\M05\publicacion-cambio
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5094
+~~~
+
+Ambas instancias utilizan puertos diferentes. La primera debe continuar sirviendo la portada de la publicación original; la segunda debe representar la vista nueva. En una tercera terminal o con dos pestañas del navegador compara:
+
+~~~powershell
+curl.exe -i http://localhost:5091/
+curl.exe -i http://localhost:5094/
+~~~
+
+En la segunda respuesta debe aparecer el texto «Esta versión se publicó después de modificar la vista MVC» dentro del elemento `marca-publicacion-m05`. En la primera no debe aparecer. No basta con obtener 200 en ambas: la evidencia buscada es que **las dos publicaciones contienen versiones distintas de una misma vista del mismo proyecto**.
+
+Repite la consulta a `http://localhost:5091/` después de haber publicado B. Debe seguir mostrando la vista original porque ese proceso utiliza los artefactos A. Así comprobamos que publicar a una carpeta diferente no modifica retroactivamente una publicación anterior.
+
+**Si ambas páginas muestran la marca:** comprueba que la publicación A se produjo antes de sustituir la vista y que el proceso 5091 no está ejecutando archivos de la carpeta B. **Si ninguna la muestra:** comprueba que realmente publicaste después de modificar la fuente y que 5094 está sirviendo la salida B. El diagnóstico debe relacionar origen, destino y proceso; no volver a crear un proyecto MVC.
+
+### Paso P5.2.9. Restaurar el estado del curso sin destruir las publicaciones de ensayo
+
+Detén los dos procesos con Ctrl+C en sus respectivas terminales y ejecuta `Pop-Location` en ambas. Después, desde la raíz del repositorio, restaura el archivo de origen:
+
+~~~powershell
+$vista = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\MVC\CursoWeb.Mvc\Views\Home\Index.cshtml"
+$respaldo = "$vista.p52-original"
+
+Copy-Item $respaldo $vista -Force
+Remove-Item $respaldo
+Remove-Item Env:\Despliegue__SinLocalDb -ErrorAction SilentlyContinue
+
+dotnet build .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\MVC\CursoWeb.Mvc\CursoWeb.Mvc.csproj -c Release
+~~~
+
+Las carpetas de publicación A y B permanecen dentro de `.work` para facilitar una comparación posterior y no pertenecen al material que versiona el alumno. Si quieres repetir el ensayo, vuelve a publicar desde un estado inicial conocido. No modifiques `Views/Home/Index.cshtml` de M02 ni borres su trabajo previo.
+
+**Conclusión razonada de este ejercicio:** no se trata de aprender dos comandos, sino de comprobar que el código fuente, la salida A, la salida B y los dos procesos HTTP son objetos distintos. La publicación nueva solo se manifiesta cuando la ejecución utiliza los artefactos nuevos.
+
+
+
 ### Resultado y estado final P5.2
 
 La carpeta `.work\M05\publicacion-mvc` contiene los artefactos de MVC. El alumno sabe identificar qué cambió al publicar: no el código fuente ni las acciones, sino los archivos preparados para ejecutarse fuera de la estructura de desarrollo. No edites la fuente para corregir un problema que solo aparece por una variable del entorno de ejecución.
