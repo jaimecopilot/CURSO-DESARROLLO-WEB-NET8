@@ -2710,6 +2710,130 @@ La carpeta MVC A sigue siendo la acumulativa de M02. La API de productos y Blazo
 
 
 
+
+### Paso P5.5.24. Reconocer en Docker Desktop las mismas piezas vistas en consola
+
+**Fundamento:** 5.5.20 y 5.5.27. El recorrido de consola ha enseñado las diferencias entre Dockerfile, imagen y contenedor. Ahora contrastaremos esas piezas con la interfaz gráfica de Docker Desktop, sin instalar una herramienta diferente ni crear otra aplicación.
+
+Abre Docker Desktop y confirma que el motor está en ejecución con soporte para contenedores Linux. Las secciones de la interfaz pueden cambiar de nombre entre versiones; normalmente existe una vista de **Images** y otra de **Containers**. No memorices solo la ubicación visual: identifica qué tipo de recurso representa cada sección.
+
+En la vista de imágenes localiza `cursoweb-mvc:m05`, creada durante P5.5.3. Debe aparecer aunque el contenedor de ejecución ya se haya detenido. El registro de una imagen no demuestra que haya un servidor escuchando; corresponde al artefacto que Docker utiliza como plantilla.
+
+En la vista de contenedores busca `cursoweb-m05`, si la instancia continúa activa. Si terminaste la práctica con `--rm`, puede que ya no aparezca. Esa ausencia no significa que la imagen se haya eliminado. Separa con claridad el estado de la imagen del ciclo de vida del contenedor.
+
+### Paso P5.5.25. Iniciar un contenedor y relacionarlo con la vista gráfica
+
+Desde PowerShell, situado en la carpeta de proyecto MVC si necesitas reconstruir la imagen, confirma su presencia:
+
+~~~powershell
+docker images cursoweb-mvc
+~~~
+
+Si la imagen existe, puedes iniciar el mismo ensayo con un nombre identificable:
+
+~~~powershell
+docker run --name cursoweb-m05-grafico --rm `
+  -e Despliegue__SinLocalDb=true `
+  -p 8084:8080 `
+  cursoweb-mvc:m05
+~~~
+
+El puerto exterior 8084 se utiliza para distinguir esta instancia de otros ensayos. El proceso ASP.NET Core continúa escuchando internamente en 8080, tal como indica el Dockerfile.
+
+Mientras la terminal permanece abierta, regresa a Docker Desktop. Identifica el contenedor `cursoweb-m05-grafico` y su estado de ejecución. Si el nombre no aparece, comprueba primero que `docker run` terminó correctamente y que la interfaz está conectada al mismo motor que la terminal.
+
+No hagas clic sobre opciones de eliminación de recursos que no conozcas. El objetivo del ejercicio es observar una instancia propia, no limpiar el entorno Docker del equipo.
+
+### Paso P5.5.26. Comparar la dirección publicada en la interfaz y en la consola
+
+Desde otra terminal solicita:
+
+~~~powershell
+docker ps --filter "name=cursoweb-m05-grafico"
+curl.exe -i http://localhost:8084/Productos/Estado
+~~~
+
+Debes observar el contenedor y recibir la respuesta de Estado de MVC A. Vuelve a Docker Desktop y busca la información de los puertos publicados para esa instancia. Relaciona el número exterior 8084 con el interior 8080.
+
+**Pregunta práctica:** ¿qué ocurriría si abrieras `http://localhost:8080/` en Windows cuando la instancia publica 8084:8080? Estarías solicitando un puerto diferente del que declaraste para el host. El hecho de que exista un `EXPOSE 8080` no cambia el mapeo real.
+
+No modifiques el Dockerfile para arreglar una URL que no corresponde al puerto exterior. Si necesitas usar otro puerto libre del host, detén el contenedor e inícialo de nuevo con otro primer número de `-p`.
+
+### Paso P5.5.27. Consultar los logs desde dos interfaces
+
+**Fundamento:** 5.5.28. Con `cursoweb-m05-grafico` todavía activo, consulta la salida desde consola:
+
+~~~powershell
+docker logs cursoweb-m05-grafico
+~~~
+
+La salida debería incluir información de ASP.NET Core y, si hubo solicitudes, posibles registros de ejecución. Después abre los detalles de ese mismo contenedor en Docker Desktop y localiza su vista de logs. Compara si corresponde al proceso que está ejecutándose, evitando mezclarlo con otro contenedor anterior.
+
+Los logs aportan información del proceso. No sustituyen la prueba HTTP: el contenedor puede estar activo y haber escrito mensajes de arranque aunque el usuario solicite un puerto equivocado. Por eso esta práctica mantiene tres observaciones independientes: contenedor activo, salida del proceso y respuesta al endpoint Estado.
+
+Si el contenedor termina, consulta el error de la terminal y los logs que sigan accesibles. No atribuyas automáticamente la caída a una clase MVC; el problema puede haber ocurrido durante el arranque por una condición de entorno.
+
+### Paso P5.5.28. Inspeccionar sin afirmar que existe un CRUD Linux persistente
+
+Con el contenedor accesible en 8084, solicita:
+
+~~~powershell
+curl.exe -i http://localhost:8084/
+curl.exe -i http://localhost:8084/css/site.css
+curl.exe -i http://localhost:8084/Productos
+~~~
+
+Las dos primeras solicitudes deben servir la página inicial y un recurso estático. La ruta de productos debe devolver 503 por la configuración `Despliegue__SinLocalDb=true`.
+
+Si la interfaz de Docker Desktop indica que el contenedor está sano desde el punto de vista de su ejecución, esa información no convierte el 503 en un catálogo SQL funcional. Debemos seguir distinguiendo el estado administrativo de la instancia y el comportamiento real de cada endpoint.
+
+La base SQL Server Express LocalDB continúa perteneciendo al escenario Windows de MVC A. Ni Docker Desktop ni la publicación de la imagen Linux han instalado una instancia de esa tecnología dentro del contenedor.
+
+### Paso P5.5.29. Detener el contenedor sin eliminar la imagen
+
+Regresa a la terminal que ejecuta el contenedor o utiliza una segunda para detener exactamente esta instancia:
+
+~~~powershell
+docker stop cursoweb-m05-grafico
+~~~
+
+Como fue iniciada con `--rm`, debe retirarse después de detenerse. Comprueba en Docker Desktop que el estado se ha actualizado; no utilices sus controles de eliminación masiva.
+
+En PowerShell confirma la diferencia:
+
+~~~powershell
+docker ps -a --filter "name=cursoweb-m05-grafico"
+docker images cursoweb-mvc
+~~~
+
+La imagen `cursoweb-mvc:m05` puede seguir existiendo. Esto demuestra que el objeto ejecutable que se retiró no era la imagen misma. Si el alumno desea iniciar de nuevo el proyecto, puede crear otra instancia a partir de la imagen sin volver a editar `HomeController`.
+
+### Paso P5.5.30. Resolver una discrepancia entre consola y Docker Desktop
+
+Un alumno ejecuta `docker ps` y ve un contenedor, pero no logra localizarlo en la interfaz gráfica. Antes de declarar que Docker está roto, comprueba que ambos programas están conectados al mismo motor y contexto. La existencia de varios contextos Docker en algunos equipos puede hacer que las herramientas consulten entornos distintos.
+
+En el laboratorio estándar, con Docker Desktop correctamente preparado, consola e interfaz deberían representar el mismo conjunto de recursos. Sin embargo, la ausencia de una tarjeta gráfica en una vista no constituye prueba suficiente de que el proceso web no exista: la petición HTTP y `docker ps` proporcionan evidencias adicionales.
+
+La investigación debe identificar el nombre exacto del contenedor y el puerto declarado. No se debe reconstruir una imagen cada vez que no se encuentra un icono en la interfaz.
+
+### Paso P5.5.31. Comparar la gestión gráfica con la gestión de procesos Windows
+
+Durante Kestrel ejecutamos una DLL en PowerShell y detuvimos su proceso con Ctrl+C. En IIS creamos un sitio y un Application Pool bajo la administración del servidor Windows. En Docker creamos un contenedor a partir de una imagen y lo gestionamos con Docker Desktop o comandos.
+
+Las interfaces son diferentes, pero las preguntas siguen siendo comparables: qué programa se ejecuta, con qué recursos, en qué puerto y qué solicitudes puede atender. MVC A sigue utilizando sus mismos controladores y vistas.
+
+El alumnado no necesita aprender a administrar un clúster de contenedores ni a configurar redes distribuidas para entenderlo. Debe relacionar el contenedor de Docker Desktop con un proceso ASP.NET Core y una publicación existente.
+
+### Paso P5.5.32. Cierre razonado de la ampliación gráfica
+
+Antes de terminar, identifica en Docker Desktop una imagen del proyecto, explica por qué puede permanecer aunque no exista un contenedor activo, señala el nombre de la instancia de ensayo cuando está ejecutándose y comprueba la relación de puertos exterior/interior.
+
+Desde el navegador verifica la portada MVC y desde PowerShell comprueba la ruta de Estado. Explica además la respuesta 503 del catálogo cuando la ejecución se realiza sin LocalDB. Es una limitación contractual del escenario, no una falla que deba ocultarse.
+
+Detén y retira solamente la instancia creada por ti, comprueba que el proyecto fuente conserva su Dockerfile y que no has eliminado otras aplicaciones. Con esto habrás reconocido el mismo ciclo de vida tanto desde consola como desde una interfaz gráfica.
+
+
+
 ### Ampliación autónoma P5.5: una avería diferente en cada capa
 
 Estudia estos tres casos y expresa la acción correctiva más pequeña:
