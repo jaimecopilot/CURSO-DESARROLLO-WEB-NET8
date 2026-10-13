@@ -8,6 +8,21 @@
 
 **AUTOR: JAIME GALLO**
 
+## Índice del módulo
+
+- [4.1 — Integración HTTP con Blazor](#punto-1)
+- [4.2 — Servicios tipados e inyección de dependencias](#punto-2)
+- [4.3 — Construcción de una API REST](#punto-3)
+- [4.4 — Autenticación, autorización y AuthorizeView](#punto-4)
+
+## Orientación de lectura
+
+Este manual desarrolla los fundamentos y los ejemplos completos **antes** de los ejercicios. La secuencia esencial es comprender GET/POST y los DTO; extraer la comunicación a un servicio; construir una API compatible; y diferenciar autenticación, autorización y visualización de permisos. Los estudios de caso y las profundizaciones permiten continuar aprendiendo fuera de la sesión, sin obligar a ejecutar todos los experimentos durante las seis horas del módulo.
+
+Los fragmentos de código se presentan para explicar el mecanismo. El itinerario de construcción, sus estados intermedios y los resultados que debe observar el alumno están en el manual de prácticas.
+
+
+
 
 ## 4.1. Consumir una API HTTP desde Blazor: contratos, JSON, operaciones asíncronas y errores
 
@@ -32,6 +47,17 @@ Con `IProductosMemoriaService`, un componente llama a un método que ejecuta có
 | Su modelo puede cambiar junto con Blazor | Necesita un contrato de intercambio estable |
 
 Esta diferencia explica por qué **no debemos insertar llamadas HTTP en todos los componentes**. En P4.1 veremos primero el mecanismo; en 4.2 lo encapsularemos en un servicio específico que sea fácil de sustituir y probar.
+
+
+#### Laboratorio conceptual: interpretar HTTP antes de escribir Razor
+
+En el catálogo local del módulo anterior una llamada C# permanecía dentro del mismo proceso. La integración remota introduce un protocolo y, por tanto, un conjunto de situaciones que antes no aparecían: el host podría no estar iniciado, la ruta podría ser incorrecta, el servidor podría rechazar una entrada o la respuesta podría ser válida como JSON pero incompatible con el contrato del cliente.
+
+Consideremos un usuario que visita la página /catalogo-remoto. La navegación lleva a un componente de Blazor Interactive Server. Su código C# se ejecuta en el servidor que aloja Blazor, no automáticamente dentro del proceso de la API ni dentro del JavaScript del navegador. Desde ese proceso se emite la petición HTTP a otro servidor, la API auxiliar del laboratorio. Ese servidor busca un endpoint, lee sus productos y devuelve JSON. La aplicación Blazor deserializa la respuesta y actualiza el estado del componente, y el navegador recibe los cambios de su interfaz.
+
+Ese recorrido explica por qué tres direcciones no deben confundirse: la URL de la página Blazor, la dirección base del cliente HTTP y la ruta del endpoint de la API. La primera permite navegar hasta una pantalla; la segunda indica a qué host y puerto se envía la petición; la tercera identifica el recurso dentro de la API.
+
+Una respuesta 200 con un arreglo vacío significa que no existen elementos disponibles, pero el protocolo ha funcionado. Una respuesta 404 implica que el servidor recibió la petición y no encontró el recurso. Una excepción por conexión rechazada significa que no obtuvimos respuesta HTTP de la API. La distinción parece elemental, pero determina mensajes de usuario, diagnósticos y decisiones de implementación muy diferentes.
 
 ### 4.1.2. Petición y respuesta: más allá de «llamar a una URL»
 
@@ -68,6 +94,28 @@ Content-Type: application/json
 ```
 
 La API valida la entrada, asigna un identificador y responde **201 Created** con el producto creado y, preferiblemente, su ubicación. GET no debe dar de alta productos; POST se emplea aquí para crear uno. Los códigos son parte del contrato: un cuerpo JSON con formato válido no convierte en éxito una operación rechazada.
+
+
+#### Las cabeceras HTTP también forman parte de la comunicación
+
+Al consumir una API conviene examinar algo más que el cuerpo JSON. Una petición POST incluye Content-Type para indicar cómo debe interpretarse el contenido enviado. Cuando el cuerpo está serializado como JSON, ese valor es application/json. La respuesta del servidor puede incluir igualmente un Content-Type para describir qué datos devuelve.
+
+La cabecera Accept permite expresar el formato que prefiere el cliente para la respuesta. Nuestro laboratorio utiliza JSON y no implementa un sistema de formatos alternativos, pero distinguir Accept de Content-Type evita una confusión frecuente: el primero se refiere a la representación que el cliente desea recibir, mientras que el segundo describe la representación del cuerpo que realmente se envía.
+
+Consideremos este intercambio:
+
+~~~http
+POST /api/productos HTTP/1.1
+Host: localhost:5081
+Accept: application/json
+Content-Type: application/json
+
+{"nombre":"Agenda","precio":6.40}
+~~~
+
+El servidor lee el cuerpo de acuerdo con el formato de entrada, valida los campos y devuelve el recurso creado. Si el servidor responde 201, la aplicación cliente todavía debe leer correctamente el objeto que acompaña a la respuesta. La confirmación HTTP y la conversión de datos son etapas distintas.
+
+Cuando se produce un rechazo, el servidor puede elegir otro formato para describirlo. En la API sencilla del curso devolvemos mensajes reducidos; no implantamos un modelo corporativo de errores. Esa limitación explica por qué el cliente debe comprobar el código de estado antes de interpretar el cuerpo como ProductoDto: el contenido de un 400 no tiene por qué tener la forma de un producto creado.
 
 ### 4.1.3. Contratos de datos y DTO: no enviar la interfaz entera
 
@@ -106,6 +154,62 @@ Producto Convertir(ProductoDto dto) =>
 
 Un `record` posicional simplifica la representación en este laboratorio. No equivale a una entidad de EF Core ni introduce persistencia. La API del capítulo mantendrá su catálogo en memoria; reiniciar el proceso puede restaurar los datos iniciales.
 
+
+#### El DTO como contrato, no como duplicación accidental
+
+Los DTO del cliente son tipos que describen los datos intercambiados. El servidor puede utilizar sus propios tipos equivalentes sin referenciar el proyecto Blazor. El acoplamiento que realmente importa aparece en el contrato JSON: campos, tipos, forma de la colección y significados.
+
+Comparemos tres documentos JSON:
+
+~~~json
+[
+  { "id": 1, "nombre": "Cuaderno", "precio": 2.50 }
+]
+~~~
+
+~~~json
+[]
+~~~
+
+~~~json
+{ "cantidad": 1, "precioTotal": 2.50 }
+~~~
+
+Los dos primeros son arreglos JSON compatibles con una lista de ProductoDto. El tercero es un objeto válido, pero no es un catálogo. Aunque el servidor devolviera código 200, intentar deserializarlo como una lista sería un error. Por eso el endpoint de resumen de 4.3 conserva su propia ruta y no sustituye la salida del listado.
+
+El identificador es otro aspecto del contrato. El DTO de lectura tiene Id porque la API ya ha creado el recurso. El DTO de creación lo omite porque la asignación corresponde al servidor. Si el componente asignara su propio identificador, dos clientes distintos podrían producir decisiones contradictorias. Nuestro laboratorio no modela un sistema distribuido completo, pero sí mantiene clara la frontera de responsabilidad.
+
+Usamos decimal para precios porque representa cantidades de base decimal y evita algunas dificultades de aproximación de los números binarios de coma flotante. No estamos construyendo un motor de facturación: no se modelan monedas, impuestos, reglas de redondeo ni transacciones.
+
+
+#### Caso de estudio: el catálogo devuelve 200, pero Blazor no presenta productos
+
+Consideremos una incidencia deliberadamente diseñada para aprender a diagnosticar contratos. La API responde en la dirección correcta y, al consultar desde una herramienta HTTP, observamos la respuesta siguiente:
+
+~~~http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+{"productos":[{"id":1,"nombre":"Cuaderno","precio":2.50}]}
+~~~
+
+El servidor existe, la ruta coincide y el cuerpo es JSON válido. Sin embargo, el servicio Blazor intenta convertirlo directamente a una lista de ProductoDto. El problema reside en la forma del contrato: el servidor ha enviado un objeto con una propiedad productos, no un arreglo como raíz.
+
+Hay dos correcciones posibles, pero no son equivalentes. Podemos restaurar en el servidor el arreglo esperado, manteniendo el contrato original de GET /api/productos, o podemos cambiar el cliente y definir un DTO contenedor que corresponda a la nueva forma. En nuestro laboratorio elegimos la primera opción porque ya existen consumidores que dependen del contrato original y no hemos planteado una versión nueva de la API.
+
+Ahora imaginemos otra respuesta:
+
+~~~http
+HTTP/1.1 200 OK
+Content-Type: application/json
+
+[{"id":1,"nombre":"Cuaderno","precio":"dos euros"}]
+~~~
+
+Aquí la raíz sí es un arreglo, pero el tipo de precio no corresponde a decimal. Un campo de texto no numérico no debe convertirse silenciosamente en un precio válido. La API tiene que recuperar el contrato declarado o el cliente tendría que implementar una transformación explícita que justificara esa diferencia. No corregiríamos esta incidencia cambiando el modo de renderizado de Blazor: la incompatibilidad sucede antes de representar la lista.
+
+El procedimiento didáctico consiste en formular hipótesis y comprobarlas una por una. Primero confirmamos el estado HTTP, después inspeccionamos el cuerpo, comparamos raíz y propiedades con los DTO y finalmente verificamos que la página transforma correctamente los datos recibidos. Esta secuencia permite distinguir una incidencia de comunicación de una incidencia de serialización.
+
 ### 4.1.4. JSON y serialización con System.Net.Http.Json
 
 En JSON los nombres de propiedades no llevan mayúsculas obligatorias. La configuración web habitual de `System.Text.Json` usa nombres en *camelCase*, de manera que `Nombre` se representa como `nombre`.
@@ -121,6 +225,15 @@ En JSON los nombres de propiedades no llevan mayúsculas obligatorias. La config
 Para transformar objetos .NET en JSON o a la inversa, .NET 8 ofrece las extensiones de `System.Net.Http.Json`. `GetFromJsonAsync<T>` combina la lectura HTTP con la deserialización; `PostAsJsonAsync` serializa un objeto antes de enviarlo.
 
 No obstante, **deserializar no es validar el negocio**: si la API devuelve un nombre vacío o un precio inválido con 200, el JSON puede ser técnicamente legible. La validación de los datos recibidos o de la petición sigue siendo una responsabilidad explícita.
+
+
+#### El significado de una respuesta se compone de varias piezas
+
+Una operación HTTP tiene método, ruta, cabeceras, cuerpo opcional y un resultado. Ninguna pieza aislada describe por completo lo que ha ocurrido. Un 200 puede incluir un catálogo válido, una lista vacía o un cuerpo incompatible con el DTO. Un 201 puede indicar que se ha creado un recurso, pero el consumidor aún necesita conocer cuál se ha creado y con qué identificador.
+
+Cuando diseñamos un formulario Blazor que publica productos, debemos leer esas piezas en un orden comprensible: se construye CrearProductoDto, se envía POST con JSON, se comprueba el estado de respuesta, se lee el ProductoDto confirmado y se actualiza la pantalla. Si se rechaza la petición, el componente conserva los valores del usuario y presenta el error. Si el servidor no responde, el cliente no inventa un estado HTTP.
+
+Esta secuencia sirve para evaluar código que aparentemente funciona. Un componente que añade el producto antes de recibir respuesta está presentando una creación que todavía no se ha confirmado. Un servicio que devuelve una lista vacía al capturar toda excepción puede esconder un servidor apagado. Una API que acepta cualquier precio porque confía en el formulario de Blazor no está validando su propio contrato.
 
 ### 4.1.5. HttpClient, dirección base e inyección de dependencias
 
@@ -150,6 +263,47 @@ La dirección se puede declarar en `appsettings.json`:
 La barra final en `BaseAddress` evita confusiones al combinar rutas relativas. Con una ruta como `"api/productos"` (sin barra inicial), `HttpClient` construye la dirección completa usando esa base.
 
 En Blazor Interactive Server, esta llamada se efectúa **desde el proceso servidor de Blazor**, no directamente desde JavaScript del navegador. Por tanto, un escenario HTTP servidor-a-servidor no tiene las mismas restricciones CORS que una llamada fetch desde el navegador. Aun así, un servidor API apagado o una URL equivocada impiden obtener datos.
+
+
+#### Elegir el nivel de abstracción HTTP
+
+La familia GetFromJsonAsync combina consulta, validación básica de respuesta y deserialización. Resulta clara para un primer GET, porque deja ver cuál es el dato que espera recibir el componente.
+
+Si necesitamos analizar con exactitud el código HTTP antes de leer el cuerpo, podemos separar las operaciones:
+
+~~~csharp
+using var respuesta = await cliente.GetAsync("api/productos");
+if (!respuesta.IsSuccessStatusCode)
+{
+    error = $"La API respondió {(int)respuesta.StatusCode}.";
+    return;
+}
+productos = await respuesta.Content
+    .ReadFromJsonAsync<List<ProductoDto>>() ?? [];
+~~~
+
+El código es más largo, pero también permite distinguir los distintos rechazos del servidor. No debemos intentar leer una respuesta de error arbitraria como si necesariamente contuviera un catálogo válido. Un 400 o un 500 podrían devolver un objeto de diagnóstico, una cadena u otro contrato diferente.
+
+En escenarios avanzados existe SendAsync junto con HttpRequestMessage, que permite configurar la solicitud de manera detallada. No necesitamos introducirlo como requisito práctico de este módulo; conocer que existe ayuda a situar GetAsync y PostAsJsonAsync dentro de la misma abstracción HTTP.
+
+
+#### Relación entre configuración y despliegue
+
+La dirección local usada en el laboratorio permite ejecutar dos procesos en la misma máquina. No significa que la API pública de producción deba utilizar HTTP sin cifrar ni un puerto fijo de desarrollo. En otro entorno, la dirección base será distinta y se configurará de forma apropiada. El contrato del componente no debe depender de escribir ese valor como una cadena dentro de cada pantalla.
+
+Este módulo mantiene deliberadamente una configuración sencilla. La jornada siguiente presentará mecanismos elementales de ejecución y publicación, pero no es necesario introducir ahora balanceadores, descubrimiento de servicios ni una plataforma de contenedores para comprender la llamada HTTP.
+
+
+
+#### Caso de estudio: falla solo después de cambiar el puerto
+
+La API suministrada escucha en 5081 y el cliente usa la clave ProductosApi:BaseUrl. El docente desea demostrar que la ubicación de un servicio es configuración y arranca una nueva API en 5088. Su contrato permanece igual, pero el cliente sigue apuntando a 5081.
+
+En esa situación no debemos modificar ProductoDto, ni PostAsJsonAsync ni el marcado HTML. Primero comprobamos con un cliente HTTP que la nueva API responde en 5088. Después cambiamos la dirección base de la aplicación Blazor, reiniciamos cuando sea necesario para aplicar la configuración y volvemos a consultar la página.
+
+El hecho de que la API responda en otra dirección no significa que el contrato haya cambiado. Tampoco debemos suponer que una misma ruta relativa funciona sin configurar correctamente su host. Esta distinción vuelve a aparecer cuando una aplicación se ejecuta bajo Kestrel, IIS o Docker en el módulo 5: el destino puede variar mientras que las operaciones GET y POST mantienen su significado.
+
+Podemos plantear un experimento inverso: conservamos el puerto pero cambiamos solamente el nombre de la ruta a api/catalogo. Ahora la conectividad HTTP existe, pero la API no publica el recurso que el cliente solicita. La prueba directa devolverá un error de ruta y el componente podrá mostrarlo. El alumno debe describir qué ha cambiado: en el primer caso, la ubicación; en el segundo, el contrato de endpoint.
 
 ### 4.1.6. GET asíncrono y carga de productos
 
@@ -224,6 +378,39 @@ else
 
 El modelo `ProductoDto` debe estar importado mediante `@using CursoWeb.Blazor.Models` o en `Components/_Imports.razor`. Este ejemplo presupone el registro de cliente y los DTO anteriores; no se presenta como archivo aislado que funcione sin ellos.
 
+
+#### Asincronía explicada con estados observables
+
+Una operación await no equivale a ejecutar permanentemente otra tarea en un hilo dedicado. Su función en el consumo HTTP es permitir que el código de la aplicación espere una operación de entrada/salida de manera asíncrona. El método devuelve una tarea, y la continuación se ejecuta cuando la operación finaliza o falla.
+
+El componente necesita conservar un estado claro durante la espera. Al comenzar la carga, cargando es verdadero. Después de obtener datos o capturar un error, finalmente pasa a falso. Esta última transición debe producirse incluso cuando se lanza una excepción; por eso la situamos en finally. De lo contrario un error de conectividad podría dejar el texto Cargando catálogo visible indefinidamente.
+
+En la creación de productos interviene otra transición: enviando permanece verdadero mientras se realiza POST, para impedir que el usuario pulse el botón varias veces por impaciencia. Eso limita duplicaciones desde la interfaz, pero no hace que POST sea una operación idempotente ni evita peticiones repetidas procedentes de otros clientes. La API valida los datos con independencia del botón de Blazor.
+
+Un principio útil es actualizar el catálogo después de recibir confirmación del servidor, no antes. Si el servidor devuelve un producto con un ID nuevo, incorporamos ese DTO a la pantalla. Si el POST falla, conservamos nombre y precio para que el usuario pueda corregirlos y reintentar cuando corresponda.
+
+
+#### La carga inicial es una transición del componente
+
+En Blazor Interactive Server, OnInitializedAsync permite iniciar una operación asíncrona relacionada con la inicialización del componente. Nuestro catálogo utiliza ese lugar para obtener la lista inicial. Elegimos prerender: false en el ejemplo para que la demostración resulte más simple al observar cuándo comienza la operación interactiva. Esa elección no es una regla general sobre cómo deben construirse todas las aplicaciones Blazor.
+
+Durante la espera, cargando es verdadero. Cuando la operación termina correctamente, productos contiene el resultado y la interfaz puede presentar la lista. Cuando hay una excepción, error contiene un mensaje y la interfaz muestra la situación correspondiente. El bloque finally desactiva cargando tanto en éxito como en fallo.
+
+Si el alumno utiliza una página que conserva siempre cargando=true, lo primero es comprobar si el método de carga se está ejecutando, si contiene una excepción no tratada o si nunca se restaura el estado. La ausencia de productos en pantalla no prueba, por sí misma, que la API haya devuelto un arreglo vacío.
+
+También distinguimos el estado de consulta del estado de creación. cargando representa la obtención inicial de la lista; enviando representa un POST iniciado por el usuario. Una aplicación más compleja podría modelar estados independientes de actualización, paginación y cancelación, pero en el laboratorio basta con evitar que una única variable signifique varias operaciones distintas.
+
+
+#### ¿Qué significa realmente que el cliente sea asíncrono?
+
+Imaginemos una API que tarda tres segundos en responder a un GET. El código await permite continuar cuando llega la respuesta sin bloquear de forma síncrona todo el tiempo. No convierte la operación en instantánea ni garantiza que el usuario la perciba como rápida. De hecho, esa demora nos obliga a diseñar un estado de carga comprensible.
+
+Comparar await con una llamada bloqueante ayuda a entender la decisión. Si utilizáramos Result sobre una tarea HTTP desde código de servidor, podríamos bloquear hilos innecesariamente y complicar la ejecución. Con async/await, la operación de E/S se integra en el flujo asincrónico normal de ASP.NET Core y Blazor.
+
+Otra cuestión es la cancelación. HttpClient dispone de opciones de timeout y puede recibir CancellationToken para controlar operaciones. En este módulo configuramos un tiempo máximo sencillo. No implementamos todavía una experiencia completa de cancelación de peticiones, porque esa ampliación requiere decidir qué ocurre con el estado de UI, con el servidor y con operaciones de escritura ya iniciadas.
+
+El alumno debe conservar una idea precisa: asíncrono significa esperar de manera apropiada una operación sin bloquear su ejecución como si fuera puramente síncrona. La calidad de la experiencia depende además de gestionar estados, errores y confirmaciones.
+
 ### 4.1.7. POST asíncrono y resultado de una creación
 
 El envío de un producto debe diferenciar la entrada del usuario del resultado que asigna el servidor:
@@ -255,6 +442,57 @@ public static async Task<ProductoDto> CrearProductoAsync(
 
 En una interfaz real también hay que deshabilitar el botón durante el envío, informar del fallo y decidir qué hacer si se pierde la respuesta después de que el servidor ya haya procesado el POST. Para esta práctica no implementaremos reintentos automáticos de POST, pues podrían generar duplicados.
 
+
+#### Caso de estudio: el botón responde, pero se crean dos productos
+
+Un usuario pulsa dos veces el botón Crear porque la interfaz tarda en responder. Si ambas pulsaciones originan un POST, el servidor puede crear dos recursos distintos: una primera respuesta 201 con ID 3 y una segunda respuesta 201 con ID 4. Cada operación ha sido correcta individualmente, aunque el resultado conjunto no era el deseado.
+
+La primera medida didáctica consiste en mantener una variable enviando en el componente y deshabilitar el botón mientras se espera. Observemos por qué ese mecanismo es solamente una medida de presentación. Un cliente HTTP diferente, una automatización o una conexión que repita una petición siguen pudiendo enviar POST adicionales a la API. No existe ninguna garantía de unicidad de la operación por haber cambiado una propiedad HTML.
+
+Por eso tampoco introducimos un reintento automático indiscriminado cuando se agota el tiempo de POST. La excepción en el cliente indica que dejó de recibir el resultado a tiempo; no demuestra que la API no haya procesado la solicitud. Un diseño profesional podría incorporar claves de idempotencia o una regla de negocio que impidiera crear duplicados, pero eso excede la pequeña API didáctica de esta jornada.
+
+El alumno debe poder explicar esta diferencia en términos de protocolo: dos GET suelen representar dos lecturas independientes del mismo recurso; dos POST de creación pueden representar dos cambios de estado. La semántica HTTP orienta nuestras decisiones de diseño incluso antes de elegir qué componente Razor dibuja el botón.
+
+
+#### Lectura guiada de un intercambio POST completo
+
+Consideremos una solicitud correcta de creación:
+
+~~~http
+POST /api/productos HTTP/1.1
+Host: localhost:5081
+Content-Type: application/json
+Accept: application/json
+
+{"nombre":"Regla","precio":1.75}
+~~~
+
+La API deserializa el cuerpo como CrearProductoApi y comprueba que el nombre no está vacío y que el precio es mayor que cero. Después asigna un identificador que pertenece al estado de su servidor. La respuesta representa la creación efectiva:
+
+~~~http
+HTTP/1.1 201 Created
+Location: /api/productos/3
+Content-Type: application/json
+
+{"id":3,"nombre":"Regla","precio":1.75}
+~~~
+
+¿Qué debe hacer el componente con esa información? Primero comprobar que la operación fue satisfactoria, después deserializar el objeto creado y finalmente incorporarlo a la lista. La cabecera Location permite conocer la dirección relativa de la nueva entidad. La respuesta 201 no exige que el componente navegue automáticamente allí; la interfaz de este curso permanece en el catálogo y actualiza sus elementos.
+
+Ahora cambiamos la solicitud:
+
+~~~http
+POST /api/productos HTTP/1.1
+Host: localhost:5081
+Content-Type: application/json
+
+{"nombre":"","precio":0}
+~~~
+
+El servidor rechaza la entrada con 400 y no asigna un identificador. El cliente no debe interpretar ese cuerpo como un producto. Por eso la implementación usa EnsureSuccessStatusCode antes de intentar leer ProductoDto. Si queremos mostrar en pantalla la razón exacta del rechazo, habría que diseñar un contrato estable de error para la API y leerlo en el cliente; no basta con suponer que todas las respuestas de error tienen la misma forma que las de éxito.
+
+Esta comparación es especialmente útil para estudiantes que ya conocen Web API: no se trata de memorizar los nombres GET y POST, sino de reconocer qué consecuencias tiene para la aplicación receptora cada decisión de estado y cuerpo.
+
 ### 4.1.8. Respuestas HTTP, errores y decisiones de presentación
 
 | Situación | Interpretación | Respuesta de la interfaz |
@@ -271,6 +509,38 @@ En una interfaz real también hay que deshabilitar el botón durante el envío, 
 El código de estado y la excepción no son equivalentes: una respuesta HTTP 400 demuestra que **sí** se ha alcanzado algún servidor; un error de conexión puede significar que no se ha alcanzado ninguno.
 
 Para un tratamiento más fino podemos leer `HttpResponseMessage` de forma explícita y distinguir `StatusCode`, como veremos en el ejercicio de error controlado. Los detalles internos y trazas del servidor no deben exponerse directamente al usuario de la aplicación.
+
+
+#### Interpretación de situaciones que parecen iguales
+
+| Experimento | Significado del resultado | Qué debe hacer la interfaz |
+|---|---|---|
+| GET correcto devuelve dos objetos | El contrato funciona | Presentar los dos productos |
+| GET correcto devuelve arreglo vacío | Catálogo sin elementos | Mostrar vacío sin acusar fallo |
+| GET recibe 404 | Ruta o recurso inexistente | Mostrar fallo HTTP |
+| POST recibe 400 | Datos no aceptados | Conservar la entrada y explicar rechazo |
+| Se apaga la API | No se obtiene respuesta HTTP | Mostrar error de conectividad |
+| La respuesta no corresponde al DTO | Desajuste de contrato | Informar incompatibilidad |
+| La operación supera el timeout | Cliente dejó de esperar | Informar de demora |
+| POST confirma 201 y un ID | Alta realizada | Añadir objeto real y limpiar formulario |
+
+La fila del timeout merece atención: cuando el cliente deja de esperar una respuesta, no podemos deducir sin más que el servidor dejó de trabajar. Un POST puede haberse procesado aunque su confirmación no llegara. Esa es una razón para no programar reintentos ciegos de operaciones de creación en este laboratorio.
+
+
+#### Diagnóstico sistemático de una pantalla sin productos
+
+El diagnóstico se realiza desde los límites del sistema. Primero se comprueba si la API está escuchando y responde directamente en la URL del listado. Segundo, se verifica que la respuesta tiene la forma de una lista y los campos esperados. Tercero, se comprueba que la URL de configuración del cliente apunta al mismo servidor y que la ruta relativa compone la dirección prevista. Cuarto, se estudia el tratamiento de errores del servicio y finalmente el estado visual de la pantalla.
+
+No se cambia el componente, la configuración y el servidor a la vez. Modificar varios límites simultáneamente hace imposible averiguar cuál de ellos contenía el fallo. Separar observaciones y decisiones es parte del aprendizaje sobre integración, no una actividad administrativa.
+
+
+#### Una guía de lectura de errores para el estudiante
+
+Cuando GET o POST falla, pregúntate en primer lugar si existe una respuesta HTTP. Si no la hay, revisa el proceso API, el puerto, la dirección y el tiempo de espera. Si la hay, revisa método y ruta, código de estado y forma del cuerpo. Solo después estudia qué hace el componente con el resultado.
+
+Para GET correcto, el cuerpo debe ser una lista de ProductoDto. Para POST correcto, un ProductoDto que incorpora el ID asignado. Para un error de reglas, la respuesta no representa un producto creado, de modo que no debe incorporarse a la lista. Para una ruta inexistente, el servidor puede devolver 404 y el cliente debe comunicar que no obtuvo el recurso previsto.
+
+Esta manera de razonar permite mantener el material del curso centrado en cuatro conocimientos: HTTP, contratos, responsabilidades y estados visuales. La sintaxis de las llamadas ayuda a ejecutarlos, pero la competencia profesional consiste en poder explicar qué sucedió cuando una de esas fronteras no respondió como esperábamos.
 
 ### 4.1.9. API auxiliar: contrato disponible antes de construir la práctica
 
@@ -334,209 +604,8 @@ Esta secuencia también evita un error pedagógico frecuente: **modificar la apl
 Consumir una API no consiste únicamente en escribir `await cliente.GetFromJsonAsync`. Requiere conocer el contrato HTTP, representar correctamente los datos intercambiados, configurar el cliente, distinguir éxito y fracaso y actualizar el estado visible de Blazor con una respuesta confiable. En el siguiente punto, 4.2, retiraremos esa responsabilidad de los componentes y la situaremos en un servicio especializado.
 
 
-### 4.1.11. Laboratorio conceptual: interpretar HTTP antes de escribir Razor
 
-En el catálogo local del módulo anterior una llamada C# permanecía dentro del mismo proceso. La integración remota introduce un protocolo y, por tanto, un conjunto de situaciones que antes no aparecían: el host podría no estar iniciado, la ruta podría ser incorrecta, el servidor podría rechazar una entrada o la respuesta podría ser válida como JSON pero incompatible con el contrato del cliente.
-
-Consideremos un usuario que visita la página /catalogo-remoto. La navegación lleva a un componente de Blazor Interactive Server. Su código C# se ejecuta en el servidor que aloja Blazor, no automáticamente dentro del proceso de la API ni dentro del JavaScript del navegador. Desde ese proceso se emite la petición HTTP a otro servidor, la API auxiliar del laboratorio. Ese servidor busca un endpoint, lee sus productos y devuelve JSON. La aplicación Blazor deserializa la respuesta y actualiza el estado del componente, y el navegador recibe los cambios de su interfaz.
-
-Ese recorrido explica por qué tres direcciones no deben confundirse: la URL de la página Blazor, la dirección base del cliente HTTP y la ruta del endpoint de la API. La primera permite navegar hasta una pantalla; la segunda indica a qué host y puerto se envía la petición; la tercera identifica el recurso dentro de la API.
-
-Una respuesta 200 con un arreglo vacío significa que no existen elementos disponibles, pero el protocolo ha funcionado. Una respuesta 404 implica que el servidor recibió la petición y no encontró el recurso. Una excepción por conexión rechazada significa que no obtuvimos respuesta HTTP de la API. La distinción parece elemental, pero determina mensajes de usuario, diagnósticos y decisiones de implementación muy diferentes.
-
-### 4.1.12. El DTO como contrato, no como duplicación accidental
-
-Los DTO del cliente son tipos que describen los datos intercambiados. El servidor puede utilizar sus propios tipos equivalentes sin referenciar el proyecto Blazor. El acoplamiento que realmente importa aparece en el contrato JSON: campos, tipos, forma de la colección y significados.
-
-Comparemos tres documentos JSON:
-
-~~~json
-[
-  { "id": 1, "nombre": "Cuaderno", "precio": 2.50 }
-]
-~~~
-
-~~~json
-[]
-~~~
-
-~~~json
-{ "cantidad": 1, "precioTotal": 2.50 }
-~~~
-
-Los dos primeros son arreglos JSON compatibles con una lista de ProductoDto. El tercero es un objeto válido, pero no es un catálogo. Aunque el servidor devolviera código 200, intentar deserializarlo como una lista sería un error. Por eso el endpoint de resumen de 4.3 conserva su propia ruta y no sustituye la salida del listado.
-
-El identificador es otro aspecto del contrato. El DTO de lectura tiene Id porque la API ya ha creado el recurso. El DTO de creación lo omite porque la asignación corresponde al servidor. Si el componente asignara su propio identificador, dos clientes distintos podrían producir decisiones contradictorias. Nuestro laboratorio no modela un sistema distribuido completo, pero sí mantiene clara la frontera de responsabilidad.
-
-Usamos decimal para precios porque representa cantidades de base decimal y evita algunas dificultades de aproximación de los números binarios de coma flotante. No estamos construyendo un motor de facturación: no se modelan monedas, impuestos, reglas de redondeo ni transacciones.
-
-### 4.1.13. Asincronía explicada con estados observables
-
-Una operación await no equivale a ejecutar permanentemente otra tarea en un hilo dedicado. Su función en el consumo HTTP es permitir que el código de la aplicación espere una operación de entrada/salida de manera asíncrona. El método devuelve una tarea, y la continuación se ejecuta cuando la operación finaliza o falla.
-
-El componente necesita conservar un estado claro durante la espera. Al comenzar la carga, cargando es verdadero. Después de obtener datos o capturar un error, finalmente pasa a falso. Esta última transición debe producirse incluso cuando se lanza una excepción; por eso la situamos en finally. De lo contrario un error de conectividad podría dejar el texto Cargando catálogo visible indefinidamente.
-
-En la creación de productos interviene otra transición: enviando permanece verdadero mientras se realiza POST, para impedir que el usuario pulse el botón varias veces por impaciencia. Eso limita duplicaciones desde la interfaz, pero no hace que POST sea una operación idempotente ni evita peticiones repetidas procedentes de otros clientes. La API valida los datos con independencia del botón de Blazor.
-
-Un principio útil es actualizar el catálogo después de recibir confirmación del servidor, no antes. Si el servidor devuelve un producto con un ID nuevo, incorporamos ese DTO a la pantalla. Si el POST falla, conservamos nombre y precio para que el usuario pueda corregirlos y reintentar cuando corresponda.
-
-### 4.1.14. Elegir el nivel de abstracción HTTP
-
-La familia GetFromJsonAsync combina consulta, validación básica de respuesta y deserialización. Resulta clara para un primer GET, porque deja ver cuál es el dato que espera recibir el componente.
-
-Si necesitamos analizar con exactitud el código HTTP antes de leer el cuerpo, podemos separar las operaciones:
-
-~~~csharp
-using var respuesta = await cliente.GetAsync("api/productos");
-if (!respuesta.IsSuccessStatusCode)
-{
-    error = $"La API respondió {(int)respuesta.StatusCode}.";
-    return;
-}
-productos = await respuesta.Content
-    .ReadFromJsonAsync<List<ProductoDto>>() ?? [];
-~~~
-
-El código es más largo, pero también permite distinguir los distintos rechazos del servidor. No debemos intentar leer una respuesta de error arbitraria como si necesariamente contuviera un catálogo válido. Un 400 o un 500 podrían devolver un objeto de diagnóstico, una cadena u otro contrato diferente.
-
-En escenarios avanzados existe SendAsync junto con HttpRequestMessage, que permite configurar la solicitud de manera detallada. No necesitamos introducirlo como requisito práctico de este módulo; conocer que existe ayuda a situar GetAsync y PostAsJsonAsync dentro de la misma abstracción HTTP.
-
-### 4.1.15. Interpretación de situaciones que parecen iguales
-
-| Experimento | Significado del resultado | Qué debe hacer la interfaz |
-|---|---|---|
-| GET correcto devuelve dos objetos | El contrato funciona | Presentar los dos productos |
-| GET correcto devuelve arreglo vacío | Catálogo sin elementos | Mostrar vacío sin acusar fallo |
-| GET recibe 404 | Ruta o recurso inexistente | Mostrar fallo HTTP |
-| POST recibe 400 | Datos no aceptados | Conservar la entrada y explicar rechazo |
-| Se apaga la API | No se obtiene respuesta HTTP | Mostrar error de conectividad |
-| La respuesta no corresponde al DTO | Desajuste de contrato | Informar incompatibilidad |
-| La operación supera el timeout | Cliente dejó de esperar | Informar de demora |
-| POST confirma 201 y un ID | Alta realizada | Añadir objeto real y limpiar formulario |
-
-La fila del timeout merece atención: cuando el cliente deja de esperar una respuesta, no podemos deducir sin más que el servidor dejó de trabajar. Un POST puede haberse procesado aunque su confirmación no llegara. Esa es una razón para no programar reintentos ciegos de operaciones de creación en este laboratorio.
-
-### 4.1.16. Diagnóstico sistemático de una pantalla sin productos
-
-El diagnóstico se realiza desde los límites del sistema. Primero se comprueba si la API está escuchando y responde directamente en la URL del listado. Segundo, se verifica que la respuesta tiene la forma de una lista y los campos esperados. Tercero, se comprueba que la URL de configuración del cliente apunta al mismo servidor y que la ruta relativa compone la dirección prevista. Cuarto, se estudia el tratamiento de errores del servicio y finalmente el estado visual de la pantalla.
-
-No se cambia el componente, la configuración y el servidor a la vez. Modificar varios límites simultáneamente hace imposible averiguar cuál de ellos contenía el fallo. Separar observaciones y decisiones es parte del aprendizaje sobre integración, no una actividad administrativa.
-
-### 4.1.17. Relación entre configuración y despliegue
-
-La dirección local usada en el laboratorio permite ejecutar dos procesos en la misma máquina. No significa que la API pública de producción deba utilizar HTTP sin cifrar ni un puerto fijo de desarrollo. En otro entorno, la dirección base será distinta y se configurará de forma apropiada. El contrato del componente no debe depender de escribir ese valor como una cadena dentro de cada pantalla.
-
-Este módulo mantiene deliberadamente una configuración sencilla. La jornada siguiente presentará mecanismos elementales de ejecución y publicación, pero no es necesario introducir ahora balanceadores, descubrimiento de servicios ni una plataforma de contenedores para comprender la llamada HTTP.
-
-
-### 4.1.18. Caso de estudio: el catálogo devuelve 200, pero Blazor no presenta productos
-
-Consideremos una incidencia deliberadamente diseñada para aprender a diagnosticar contratos. La API responde en la dirección correcta y, al consultar desde una herramienta HTTP, observamos la respuesta siguiente:
-
-~~~http
-HTTP/1.1 200 OK
-Content-Type: application/json
-
-{"productos":[{"id":1,"nombre":"Cuaderno","precio":2.50}]}
-~~~
-
-El servidor existe, la ruta coincide y el cuerpo es JSON válido. Sin embargo, el servicio Blazor intenta convertirlo directamente a una lista de ProductoDto. El problema reside en la forma del contrato: el servidor ha enviado un objeto con una propiedad productos, no un arreglo como raíz.
-
-Hay dos correcciones posibles, pero no son equivalentes. Podemos restaurar en el servidor el arreglo esperado, manteniendo el contrato original de GET /api/productos, o podemos cambiar el cliente y definir un DTO contenedor que corresponda a la nueva forma. En nuestro laboratorio elegimos la primera opción porque ya existen consumidores que dependen del contrato original y no hemos planteado una versión nueva de la API.
-
-Ahora imaginemos otra respuesta:
-
-~~~http
-HTTP/1.1 200 OK
-Content-Type: application/json
-
-[{"id":1,"nombre":"Cuaderno","precio":"dos euros"}]
-~~~
-
-Aquí la raíz sí es un arreglo, pero el tipo de precio no corresponde a decimal. Un campo de texto no numérico no debe convertirse silenciosamente en un precio válido. La API tiene que recuperar el contrato declarado o el cliente tendría que implementar una transformación explícita que justificara esa diferencia. No corregiríamos esta incidencia cambiando el modo de renderizado de Blazor: la incompatibilidad sucede antes de representar la lista.
-
-El procedimiento didáctico consiste en formular hipótesis y comprobarlas una por una. Primero confirmamos el estado HTTP, después inspeccionamos el cuerpo, comparamos raíz y propiedades con los DTO y finalmente verificamos que la página transforma correctamente los datos recibidos. Esta secuencia permite distinguir una incidencia de comunicación de una incidencia de serialización.
-
-### 4.1.19. Caso de estudio: el botón responde, pero se crean dos productos
-
-Un usuario pulsa dos veces el botón Crear porque la interfaz tarda en responder. Si ambas pulsaciones originan un POST, el servidor puede crear dos recursos distintos: una primera respuesta 201 con ID 3 y una segunda respuesta 201 con ID 4. Cada operación ha sido correcta individualmente, aunque el resultado conjunto no era el deseado.
-
-La primera medida didáctica consiste en mantener una variable enviando en el componente y deshabilitar el botón mientras se espera. Observemos por qué ese mecanismo es solamente una medida de presentación. Un cliente HTTP diferente, una automatización o una conexión que repita una petición siguen pudiendo enviar POST adicionales a la API. No existe ninguna garantía de unicidad de la operación por haber cambiado una propiedad HTML.
-
-Por eso tampoco introducimos un reintento automático indiscriminado cuando se agota el tiempo de POST. La excepción en el cliente indica que dejó de recibir el resultado a tiempo; no demuestra que la API no haya procesado la solicitud. Un diseño profesional podría incorporar claves de idempotencia o una regla de negocio que impidiera crear duplicados, pero eso excede la pequeña API didáctica de esta jornada.
-
-El alumno debe poder explicar esta diferencia en términos de protocolo: dos GET suelen representar dos lecturas independientes del mismo recurso; dos POST de creación pueden representar dos cambios de estado. La semántica HTTP orienta nuestras decisiones de diseño incluso antes de elegir qué componente Razor dibuja el botón.
-
-### 4.1.20. Caso de estudio: falla solo después de cambiar el puerto
-
-La API suministrada escucha en 5081 y el cliente usa la clave ProductosApi:BaseUrl. El docente desea demostrar que la ubicación de un servicio es configuración y arranca una nueva API en 5088. Su contrato permanece igual, pero el cliente sigue apuntando a 5081.
-
-En esa situación no debemos modificar ProductoDto, ni PostAsJsonAsync ni el marcado HTML. Primero comprobamos con un cliente HTTP que la nueva API responde en 5088. Después cambiamos la dirección base de la aplicación Blazor, reiniciamos cuando sea necesario para aplicar la configuración y volvemos a consultar la página.
-
-El hecho de que la API responda en otra dirección no significa que el contrato haya cambiado. Tampoco debemos suponer que una misma ruta relativa funciona sin configurar correctamente su host. Esta distinción vuelve a aparecer cuando una aplicación se ejecuta bajo Kestrel, IIS o Docker en el módulo 5: el destino puede variar mientras que las operaciones GET y POST mantienen su significado.
-
-Podemos plantear un experimento inverso: conservamos el puerto pero cambiamos solamente el nombre de la ruta a api/catalogo. Ahora la conectividad HTTP existe, pero la API no publica el recurso que el cliente solicita. La prueba directa devolverá un error de ruta y el componente podrá mostrarlo. El alumno debe describir qué ha cambiado: en el primer caso, la ubicación; en el segundo, el contrato de endpoint.
-
-### 4.1.21. Lectura guiada de un intercambio POST completo
-
-Consideremos una solicitud correcta de creación:
-
-~~~http
-POST /api/productos HTTP/1.1
-Host: localhost:5081
-Content-Type: application/json
-Accept: application/json
-
-{"nombre":"Regla","precio":1.75}
-~~~
-
-La API deserializa el cuerpo como CrearProductoApi y comprueba que el nombre no está vacío y que el precio es mayor que cero. Después asigna un identificador que pertenece al estado de su servidor. La respuesta representa la creación efectiva:
-
-~~~http
-HTTP/1.1 201 Created
-Location: /api/productos/3
-Content-Type: application/json
-
-{"id":3,"nombre":"Regla","precio":1.75}
-~~~
-
-¿Qué debe hacer el componente con esa información? Primero comprobar que la operación fue satisfactoria, después deserializar el objeto creado y finalmente incorporarlo a la lista. La cabecera Location permite conocer la dirección relativa de la nueva entidad. La respuesta 201 no exige que el componente navegue automáticamente allí; la interfaz de este curso permanece en el catálogo y actualiza sus elementos.
-
-Ahora cambiamos la solicitud:
-
-~~~http
-POST /api/productos HTTP/1.1
-Host: localhost:5081
-Content-Type: application/json
-
-{"nombre":"","precio":0}
-~~~
-
-El servidor rechaza la entrada con 400 y no asigna un identificador. El cliente no debe interpretar ese cuerpo como un producto. Por eso la implementación usa EnsureSuccessStatusCode antes de intentar leer ProductoDto. Si queremos mostrar en pantalla la razón exacta del rechazo, habría que diseñar un contrato estable de error para la API y leerlo en el cliente; no basta con suponer que todas las respuestas de error tienen la misma forma que las de éxito.
-
-Esta comparación es especialmente útil para estudiantes que ya conocen Web API: no se trata de memorizar los nombres GET y POST, sino de reconocer qué consecuencias tiene para la aplicación receptora cada decisión de estado y cuerpo.
-
-### 4.1.22. La carga inicial es una transición del componente
-
-En Blazor Interactive Server, OnInitializedAsync permite iniciar una operación asíncrona relacionada con la inicialización del componente. Nuestro catálogo utiliza ese lugar para obtener la lista inicial. Elegimos prerender: false en el ejemplo para que la demostración resulte más simple al observar cuándo comienza la operación interactiva. Esa elección no es una regla general sobre cómo deben construirse todas las aplicaciones Blazor.
-
-Durante la espera, cargando es verdadero. Cuando la operación termina correctamente, productos contiene el resultado y la interfaz puede presentar la lista. Cuando hay una excepción, error contiene un mensaje y la interfaz muestra la situación correspondiente. El bloque finally desactiva cargando tanto en éxito como en fallo.
-
-Si el alumno utiliza una página que conserva siempre cargando=true, lo primero es comprobar si el método de carga se está ejecutando, si contiene una excepción no tratada o si nunca se restaura el estado. La ausencia de productos en pantalla no prueba, por sí misma, que la API haya devuelto un arreglo vacío.
-
-También distinguimos el estado de consulta del estado de creación. cargando representa la obtención inicial de la lista; enviando representa un POST iniciado por el usuario. Una aplicación más compleja podría modelar estados independientes de actualización, paginación y cancelación, pero en el laboratorio basta con evitar que una única variable signifique varias operaciones distintas.
-
-### 4.1.23. ¿Qué significa realmente que el cliente sea asíncrono?
-
-Imaginemos una API que tarda tres segundos en responder a un GET. El código await permite continuar cuando llega la respuesta sin bloquear de forma síncrona todo el tiempo. No convierte la operación en instantánea ni garantiza que el usuario la perciba como rápida. De hecho, esa demora nos obliga a diseñar un estado de carga comprensible.
-
-Comparar await con una llamada bloqueante ayuda a entender la decisión. Si utilizáramos Result sobre una tarea HTTP desde código de servidor, podríamos bloquear hilos innecesariamente y complicar la ejecución. Con async/await, la operación de E/S se integra en el flujo asincrónico normal de ASP.NET Core y Blazor.
-
-Otra cuestión es la cancelación. HttpClient dispone de opciones de timeout y puede recibir CancellationToken para controlar operaciones. En este módulo configuramos un tiempo máximo sencillo. No implementamos todavía una experiencia completa de cancelación de peticiones, porque esa ampliación requiere decidir qué ocurre con el estado de UI, con el servidor y con operaciones de escritura ya iniciadas.
-
-El alumno debe conservar una idea precisa: asíncrono significa esperar de manera apropiada una operación sin bloquear su ejecución como si fuera puramente síncrona. La calidad de la experiencia depende además de gestionar estados, errores y confirmaciones.
-
-### 4.1.24. Un ejercicio de diseño antes de continuar
+#### Un ejercicio de diseño antes de continuar
 
 Supón que se desea añadir un botón Actualizar que vuelva a consultar el catálogo. ¿Qué debería reutilizarse? El código de obtención HTTP debería tener una ubicación clara y la interfaz debería mantener su estado cargando y error. Si ya hubiéramos encapsulado la llamada en un servicio tipado, el botón necesitaría invocar ObtenerAsync y actualizar la colección, no conocer una URL.
 
@@ -545,42 +614,6 @@ Este ejercicio anticipa la necesidad de 4.2. Observa que podemos comenzar con un
 Al terminar 4.1, el alumnado debe poder describir con sus palabras al menos cuatro contrastes: consulta local frente a consulta remota; lista vacía frente a error; petición enviada frente a creación confirmada; fallo de ruta frente a fallo de conexión. Esos contrastes proporcionan una base conceptual que una simple demostración de GetFromJsonAsync no ofrece.
 
 
-### 4.1.25. Las cabeceras HTTP también forman parte de la comunicación
-
-Al consumir una API conviene examinar algo más que el cuerpo JSON. Una petición POST incluye Content-Type para indicar cómo debe interpretarse el contenido enviado. Cuando el cuerpo está serializado como JSON, ese valor es application/json. La respuesta del servidor puede incluir igualmente un Content-Type para describir qué datos devuelve.
-
-La cabecera Accept permite expresar el formato que prefiere el cliente para la respuesta. Nuestro laboratorio utiliza JSON y no implementa un sistema de formatos alternativos, pero distinguir Accept de Content-Type evita una confusión frecuente: el primero se refiere a la representación que el cliente desea recibir, mientras que el segundo describe la representación del cuerpo que realmente se envía.
-
-Consideremos este intercambio:
-
-~~~http
-POST /api/productos HTTP/1.1
-Host: localhost:5081
-Accept: application/json
-Content-Type: application/json
-
-{"nombre":"Agenda","precio":6.40}
-~~~
-
-El servidor lee el cuerpo de acuerdo con el formato de entrada, valida los campos y devuelve el recurso creado. Si el servidor responde 201, la aplicación cliente todavía debe leer correctamente el objeto que acompaña a la respuesta. La confirmación HTTP y la conversión de datos son etapas distintas.
-
-Cuando se produce un rechazo, el servidor puede elegir otro formato para describirlo. En la API sencilla del curso devolvemos mensajes reducidos; no implantamos un modelo corporativo de errores. Esa limitación explica por qué el cliente debe comprobar el código de estado antes de interpretar el cuerpo como ProductoDto: el contenido de un 400 no tiene por qué tener la forma de un producto creado.
-
-### 4.1.26. El significado de una respuesta se compone de varias piezas
-
-Una operación HTTP tiene método, ruta, cabeceras, cuerpo opcional y un resultado. Ninguna pieza aislada describe por completo lo que ha ocurrido. Un 200 puede incluir un catálogo válido, una lista vacía o un cuerpo incompatible con el DTO. Un 201 puede indicar que se ha creado un recurso, pero el consumidor aún necesita conocer cuál se ha creado y con qué identificador.
-
-Cuando diseñamos un formulario Blazor que publica productos, debemos leer esas piezas en un orden comprensible: se construye CrearProductoDto, se envía POST con JSON, se comprueba el estado de respuesta, se lee el ProductoDto confirmado y se actualiza la pantalla. Si se rechaza la petición, el componente conserva los valores del usuario y presenta el error. Si el servidor no responde, el cliente no inventa un estado HTTP.
-
-Esta secuencia sirve para evaluar código que aparentemente funciona. Un componente que añade el producto antes de recibir respuesta está presentando una creación que todavía no se ha confirmado. Un servicio que devuelve una lista vacía al capturar toda excepción puede esconder un servidor apagado. Una API que acepta cualquier precio porque confía en el formulario de Blazor no está validando su propio contrato.
-
-### 4.1.27. Una guía de lectura de errores para el estudiante
-
-Cuando GET o POST falla, pregúntate en primer lugar si existe una respuesta HTTP. Si no la hay, revisa el proceso API, el puerto, la dirección y el tiempo de espera. Si la hay, revisa método y ruta, código de estado y forma del cuerpo. Solo después estudia qué hace el componente con el resultado.
-
-Para GET correcto, el cuerpo debe ser una lista de ProductoDto. Para POST correcto, un ProductoDto que incorpora el ID asignado. Para un error de reglas, la respuesta no representa un producto creado, de modo que no debe incorporarse a la lista. Para una ruta inexistente, el servidor puede devolver 404 y el cliente debe comunicar que no obtuvo el recurso previsto.
-
-Esta manera de razonar permite mantener el material del curso centrado en cuatro conocimientos: HTTP, contratos, responsabilidades y estados visuales. La sintaxis de las llamadas ayuda a ejecutarlos, pero la competencia profesional consiste en poder explicar qué sucedió cuando una de esas fronteras no respondió como esperábamos.
 
 ## 4.2. Extraer el consumo HTTP a una capa de servicio
 
@@ -607,6 +640,26 @@ public interface IProductosApiService
 ```
 
 El nombre `ObtenerAsync` expresa la intención de consultar productos; no revela si la implementación utiliza HTTP, un fichero o datos de prueba. El `Task` indica que la operación puede completarse más tarde. `IReadOnlyList` impide que un consumidor suponga que puede modificar la colección interna del servicio. La interfaz no valida formularios HTML ni determina cuándo aparece un botón de carga: esas decisiones pertenecen a Blazor.
+
+
+#### Diseñar una interfaz a partir del comportamiento y no de la tecnología
+
+La interfaz IProductosApiService es una decisión arquitectónica pequeña y deliberada. Si se llamara IClienteHttp, la presentación seguiría pensando en tecnología de comunicación en vez de operaciones sobre productos. Los métodos ObtenerAsync y CrearAsync expresan lo que necesita la pantalla, mientras que la implementación ProductosApiService conoce las rutas, la serialización, el tiempo de espera y la interpretación de respuestas HTTP.
+
+Una buena comprobación de este diseño es leer el componente después del refactor. Si contiene literales de rutas como api/productos o crea un HttpClient mediante IHttpClientFactory, la extracción está incompleta. Si solo usa la interfaz y mantiene la lógica de presentación, la frontera es visible.
+
+**No toda clase necesita una interfaz.** Aquí tiene valor porque ya hemos enseñado el antes y el después: podemos comparar cómo queda el componente y por qué la comunicación queda localizada. No se debe convertir este ejercicio en una regla dogmática que obligue a crear interfaces vacías para todos los objetos de una aplicación.
+
+
+#### La extracción como una transformación que podemos observar línea a línea
+
+El primer componente del laboratorio obtiene un cliente a partir de IHttpClientFactory. Para obtener los productos combina creación del cliente, ejecución de GET, comprobación implícita de respuesta y conversión del JSON. Para crear uno utiliza POST, comprueba el estado y transforma el cuerpo de respuesta. Es razonable empezar así porque el alumno ve el protocolo sin intermediarios propios de nuestra aplicación.
+
+El inconveniente aparece cuando queremos reutilizar la misma lógica. Imaginemos que, además del catálogo, añadimos una tarjeta resumen que necesita obtener los productos para contar cuántos existen. Si copiamos la llamada HTTP en cada componente, dispersamos la ruta y repetimos el comportamiento de deserialización. Un cambio de contrato puede obligar a localizar todas esas copias. También sería fácil que una de ellas mostrara un catálogo vacío ante un error mientras otra informara de fallo.
+
+El refactor de 4.2 concentra esas operaciones en una implementación única. El componente ya no sabe cómo realizar un GET; expresa que necesita productos. Eso no hace desaparecer HTTP, simplemente coloca su código donde podemos estudiarlo, modificarlo y verificarlo sin contaminar todas las páginas.
+
+Para evaluar la transformación utilizamos dos perspectivas. La primera es **la conducta observable**: lista, formulario y errores permanecen como antes. La segunda es **la responsabilidad interna**: solo ProductosApiService conoce api/productos. Un cambio que satisfaga una perspectiva pero falle la otra no cumple el objetivo del ejercicio.
 
 ### 4.2.2. Implementación HTTP y gestión de errores
 
@@ -644,6 +697,36 @@ El constructor primario de C# 12 deja explícita una única dependencia: `HttpCl
 
 En `CrearAsync`, la respuesta POST se examina antes de leer su JSON. `EnsureSuccessStatusCode` evita registrar como creado un producto cuando el servidor devolvió una respuesta de error. `using` libera el mensaje de respuesta. Este servicio no registra contraseñas, no escribe en la base de datos y no sustituye a la API.
 
+
+#### Por qué el constructor primario no altera la inyección de dependencias
+
+La implementación está escrita con la sintaxis de constructor primario de C# 12:
+
+~~~csharp
+public sealed class ProductosApiService(HttpClient cliente)
+    : IProductosApiService
+{
+    public async Task<IReadOnlyList<ProductoDto>> ObtenerAsync()
+    {
+        return await cliente.GetFromJsonAsync<List<ProductoDto>>(
+            "api/productos") ?? [];
+    }
+}
+~~~
+
+La sintaxis abreviada no significa que el servicio obtenga un cliente global. Al registrar AddHttpClient<IProductosApiService, ProductosApiService>, ASP.NET Core prepara la creación del objeto concreto y proporciona la instancia configurada de HttpClient cuando resuelve la dependencia. El nombre del parámetro cliente pertenece al constructor de la clase, no a la ruta de la página.
+
+Podríamos escribir una versión equivalente con un constructor convencional, un campo privado y una asignación explícita. La decisión entre ambas sintaxis no cambia el contrato del servicio. Utilizamos la forma breve porque el curso ya presupone C# y queremos mantener visible el recorrido del dato, no detenernos a impartir construcciones básicas del lenguaje.
+
+
+#### El servicio no decide cómo dibujar un error
+
+Supongamos que ObtenerAsync lanza HttpRequestException. La implementación del servicio indica que no ha podido obtener los datos previstos. El componente recibe esa situación y decide mostrar un mensaje al usuario. Las dos acciones son diferentes: una interpreta un problema de infraestructura y la otra define la experiencia de presentación.
+
+Una mala extracción consistiría en mover al servicio no solo HTTP, sino también la cadena HTML que se dibujará, la variable cargando y el estado del formulario. Eso haría que la clase necesitara conocer detalles de Razor y perdería el propósito de separarla.
+
+La separación tampoco exige esconder toda excepción. En el ejemplo dejaremos que los fallos de HTTP o de serialización lleguen al componente, que conserva sus bloques catch. Así puede distinguir un error de conectividad de una respuesta que no se puede convertir al DTO. En un producto de mayor tamaño podría definirse un tipo resultado explícito o un modelo centralizado de errores, pero no resulta necesario para comprender la frontera que estamos enseñando.
+
 ### 4.2.3. Registrar el servicio en Program.cs
 
 Una interfaz no es instanciable por sí misma. El contenedor de inyección de dependencias necesita saber qué implementación proporcionar y cómo construir sus dependencias. El registro **typed HttpClient** hace ambas cosas:
@@ -662,6 +745,44 @@ builder.Services.AddHttpClient<IProductosApiService, ProductosApiService>(
 Con este registro, cuando una página solicita `IProductosApiService`, el contenedor crea una instancia de `ProductosApiService` con un `HttpClient` ya configurado. `AddHttpClient` está diseñado para gestionar la creación de clientes y la reutilización de manejadores HTTP sin que cada componente gestione su vida útil.
 
 En 4.1 utilizábamos un cliente **con nombre**, recuperado con `IHttpClientFactory.CreateClient("ProductosApi")`. En este punto lo sustituimos por un cliente **tipado**. Son dos patrones legítimos, pero **no hace falta registrar los dos** para el mismo recorrido didáctico. Elegimos el cliente tipado porque el componente solo necesita la interfaz de negocio.
+
+
+#### Inyección de dependencias: quién crea realmente el objeto
+
+Una clase necesita poder obtener sus colaboradores. Sin inyección, el componente podría construir una implementación concreta, crear su HttpClient y escribir la URL del servidor. Así conocería muchos detalles que no pertenecen a una vista.
+
+Con inyección, el contenedor ASP.NET Core mantiene un conjunto de registros. Al solicitar IProductosApiService resuelve ProductosApiService y le suministra un cliente configurado. El componente recibe el contrato, no una lista de instrucciones de construcción.
+
+~~~csharp
+builder.Services.AddHttpClient<IProductosApiService, ProductosApiService>(
+    cliente =>
+    {
+        cliente.BaseAddress = new Uri(
+            builder.Configuration["ProductosApi:BaseUrl"]
+            ?? "http://localhost:5081/");
+        cliente.Timeout = TimeSpan.FromSeconds(10);
+    });
+~~~
+
+Este registro combina dos ideas diferentes: la relación entre una interfaz y una clase concreta, y la configuración del cliente HTTP que esa clase recibe. Una modificación del puerto afecta a la configuración y no al código de la página. Una nueva implementación que obtuviera datos de otra fuente podría satisfacer la misma interfaz mientras mantuviera sus operaciones y significados.
+
+
+#### Por qué no construimos HttpClient en cada pulsación
+
+HttpClient administra mecanismos de conexión que conviene reutilizar. La fábrica de clientes gestiona adecuadamente los manejadores subyacentes y facilita una configuración centralizada. Eso evita que cada componente resuelva por su cuenta cómo mantener conexiones o cuánto debe esperar una respuesta.
+
+En el primer punto utilizamos un cliente con nombre porque queríamos visualizar cada llamada. En este segundo punto empleamos un cliente tipado porque su configuración aparece asociada a ProductosApiService. Ambos enfoques son válidos, pero muestran grados distintos de encapsulación.
+
+La mejora no consiste en ganar velocidad visible por cambiar una única línea. Consiste en reducir la cantidad de lugares que deben conocer decisiones de infraestructura y permitir que la página conserve únicamente las responsabilidades de presentación.
+
+
+#### Alcance de un servicio tipado en una aplicación Blazor Interactive Server
+
+El servicio vive en el host Blazor y utiliza la infraestructura HTTP de ese proceso. No se ha convertido en una API adicional ni en un microservicio separado por el hecho de implementar una interfaz. Su papel consiste en abstraer la comunicación con la API que ya existe.
+
+El contenedor de ASP.NET Core gestiona la construcción de dependencias según el registro. No necesitamos utilizar un patrón Singleton manual para reutilizar HttpClient ni almacenar clientes en variables estáticas del componente. La fábrica integrada permite administrar los manejadores necesarios.
+
+Aunque un equipo profesional pueda incorporar circuitos de resiliencia, autenticación de clientes, trazas distribuidas y políticas de reintento, no las introducimos de manera automática. Cada una resolvería un problema adicional y requeriría criterios propios. En particular, reintentar POST de creación sin controlar duplicados puede cambiar el resultado de negocio.
 
 ### 4.2.4. Inyectar la interfaz desde Razor
 
@@ -701,6 +822,31 @@ protected override async Task OnInitializedAsync()
 
 El formulario sigue validando nombre y precio antes de enviar los datos. El método de alta construye `CrearProductoDto`, llama a `await CatalogoApi.CrearAsync(...)` y añade a la colección el objeto que devolvió el servidor. **El HTML y el resultado que observa el usuario no tienen por qué cambiar** al reorganizar las dependencias.
 
+
+#### Un diagrama del refactor y sus fronteras
+
+~~~mermaid
+flowchart TB
+    A["Componente CatalogoRemoto"] --> B["IProductosApiService"]
+    B --> C["ProductosApiService"]
+    C --> D["HttpClient tipado"]
+    D --> E["API GET y POST"]
+    E --> F["Memoria de productos"]
+~~~
+
+La flecha de la interfaz al servicio concreto debe interpretarse como la resolución efectuada por DI, no como una construcción manual desde Razor. El componente solicita una abstracción y el contenedor decide qué implementación proporcionar. La API es un proceso independiente: recibe HTTP, valida operaciones y devuelve JSON.
+
+Este diagrama también permite detectar dónde debe ir una configuración. El puerto pertenece al registro del cliente, la ruta a la implementación HTTP, el nombre del producto creado al formulario y el ID del nuevo recurso al servidor API. Son cuatro decisiones repartidas entre partes distintas del mismo caso de uso.
+
+
+#### Una variación que no debería provocar modificaciones en la UI
+
+El docente cambia temporalmente la dirección base para apuntar a otra API que conserva el mismo contrato. El componente no debe cambiar. Si hubiera que buscar una URL en CatalogoRemoto.razor, el refactor habría dejado parte de la infraestructura en la vista.
+
+Ahora supongamos una variación distinta: la API deja de publicar POST /api/productos y lo sustituye por POST /api/articulos. El cliente que conoce la ruta necesita adaptarse, y la API y el servicio deben coordinar ese cambio. No tenemos que cambiar el método @onclick ni la presentación, porque la operación de dominio sigue siendo CrearAsync.
+
+Por último, cambiemos la respuesta para que el servidor deje de devolver el ID. En este caso la compatibilidad se rompe a nivel de DTO y la API debe restablecer el contrato o negociarse una nueva versión. Un servicio no puede inventar siempre una traducción correcta para datos que faltan. Una arquitectura con capas no elimina la obligación de acordar contratos entre procesos.
+
 ### 4.2.5. Distinguir responsabilidades y alcance
 
 | Responsabilidad | Componente Blazor | Servicio HTTP | API |
@@ -716,63 +862,15 @@ La validación preliminar de un formulario no sustituye la validación de la API
 
 Esta separación facilita pruebas: un componente puede recibir una implementación falsa de `IProductosApiService` que devuelva datos conocidos, y el servicio real puede contrastarse contra la API de laboratorio. No añadimos aquí un framework de mocking ni una arquitectura compleja: el propósito es comprender por qué resulta útil tener un contrato inyectable.
 
-### 4.2.6. Comportamiento observable del refactor
 
-La comprobación decisiva no es que exista una clase nueva: es que, tras sustituir el acceso directo, `/catalogo-remoto` siga listando Cuaderno y Lápiz, permita crear Regla, notifique un rechazo o un servidor apagado y mantenga funcional la página local `/productos` de M03. En esta práctica modificamos la organización del código sin cambiar el contrato HTTP ni la API.
-
-En P4.3 abriremos la implementación de la API que ya proporcionamos al comenzar 4.1. De ese modo el alumno ya conoce el consumo y puede comprender ahora el origen de las respuestas sin introducir otra aplicación ajena al laboratorio.
-
-
-### 4.2.7. Diseñar una interfaz a partir del comportamiento y no de la tecnología
-
-La interfaz IProductosApiService es una decisión arquitectónica pequeña y deliberada. Si se llamara IClienteHttp, la presentación seguiría pensando en tecnología de comunicación en vez de operaciones sobre productos. Los métodos ObtenerAsync y CrearAsync expresan lo que necesita la pantalla, mientras que la implementación ProductosApiService conoce las rutas, la serialización, el tiempo de espera y la interpretación de respuestas HTTP.
-
-Una buena comprobación de este diseño es leer el componente después del refactor. Si contiene literales de rutas como api/productos o crea un HttpClient mediante IHttpClientFactory, la extracción está incompleta. Si solo usa la interfaz y mantiene la lógica de presentación, la frontera es visible.
-
-**No toda clase necesita una interfaz.** Aquí tiene valor porque ya hemos enseñado el antes y el después: podemos comparar cómo queda el componente y por qué la comunicación queda localizada. No se debe convertir este ejercicio en una regla dogmática que obligue a crear interfaces vacías para todos los objetos de una aplicación.
-
-### 4.2.8. Inyección de dependencias: quién crea realmente el objeto
-
-Una clase necesita poder obtener sus colaboradores. Sin inyección, el componente podría construir una implementación concreta, crear su HttpClient y escribir la URL del servidor. Así conocería muchos detalles que no pertenecen a una vista.
-
-Con inyección, el contenedor ASP.NET Core mantiene un conjunto de registros. Al solicitar IProductosApiService resuelve ProductosApiService y le suministra un cliente configurado. El componente recibe el contrato, no una lista de instrucciones de construcción.
-
-~~~csharp
-builder.Services.AddHttpClient<IProductosApiService, ProductosApiService>(
-    cliente =>
-    {
-        cliente.BaseAddress = new Uri(
-            builder.Configuration["ProductosApi:BaseUrl"]
-            ?? "http://localhost:5081/");
-        cliente.Timeout = TimeSpan.FromSeconds(10);
-    });
-~~~
-
-Este registro combina dos ideas diferentes: la relación entre una interfaz y una clase concreta, y la configuración del cliente HTTP que esa clase recibe. Una modificación del puerto afecta a la configuración y no al código de la página. Una nueva implementación que obtuviera datos de otra fuente podría satisfacer la misma interfaz mientras mantuviera sus operaciones y significados.
-
-### 4.2.9. Por qué no construimos HttpClient en cada pulsación
-
-HttpClient administra mecanismos de conexión que conviene reutilizar. La fábrica de clientes gestiona adecuadamente los manejadores subyacentes y facilita una configuración centralizada. Eso evita que cada componente resuelva por su cuenta cómo mantener conexiones o cuánto debe esperar una respuesta.
-
-En el primer punto utilizamos un cliente con nombre porque queríamos visualizar cada llamada. En este segundo punto empleamos un cliente tipado porque su configuración aparece asociada a ProductosApiService. Ambos enfoques son válidos, pero muestran grados distintos de encapsulación.
-
-La mejora no consiste en ganar velocidad visible por cambiar una única línea. Consiste en reducir la cantidad de lugares que deben conocer decisiones de infraestructura y permitir que la página conserve únicamente las responsabilidades de presentación.
-
-### 4.2.10. Evaluar un refactor mediante invariantes
-
-Un refactor cambia organización interna sin buscar modificar el comportamiento observable. Si después del cambio el catálogo deja de cargar, desaparece la validación o el botón ya no muestra el resultado de un POST, algo ha salido mal. No basta con que la aplicación compile.
-
-Para razonar sobre la preservación del comportamiento definimos invariantes: al abrir /catalogo-remoto con la API disponible se muestran los productos; un alta válida añade exactamente el recurso confirmado; un alta inválida presenta un mensaje sin añadir elementos; una API apagada produce un error visible; la pantalla no conoce ya rutas HTTP.
-
-Las primeras cuatro invariantes hablan de experiencia y comportamiento. La última habla de organización del código. Una comprobación completa necesita ambas categorías: una página puede conservar la UI y seguir mal acoplada, o separar perfectamente las clases y haber introducido una regresión funcional.
-
-### 4.2.11. No confundir responsabilidad con ubicación física
+#### No confundir responsabilidad con ubicación física
 
 Extraer una clase de servicio no significa que la comunicación se traslade a otro servidor. ProductosApiService sigue viviendo en el proceso Blazor, igual que el componente; simplemente concentra la implementación del cliente HTTP. La API auxiliar permanece en su propio proceso y responde a las peticiones.
 
 La separación conceptual es útil incluso cuando dos clases comparten un ensamblado. Un servicio de aplicación no se convierte automáticamente en microservicio por llamarse servicio. Del mismo modo, llamar a una API no obliga a introducir colas, autenticación externa o una arquitectura distribuida compleja.
 
-### 4.2.12. Manejar errores sin esconder información relevante
+
+#### Manejar errores sin esconder información relevante
 
 Nuestro servicio lanza excepciones cuando no puede completar HTTP o deserializar datos. El componente las transforma en mensajes comprensibles. Otra alternativa sería devolver un tipo resultado que indicara explícitamente éxito o error; no lo implementaremos porque el objetivo de la jornada no es diseñar una biblioteca general de gestión de resultados.
 
@@ -780,7 +878,8 @@ Sí necesitamos comprender que convertir todas las excepciones en una lista vac�
 
 El punto donde se traduce un fallo técnico a un mensaje de usuario es una decisión de arquitectura. En este curso el servicio conserva información sobre HTTP y el componente decide qué expresar en pantalla. El alumno debe poder explicar dónde observa cada clase de problema.
 
-### 4.2.13. Prueba mental de sustitución
+
+#### Prueba mental de sustitución
 
 Imaginemos que mañana el docente reemplaza la API de prueba por la API que construye un alumno. La dirección cambia temporalmente, pero ambas respetan GET y POST, las rutas y los DTO. Con la separación de 4.2 solo debe revisarse la configuración del cliente y comprobarse el contrato remoto.
 
@@ -788,7 +887,44 @@ Si en cambio la API devuelve una forma distinta, la interfaz por sí sola no pue
 
 El valor didáctico del refactor queda así conectado con 4.3: construir otro servidor que cumpla el contrato es una prueba práctica de que las responsabilidades están bien ubicadas.
 
-### 4.2.14. Lista razonada de errores de implementación
+
+#### Sustituir temporalmente el servidor sin sustituir la pantalla
+
+El contrato IProductosApiService hace posible imaginar implementaciones alternativas. No es obligatorio instalar herramientas de mocking para entender su utilidad. Pensemos en una clase que devuelve una lista predefinida de productos y asigna un ID de ejemplo cuando se le pide crear. Mientras implemente los mismos métodos y devuelva tipos coherentes, el componente podría trabajar con ella.
+
+Este experimento conceptual sirve para responder una pregunta: si la UI puede representar datos sin que su código conozca HttpClient, hemos separado de verdad la presentación del transporte. Por supuesto, una implementación de prueba no demostraría que la API real responde 201 o valida entradas; esas responsabilidades se verificarán sobre el servidor en 4.3.
+
+El alumno debe distinguir **aislar la vista** de **probar el contrato HTTP**. Son evidencias diferentes y ninguna sustituye a la otra. En nuestro itinerario primero validamos GET y POST reales, luego refactorizamos sin regresiones y después construimos un servidor compatible.
+
+
+#### Distinguir un defecto de resolución de un fallo de conexión
+
+Si olvidamos registrar IProductosApiService en el contenedor, la aplicación no podrá construir el componente que lo solicita. El problema aparece antes de ejecutar un GET. Cambiar la dirección de la API no ayudará, porque todavía no existe una implementación resuelta para iniciar la petición.
+
+Si el registro de DI es correcto pero apunta a un puerto donde no existe un servidor, el componente sí obtiene su servicio, aunque la operación HTTP falla. Ahora las pruebas directas sobre el destino pueden señalar la causa.
+
+Si tanto el registro como la conexión funcionan, pero la API devuelve un objeto en lugar de una lista, entramos en una tercera categoría: desajuste de contrato. Si el servicio devuelve la lista correctamente y la página permanece en cargando, la cuarta categoría es el estado del componente.
+
+Estas cuatro clases de fallo dan una técnica de diagnóstico más valiosa que memorizar el orden de unas líneas de Program.cs. Al alumno se le pide explicar qué frontera ha dejado de funcionar y qué observación permitiría confirmarlo.
+
+### 4.2.6. Comportamiento observable del refactor
+
+La comprobación decisiva no es que exista una clase nueva: es que, tras sustituir el acceso directo, `/catalogo-remoto` siga listando Cuaderno y Lápiz, permita crear Regla, notifique un rechazo o un servidor apagado y mantenga funcional la página local `/productos` de M03. En esta práctica modificamos la organización del código sin cambiar el contrato HTTP ni la API.
+
+En P4.3 abriremos la implementación de la API que ya proporcionamos al comenzar 4.1. De ese modo el alumno ya conoce el consumo y puede comprender ahora el origen de las respuestas sin introducir otra aplicación ajena al laboratorio.
+
+
+
+#### Evaluar un refactor mediante invariantes
+
+Un refactor cambia organización interna sin buscar modificar el comportamiento observable. Si después del cambio el catálogo deja de cargar, desaparece la validación o el botón ya no muestra el resultado de un POST, algo ha salido mal. No basta con que la aplicación compile.
+
+Para razonar sobre la preservación del comportamiento definimos invariantes: al abrir /catalogo-remoto con la API disponible se muestran los productos; un alta válida añade exactamente el recurso confirmado; un alta inválida presenta un mensaje sin añadir elementos; una API apagada produce un error visible; la pantalla no conoce ya rutas HTTP.
+
+Las primeras cuatro invariantes hablan de experiencia y comportamiento. La última habla de organización del código. Una comprobación completa necesita ambas categorías: una página puede conservar la UI y seguir mal acoplada, o separar perfectamente las clases y haber introducido una regresión funcional.
+
+
+#### Lista razonada de errores de implementación
 
 **Error de registro:** el componente solicita IProductosApiService pero el contenedor no tiene una implementación. La página puede fallar al activarse. La corrección consiste en registrar el servicio, no en capturar una excepción HTTP que todavía no ha ocurrido.
 
@@ -801,94 +937,8 @@ El valor didáctico del refactor queda así conectado con 4.3: construir otro se
 La razón para separar estas cuatro categorías es que cada una se manifiesta en un límite distinto. Cuando el alumno aprende a situar el fallo, empieza a poder investigar aplicaciones que no conoce de antemano.
 
 
-### 4.2.15. La extracción como una transformación que podemos observar línea a línea
 
-El primer componente del laboratorio obtiene un cliente a partir de IHttpClientFactory. Para obtener los productos combina creación del cliente, ejecución de GET, comprobación implícita de respuesta y conversión del JSON. Para crear uno utiliza POST, comprueba el estado y transforma el cuerpo de respuesta. Es razonable empezar así porque el alumno ve el protocolo sin intermediarios propios de nuestra aplicación.
-
-El inconveniente aparece cuando queremos reutilizar la misma lógica. Imaginemos que, además del catálogo, añadimos una tarjeta resumen que necesita obtener los productos para contar cuántos existen. Si copiamos la llamada HTTP en cada componente, dispersamos la ruta y repetimos el comportamiento de deserialización. Un cambio de contrato puede obligar a localizar todas esas copias. También sería fácil que una de ellas mostrara un catálogo vacío ante un error mientras otra informara de fallo.
-
-El refactor de 4.2 concentra esas operaciones en una implementación única. El componente ya no sabe cómo realizar un GET; expresa que necesita productos. Eso no hace desaparecer HTTP, simplemente coloca su código donde podemos estudiarlo, modificarlo y verificarlo sin contaminar todas las páginas.
-
-Para evaluar la transformación utilizamos dos perspectivas. La primera es **la conducta observable**: lista, formulario y errores permanecen como antes. La segunda es **la responsabilidad interna**: solo ProductosApiService conoce api/productos. Un cambio que satisfaga una perspectiva pero falle la otra no cumple el objetivo del ejercicio.
-
-### 4.2.16. Por qué el constructor primario no altera la inyección de dependencias
-
-La implementación está escrita con la sintaxis de constructor primario de C# 12:
-
-~~~csharp
-public sealed class ProductosApiService(HttpClient cliente)
-    : IProductosApiService
-{
-    public async Task<IReadOnlyList<ProductoDto>> ObtenerAsync()
-    {
-        return await cliente.GetFromJsonAsync<List<ProductoDto>>(
-            "api/productos") ?? [];
-    }
-}
-~~~
-
-La sintaxis abreviada no significa que el servicio obtenga un cliente global. Al registrar AddHttpClient<IProductosApiService, ProductosApiService>, ASP.NET Core prepara la creación del objeto concreto y proporciona la instancia configurada de HttpClient cuando resuelve la dependencia. El nombre del parámetro cliente pertenece al constructor de la clase, no a la ruta de la página.
-
-Podríamos escribir una versión equivalente con un constructor convencional, un campo privado y una asignación explícita. La decisión entre ambas sintaxis no cambia el contrato del servicio. Utilizamos la forma breve porque el curso ya presupone C# y queremos mantener visible el recorrido del dato, no detenernos a impartir construcciones básicas del lenguaje.
-
-### 4.2.17. El servicio no decide cómo dibujar un error
-
-Supongamos que ObtenerAsync lanza HttpRequestException. La implementación del servicio indica que no ha podido obtener los datos previstos. El componente recibe esa situación y decide mostrar un mensaje al usuario. Las dos acciones son diferentes: una interpreta un problema de infraestructura y la otra define la experiencia de presentación.
-
-Una mala extracción consistiría en mover al servicio no solo HTTP, sino también la cadena HTML que se dibujará, la variable cargando y el estado del formulario. Eso haría que la clase necesitara conocer detalles de Razor y perdería el propósito de separarla.
-
-La separación tampoco exige esconder toda excepción. En el ejemplo dejaremos que los fallos de HTTP o de serialización lleguen al componente, que conserva sus bloques catch. Así puede distinguir un error de conectividad de una respuesta que no se puede convertir al DTO. En un producto de mayor tamaño podría definirse un tipo resultado explícito o un modelo centralizado de errores, pero no resulta necesario para comprender la frontera que estamos enseñando.
-
-### 4.2.18. Sustituir temporalmente el servidor sin sustituir la pantalla
-
-El contrato IProductosApiService hace posible imaginar implementaciones alternativas. No es obligatorio instalar herramientas de mocking para entender su utilidad. Pensemos en una clase que devuelve una lista predefinida de productos y asigna un ID de ejemplo cuando se le pide crear. Mientras implemente los mismos métodos y devuelva tipos coherentes, el componente podría trabajar con ella.
-
-Este experimento conceptual sirve para responder una pregunta: si la UI puede representar datos sin que su código conozca HttpClient, hemos separado de verdad la presentación del transporte. Por supuesto, una implementación de prueba no demostraría que la API real responde 201 o valida entradas; esas responsabilidades se verificarán sobre el servidor en 4.3.
-
-El alumno debe distinguir **aislar la vista** de **probar el contrato HTTP**. Son evidencias diferentes y ninguna sustituye a la otra. En nuestro itinerario primero validamos GET y POST reales, luego refactorizamos sin regresiones y después construimos un servidor compatible.
-
-### 4.2.19. Un diagrama del refactor y sus fronteras
-
-~~~mermaid
-flowchart TB
-    A["Componente CatalogoRemoto"] --> B["IProductosApiService"]
-    B --> C["ProductosApiService"]
-    C --> D["HttpClient tipado"]
-    D --> E["API GET y POST"]
-    E --> F["Memoria de productos"]
-~~~
-
-La flecha de la interfaz al servicio concreto debe interpretarse como la resolución efectuada por DI, no como una construcción manual desde Razor. El componente solicita una abstracción y el contenedor decide qué implementación proporcionar. La API es un proceso independiente: recibe HTTP, valida operaciones y devuelve JSON.
-
-Este diagrama también permite detectar dónde debe ir una configuración. El puerto pertenece al registro del cliente, la ruta a la implementación HTTP, el nombre del producto creado al formulario y el ID del nuevo recurso al servidor API. Son cuatro decisiones repartidas entre partes distintas del mismo caso de uso.
-
-### 4.2.20. Una variación que no debería provocar modificaciones en la UI
-
-El docente cambia temporalmente la dirección base para apuntar a otra API que conserva el mismo contrato. El componente no debe cambiar. Si hubiera que buscar una URL en CatalogoRemoto.razor, el refactor habría dejado parte de la infraestructura en la vista.
-
-Ahora supongamos una variación distinta: la API deja de publicar POST /api/productos y lo sustituye por POST /api/articulos. El cliente que conoce la ruta necesita adaptarse, y la API y el servicio deben coordinar ese cambio. No tenemos que cambiar el método @onclick ni la presentación, porque la operación de dominio sigue siendo CrearAsync.
-
-Por último, cambiemos la respuesta para que el servidor deje de devolver el ID. En este caso la compatibilidad se rompe a nivel de DTO y la API debe restablecer el contrato o negociarse una nueva versión. Un servicio no puede inventar siempre una traducción correcta para datos que faltan. Una arquitectura con capas no elimina la obligación de acordar contratos entre procesos.
-
-### 4.2.21. Distinguir un defecto de resolución de un fallo de conexión
-
-Si olvidamos registrar IProductosApiService en el contenedor, la aplicación no podrá construir el componente que lo solicita. El problema aparece antes de ejecutar un GET. Cambiar la dirección de la API no ayudará, porque todavía no existe una implementación resuelta para iniciar la petición.
-
-Si el registro de DI es correcto pero apunta a un puerto donde no existe un servidor, el componente sí obtiene su servicio, aunque la operación HTTP falla. Ahora las pruebas directas sobre el destino pueden señalar la causa.
-
-Si tanto el registro como la conexión funcionan, pero la API devuelve un objeto en lugar de una lista, entramos en una tercera categoría: desajuste de contrato. Si el servicio devuelve la lista correctamente y la página permanece en cargando, la cuarta categoría es el estado del componente.
-
-Estas cuatro clases de fallo dan una técnica de diagnóstico más valiosa que memorizar el orden de unas líneas de Program.cs. Al alumno se le pide explicar qué frontera ha dejado de funcionar y qué observación permitiría confirmarlo.
-
-### 4.2.22. Alcance de un servicio tipado en una aplicación Blazor Interactive Server
-
-El servicio vive en el host Blazor y utiliza la infraestructura HTTP de ese proceso. No se ha convertido en una API adicional ni en un microservicio separado por el hecho de implementar una interfaz. Su papel consiste en abstraer la comunicación con la API que ya existe.
-
-El contenedor de ASP.NET Core gestiona la construcción de dependencias según el registro. No necesitamos utilizar un patrón Singleton manual para reutilizar HttpClient ni almacenar clientes en variables estáticas del componente. La fábrica integrada permite administrar los manejadores necesarios.
-
-Aunque un equipo profesional pueda incorporar circuitos de resiliencia, autenticación de clientes, trazas distribuidas y políticas de reintento, no las introducimos de manera automática. Cada una resolvería un problema adicional y requeriría criterios propios. En particular, reintentar POST de creación sin controlar duplicados puede cambiar el resultado de negocio.
-
-### 4.2.23. Criterios razonados de éxito del refactor
+#### Criterios razonados de éxito del refactor
 
 Al revisar el estado final de 4.2 esperamos que el componente todavía contenga las variables productos, nombreNuevo, precioNuevo, cargando, enviando y mensaje. Son estados de presentación vinculados con el usuario. También esperamos encontrar ObtenerAsync y CrearAsync, porque son las operaciones que la vista necesita.
 
@@ -897,7 +947,8 @@ No esperamos encontrar rutas HTTP, PostAsJsonAsync o GetFromJsonAsync dentro del
 El hecho de que las cadenas y tipos estén bien ubicados no prueba por sí solo el comportamiento. Debemos volver a ejecutar GET, POST, un fallo de red y la regresión de la página /productos anterior. Una buena separación de responsabilidades se reconoce tanto leyendo el código como observando que la aplicación sigue haciendo lo que hacía.
 
 
-## 4.3. Comprender y modificar la API auxiliar de Productos
+
+## 4.3. Construir desde cero una API REST y comprobar su contrato HTTP
 
 ### Por qué estudiamos ahora el servidor
 
@@ -931,6 +982,55 @@ app.Run();
 
 \`CreateBuilder\` prepara configuración y servicios; \`Build\` crea la aplicación; \`MapGet\` y \`MapPost\` asocian un método HTTP y una ruta a un delegado que procesa la petición; \`Run\` mantiene el servidor atendiendo solicitudes. Este proyecto es pequeño porque el alumno ya conoce Web API: **Minimal APIs** nos permiten mostrar el contrato y las reglas sin añadir controladores y capas que no aportan aprendizaje a M04.
 
+
+#### Un servidor ASP.NET Core mínimo sigue siendo un servidor completo
+
+La plantilla web mínima crea un host que acepta peticiones mediante el servidor web configurado para la aplicación. La ausencia de controladores y de una estructura grande de carpetas no significa que no estemos usando ASP.NET Core. Minimal APIs es una manera concisa de describir rutas y manejadores dentro del mismo pipeline HTTP que utilizan otras aplicaciones ASP.NET Core.
+
+La variable app representa la aplicación construida a partir del builder. Antes de llamar a Run, se registran endpoints y middleware. Run inicia el procesamiento de solicitudes. En los ejemplos mantenemos todos los endpoints dentro de Program.cs porque facilita que el alumno relacione la sintaxis con el protocolo. En proyectos mayores podría organizarse en otros archivos, pero esa refactorización no mejoraría por sí sola la comprensión del contrato estudiado.
+
+Una vez que el host está operativo, una URL y un método HTTP permiten seleccionar un endpoint. El sistema de enrutamiento decide si una ruta como /api/productos/2 coincide con una plantilla que espera un identificador entero. Después se ejecuta la función asociada, que devuelve un resultado HTTP. Entender esta secuencia facilita distinguir un 404 originado por no encontrar una ruta del 404 devuelto por la lógica de un recurso inexistente.
+
+
+#### Cómo enseñar un endpoint sin convertirlo en una clase magistral de Web API
+
+El alumnado conoce C# y Web API. Por tanto, el docente puede comenzar con un problema concreto: el cliente espera un catálogo remoto y necesitamos construir el servidor mínimo que lo satisfaga. Primero se arranca un host vacío; luego se añade GET, después el detalle, POST y validación. No hace falta repetir toda la teoría de controladores y middleware de ASP.NET Core para entender estos pasos.
+
+La práctica aprovecha esa experiencia previa y dedica esfuerzo a las decisiones que sí afectan al curso: contratos HTTP, funcionamiento del cliente Blazor, mensajes de error, aislamiento de responsabilidades y verificación del servidor por separado. El resultado es una API pequeña, pero completa para la historia que hemos elegido.
+
+
+#### Por qué no empezamos por los controladores ni por EF Core
+
+En la enseñanza de ASP.NET Core es habitual presentar primero las capas de una aplicación completa: controladores, servicios, repositorios y persistencia. Esos elementos tienen sentido cuando hay requisitos que justifican separar operaciones y conservar datos. Sin embargo, nuestro problema de M04 es mucho más acotado: queremos comprender cómo una aplicación Blazor consume datos de otra aplicación mediante un contrato HTTP.
+
+La plantilla dotnet new web y las Minimal APIs son suficientes para estudiar ese límite con poco código auxiliar. El endpoint GET expresa una lectura y el POST una creación. El cuerpo JSON se enlaza a un DTO y el resultado HTTP expresa el desenlace. El alumno que conoce Web API de módulos o cursos anteriores puede reconocer conceptos equivalentes a los de acciones de controlador, sin necesidad de repetir una explicación extensa sobre la estructura MVC de una API.
+
+El catálogo se almacena en memoria para que los escenarios sean deterministas y fáciles de reiniciar. Si usáramos EF Core aquí, aparecerían nuevas responsabilidades: cadena de conexión, esquema, migraciones, ciclo de vida de DbContext y persistencia. Ya se presupone que el alumnado conoce EF Core, pero esas operaciones no son la meta formativa del día. Una implementación más compleja podría ocultar la relación básica entre solicitud HTTP y respuesta.
+
+La decisión tiene un precio conocido. Al reiniciar la API desaparecen los productos creados; el diccionario no realiza transacciones; y la operación de creación no dispone de reglas avanzadas contra duplicados. La enseñanza adecuada consiste en señalar estos límites, no en disfrazar una colección temporal de sistema de datos empresarial.
+
+
+#### Tres aplicaciones ASP.NET Core, tres responsabilidades de presentación
+
+En este curso hemos utilizado MVC, Blazor Web App Interactive Server y una pequeña Minimal API. Todas pueden construirse sobre ASP.NET Core, pero eso no significa que sus responsabilidades deban mezclarse.
+
+En MVC, el navegador envía solicitudes a la aplicación, una acción del controlador coordina la operación y una vista Razor produce HTML para la respuesta. La interacción posterior del usuario suele originar nuevas solicitudes que pueden terminar en acciones distintas. En los primeros módulos el alumno aprendió a relacionar controlador, modelo y vista, y a gestionar formularios y validaciones.
+
+En Blazor Interactive Server, el navegador representa componentes y participa en una conexión interactiva con el servidor Blazor. Un evento del usuario puede invocar código C# de un componente sin requerir que escribamos manualmente una acción MVC para cada pulsación. El componente mantiene estado de presentación y puede llamar a servicios registrados mediante DI.
+
+En la Minimal API auxiliar, no diseñamos páginas. El servidor publica recursos HTTP y devuelve datos JSON junto con códigos de estado. Un navegador, una aplicación Blazor, una terminal o cualquier cliente compatible pueden utilizar esas operaciones. Por eso las reglas de creación y asignación de ID tienen que estar en la API: la interfaz no es el único consumidor posible.
+
+~~~mermaid
+flowchart TB
+    A["Navegador y usuario"] --> B["MVC: controlador y vista HTML"]
+    A --> C["Blazor: componente Interactive Server"]
+    C --> D["Servicio HTTP tipado"]
+    D --> E["Minimal API: JSON y estado HTTP"]
+    E --> F["Productos en memoria"]
+~~~
+
+El diagrama no afirma que MVC sea parte del recorrido de una petición de Blazor en M04. Presenta dos modos de construir interfaz y el recurso HTTP que utiliza el segundo. El alumno debe poder explicar cuándo está procesando una solicitud de navegación, cuándo ejecuta un evento de componente y cuándo consume un recurso JSON.
+
 ### 4.3.2. Qué devuelve realmente GET
 
 La colección se crea en memoria al arrancar:
@@ -951,6 +1051,52 @@ app.MapGet("/api/productos", () =>
 \`Results.Ok\` devuelve **200 OK**. ASP.NET Core serializa la colección en JSON: los nombres de propiedades se exponen en *camelCase* bajo las opciones web habituales. \`OrderBy\` evita presentar el orden interno de un diccionario concurrente como si fuera un criterio estable de listado.
 
 Si consultamos \`/api/productos/999\`, el endpoint de detalle devuelve \`Results.NotFound()\`. **404 no es una excepción de C# obligatoria**: es una decisión explícita de protocolo que el cliente debe interpretar.
+
+
+#### Rutas, verbos y datos de entrada
+
+Dos endpoints pueden compartir el mismo camino literal si utilizan verbos diferentes. GET /api/productos obtiene una colección; POST /api/productos intenta crear un recurso. El método forma parte del contrato, no es un detalle intercambiable. Enviar POST a una ruta preparada únicamente para GET no significa que se ejecute la misma acción de consulta.
+
+Para pedir un producto individual utilizamos /api/productos/{id:int}. El sufijo :int restringe el parámetro de ruta a valores enteros; evita tratar cualquier texto arbitrario como identificador numérico. Sin embargo, la restricción de ruta no significa que la colección contenga ese ID. La comprobación efectiva se realiza con TryGetValue, y su resultado decide entre 200 y 404.
+
+El POST recibe un objeto CrearProductoApi. ASP.NET Core se encarga del enlace del cuerpo JSON a ese tipo de entrada. A partir de ese momento, el propio endpoint debe aplicar las reglas funcionales del laboratorio. JSON bien formado no implica nombre válido ni precio positivo.
+
+
+#### Analizar el enrutamiento sin confundir parámetros y literales
+
+Consideremos estas dos plantillas de ruta:
+
+~~~csharp
+app.MapGet("/api/productos/{id:int}", (int id) =>
+    productos.TryGetValue(id, out var producto)
+        ? Results.Ok(producto)
+        : Results.NotFound());
+
+app.MapGet("/api/productos/resumen", () =>
+{
+    var actuales = productos.Values.ToArray();
+    return Results.Ok(new
+    {
+        cantidad = actuales.Length,
+        precioTotal = actuales.Sum(p => p.Precio)
+    });
+});
+~~~
+
+En la primera, el segmento id tiene una restricción de entero. En la segunda, resumen es un literal. Por tanto, una solicitud a /api/productos/resumen no necesita convertirse en un identificador numérico. Esta distinción permite ampliar la API con un recurso de resumen sin alterar la consulta individual.
+
+Ahora pensemos en /api/productos/999. El servidor puede seleccionar correctamente el endpoint con id=999, pero la búsqueda en el diccionario no encuentra el elemento. Se devuelve 404 por decisión del manejador. Si en cambio solicitamos /api/catalogo, ninguna de estas plantillas corresponde a la ruta; el resultado no proviene de un producto que falta, sino de una URL no publicada.
+
+Dos observaciones con el mismo estado HTTP no siempre proceden de la misma causa. Cuando diagnosticamos una API conviene preguntar primero si la ruta y el verbo coinciden, y después si la operación pudo encontrar los datos que necesitaba.
+
+
+#### Qué significa comunicar servidores en Interactive Server
+
+En nuestro laboratorio el código HttpClient de Blazor se ejecuta en el servidor que aloja los componentes. El navegador se comunica con Blazor, y el servidor Blazor se comunica con la API. Es distinto de construir una aplicación JavaScript que emite desde el propio navegador todas las solicitudes a otra URL.
+
+Esa distinción explica por qué no añadimos indiscriminadamente políticas CORS a la API de esta jornada. CORS es una política del navegador relacionada con solicitudes de origen cruzado; la comunicación de HttpClient entre dos procesos .NET del servidor no está sometida a esa comprobación del navegador. Si cambiáramos el diseño para realizar fetch desde código del navegador, sí deberíamos analizar los orígenes permitidos según el escenario real.
+
+Conviene no transformar esta observación en la frase «Blazor nunca necesita CORS». Blazor puede utilizar diferentes modelos de ejecución y las aplicaciones pueden combinar componentes con otros clientes. La conclusión exacta es que **el GET y POST de este proyecto concreto se realizan desde el proceso Blazor Interactive Server**, por lo que añadir CORS a la API no es una condición necesaria para esos ejercicios.
 
 ### 4.3.3. Cómo procesa POST la entrada
 
@@ -980,6 +1126,66 @@ return Results.Created($"/api/productos/{id}", creado);
 
 El cliente no debe inventar el ID ni tratar una respuesta 400 como creación satisfactoria. La validación previa de la página Blazor facilita la experiencia de usuario, pero la API siempre vuelve a validar: el servidor no puede confiar en que todas las llamadas provienen de nuestro formulario.
 
+
+#### 200, 201, 400 y 404 como decisiones de diseño
+
+El 200 de GET expresa éxito en la consulta. La respuesta de detalle puede incluir un objeto y la del listado un arreglo; ambas son 200, pero tienen formas distintas. El 201 de POST indica que se ha creado un recurso. Con Results.Created incluimos la dirección relativa del recurso creado y el objeto final, de modo que un cliente pueda identificarlo sin inventar el nuevo ID.
+
+El 400 tiene otro significado: la petición fue comprendida lo suficiente para detectar una entrada inaceptable. En el ejemplo ocurre si Nombre es vacío o si Precio no es positivo. No debemos cambiar arbitrariamente este resultado por 500; las reglas han rechazado datos, no hemos demostrado un fallo interno de ASP.NET Core.
+
+El 404 del detalle es una decisión normal cuando no existe el identificador solicitado. La ausencia de un producto no exige lanzar una excepción. En un servicio real podrían intervenir otras decisiones de dominio, pero no necesitamos introducir una arquitectura adicional para comprender la semántica del recurso.
+
+
+#### Concurrencia y almacenamiento en memoria: qué garantiza cada pieza
+
+El catálogo utiliza ConcurrentDictionary<int, ProductoApi>. Su propósito es permitir operaciones de diccionario concurrentes sin diseñar manualmente un mecanismo de bloqueo para las inserciones y lecturas simples del laboratorio. Los identificadores se obtienen mediante Interlocked.Increment; así dos peticiones que lleguen próximas en el tiempo no dependen de una lectura y escritura no atómica de un contador común.
+
+Son dos decisiones diferentes: una protege las operaciones sobre la colección y otra incrementa el contador. Ninguna aporta persistencia en disco. Después de detener y reiniciar la aplicación, el proceso vuelve a construir los dos productos iniciales y siguienteId vuelve a 2. Esta observación es una ventaja didáctica porque permite repetir el ejercicio con un estado conocido.
+
+Tampoco debemos interpretar esta estructura como un reemplazo de transacciones de base de datos. El curso presupone conocimientos de EF Core; aquí evitamos introducirlo porque el objetivo es estudiar la frontera HTTP entre cliente y servidor. Mezclar persistencia en este punto aumentaría la superficie de problemas sin mejorar el aprendizaje específico de GET, POST y contratos.
+
+
+#### La frontera entre deserializar JSON y validar una regla
+
+ASP.NET Core puede convertir un cuerpo JSON a un tipo como CrearProductoApi. Esa conversión establece que los datos recibidos tienen una representación compatible con el tipo de entrada, pero no decide por sí sola si el producto es aceptable para nuestro dominio.
+
+La función del ejemplo comprueba dos reglas: nombre no vacío y precio positivo. Son deliberadamente sencillas para poder observarlas. Una petición con nombre formado por espacios es JSON válido, pero se rechaza porque no aporta un nombre significativo. Una petición con precio cero también es sintácticamente correcta, pero no cumple el contrato funcional de creación.
+
+La distinción importa especialmente al enseñar depuración. Si el cuerpo HTTP está mal formado, la solicitud puede fallar antes de entrar al bloque de validación. Si el cuerpo enlaza correctamente pero no cumple una regla, el manejador devuelve 400. Y si cumple las reglas, el servidor asigna un ID y devuelve 201.
+
+Podemos identificar tres capas conceptuales en una única operación:
+
+~~~text
+Bytes y cabeceras HTTP
+    → interpretación del JSON
+    → CrearProductoApi
+    → reglas de nombre y precio
+    → asignación de identificador
+    → respuesta 201 y ProductoApi
+~~~
+
+Cada transición puede explicar un fallo distinto. El alumno debe aprender a localizar cuál de ellas no se ha completado, en lugar de cambiar todos los elementos de la solución ante un mensaje de error.
+
+
+#### La cabecera Location como parte de la creación
+
+Cuando una API crea un recurso, puede informar de la dirección donde será consultable. Results.Created permite incluir una dirección relativa y el objeto creado. En nuestro contrato, POST /api/productos devuelve Location: /api/productos/{id}, y GET de esa dirección puede obtener el producto mientras permanezca en memoria.
+
+El valor de Location no sustituye el cuerpo JSON. Para la interfaz que estamos construyendo es cómodo recibir también el producto completo, porque puede actualizar su lista sin realizar otra consulta de detalle. El cuerpo permite conocer el ID, el nombre normalizado y el precio que ha confirmado el servidor.
+
+Imaginemos una respuesta que declarara 201 y devolviera un cuerpo vacío. Podría existir un diseño de API en el que el cliente realizara una petición posterior a Location, pero no es el contrato que espera nuestro ProductosApiService, que intenta leer un ProductoDto inmediatamente. Una decisión legítima en abstracto puede ser incompatible con un consumidor concreto.
+
+
+#### Del almacenamiento local a la comunicación entre procesos
+
+En M03 la colección podía depender de un servicio de memoria dentro del proceso Blazor. En M04, aunque el servidor también utilice una colección en memoria, la ubicación de esa memoria cambia: ahora pertenece al proceso API y Blazor solo recibe representaciones serializadas.
+
+Esto tiene consecuencias prácticas. Al recargar la página Blazor sin reiniciar la API, los productos creados continúan en el servidor. Si detenemos y reiniciamos la API, la colección se reconstruye desde los datos iniciales. Si detenemos Blazor pero la API sigue funcionando, los datos del servidor no tienen por qué desaparecer. Estos experimentos demuestran la separación de procesos sin introducir una base de datos.
+
+También muestran por qué el componente no debería tratar su lista de DTO como fuente universal de verdad. Es una representación del estado que la API devolvió en un instante. Si otro cliente crea un recurso, la pantalla necesitaría consultar nuevamente para observarlo. El ejemplo no implementa notificaciones en tiempo real, pero sí permite reconocer que una copia local y el estado remoto no son la misma cosa.
+
+
+
 ### 4.3.4. Modificar una respuesta de forma controlada
 
 Vamos a añadir una operación de lectura que no cambie el contrato que ya consume Blazor: \`GET /api/productos/resumen\`. Responderá con el número de productos y el valor agregado de sus precios.
@@ -1006,11 +1212,163 @@ Tras crear Regla a 1,75, el resumen indicará tres productos y un precio total d
 
 La ruta literal \`/api/productos/resumen\` no se confunde con \`/api/productos/{id:int}\`, porque esta última exige un parámetro entero. El resultado de resumen tiene su propia forma JSON; no debe deserializarse como \`ProductoDto\`.
 
+
+#### Añadir una ruta sin romper la ruta existente
+
+El resumen utiliza una URL propia. La operación lee los valores actuales, calcula cantidad y suma de precios, y devuelve un objeto con ambas propiedades. El endpoint original continúa devolviendo una colección de productos. Esto evita imponer al cliente existente un cambio estructural que nunca solicitó.
+
+Hay un matiz de enrutamiento: /api/productos/resumen no debe interpretarse como un identificador entero. La ruta de detalle usa la restricción {id:int}; por ello el literal resumen no satisface la plantilla de detalle, y puede resolverse el endpoint específico.
+
+La variante del reto añade hayProductos, un booleano obtenido de comparar la longitud con cero. Al activar ese reto no debemos registrar dos endpoints GET idénticos para la misma ruta, pues crearíamos una definición conflictiva. Se utiliza una variante u otra. El comentario de activación del proyecto permite observar esta decisión de forma tangible.
+
+
+#### Cuándo una extensión del contrato es segura para este cliente
+
+El endpoint /api/productos/resumen devuelve un objeto diferente del listado. La ruta nueva evita alterar la forma del GET que ya consume Blazor. Añadir hayProductos al objeto de resumen es una variación de su salida que podemos estudiar en aislamiento.
+
+No debemos concluir que añadir siempre cualquier propiedad a cualquier respuesta es automáticamente seguro. Un cliente puede imponer reglas estrictas sobre contratos, versiones o validación. En el laboratorio actual, el consumidor del catálogo no consulta la nueva ruta y por eso no cambia. Si quisiéramos crear una página de resumen, definiríamos su DTO y su operación cliente de manera explícita.
+
+Este ejemplo introduce una idea útil para trabajos reales: la compatibilidad de una API no consiste únicamente en que el servidor compile. Hay que comprobar las operaciones que consumen las aplicaciones existentes y distinguir entre ampliar recursos y sustituir contratos ya publicados.
+
+
+#### Una ampliación opcional con sentido: buscar productos por nombre
+
+Hasta este momento GET /api/productos devuelve todos los elementos y GET /api/productos/{id:int} busca un recurso por su identificador. Un tercer caso frecuente consiste en consultar **una selección** de la colección a partir de un criterio proporcionado por el usuario. Podemos construirlo como reto opcional sin cambiar el contrato de los endpoints anteriores.
+
+La URL puede ser:
+
+~~~http
+GET /api/productos/buscar?nombre=cuad HTTP/1.1
+Host: localhost:5081
+Accept: application/json
+~~~
+
+La ruta identifica la operación y la cadena de consulta contiene el criterio nombre. A diferencia del ID incluido en un segmento de ruta, el parámetro de consulta representa una condición de filtrado. No significa que cuad sea una clave única: es solo un fragmento de nombre que podría coincidir con varios productos.
+
+ASP.NET Core permite enlazar el valor de la consulta a un parámetro del manejador. Nuestro endpoint opcional utiliza string? para representar que puede no existir un valor. En ese caso no devuelve todos los productos sin avisar; decide rechazar la solicitud con 400 porque la operación se ha definido como una búsqueda con término obligatorio.
+
+~~~csharp
+app.MapGet("/api/productos/buscar", (string? nombre) =>
+{
+    if (string.IsNullOrWhiteSpace(nombre))
+        return Results.BadRequest("Indica el nombre que deseas buscar.");
+
+    var termino = nombre.Trim();
+    var encontrados = productos.Values
+        .Where(p => p.Nombre.Contains(
+            termino, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(p => p.Id)
+        .ToArray();
+
+    return Results.Ok(encontrados);
+});
+~~~
+
+Hay varias decisiones didácticas dentro de este bloque. Primero, la búsqueda no modifica el estado del catálogo: es GET. Segundo, normaliza el texto del filtro con Trim, pero no cambia los nombres almacenados. Tercero, Contains con StringComparison.OrdinalIgnoreCase realiza una comparación insensible a mayúsculas de manera explícita para este laboratorio. Cuarto, ordena los resultados por identificador, evitando basarse en el orden interno del diccionario concurrente.
+
+La salida mantiene la misma **forma de lista de productos** que el cliente ya conoce. Si se encuentra Cuaderno, devuelve un arreglo con ese objeto. Si no hay coincidencias, devuelve un arreglo vacío con 200, porque la búsqueda se ha ejecutado correctamente aunque no haya resultados. Si no hay un término válido, devuelve 400 porque no se cumplen los requisitos de esa operación. Esta secuencia permite distinguir de nuevo un éxito vacío de una entrada rechazada.
+
+
+#### Cómo convive una ruta literal con una ruta parametrizada
+
+Nuestro servidor ya publica /api/productos/{id:int}. ¿Puede entrar en conflicto con /api/productos/buscar? No en el contrato definido: buscar es un segmento literal y no cumple la restricción de entero del endpoint de detalle. Eso permite conservar ambas operaciones sin obligar a cambiar la dirección del catálogo.
+
+El diseño también muestra por qué no conviene utilizar una única ruta para operaciones semánticamente diferentes si eso obliga a interpretar todo a partir de formatos ambiguos. Un segmento con un número se utiliza para consultar un producto concreto; la ruta buscar junto a un parámetro nombre expresa un criterio de selección. La decisión se hace visible para quien prueba la API con un archivo .http.
+
+Con independencia de este ejemplo, una API profesional debe acordar sus rutas y criterios de búsqueda en función de sus consumidores. Nuestro laboratorio no pretende establecer una convención universal de búsqueda, sino demostrar el papel distinto de segmentos de ruta y parámetros de consulta.
+
+
+#### Tres resultados que enseñan más que una sola respuesta
+
+Con los productos iniciales, la solicitud a /api/productos/buscar?nombre=cuad debe devolver un arreglo con Cuaderno. No se crea ni elimina ningún producto.
+
+Si consultamos /api/productos/buscar?nombre=nohaycoincidencia, el resultado es 200 con []. La API ha entendido y ejecutado el filtro y no ha encontrado datos. Esa respuesta es diferente de un 404, porque no estamos pidiendo por su dirección un recurso individual que deba existir.
+
+Si consultamos /api/productos/buscar sin nombre, el endpoint responde 400. La entrada incumple la regla de término obligatorio. En el laboratorio decidimos que un filtro vacío sea una petición incorrecta y no un listado completo; ese comportamiento debe documentarse para los consumidores.
+
+Podemos ampliar el experimento creando mediante POST un producto llamado Cuaderno grande y repitiendo el filtro cuad. La respuesta pasará a incluir más de un objeto. El servicio de búsqueda no contiene resultados prefijados; calcula la respuesta a partir del diccionario actual. Al reiniciar la API, ese producto desaparece porque el almacenamiento sigue siendo temporal.
+
+
+#### Cuándo un componente necesitaría conocer un filtro
+
+La pantalla actual de Blazor solo consume ObtenerAsync y CrearAsync. El reto de búsqueda se prueba directamente sobre la API mediante el editor HTTP para conservar el alcance obligatorio. Si decidiéramos añadir a la interfaz un campo de búsqueda remota, deberíamos introducir una nueva operación en IProductosApiService y una implementación que formara correctamente la URL con el criterio proporcionado.
+
+Es importante codificar los caracteres de un parámetro de consulta cuando proceden de un usuario, en lugar de concatenar sin más espacios, símbolos o caracteres especiales a la dirección. El cliente dispone de utilidades para preparar componentes de URL y las APIs HTTP cuentan con mecanismos para representarlos correctamente. En el ejercicio no hace falta desarrollar una biblioteca de construcción de URLs, pero sí identificar el problema.
+
+Tampoco deberíamos alterar el método ObtenerAsync para que comenzara a devolver silenciosamente una búsqueda filtrada. Eso cambiaría el significado de una operación ya utilizada en el catálogo. La separación de responsabilidades que aprendimos en 4.2 nos permite agregar funciones sin romper los métodos anteriores.
+
+
+#### Verificar el reto sin modificar el itinerario obligatorio
+
+El código de búsqueda permanece comentado con un marcador de activación en Program.cs del proyecto 4.3. Se puede habilitar en una copia aislada, comprobar el funcionamiento y desactivarlo después. La versión obligatoria del módulo sigue cumpliendo GET de lista y detalle, POST validado y el resumen del punto 4.3.
+
+La ventaja de un reto así no es simplemente añadir líneas, sino reunir varias decisiones que el alumno puede justificar: criterio de consulta frente a identificador en ruta, respuesta vacía frente a 400, filtrado sin mutación, comparación de texto, compatibilidad de DTO y prueba directa mediante solicitudes HTTP.
+
+No obliga a incorporar EF Core, Identity, paginación ni una interfaz adicional. Permite trabajar un poco más con la API que el alumno ya ha construido, sin convertir una jornada de integración Blazor en un curso completo de servicios REST.
+
+
 ### 4.3.5. Diferencias entre JSON válido, reglas de negocio y persistencia
 
 Una petición puede tener JSON sintácticamente válido y, sin embargo, incumplir las reglas: \`{"nombre":"","precio":0}\` contiene JSON legible, pero no un producto aceptable. Una petición de JSON incompatible con el DTO puede producir una respuesta de error antes de que el delegado de POST ejecute su comprobación. Nuestro ejemplo no pretende normalizar todos los mensajes de error posibles.
 
 Tampoco basta con que un POST devuelva 201 para afirmar que existe persistencia: **la información vive en memoria del proceso**. Al reiniciar la API se restauran Cuaderno y Lápiz; el producto añadido desaparece. La persistencia ya fue estudiada con EF Core en el contexto previo del alumnado; reintroducirla aquí impediría concentrarse en la comunicación Blazor–API.
+
+
+#### El principio de compatibilidad cuando reconstruimos la API
+
+Durante 4.1 y 4.2 el cliente utilizó una API proporcionada. Ahora el alumno construye otra. Para que esa sustitución sea transparente, el cliente debe poder seguir solicitando las mismas rutas, con los mismos verbos y las mismas formas de entrada y salida.
+
+La compatibilidad no significa conservar necesariamente los nombres privados de las clases del servidor. Podemos llamar ProductoApi al modelo dentro del proceso API y ProductoDto al tipo que usa Blazor, siempre que sus campos serializados expresen el contrato esperado.
+
+Tampoco significa que el servidor deba generar los mismos identificadores en todas las ejecuciones. La regla relevante es que cada nueva creación reciba un identificador válido y que el cliente utilice el devuelto. Eso permite separar la semántica de un contrato de detalles concretos de una ejecución en memoria.
+
+Si el nuevo servidor responde correctamente al GET pero devuelve 200 en lugar de 201 para un POST, quizá la UI siga mostrando un elemento, pero habremos cambiado la semántica de la respuesta. Si devuelve un objeto resumen donde el cliente espera una lista, la deserialización no funciona. Reconocer esas incompatibilidades es parte esencial de la ingeniería de integración.
+
+
+#### Leer un archivo de peticiones HTTP como documentación ejecutable
+
+Un archivo .http puede conservar una colección pequeña de solicitudes representativas. Cada bloque especifica un método y una URL, y para POST incluye cabecera Content-Type y cuerpo JSON. Visual Studio permite ejecutar esos bloques individualmente y observar respuesta y cabeceras.
+
+Esto resulta útil en un curso porque evita que el alumno tenga que instalar o programar un cliente distinto para cada escenario. También permite conservar en el repositorio las operaciones del contrato junto al código que las implementa. El archivo no garantiza por sí mismo que todas las respuestas sean correctas: hace posible ejecutar solicitudes reproducibles y compararlas con resultados esperados.
+
+No debemos interpretar una colección de peticiones como un sustituto universal de pruebas automatizadas. Puede ser una excelente herramienta de aprendizaje y diagnóstico, mientras que las pruebas de integración automatizadas aportan comprobaciones repetibles cuando se modifica el código. Ambos enfoques se complementan, pero persiguen objetivos diferentes.
+
+
+#### Construir un contrato antes de crear componentes
+
+En un sistema distribuido pequeño, el diseño puede comenzar por cuatro preguntas. ¿Qué necesita consultar el consumidor? ¿Qué datos debe enviar al crear un recurso? ¿Quién asigna los identificadores? ¿Qué estados expresan éxito, rechazo y ausencia?
+
+Para nuestro catálogo respondemos de la siguiente manera. El cliente consulta GET /api/productos y recibe una lista de elementos con id, nombre y precio. Para crear envía POST /api/productos con nombre y precio, sin id. El servidor valida esos campos, asigna el nuevo identificador y devuelve 201 junto al producto completo. Para un ID no encontrado, la consulta individual devuelve 404. Para una entrada incorrecta, POST devuelve 400.
+
+El contrato descrito es suficiente para iniciar los ejercicios. No necesitamos decidir todavía detalles de estructura interna del servidor, nombres de variables o estilo de componentes Razor. Cuando escribimos esos archivos, cada uno debe respetar el acuerdo que ya hemos definido.
+
+Esto ayuda a comprender por qué el cliente no debería depender de compartir exactamente la misma clase C# con la API. Lo que viaja entre procesos son solicitudes y representaciones HTTP. Los tipos locales ayudan a expresar esos datos en cada lenguaje o ensamblado, pero no sustituyen la obligación de mantener compatibilidad.
+
+
+#### Observar dos instancias de API sin confundir sus estados
+
+Podemos arrancar la misma implementación de API en dos puertos diferentes, siempre que cada proceso mantenga su propio estado en memoria. Por ejemplo, uno escucha en 5081 y otro en 5088. Si enviamos POST a la primera instancia, la segunda no incorpora automáticamente el producto; no existe una base de datos compartida ni un mecanismo de sincronización entre ambas.
+
+Este experimento ofrece una demostración clara de los límites de proceso. Cambiar ProductosApi:BaseUrl en Blazor determina qué instancia consulta el cliente. Si una muestra Regla y la otra todavía muestra solo Cuaderno y Lápiz, el componente no está funcionando mal: está observando dos servidores distintos.
+
+No debemos utilizar este laboratorio para concluir que dos instancias reales de una aplicación deban funcionar siempre con memorias independientes. Es una característica de nuestra decisión de almacenamiento temporal. En sistemas de producción, las instancias suelen necesitar una estrategia de persistencia y coordinación que no desarrollaremos en este módulo.
+
+
+#### Lista de decisiones de implementación y su razón formativa
+
+| Decisión | Motivo en esta formación | Qué no pretende resolver |
+|---|---|---|
+| Minimal API | Hacer visibles los endpoints | Arquitectura empresarial completa |
+| DTO de creación distinto | Asignar ID en servidor | Gestión avanzada de entidades |
+| ConcurrentDictionary | Soportar operaciones básicas en memoria | Persistencia o transacciones |
+| Interlocked para ID | Evitar incrementos no atómicos | Identificadores distribuidos |
+| Results.Created | Expresar alta con recurso nuevo | Diseño general de hipermedia |
+| GET de resumen separado | Conservar el catálogo consumido | Versionado completo de APIs |
+| Búsqueda opcional por query | Distinguir filtro y ruta | Motor avanzado de búsquedas |
+| Archivo .http | Ejecutar solicitudes directas | Reemplazar todas las pruebas automatizadas |
+
+La tabla no debe entenderse como un conjunto de recetas invariables para cualquier producto. Son decisiones pequeñas, justificadas por el objetivo docente de comprender comunicación HTTP y construcción progresiva sin perder de vista el tiempo disponible. Otras aplicaciones necesitarán soluciones diferentes.
+
 
 ### 4.3.6. Construcción gradual desde una plantilla vacía
 
@@ -1102,6 +1460,15 @@ El resultado de este estado es una API compatible con los GET/POST que nuestro c
 
 **Estado E — extensión de respuesta independiente.** Finalmente, podemos añadir el endpoint \`/api/productos/resumen\` mostrado en el apartado anterior. Devolverá una estructura diferente de la lista, sin alterar las rutas que el servicio tipado necesita. El objetivo no es acumular endpoints, sino entender qué significa extender un contrato público conservando sus consumidores.
 
+
+#### Reconstrucción, no copia: el propósito de los estados intermedios
+
+Si entregáramos únicamente el Program.cs final, el alumno podría ejecutarlo sin conocer el orden de decisiones que permitió construirlo. Por eso comenzamos con un host vacío que responde en /, añadimos los modelos, publicamos GET, incorporamos detalle, creamos POST y finalmente ampliamos el servidor con el resumen.
+
+Cada estado debe poder compilar y demostrar un comportamiento único. No adelantamos la creación antes de comprobar la consulta, ni mezclamos la validación de POST con un error del puerto. Este modo de trabajar permite aislar causas y favorece que el estudiante pueda reproducir la API en otra solución de ASP.NET Core.
+
+La habilidad transferible no es recordar todas las líneas de memoria. Es poder definir un contrato pequeño, construir sus endpoints por etapas y verificarlo con un cliente independiente antes de conectarlo a la interfaz principal.
+
 ### 4.3.7. Cómo reconocer tres fallos frecuentes en la construcción
 
 La primera equivocación habitual consiste en ubicar una declaración \`record\` en medio de las instrucciones de nivel superior de \`Program.cs\`, de forma que las instrucciones ejecutables posteriores ya no estén permitidas. Los tipos auxiliares pueden declararse al final del archivo, después de \`app.Run\`, como hemos hecho en los ejemplos.
@@ -1112,80 +1479,8 @@ La tercera es construir una API nueva y olvidar que la antigua sigue ocupando 50
 
 Estas incidencias se estudian aquí porque proporcionan criterios transferibles a otras integraciones: distinguir alojamiento, contrato y estado de aplicación.
 
-### 4.3.8. Probar el contrato sin depender de la pantalla
 
-Para diagnosticar una integración conviene separar observaciones. Primero ejecutamos la API y probamos GET, POST y errores con un cliente HTTP independiente. Después abrimos Blazor para comprobar que conserva su comportamiento. Si el GET directo funciona, pero la página falla, investigaremos URL configurada, puerto, servicio tipado, DTO o estado del componente. Si el GET directo también falla, examinaremos el proceso API y sus rutas.
-
-En este punto **no** implantamos autenticación sobre el catálogo; la demostración limitada de seguridad corresponde a 4.4. Una API sin protección no se vuelve segura por el mero hecho de que la interfaz oculte un botón. La autorización debe comprobarse en el servidor del recurso protegido.
-
-
-### 4.3.9. Un servidor ASP.NET Core mínimo sigue siendo un servidor completo
-
-La plantilla web mínima crea un host que acepta peticiones mediante el servidor web configurado para la aplicación. La ausencia de controladores y de una estructura grande de carpetas no significa que no estemos usando ASP.NET Core. Minimal APIs es una manera concisa de describir rutas y manejadores dentro del mismo pipeline HTTP que utilizan otras aplicaciones ASP.NET Core.
-
-La variable app representa la aplicación construida a partir del builder. Antes de llamar a Run, se registran endpoints y middleware. Run inicia el procesamiento de solicitudes. En los ejemplos mantenemos todos los endpoints dentro de Program.cs porque facilita que el alumno relacione la sintaxis con el protocolo. En proyectos mayores podría organizarse en otros archivos, pero esa refactorización no mejoraría por sí sola la comprensión del contrato estudiado.
-
-Una vez que el host está operativo, una URL y un método HTTP permiten seleccionar un endpoint. El sistema de enrutamiento decide si una ruta como /api/productos/2 coincide con una plantilla que espera un identificador entero. Después se ejecuta la función asociada, que devuelve un resultado HTTP. Entender esta secuencia facilita distinguir un 404 originado por no encontrar una ruta del 404 devuelto por la lógica de un recurso inexistente.
-
-### 4.3.10. Rutas, verbos y datos de entrada
-
-Dos endpoints pueden compartir el mismo camino literal si utilizan verbos diferentes. GET /api/productos obtiene una colección; POST /api/productos intenta crear un recurso. El método forma parte del contrato, no es un detalle intercambiable. Enviar POST a una ruta preparada únicamente para GET no significa que se ejecute la misma acción de consulta.
-
-Para pedir un producto individual utilizamos /api/productos/{id:int}. El sufijo :int restringe el parámetro de ruta a valores enteros; evita tratar cualquier texto arbitrario como identificador numérico. Sin embargo, la restricción de ruta no significa que la colección contenga ese ID. La comprobación efectiva se realiza con TryGetValue, y su resultado decide entre 200 y 404.
-
-El POST recibe un objeto CrearProductoApi. ASP.NET Core se encarga del enlace del cuerpo JSON a ese tipo de entrada. A partir de ese momento, el propio endpoint debe aplicar las reglas funcionales del laboratorio. JSON bien formado no implica nombre válido ni precio positivo.
-
-### 4.3.11. 200, 201, 400 y 404 como decisiones de diseño
-
-El 200 de GET expresa éxito en la consulta. La respuesta de detalle puede incluir un objeto y la del listado un arreglo; ambas son 200, pero tienen formas distintas. El 201 de POST indica que se ha creado un recurso. Con Results.Created incluimos la dirección relativa del recurso creado y el objeto final, de modo que un cliente pueda identificarlo sin inventar el nuevo ID.
-
-El 400 tiene otro significado: la petición fue comprendida lo suficiente para detectar una entrada inaceptable. En el ejemplo ocurre si Nombre es vacío o si Precio no es positivo. No debemos cambiar arbitrariamente este resultado por 500; las reglas han rechazado datos, no hemos demostrado un fallo interno de ASP.NET Core.
-
-El 404 del detalle es una decisión normal cuando no existe el identificador solicitado. La ausencia de un producto no exige lanzar una excepción. En un servicio real podrían intervenir otras decisiones de dominio, pero no necesitamos introducir una arquitectura adicional para comprender la semántica del recurso.
-
-### 4.3.12. Concurrencia y almacenamiento en memoria: qué garantiza cada pieza
-
-El catálogo utiliza ConcurrentDictionary<int, ProductoApi>. Su propósito es permitir operaciones de diccionario concurrentes sin diseñar manualmente un mecanismo de bloqueo para las inserciones y lecturas simples del laboratorio. Los identificadores se obtienen mediante Interlocked.Increment; así dos peticiones que lleguen próximas en el tiempo no dependen de una lectura y escritura no atómica de un contador común.
-
-Son dos decisiones diferentes: una protege las operaciones sobre la colección y otra incrementa el contador. Ninguna aporta persistencia en disco. Después de detener y reiniciar la aplicación, el proceso vuelve a construir los dos productos iniciales y siguienteId vuelve a 2. Esta observación es una ventaja didáctica porque permite repetir el ejercicio con un estado conocido.
-
-Tampoco debemos interpretar esta estructura como un reemplazo de transacciones de base de datos. El curso presupone conocimientos de EF Core; aquí evitamos introducirlo porque el objetivo es estudiar la frontera HTTP entre cliente y servidor. Mezclar persistencia en este punto aumentaría la superficie de problemas sin mejorar el aprendizaje específico de GET, POST y contratos.
-
-### 4.3.13. Probar el contrato sin navegador: razonamiento sobre la evidencia
-
-Podemos comprobar un endpoint directamente con una herramienta HTTP. Esa prueba reduce el número de piezas implicadas. Si un GET directo responde 200 con la lista esperada, sabemos que el servidor está disponible y que ese endpoint satisface al menos el caso ensayado. No demuestra que Blazor esté configurado correctamente ni que todas las entradas posibles funcionen, pero sí aporta una evidencia localizada.
-
-Por el contrario, si el botón de Blazor no crea un producto, todavía no sabemos si el problema está en el formulario, en el servicio HTTP, en la configuración de URL, en el endpoint o en los datos. Ejecutar un POST independiente permite comprobar una parte importante del recorrido antes de modificar componentes.
-
-En un entorno docente es útil elegir casos con resultados exactos: GET inicial con dos productos, consulta ID 1 con Cuaderno, consulta ID 999 con 404, POST de Regla por 1,75 con 201 y un nuevo ID, POST de precio cero con 400. Después puede observarse que el listado ha aumentado y que al reiniciar el proceso vuelve a su estado inicial.
-
-Estas pruebas no convierten la aplicación de laboratorio en un producto validado para producción. Su valor es la trazabilidad entre un requisito observable y la respuesta HTTP real de la implementación.
-
-### 4.3.14. El principio de compatibilidad cuando reconstruimos la API
-
-Durante 4.1 y 4.2 el cliente utilizó una API proporcionada. Ahora el alumno construye otra. Para que esa sustitución sea transparente, el cliente debe poder seguir solicitando las mismas rutas, con los mismos verbos y las mismas formas de entrada y salida.
-
-La compatibilidad no significa conservar necesariamente los nombres privados de las clases del servidor. Podemos llamar ProductoApi al modelo dentro del proceso API y ProductoDto al tipo que usa Blazor, siempre que sus campos serializados expresen el contrato esperado.
-
-Tampoco significa que el servidor deba generar los mismos identificadores en todas las ejecuciones. La regla relevante es que cada nueva creación reciba un identificador válido y que el cliente utilice el devuelto. Eso permite separar la semántica de un contrato de detalles concretos de una ejecución en memoria.
-
-Si el nuevo servidor responde correctamente al GET pero devuelve 200 en lugar de 201 para un POST, quizá la UI siga mostrando un elemento, pero habremos cambiado la semántica de la respuesta. Si devuelve un objeto resumen donde el cliente espera una lista, la deserialización no funciona. Reconocer esas incompatibilidades es parte esencial de la ingeniería de integración.
-
-### 4.3.15. Añadir una ruta sin romper la ruta existente
-
-El resumen utiliza una URL propia. La operación lee los valores actuales, calcula cantidad y suma de precios, y devuelve un objeto con ambas propiedades. El endpoint original continúa devolviendo una colección de productos. Esto evita imponer al cliente existente un cambio estructural que nunca solicitó.
-
-Hay un matiz de enrutamiento: /api/productos/resumen no debe interpretarse como un identificador entero. La ruta de detalle usa la restricción {id:int}; por ello el literal resumen no satisface la plantilla de detalle, y puede resolverse el endpoint específico.
-
-La variante del reto añade hayProductos, un booleano obtenido de comparar la longitud con cero. Al activar ese reto no debemos registrar dos endpoints GET idénticos para la misma ruta, pues crearíamos una definición conflictiva. Se utiliza una variante u otra. El comentario de activación del proyecto permite observar esta decisión de forma tangible.
-
-### 4.3.16. Cómo enseñar un endpoint sin convertirlo en una clase magistral de Web API
-
-El alumnado conoce C# y Web API. Por tanto, el docente puede comenzar con un problema concreto: el cliente espera un catálogo remoto y necesitamos construir el servidor mínimo que lo satisfaga. Primero se arranca un host vacío; luego se añade GET, después el detalle, POST y validación. No hace falta repetir toda la teoría de controladores y middleware de ASP.NET Core para entender estos pasos.
-
-La práctica aprovecha esa experiencia previa y dedica esfuerzo a las decisiones que sí afectan al curso: contratos HTTP, funcionamiento del cliente Blazor, mensajes de error, aislamiento de responsabilidades y verificación del servidor por separado. El resultado es una API pequeña, pero completa para la historia que hemos elegido.
-
-### 4.3.17. Diagnosticar errores habituales de Program.cs
+#### Diagnosticar errores habituales de Program.cs
 
 Un error frecuente consiste en colocar declaraciones de tipo antes de las últimas instrucciones de nivel superior; el compilador puede rechazar el orden. Los registros ProductoApi y CrearProductoApi se declaran al final del archivo después de las instrucciones ejecutables, respetando el formato del ejemplo.
 
@@ -1197,81 +1492,26 @@ Por último, puede ocurrir que el servidor acepte un precio decimal pero el cuer
 
 
 
-### 4.3.18. Por qué no empezamos por los controladores ni por EF Core
+### 4.3.8. Probar el contrato sin depender de la pantalla
 
-En la enseñanza de ASP.NET Core es habitual presentar primero las capas de una aplicación completa: controladores, servicios, repositorios y persistencia. Esos elementos tienen sentido cuando hay requisitos que justifican separar operaciones y conservar datos. Sin embargo, nuestro problema de M04 es mucho más acotado: queremos comprender cómo una aplicación Blazor consume datos de otra aplicación mediante un contrato HTTP.
+Para diagnosticar una integración conviene separar observaciones. Primero ejecutamos la API y probamos GET, POST y errores con un cliente HTTP independiente. Después abrimos Blazor para comprobar que conserva su comportamiento. Si el GET directo funciona, pero la página falla, investigaremos URL configurada, puerto, servicio tipado, DTO o estado del componente. Si el GET directo también falla, examinaremos el proceso API y sus rutas.
 
-La plantilla dotnet new web y las Minimal APIs son suficientes para estudiar ese límite con poco código auxiliar. El endpoint GET expresa una lectura y el POST una creación. El cuerpo JSON se enlaza a un DTO y el resultado HTTP expresa el desenlace. El alumno que conoce Web API de módulos o cursos anteriores puede reconocer conceptos equivalentes a los de acciones de controlador, sin necesidad de repetir una explicación extensa sobre la estructura MVC de una API.
+En este punto **no** implantamos autenticación sobre el catálogo; la demostración limitada de seguridad corresponde a 4.4. Una API sin protección no se vuelve segura por el mero hecho de que la interfaz oculte un botón. La autorización debe comprobarse en el servidor del recurso protegido.
 
-El catálogo se almacena en memoria para que los escenarios sean deterministas y fáciles de reiniciar. Si usáramos EF Core aquí, aparecerían nuevas responsabilidades: cadena de conexión, esquema, migraciones, ciclo de vida de DbContext y persistencia. Ya se presupone que el alumnado conoce EF Core, pero esas operaciones no son la meta formativa del día. Una implementación más compleja podría ocultar la relación básica entre solicitud HTTP y respuesta.
 
-La decisión tiene un precio conocido. Al reiniciar la API desaparecen los productos creados; el diccionario no realiza transacciones; y la operación de creación no dispone de reglas avanzadas contra duplicados. La enseñanza adecuada consiste en señalar estos límites, no en disfrazar una colección temporal de sistema de datos empresarial.
 
-### 4.3.19. Analizar el enrutamiento sin confundir parámetros y literales
+#### Probar el contrato sin navegador: razonamiento sobre la evidencia
 
-Consideremos estas dos plantillas de ruta:
+Podemos comprobar un endpoint directamente con una herramienta HTTP. Esa prueba reduce el número de piezas implicadas. Si un GET directo responde 200 con la lista esperada, sabemos que el servidor está disponible y que ese endpoint satisface al menos el caso ensayado. No demuestra que Blazor esté configurado correctamente ni que todas las entradas posibles funcionen, pero sí aporta una evidencia localizada.
 
-~~~csharp
-app.MapGet("/api/productos/{id:int}", (int id) =>
-    productos.TryGetValue(id, out var producto)
-        ? Results.Ok(producto)
-        : Results.NotFound());
+Por el contrario, si el botón de Blazor no crea un producto, todavía no sabemos si el problema está en el formulario, en el servicio HTTP, en la configuración de URL, en el endpoint o en los datos. Ejecutar un POST independiente permite comprobar una parte importante del recorrido antes de modificar componentes.
 
-app.MapGet("/api/productos/resumen", () =>
-{
-    var actuales = productos.Values.ToArray();
-    return Results.Ok(new
-    {
-        cantidad = actuales.Length,
-        precioTotal = actuales.Sum(p => p.Precio)
-    });
-});
-~~~
+En un entorno docente es útil elegir casos con resultados exactos: GET inicial con dos productos, consulta ID 1 con Cuaderno, consulta ID 999 con 404, POST de Regla por 1,75 con 201 y un nuevo ID, POST de precio cero con 400. Después puede observarse que el listado ha aumentado y que al reiniciar el proceso vuelve a su estado inicial.
 
-En la primera, el segmento id tiene una restricción de entero. En la segunda, resumen es un literal. Por tanto, una solicitud a /api/productos/resumen no necesita convertirse en un identificador numérico. Esta distinción permite ampliar la API con un recurso de resumen sin alterar la consulta individual.
+Estas pruebas no convierten la aplicación de laboratorio en un producto validado para producción. Su valor es la trazabilidad entre un requisito observable y la respuesta HTTP real de la implementación.
 
-Ahora pensemos en /api/productos/999. El servidor puede seleccionar correctamente el endpoint con id=999, pero la búsqueda en el diccionario no encuentra el elemento. Se devuelve 404 por decisión del manejador. Si en cambio solicitamos /api/catalogo, ninguna de estas plantillas corresponde a la ruta; el resultado no proviene de un producto que falta, sino de una URL no publicada.
 
-Dos observaciones con el mismo estado HTTP no siempre proceden de la misma causa. Cuando diagnosticamos una API conviene preguntar primero si la ruta y el verbo coinciden, y después si la operación pudo encontrar los datos que necesitaba.
-
-### 4.3.20. La frontera entre deserializar JSON y validar una regla
-
-ASP.NET Core puede convertir un cuerpo JSON a un tipo como CrearProductoApi. Esa conversión establece que los datos recibidos tienen una representación compatible con el tipo de entrada, pero no decide por sí sola si el producto es aceptable para nuestro dominio.
-
-La función del ejemplo comprueba dos reglas: nombre no vacío y precio positivo. Son deliberadamente sencillas para poder observarlas. Una petición con nombre formado por espacios es JSON válido, pero se rechaza porque no aporta un nombre significativo. Una petición con precio cero también es sintácticamente correcta, pero no cumple el contrato funcional de creación.
-
-La distinción importa especialmente al enseñar depuración. Si el cuerpo HTTP está mal formado, la solicitud puede fallar antes de entrar al bloque de validación. Si el cuerpo enlaza correctamente pero no cumple una regla, el manejador devuelve 400. Y si cumple las reglas, el servidor asigna un ID y devuelve 201.
-
-Podemos identificar tres capas conceptuales en una única operación:
-
-~~~text
-Bytes y cabeceras HTTP
-    → interpretación del JSON
-    → CrearProductoApi
-    → reglas de nombre y precio
-    → asignación de identificador
-    → respuesta 201 y ProductoApi
-~~~
-
-Cada transición puede explicar un fallo distinto. El alumno debe aprender a localizar cuál de ellas no se ha completado, en lugar de cambiar todos los elementos de la solución ante un mensaje de error.
-
-### 4.3.21. La cabecera Location como parte de la creación
-
-Cuando una API crea un recurso, puede informar de la dirección donde será consultable. Results.Created permite incluir una dirección relativa y el objeto creado. En nuestro contrato, POST /api/productos devuelve Location: /api/productos/{id}, y GET de esa dirección puede obtener el producto mientras permanezca en memoria.
-
-El valor de Location no sustituye el cuerpo JSON. Para la interfaz que estamos construyendo es cómodo recibir también el producto completo, porque puede actualizar su lista sin realizar otra consulta de detalle. El cuerpo permite conocer el ID, el nombre normalizado y el precio que ha confirmado el servidor.
-
-Imaginemos una respuesta que declarara 201 y devolviera un cuerpo vacío. Podría existir un diseño de API en el que el cliente realizara una petición posterior a Location, pero no es el contrato que espera nuestro ProductosApiService, que intenta leer un ProductoDto inmediatamente. Una decisión legítima en abstracto puede ser incompatible con un consumidor concreto.
-
-### 4.3.22. Cuándo una extensión del contrato es segura para este cliente
-
-El endpoint /api/productos/resumen devuelve un objeto diferente del listado. La ruta nueva evita alterar la forma del GET que ya consume Blazor. Añadir hayProductos al objeto de resumen es una variación de su salida que podemos estudiar en aislamiento.
-
-No debemos concluir que añadir siempre cualquier propiedad a cualquier respuesta es automáticamente seguro. Un cliente puede imponer reglas estrictas sobre contratos, versiones o validación. En el laboratorio actual, el consumidor del catálogo no consulta la nueva ruta y por eso no cambia. Si quisiéramos crear una página de resumen, definiríamos su DTO y su operación cliente de manera explícita.
-
-Este ejemplo introduce una idea útil para trabajos reales: la compatibilidad de una API no consiste únicamente en que el servidor compile. Hay que comprobar las operaciones que consumen las aplicaciones existentes y distinguir entre ampliar recursos y sustituir contratos ya publicados.
-
-### 4.3.23. Verificaciones después de construir la API desde cero
+#### Verificaciones después de construir la API desde cero
 
 La secuencia de comprobación debe seguir los hitos de construcción. Primero, el host responde en /. Segundo, el listado inicial devuelve dos productos. Tercero, un identificador existente devuelve su recurso y uno inexistente produce 404. Cuarto, un POST válido crea un objeto con ID y 201. Quinto, un POST inválido produce 400 sin modificar el número de productos. Sexto, el endpoint de resumen refleja los valores actuales cuando se activa.
 
@@ -1279,134 +1519,8 @@ Solo después iniciamos Blazor y sustituimos la API que se entregaba al principi
 
 La herramienta HTTP y el proyecto Blazor ofrecen evidencias distintas. Una consulta directa demuestra la respuesta concreta del servidor para un caso. Una consulta desde Blazor demuestra además que el servicio tipado, sus DTO y el componente colaboran correctamente. Las dos son necesarias para localizar problemas con precisión.
 
-### 4.3.24. Leer un archivo de peticiones HTTP como documentación ejecutable
 
-Un archivo .http puede conservar una colección pequeña de solicitudes representativas. Cada bloque especifica un método y una URL, y para POST incluye cabecera Content-Type y cuerpo JSON. Visual Studio permite ejecutar esos bloques individualmente y observar respuesta y cabeceras.
-
-Esto resulta útil en un curso porque evita que el alumno tenga que instalar o programar un cliente distinto para cada escenario. También permite conservar en el repositorio las operaciones del contrato junto al código que las implementa. El archivo no garantiza por sí mismo que todas las respuestas sean correctas: hace posible ejecutar solicitudes reproducibles y compararlas con resultados esperados.
-
-No debemos interpretar una colección de peticiones como un sustituto universal de pruebas automatizadas. Puede ser una excelente herramienta de aprendizaje y diagnóstico, mientras que las pruebas de integración automatizadas aportan comprobaciones repetibles cuando se modifica el código. Ambos enfoques se complementan, pero persiguen objetivos diferentes.
-
-### 4.3.25. Reconstrucción, no copia: el propósito de los estados intermedios
-
-Si entregáramos únicamente el Program.cs final, el alumno podría ejecutarlo sin conocer el orden de decisiones que permitió construirlo. Por eso comenzamos con un host vacío que responde en /, añadimos los modelos, publicamos GET, incorporamos detalle, creamos POST y finalmente ampliamos el servidor con el resumen.
-
-Cada estado debe poder compilar y demostrar un comportamiento único. No adelantamos la creación antes de comprobar la consulta, ni mezclamos la validación de POST con un error del puerto. Este modo de trabajar permite aislar causas y favorece que el estudiante pueda reproducir la API en otra solución de ASP.NET Core.
-
-La habilidad transferible no es recordar todas las líneas de memoria. Es poder definir un contrato pequeño, construir sus endpoints por etapas y verificarlo con un cliente independiente antes de conectarlo a la interfaz principal.
-
-### 4.3.26. Del almacenamiento local a la comunicación entre procesos
-
-En M03 la colección podía depender de un servicio de memoria dentro del proceso Blazor. En M04, aunque el servidor también utilice una colección en memoria, la ubicación de esa memoria cambia: ahora pertenece al proceso API y Blazor solo recibe representaciones serializadas.
-
-Esto tiene consecuencias prácticas. Al recargar la página Blazor sin reiniciar la API, los productos creados continúan en el servidor. Si detenemos y reiniciamos la API, la colección se reconstruye desde los datos iniciales. Si detenemos Blazor pero la API sigue funcionando, los datos del servidor no tienen por qué desaparecer. Estos experimentos demuestran la separación de procesos sin introducir una base de datos.
-
-También muestran por qué el componente no debería tratar su lista de DTO como fuente universal de verdad. Es una representación del estado que la API devolvió en un instante. Si otro cliente crea un recurso, la pantalla necesitaría consultar nuevamente para observarlo. El ejemplo no implementa notificaciones en tiempo real, pero sí permite reconocer que una copia local y el estado remoto no son la misma cosa.
-
-
-
-### 4.3.27. Una ampliación opcional con sentido: buscar productos por nombre
-
-Hasta este momento GET /api/productos devuelve todos los elementos y GET /api/productos/{id:int} busca un recurso por su identificador. Un tercer caso frecuente consiste en consultar **una selección** de la colección a partir de un criterio proporcionado por el usuario. Podemos construirlo como reto opcional sin cambiar el contrato de los endpoints anteriores.
-
-La URL puede ser:
-
-~~~http
-GET /api/productos/buscar?nombre=cuad HTTP/1.1
-Host: localhost:5081
-Accept: application/json
-~~~
-
-La ruta identifica la operación y la cadena de consulta contiene el criterio nombre. A diferencia del ID incluido en un segmento de ruta, el parámetro de consulta representa una condición de filtrado. No significa que cuad sea una clave única: es solo un fragmento de nombre que podría coincidir con varios productos.
-
-ASP.NET Core permite enlazar el valor de la consulta a un parámetro del manejador. Nuestro endpoint opcional utiliza string? para representar que puede no existir un valor. En ese caso no devuelve todos los productos sin avisar; decide rechazar la solicitud con 400 porque la operación se ha definido como una búsqueda con término obligatorio.
-
-~~~csharp
-app.MapGet("/api/productos/buscar", (string? nombre) =>
-{
-    if (string.IsNullOrWhiteSpace(nombre))
-        return Results.BadRequest("Indica el nombre que deseas buscar.");
-
-    var termino = nombre.Trim();
-    var encontrados = productos.Values
-        .Where(p => p.Nombre.Contains(
-            termino, StringComparison.OrdinalIgnoreCase))
-        .OrderBy(p => p.Id)
-        .ToArray();
-
-    return Results.Ok(encontrados);
-});
-~~~
-
-Hay varias decisiones didácticas dentro de este bloque. Primero, la búsqueda no modifica el estado del catálogo: es GET. Segundo, normaliza el texto del filtro con Trim, pero no cambia los nombres almacenados. Tercero, Contains con StringComparison.OrdinalIgnoreCase realiza una comparación insensible a mayúsculas de manera explícita para este laboratorio. Cuarto, ordena los resultados por identificador, evitando basarse en el orden interno del diccionario concurrente.
-
-La salida mantiene la misma **forma de lista de productos** que el cliente ya conoce. Si se encuentra Cuaderno, devuelve un arreglo con ese objeto. Si no hay coincidencias, devuelve un arreglo vacío con 200, porque la búsqueda se ha ejecutado correctamente aunque no haya resultados. Si no hay un término válido, devuelve 400 porque no se cumplen los requisitos de esa operación. Esta secuencia permite distinguir de nuevo un éxito vacío de una entrada rechazada.
-
-### 4.3.28. Cómo convive una ruta literal con una ruta parametrizada
-
-Nuestro servidor ya publica /api/productos/{id:int}. ¿Puede entrar en conflicto con /api/productos/buscar? No en el contrato definido: buscar es un segmento literal y no cumple la restricción de entero del endpoint de detalle. Eso permite conservar ambas operaciones sin obligar a cambiar la dirección del catálogo.
-
-El diseño también muestra por qué no conviene utilizar una única ruta para operaciones semánticamente diferentes si eso obliga a interpretar todo a partir de formatos ambiguos. Un segmento con un número se utiliza para consultar un producto concreto; la ruta buscar junto a un parámetro nombre expresa un criterio de selección. La decisión se hace visible para quien prueba la API con un archivo .http.
-
-Con independencia de este ejemplo, una API profesional debe acordar sus rutas y criterios de búsqueda en función de sus consumidores. Nuestro laboratorio no pretende establecer una convención universal de búsqueda, sino demostrar el papel distinto de segmentos de ruta y parámetros de consulta.
-
-### 4.3.29. Tres resultados que enseñan más que una sola respuesta
-
-Con los productos iniciales, la solicitud a /api/productos/buscar?nombre=cuad debe devolver un arreglo con Cuaderno. No se crea ni elimina ningún producto.
-
-Si consultamos /api/productos/buscar?nombre=nohaycoincidencia, el resultado es 200 con []. La API ha entendido y ejecutado el filtro y no ha encontrado datos. Esa respuesta es diferente de un 404, porque no estamos pidiendo por su dirección un recurso individual que deba existir.
-
-Si consultamos /api/productos/buscar sin nombre, el endpoint responde 400. La entrada incumple la regla de término obligatorio. En el laboratorio decidimos que un filtro vacío sea una petición incorrecta y no un listado completo; ese comportamiento debe documentarse para los consumidores.
-
-Podemos ampliar el experimento creando mediante POST un producto llamado Cuaderno grande y repitiendo el filtro cuad. La respuesta pasará a incluir más de un objeto. El servicio de búsqueda no contiene resultados prefijados; calcula la respuesta a partir del diccionario actual. Al reiniciar la API, ese producto desaparece porque el almacenamiento sigue siendo temporal.
-
-### 4.3.30. Cuándo un componente necesitaría conocer un filtro
-
-La pantalla actual de Blazor solo consume ObtenerAsync y CrearAsync. El reto de búsqueda se prueba directamente sobre la API mediante el editor HTTP para conservar el alcance obligatorio. Si decidiéramos añadir a la interfaz un campo de búsqueda remota, deberíamos introducir una nueva operación en IProductosApiService y una implementación que formara correctamente la URL con el criterio proporcionado.
-
-Es importante codificar los caracteres de un parámetro de consulta cuando proceden de un usuario, en lugar de concatenar sin más espacios, símbolos o caracteres especiales a la dirección. El cliente dispone de utilidades para preparar componentes de URL y las APIs HTTP cuentan con mecanismos para representarlos correctamente. En el ejercicio no hace falta desarrollar una biblioteca de construcción de URLs, pero sí identificar el problema.
-
-Tampoco deberíamos alterar el método ObtenerAsync para que comenzara a devolver silenciosamente una búsqueda filtrada. Eso cambiaría el significado de una operación ya utilizada en el catálogo. La separación de responsabilidades que aprendimos en 4.2 nos permite agregar funciones sin romper los métodos anteriores.
-
-### 4.3.31. Verificar el reto sin modificar el itinerario obligatorio
-
-El código de búsqueda permanece comentado con un marcador de activación en Program.cs del proyecto 4.3. Se puede habilitar en una copia aislada, comprobar el funcionamiento y desactivarlo después. La versión obligatoria del módulo sigue cumpliendo GET de lista y detalle, POST validado y el resumen del punto 4.3.
-
-La ventaja de un reto así no es simplemente añadir líneas, sino reunir varias decisiones que el alumno puede justificar: criterio de consulta frente a identificador en ruta, respuesta vacía frente a 400, filtrado sin mutación, comparación de texto, compatibilidad de DTO y prueba directa mediante solicitudes HTTP.
-
-No obliga a incorporar EF Core, Identity, paginación ni una interfaz adicional. Permite trabajar un poco más con la API que el alumno ya ha construido, sin convertir una jornada de integración Blazor en un curso completo de servicios REST.
-
-
-### 4.3.32. Tres aplicaciones ASP.NET Core, tres responsabilidades de presentación
-
-En este curso hemos utilizado MVC, Blazor Web App Interactive Server y una pequeña Minimal API. Todas pueden construirse sobre ASP.NET Core, pero eso no significa que sus responsabilidades deban mezclarse.
-
-En MVC, el navegador envía solicitudes a la aplicación, una acción del controlador coordina la operación y una vista Razor produce HTML para la respuesta. La interacción posterior del usuario suele originar nuevas solicitudes que pueden terminar en acciones distintas. En los primeros módulos el alumno aprendió a relacionar controlador, modelo y vista, y a gestionar formularios y validaciones.
-
-En Blazor Interactive Server, el navegador representa componentes y participa en una conexión interactiva con el servidor Blazor. Un evento del usuario puede invocar código C# de un componente sin requerir que escribamos manualmente una acción MVC para cada pulsación. El componente mantiene estado de presentación y puede llamar a servicios registrados mediante DI.
-
-En la Minimal API auxiliar, no diseñamos páginas. El servidor publica recursos HTTP y devuelve datos JSON junto con códigos de estado. Un navegador, una aplicación Blazor, una terminal o cualquier cliente compatible pueden utilizar esas operaciones. Por eso las reglas de creación y asignación de ID tienen que estar en la API: la interfaz no es el único consumidor posible.
-
-~~~mermaid
-flowchart TB
-    A["Navegador y usuario"] --> B["MVC: controlador y vista HTML"]
-    A --> C["Blazor: componente Interactive Server"]
-    C --> D["Servicio HTTP tipado"]
-    D --> E["Minimal API: JSON y estado HTTP"]
-    E --> F["Productos en memoria"]
-~~~
-
-El diagrama no afirma que MVC sea parte del recorrido de una petición de Blazor en M04. Presenta dos modos de construir interfaz y el recurso HTTP que utiliza el segundo. El alumno debe poder explicar cuándo está procesando una solicitud de navegación, cuándo ejecuta un evento de componente y cuándo consume un recurso JSON.
-
-### 4.3.33. Qué significa comunicar servidores en Interactive Server
-
-En nuestro laboratorio el código HttpClient de Blazor se ejecuta en el servidor que aloja los componentes. El navegador se comunica con Blazor, y el servidor Blazor se comunica con la API. Es distinto de construir una aplicación JavaScript que emite desde el propio navegador todas las solicitudes a otra URL.
-
-Esa distinción explica por qué no añadimos indiscriminadamente políticas CORS a la API de esta jornada. CORS es una política del navegador relacionada con solicitudes de origen cruzado; la comunicación de HttpClient entre dos procesos .NET del servidor no está sometida a esa comprobación del navegador. Si cambiáramos el diseño para realizar fetch desde código del navegador, sí deberíamos analizar los orígenes permitidos según el escenario real.
-
-Conviene no transformar esta observación en la frase «Blazor nunca necesita CORS». Blazor puede utilizar diferentes modelos de ejecución y las aplicaciones pueden combinar componentes con otros clientes. La conclusión exacta es que **el GET y POST de este proyecto concreto se realizan desde el proceso Blazor Interactive Server**, por lo que añadir CORS a la API no es una condición necesaria para esos ejercicios.
-
-### 4.3.34. Diagrama de secuencia de una creación completa
+#### Diagrama de secuencia de una creación completa
 
 ~~~mermaid
 sequenceDiagram
@@ -1425,39 +1539,6 @@ sequenceDiagram
 Este diagrama muestra la ruta de éxito. En la primera etapa, los campos del formulario pertenecen a Blazor. En la segunda, la solicitud pasa a la interfaz del servicio. En la tercera, la implementación transforma una llamada C# en HTTP. En la cuarta, la API valida, asigna un ID y devuelve el recurso creado. Finalmente, el componente añade ese objeto a la lista y actualiza la presentación.
 
 Podemos comparar ese recorrido con el de una creación rechazada. Si el servidor devuelve 400, el servicio no obtiene un ProductoDto creado; su comprobación de estado genera una excepción que el componente transforma en mensaje de error. La lista no debería añadir un producto que el servidor nunca confirmó. La diferencia entre ambas rutas no está en el botón, sino en la respuesta que la API emitió.
-
-### 4.3.35. Construir un contrato antes de crear componentes
-
-En un sistema distribuido pequeño, el diseño puede comenzar por cuatro preguntas. ¿Qué necesita consultar el consumidor? ¿Qué datos debe enviar al crear un recurso? ¿Quién asigna los identificadores? ¿Qué estados expresan éxito, rechazo y ausencia?
-
-Para nuestro catálogo respondemos de la siguiente manera. El cliente consulta GET /api/productos y recibe una lista de elementos con id, nombre y precio. Para crear envía POST /api/productos con nombre y precio, sin id. El servidor valida esos campos, asigna el nuevo identificador y devuelve 201 junto al producto completo. Para un ID no encontrado, la consulta individual devuelve 404. Para una entrada incorrecta, POST devuelve 400.
-
-El contrato descrito es suficiente para iniciar los ejercicios. No necesitamos decidir todavía detalles de estructura interna del servidor, nombres de variables o estilo de componentes Razor. Cuando escribimos esos archivos, cada uno debe respetar el acuerdo que ya hemos definido.
-
-Esto ayuda a comprender por qué el cliente no debería depender de compartir exactamente la misma clase C# con la API. Lo que viaja entre procesos son solicitudes y representaciones HTTP. Los tipos locales ayudan a expresar esos datos en cada lenguaje o ensamblado, pero no sustituyen la obligación de mantener compatibilidad.
-
-### 4.3.36. Observar dos instancias de API sin confundir sus estados
-
-Podemos arrancar la misma implementación de API en dos puertos diferentes, siempre que cada proceso mantenga su propio estado en memoria. Por ejemplo, uno escucha en 5081 y otro en 5088. Si enviamos POST a la primera instancia, la segunda no incorpora automáticamente el producto; no existe una base de datos compartida ni un mecanismo de sincronización entre ambas.
-
-Este experimento ofrece una demostración clara de los límites de proceso. Cambiar ProductosApi:BaseUrl en Blazor determina qué instancia consulta el cliente. Si una muestra Regla y la otra todavía muestra solo Cuaderno y Lápiz, el componente no está funcionando mal: está observando dos servidores distintos.
-
-No debemos utilizar este laboratorio para concluir que dos instancias reales de una aplicación deban funcionar siempre con memorias independientes. Es una característica de nuestra decisión de almacenamiento temporal. En sistemas de producción, las instancias suelen necesitar una estrategia de persistencia y coordinación que no desarrollaremos en este módulo.
-
-### 4.3.37. Lista de decisiones de implementación y su razón formativa
-
-| Decisión | Motivo en esta formación | Qué no pretende resolver |
-|---|---|---|
-| Minimal API | Hacer visibles los endpoints | Arquitectura empresarial completa |
-| DTO de creación distinto | Asignar ID en servidor | Gestión avanzada de entidades |
-| ConcurrentDictionary | Soportar operaciones básicas en memoria | Persistencia o transacciones |
-| Interlocked para ID | Evitar incrementos no atómicos | Identificadores distribuidos |
-| Results.Created | Expresar alta con recurso nuevo | Diseño general de hipermedia |
-| GET de resumen separado | Conservar el catálogo consumido | Versionado completo de APIs |
-| Búsqueda opcional por query | Distinguir filtro y ruta | Motor avanzado de búsquedas |
-| Archivo .http | Ejecutar solicitudes directas | Reemplazar todas las pruebas automatizadas |
-
-La tabla no debe entenderse como un conjunto de recetas invariables para cualquier producto. Son decisiones pequeñas, justificadas por el objetivo docente de comprender comunicación HTTP y construcción progresiva sin perder de vista el tiempo disponible. Otras aplicaciones necesitarán soluciones diferentes.
 
 
 ### Síntesis del punto 4.3
@@ -1502,53 +1583,8 @@ await contexto.SignInAsync("CookiesDemo", principal);
 
 La cookie debe emitirse en una respuesta HTTP normal. Una operación `SignInAsync` dentro de un evento de Blazor Interactive Server que ya ha iniciado su respuesta no es el enfoque apropiado; por ello haremos el acceso mediante un formulario HTML POST y una redirección de página completa.
 
-### 4.4.2. Proteger recursos en el servidor
 
-Un endpoint protegido es distinto de un botón oculto:
-
-```csharp
-app.MapGet("/demo/privado", () =>
-    Results.Ok(new { mensaje = "Recurso protegido" }))
-    .RequireAuthorization(p => p.RequireRole("Formador"));
-```
-
-La autorización se evalúa en el servidor. Aunque se conozca la URL, el usuario anónimo no recibe el contenido. Una identidad autenticada sin `Formador` tampoco recibe autorización. La API de Productos utilizada en 4.1–4.3 permanece deliberadamente pública: aquí no añadimos credenciales a todo el proyecto.
-
-### 4.4.3. AuthorizeView: presentación condicional, no seguridad del servidor
-
-```razor
-<AuthorizeView>
-    <Authorized>
-        <p>Sesión: @context.User.Identity?.Name</p>
-    </Authorized>
-    <NotAuthorized>
-        <p>La sesión no está autenticada.</p>
-    </NotAuthorized>
-</AuthorizeView>
-```
-
-`AuthorizeView Roles="Formador"` muestra contenido solo si los claims del usuario satisfacen esa condición. Eso cambia la **interfaz visible**; no reemplaza la regla `RequireAuthorization` del servidor. Para páginas protegidas con `[Authorize]` puede emplearse `AuthorizeRouteView` al resolver las rutas, pero el recurso de demostración será el endpoint HTTP protegido.
-
-### 4.4.4. Formularios HTTP y antifalsificación
-
-El inicio de sesión de laboratorio usará un formulario HTML normal con `method="post"`, `<AntiforgeryToken />` y `data-enhance="false"`. El servidor comprobará el formulario, creará los claims y emitirá la cookie. La salida también se hará mediante POST con token y `SignOutAsync`.
-
-El token antifalsificación dificulta que un sitio externo envíe solicitudes que cambian estado usando la sesión del navegador; **no comprueba la identidad** y no transforma una contraseña fija en un sistema seguro. Nunca debemos desactivar su protección simplemente para que la demo funcione.
-
-### 4.4.5. Casos que debe observar el alumno
-
-| Estado | Resultado |
-|---|---|
-| Usuario anónimo | `AuthorizeView` presenta `NotAuthorized` |
-| Anónimo consulta `/demo/privado` | El servidor deniega el recurso |
-| Código local correcto | Se crea una sesión de demostración |
-| Sesión con rol `Formador` | Se muestra el rol y se accede al recurso protegido |
-| Salida POST | La sesión deja de estar autenticada |
-
-La demostración es intencionalmente superficial. Identity, proveedores externos, permisos de producción y protección del catálogo completo quedan fuera de este curso de 30 horas.
-
-
-### 4.4.6. Autenticación por cookie: seguir el intercambio completo
+#### Autenticación por cookie: seguir el intercambio completo
 
 Cuando el usuario completa correctamente el formulario de demostración, el navegador envía una petición HTTP POST al servidor Blazor. El servidor compara el código local del laboratorio, crea una identidad con claims y ejecuta `SignInAsync`. En la respuesta aparece una cookie de autenticación; en solicitudes posteriores el navegador la envía al servidor correspondiente. El middleware vuelve a interpretar esa cookie y crea el principal asociado al usuario.
 
@@ -1558,58 +1594,8 @@ Esto explica por qué no debemos intentar emitir una cookie dentro de un evento 
 
 En el laboratorio la autenticación ocurre en el servidor Blazor. No implica que el proceso de la API REST auxiliar acepte automáticamente esa misma identidad ni que comparta el mismo esquema de cookies. Autenticación y autorización deben diseñarse explícitamente en los límites de cada aplicación.
 
-### 4.4.7. Comprender el antiforgery en un formulario de entrada
 
-Un navegador autenticado envía automáticamente cookies apropiadas al servidor. Esta comodidad introduce un riesgo: otro sitio podría intentar provocar un POST usando la sesión del navegador. El token antifalsificación permite al servidor comprobar que la solicitud proviene de un formulario que recibió un token legítimo.
-
-En Razor declaramos:
-
-```razor
-<form method="post" action="/demo/salir" data-enhance="false">
-    <AntiforgeryToken />
-    <button type="submit">Cerrar sesión</button>
-</form>
-```
-
-En un endpoint de demostración que lee el formulario directamente, conviene hacer explícita la comprobación:
-
-```csharp
-app.MapPost("/demo/salir",
-    async (HttpContext http, IAntiforgery antiforgery) =>
-{
-    if (!await antiforgery.IsRequestValidAsync(http))
-        return Results.BadRequest("Token antifalsificación inválido.");
-
-    await http.SignOutAsync("CookiesDemo");
-    return Results.Redirect("/seguridad");
-});
-```
-
-El código requiere el espacio de nombres `Microsoft.AspNetCore.Antiforgery` y `Microsoft.AspNetCore.Authentication`, así como la configuración adecuada del middleware. El resultado de un POST sin token no es una salida válida sino una respuesta de error. El token no sustituye la comprobación del usuario ni convierte un código fijo de laboratorio en una contraseña segura.
-
-### 4.4.8. ¿Qué diferencia hay entre 401 y 403?
-
-La semántica es importante aunque algunas aplicaciones web redirijan al formulario de acceso. **401 Unauthorized** indica que no existe una autenticación válida para acceder al recurso. **403 Forbidden** corresponde a una identidad reconocida que carece del permiso exigido. Con autenticación por cookie, los manejadores pueden convertir esas situaciones en redirecciones a páginas de entrada o de acceso denegado. En un endpoint consultado como API puede ser preferible conservar los códigos HTTP para que el cliente los interprete.
-
-Nuestro endpoint de laboratorio requiere el rol `Formador`. Una persona anónima no satisface esa política. Un principal autenticado con otro rol tampoco, pero la razón es diferente: ya sabemos quién es y lo que falta es autorización.
-
-En pruebas, no basta con ver que un botón está oculto: debemos consultar directamente el endpoint y comprobar que el servidor rechaza la solicitud cuando falta la identidad o el permiso.
-
-### 4.4.9. Los límites concretos de una demostración segura
-
-Un proyecto de aula con código fijo de acceso debe expresar su finalidad. No es un sistema de identidad para Internet. No debe reutilizarse en un despliegue y no debe almacenar datos sensibles. Para mantener controlado el ejemplo, sus rutas especiales pueden registrarse únicamente bajo `app.Environment.IsDevelopment()`.
-
-Los mecanismos que faltarían en un producto real incluyen verificación de credenciales mediante un proveedor adecuado, gestión del ciclo de vida de usuarios, configuración segura de cookies, HTTPS, protección de secretos, políticas de acceso y procedimientos de recuperación. No se desarrollan aquí porque la finalidad de M04 es observar los conceptos básicos dentro de seis horas.
-
-### 4.4.10. Diagnóstico guiado de un acceso fallido
-
-Si la página continúa mostrando una identidad anónima después de enviar el formulario, comprueba primero que el POST se ha enviado a la ruta correcta y que el navegador no lo ha tratado como una navegación parcial que impide observar la nueva cookie. Comprueba después que el token antifalsificación se envió y que el servidor aceptó la solicitud. Si la respuesta es satisfactoria, observa si la cookie se almacenó y si el navegador la envía al volver a consultar el servidor.
-
-Si la página muestra el usuario pero el recurso protegido deniega acceso, revisa la autorización del endpoint. Una identidad autenticada puede carecer del claim de rol requerido. Si la interfaz muestra el rol y aun así el endpoint rechaza la solicitud, revisa si ambas acciones se están ejecutando en el mismo host y bajo el mismo esquema de autenticación.
-
-Este procedimiento está orientado a clasificar errores. No necesitamos integrar un sistema de gestión de cuentas para aprender a diferenciar identidad, permisos, HTTP y presentación.
-
-### 4.4.11. Del navegador a la identidad: seguir el primer acceso
+#### Del navegador a la identidad: seguir el primer acceso
 
 Antes de comenzar la autenticación, la aplicación Blazor puede dibujar páginas y consumir la API auxiliar. El navegador no presenta una cookie de sesión reconocida por el esquema de demostración. En ese estado, el principal es anónimo y AuthorizeView muestra la rama NotAuthorized. Esta vista condicional no decide todavía el permiso de un recurso remoto; solo permite presentar información adecuada al estado de autenticación conocido por el componente.
 
@@ -1619,33 +1605,8 @@ La llamada SignInAsync solicita al middleware de cookie que emita la informació
 
 La cookie no es una variable global accesible a cualquier proceso del ordenador. La API auxiliar es otra aplicación y no queda automáticamente protegida por el hecho de que el usuario haya entrado en la pantalla Blazor. Para proteger una operación del servidor remoto, esa API necesitaría su propio esquema y sus políticas. No construiremos tal infraestructura dentro del alcance de esta jornada.
 
-### 4.4.12. La autorización es una segunda decisión
 
-Un usuario autenticado no recibe automáticamente permiso para cualquier recurso. En nuestra aplicación, /demo/privado requiere el rol Formador mediante RequireRole. La comprobación ocurre en el servidor, de manera que escribir directamente la URL no evita la política.
-
-Supongamos tres identidades. La primera es anónima y carece de sesión válida. La segunda está autenticada con rol Alumno. La tercera está autenticada con rol Formador. Solo la tercera satisface la regla definida para el recurso privado. Este experimento permite observar la diferencia entre demostrar quién eres y demostrar que puedes ejecutar una operación determinada.
-
-En general, 401 se asocia a una autenticación inexistente o no válida, mientras que 403 representa una identidad conocida a la que no se concede permiso. En aplicaciones web con cookies pueden producirse redirecciones a páginas de acceso o denegación en lugar de entregar directamente esos códigos. Para el endpoint HTTP del laboratorio configuramos explícitamente una respuesta 401 cuando se solicita de manera anónima, de modo que la observación sea sencilla.
-
-### 4.4.13. AuthorizeView no es un cortafuegos
-
-AuthorizeView permite expresar en Razor que una parte del contenido se representa solo para un usuario reconocido o para un rol concreto. Eso mejora la experiencia: puede ocultar controles que el usuario no podrá utilizar y mostrar mensajes de acceso. Sin embargo, ni ocultar un botón ni omitir una sección HTML impiden que alguien escriba manualmente una URL HTTP.
-
-La diferencia es sencilla de demostrar. Podemos comentar temporalmente la rama visual que anuncia el rol y volver a consultar /demo/privado: el endpoint sigue requiriendo autorización. También podríamos mostrar siempre el enlace al recurso, pero el servidor continuaría denegando accesos no autorizados. Por lo tanto, el criterio de seguridad debe definirse en el recurso real, no únicamente en el componente.
-
-Cuando una página completa usa un atributo de autorización, puede convenir que el enrutador Blazor trabaje con AuthorizeRouteView. No debemos confundir ese mecanismo de navegación y representación con la protección de la API auxiliar, alojada en otro proceso. Cada mecanismo protege el límite donde se aplica.
-
-### 4.4.14. Antifalsificación: qué amenaza aborda y cuál no
-
-Los navegadores envían ciertas cookies de manera automática cuando una petición coincide con las reglas de la cookie. Esta propiedad facilita mantener una sesión, pero también crea la posibilidad de que un sitio ajeno intente provocar peticiones que modifican el estado en nombre del usuario.
-
-Un token antifalsificación aporta una comprobación adicional de procedencia para esas solicitudes. En el formulario Razor declaramos AntiforgeryToken y el servidor valida el token antes de procesar la acción. Cuando se utiliza una ruta que lee manualmente formularios, la validación explícita mediante IAntiforgery.IsRequestValidAsync ayuda a dejar visible el requisito. Un POST sin token correcto debe rechazarse, aunque incluya el código del laboratorio.
-
-El token antifalsificación **no** demuestra la identidad de una persona y tampoco convierte un código fijo en una credencial segura. Su finalidad es diferente: reducir solicitudes de cambio de estado falsificadas. Por eso las dos comprobaciones aparecen en momentos distintos del endpoint: primero validar la solicitud, después comprobar el código de acceso o ejecutar la salida.
-
-La salida de sesión también modifica el estado y debe realizarse mediante POST con antiforgery. Usar un enlace GET que cierre la sesión cuando se visita una URL mezclaría la semántica de consulta con una operación que cambia el estado de autenticación.
-
-### 4.4.15. ¿Por qué no hacemos el inicio desde un evento interactivo?
+#### ¿Por qué no hacemos el inicio desde un evento interactivo?
 
 Blazor Interactive Server mantiene un circuito para procesar eventos y actualizar componentes. Cuando un evento se ejecuta, el servidor no dispone necesariamente de una respuesta HTTP normal cuyas cabeceras pueda modificar. Emitir una cookie requiere establecer una cabecera en una respuesta HTTP antes de que se haya enviado su contenido.
 
@@ -1653,46 +1614,8 @@ Intentar resolver esa discrepancia con un método SignInAsync invocado ingenuame
 
 No debemos concluir que Blazor es incompatible con la autenticación moderna; simplemente estamos eligiendo un flujo didáctico que hace observable dónde se crea una cookie. Una aplicación real puede integrar Identity y otros proveedores mediante configuraciones apropiadas y componentes preparados para ello, pero esas opciones quedan deliberadamente fuera del ejercicio.
 
-### 4.4.16. Roles, claims y políticas
 
-Un claim expresa una afirmación sobre el principal, como su nombre o un valor de rol. Un rol es una clasificación que puede utilizarse en reglas de autorización. En una aplicación real, el diseño de permisos no siempre puede reducirse a roles; algunas reglas dependen de recursos, operaciones y contexto. Nuestro caso solo necesita demostrar el mecanismo básico de comprobación de una afirmación.
-
-Al crear el principal de laboratorio incluimos ClaimTypes.Name y ClaimTypes.Role. Al registrarlo en la cookie, la aplicación puede recuperar posteriormente esos datos para tomar decisiones. En la presentación los usamos para mostrar AlumnoDemo y reconocer Formador. En el endpoint usamos RequireRole para una regla efectiva.
-
-Si reemplazamos temporalmente Formador por un rol diferente en la política, la identidad puede seguir autenticada y la pantalla puede seguir mostrando el nombre, pero el recurso privado ya no estará autorizado. Esa observación es más formativa que limitarse a mostrar un mensaje de éxito al iniciar sesión.
-
-### 4.4.17. Describir el alcance sin ofrecer falsas garantías
-
-Nuestro ejemplo entrega una identidad de prueba mediante un código fijo en un entorno de desarrollo. Es adecuado para demostrar el papel de una cookie, los claims y una política local. No es adecuado para publicar una aplicación expuesta a Internet.
-
-Una implementación profesional necesitaría mecanismos legítimos de verificación de identidad, gestión de contraseñas o proveedores externos, secretos protegidos, HTTPS, configuración segura de cookies, expiración de sesiones, auditoría apropiada y políticas de autorización acordes con los datos protegidos. No se obtienen estas propiedades simplemente porque AddAuthentication aparezca en Program.cs.
-
-Para reforzar el carácter experimental, las rutas /demo/entrar, /demo/salir y /demo/privado se registran solo en Development. La página puede existir como contenido, pero el mecanismo de acceso no debe desplegarse como sistema de seguridad público.
-
-### 4.4.18. Diagnóstico de un inicio que parece correcto
-
-Si el usuario introduce el código y sigue viendo NotAuthorized, no deberíamos cambiar inmediatamente los claims. Primero se comprueba que el formulario envía un POST HTTP normal a la ruta correcta. Después se observa si el token antifalsificación es válido y si el endpoint devuelve una redirección de éxito o de rechazo. Solo entonces examinamos la cookie de respuesta y su posterior envío por el navegador.
-
-Si el usuario está reconocido pero no puede abrir el recurso privado, revisamos el claim de rol y la política del endpoint. Una identidad con nombre no implica poseer Formador. Si en cambio el recurso privado es accesible estando anónimo, existe un problema más grave: la autorización del servidor no se está aplicando como debía.
-
-Si la aplicación se ejecuta en producción y el formulario deja de funcionar, debemos recordar que las rutas de demostración se limitan deliberadamente a Development. No debemos cambiar ese límite para «hacer que funcione en producción»: la autenticación fija de laboratorio no está diseñada para ese uso.
-
-### 4.4.19. Análisis final comparado
-
-| Pregunta | Componente | Servidor Blazor | API auxiliar |
-|---|---|---|---|
-| ¿Quién dibuja la interfaz? | Sí | Aloja su ejecución | No |
-| ¿Quién consume HTTP remoto? | Invoca servicio C# | Ejecuta cliente HTTP | Recibe peticiones |
-| ¿Quién valida nombre y precio del POST? | Puede ofrecer ayuda inicial | No sustituye la API | Sí |
-| ¿Quién emite cookie local de demostración? | Presenta formulario | Sí, en POST | No |
-| ¿Quién protege /demo/privado? | Puede ocultar enlace | Sí, mediante política | No |
-| ¿Quién asigna el ID del producto? | No | Solo solicita el alta | Sí |
-
-Esta tabla describe fronteras, no una obligación de multiplicar proyectos. Saber qué proceso ejecuta cada acción evita atribuir a AuthorizeView una protección que en realidad depende del servidor.
-
-
-
-### 4.4.20. Secuencia completa de la sesión y lugar de cada decisión
+#### Secuencia completa de la sesión y lugar de cada decisión
 
 Para cerrar el estudio de autenticación conviene representar las transiciones como un intercambio de solicitudes y respuestas. El formulario se dibuja en un componente, pero quien emite la cookie es el servidor, y quien la presenta en solicitudes posteriores es el navegador. El rol no se decide en el HTML: se almacena como un claim asociado al principal y se comprueba por la política del endpoint.
 
@@ -1726,7 +1649,47 @@ Por último, la salida utiliza un POST protegido por antiforgery. SignOutAsync h
 
 El punto esencial es que cada etapa sucede en un límite distinto: representación en el componente, petición en el navegador, cookie y políticas en el servidor. Los nombres concretos de las clases pueden variar, pero esas responsabilidades siguen existiendo.
 
-### 4.4.21. Analizar un recurso protegido desde tres perfiles
+### 4.4.2. Proteger recursos en el servidor
+
+Un endpoint protegido es distinto de un botón oculto:
+
+```csharp
+app.MapGet("/demo/privado", () =>
+    Results.Ok(new { mensaje = "Recurso protegido" }))
+    .RequireAuthorization(p => p.RequireRole("Formador"));
+```
+
+La autorización se evalúa en el servidor. Aunque se conozca la URL, el usuario anónimo no recibe el contenido. Una identidad autenticada sin `Formador` tampoco recibe autorización. La API de Productos utilizada en 4.1–4.3 permanece deliberadamente pública: aquí no añadimos credenciales a todo el proyecto.
+
+
+#### ¿Qué diferencia hay entre 401 y 403?
+
+La semántica es importante aunque algunas aplicaciones web redirijan al formulario de acceso. **401 Unauthorized** indica que no existe una autenticación válida para acceder al recurso. **403 Forbidden** corresponde a una identidad reconocida que carece del permiso exigido. Con autenticación por cookie, los manejadores pueden convertir esas situaciones en redirecciones a páginas de entrada o de acceso denegado. En un endpoint consultado como API puede ser preferible conservar los códigos HTTP para que el cliente los interprete.
+
+Nuestro endpoint de laboratorio requiere el rol `Formador`. Una persona anónima no satisface esa política. Un principal autenticado con otro rol tampoco, pero la razón es diferente: ya sabemos quién es y lo que falta es autorización.
+
+En pruebas, no basta con ver que un botón está oculto: debemos consultar directamente el endpoint y comprobar que el servidor rechaza la solicitud cuando falta la identidad o el permiso.
+
+
+#### La autorización es una segunda decisión
+
+Un usuario autenticado no recibe automáticamente permiso para cualquier recurso. En nuestra aplicación, /demo/privado requiere el rol Formador mediante RequireRole. La comprobación ocurre en el servidor, de manera que escribir directamente la URL no evita la política.
+
+Supongamos tres identidades. La primera es anónima y carece de sesión válida. La segunda está autenticada con rol Alumno. La tercera está autenticada con rol Formador. Solo la tercera satisface la regla definida para el recurso privado. Este experimento permite observar la diferencia entre demostrar quién eres y demostrar que puedes ejecutar una operación determinada.
+
+En general, 401 se asocia a una autenticación inexistente o no válida, mientras que 403 representa una identidad conocida a la que no se concede permiso. En aplicaciones web con cookies pueden producirse redirecciones a páginas de acceso o denegación en lugar de entregar directamente esos códigos. Para el endpoint HTTP del laboratorio configuramos explícitamente una respuesta 401 cuando se solicita de manera anónima, de modo que la observación sea sencilla.
+
+
+#### Roles, claims y políticas
+
+Un claim expresa una afirmación sobre el principal, como su nombre o un valor de rol. Un rol es una clasificación que puede utilizarse en reglas de autorización. En una aplicación real, el diseño de permisos no siempre puede reducirse a roles; algunas reglas dependen de recursos, operaciones y contexto. Nuestro caso solo necesita demostrar el mecanismo básico de comprobación de una afirmación.
+
+Al crear el principal de laboratorio incluimos ClaimTypes.Name y ClaimTypes.Role. Al registrarlo en la cookie, la aplicación puede recuperar posteriormente esos datos para tomar decisiones. En la presentación los usamos para mostrar AlumnoDemo y reconocer Formador. En el endpoint usamos RequireRole para una regla efectiva.
+
+Si reemplazamos temporalmente Formador por un rol diferente en la política, la identidad puede seguir autenticada y la pantalla puede seguir mostrando el nombre, pero el recurso privado ya no estará autorizado. Esa observación es más formativa que limitarse a mostrar un mensaje de éxito al iniciar sesión.
+
+
+#### Analizar un recurso protegido desde tres perfiles
 
 Imaginemos tres situaciones independientes. En la primera no existe cookie reconocida. En la segunda existe una sesión con nombre AlumnoDemo pero sin el rol Formador. En la tercera existe una sesión con nombre AlumnoDemo y con ese rol.
 
@@ -1740,7 +1703,48 @@ La tabla ayuda a explicar que autenticación y autorización no son sinónimos. 
 
 La interfaz puede reflejar esas distinciones mediante AuthorizeView, pero las decisiones efectivas deben ser comprobadas por el servidor. Si el componente no dibuja el enlace al recurso privado, una persona todavía podría escribir la dirección manualmente; por eso la política del endpoint es la que protege los datos.
 
-### 4.4.22. Qué no protege el inicio de sesión de Blazor en este proyecto
+### 4.4.3. AuthorizeView: presentación condicional, no seguridad del servidor
+
+```razor
+<AuthorizeView>
+    <Authorized>
+        <p>Sesión: @context.User.Identity?.Name</p>
+    </Authorized>
+    <NotAuthorized>
+        <p>La sesión no está autenticada.</p>
+    </NotAuthorized>
+</AuthorizeView>
+```
+
+`AuthorizeView Roles="Formador"` muestra contenido solo si los claims del usuario satisfacen esa condición. Eso cambia la **interfaz visible**; no reemplaza la regla `RequireAuthorization` del servidor. Para páginas protegidas con `[Authorize]` puede emplearse `AuthorizeRouteView` al resolver las rutas, pero el recurso de demostración será el endpoint HTTP protegido.
+
+
+#### AuthorizeView no es un cortafuegos
+
+AuthorizeView permite expresar en Razor que una parte del contenido se representa solo para un usuario reconocido o para un rol concreto. Eso mejora la experiencia: puede ocultar controles que el usuario no podrá utilizar y mostrar mensajes de acceso. Sin embargo, ni ocultar un botón ni omitir una sección HTML impiden que alguien escriba manualmente una URL HTTP.
+
+La diferencia es sencilla de demostrar. Podemos comentar temporalmente la rama visual que anuncia el rol y volver a consultar /demo/privado: el endpoint sigue requiriendo autorización. También podríamos mostrar siempre el enlace al recurso, pero el servidor continuaría denegando accesos no autorizados. Por lo tanto, el criterio de seguridad debe definirse en el recurso real, no únicamente en el componente.
+
+Cuando una página completa usa un atributo de autorización, puede convenir que el enrutador Blazor trabaje con AuthorizeRouteView. No debemos confundir ese mecanismo de navegación y representación con la protección de la API auxiliar, alojada en otro proceso. Cada mecanismo protege el límite donde se aplica.
+
+
+#### Análisis final comparado
+
+| Pregunta | Componente | Servidor Blazor | API auxiliar |
+|---|---|---|---|
+| ¿Quién dibuja la interfaz? | Sí | Aloja su ejecución | No |
+| ¿Quién consume HTTP remoto? | Invoca servicio C# | Ejecuta cliente HTTP | Recibe peticiones |
+| ¿Quién valida nombre y precio del POST? | Puede ofrecer ayuda inicial | No sustituye la API | Sí |
+| ¿Quién emite cookie local de demostración? | Presenta formulario | Sí, en POST | No |
+| ¿Quién protege /demo/privado? | Puede ocultar enlace | Sí, mediante política | No |
+| ¿Quién asigna el ID del producto? | No | Solo solicita el alta | Sí |
+
+Esta tabla describe fronteras, no una obligación de multiplicar proyectos. Saber qué proceso ejecuta cada acción evita atribuir a AuthorizeView una protección que en realidad depende del servidor.
+
+
+
+
+#### Qué no protege el inicio de sesión de Blazor en este proyecto
 
 La API auxiliar escucha en otro proceso y publica /api/productos. El laboratorio no transmite a esa API una credencial de usuario ni configura en ella una política de autorización para el catálogo. Por eso no podemos afirmar que iniciar sesión en Blazor protege automáticamente la creación remota de productos.
 
@@ -1750,7 +1754,112 @@ Para proteger una API real habría que definir cómo se identifica a sus cliente
 
 En M04 deliberadamente mantenemos independientes las dos demostraciones: la integración HTTP permite aprender GET, POST, DTO y servicios tipados; el recurso local privado permite aprender identidad, cookie, rol y autorización. La separación evita presentar una seguridad ficticia sobre el CRUD remoto.
 
-### 4.4.23. Ordenar una investigación cuando una sesión parece no funcionar
+
+#### Seguridad del servidor y experiencia del usuario no son rivales
+
+Una interfaz puede informar de que falta iniciar sesión, mostrar el nombre de la persona o esconder opciones que no puede utilizar. Ese comportamiento facilita la navegación. El servidor, por su parte, debe comprobar los permisos con independencia de lo que se haya dibujado.
+
+No deberíamos elegir entre una interfaz comprensible y una autorización correcta. Las dos responsabilidades se complementan. La interfaz reduce confusión para el usuario, mientras que la política del servidor impide el acceso indebido al recurso.
+
+En nuestro ejemplo esta combinación se observa sin implantar un proveedor completo de identidades. Primero reconocemos un estado de sesión de demostración; después mostramos la información correspondiente y comprobamos que el endpoint exige Formador. El alumnado debe poder explicar por qué las dos comprobaciones siguen siendo necesarias aunque las pantallas parezcan coherentes.
+
+
+### 4.4.4. Formularios HTTP y antifalsificación
+
+El inicio de sesión de laboratorio usará un formulario HTML normal con `method="post"`, `<AntiforgeryToken />` y `data-enhance="false"`. El servidor comprobará el formulario, creará los claims y emitirá la cookie. La salida también se hará mediante POST con token y `SignOutAsync`.
+
+El token antifalsificación dificulta que un sitio externo envíe solicitudes que cambian estado usando la sesión del navegador; **no comprueba la identidad** y no transforma una contraseña fija en un sistema seguro. Nunca debemos desactivar su protección simplemente para que la demo funcione.
+
+
+#### Comprender el antiforgery en un formulario de entrada
+
+Un navegador autenticado envía automáticamente cookies apropiadas al servidor. Esta comodidad introduce un riesgo: otro sitio podría intentar provocar un POST usando la sesión del navegador. El token antifalsificación permite al servidor comprobar que la solicitud proviene de un formulario que recibió un token legítimo.
+
+En Razor declaramos:
+
+```razor
+<form method="post" action="/demo/salir" data-enhance="false">
+    <AntiforgeryToken />
+    <button type="submit">Cerrar sesión</button>
+</form>
+```
+
+En un endpoint de demostración que lee el formulario directamente, conviene hacer explícita la comprobación:
+
+```csharp
+app.MapPost("/demo/salir",
+    async (HttpContext http, IAntiforgery antiforgery) =>
+{
+    if (!await antiforgery.IsRequestValidAsync(http))
+        return Results.BadRequest("Token antifalsificación inválido.");
+
+    await http.SignOutAsync("CookiesDemo");
+    return Results.Redirect("/seguridad");
+});
+```
+
+El código requiere el espacio de nombres `Microsoft.AspNetCore.Antiforgery` y `Microsoft.AspNetCore.Authentication`, así como la configuración adecuada del middleware. El resultado de un POST sin token no es una salida válida sino una respuesta de error. El token no sustituye la comprobación del usuario ni convierte un código fijo de laboratorio en una contraseña segura.
+
+
+#### Antifalsificación: qué amenaza aborda y cuál no
+
+Los navegadores envían ciertas cookies de manera automática cuando una petición coincide con las reglas de la cookie. Esta propiedad facilita mantener una sesión, pero también crea la posibilidad de que un sitio ajeno intente provocar peticiones que modifican el estado en nombre del usuario.
+
+Un token antifalsificación aporta una comprobación adicional de procedencia para esas solicitudes. En el formulario Razor declaramos AntiforgeryToken y el servidor valida el token antes de procesar la acción. Cuando se utiliza una ruta que lee manualmente formularios, la validación explícita mediante IAntiforgery.IsRequestValidAsync ayuda a dejar visible el requisito. Un POST sin token correcto debe rechazarse, aunque incluya el código del laboratorio.
+
+El token antifalsificación **no** demuestra la identidad de una persona y tampoco convierte un código fijo en una credencial segura. Su finalidad es diferente: reducir solicitudes de cambio de estado falsificadas. Por eso las dos comprobaciones aparecen en momentos distintos del endpoint: primero validar la solicitud, después comprobar el código de acceso o ejecutar la salida.
+
+La salida de sesión también modifica el estado y debe realizarse mediante POST con antiforgery. Usar un enlace GET que cierre la sesión cuando se visita una URL mezclaría la semántica de consulta con una operación que cambia el estado de autenticación.
+
+
+#### Describir el alcance sin ofrecer falsas garantías
+
+Nuestro ejemplo entrega una identidad de prueba mediante un código fijo en un entorno de desarrollo. Es adecuado para demostrar el papel de una cookie, los claims y una política local. No es adecuado para publicar una aplicación expuesta a Internet.
+
+Una implementación profesional necesitaría mecanismos legítimos de verificación de identidad, gestión de contraseñas o proveedores externos, secretos protegidos, HTTPS, configuración segura de cookies, expiración de sesiones, auditoría apropiada y políticas de autorización acordes con los datos protegidos. No se obtienen estas propiedades simplemente porque AddAuthentication aparezca en Program.cs.
+
+Para reforzar el carácter experimental, las rutas /demo/entrar, /demo/salir y /demo/privado se registran solo en Development. La página puede existir como contenido, pero el mecanismo de acceso no debe desplegarse como sistema de seguridad público.
+
+### 4.4.5. Casos que debe observar el alumno
+
+| Estado | Resultado |
+|---|---|
+| Usuario anónimo | `AuthorizeView` presenta `NotAuthorized` |
+| Anónimo consulta `/demo/privado` | El servidor deniega el recurso |
+| Código local correcto | Se crea una sesión de demostración |
+| Sesión con rol `Formador` | Se muestra el rol y se accede al recurso protegido |
+| Salida POST | La sesión deja de estar autenticada |
+
+La demostración es intencionalmente superficial. Identity, proveedores externos, permisos de producción y protección del catálogo completo quedan fuera de este curso de 30 horas.
+
+
+
+#### Los límites concretos de una demostración segura
+
+Un proyecto de aula con código fijo de acceso debe expresar su finalidad. No es un sistema de identidad para Internet. No debe reutilizarse en un despliegue y no debe almacenar datos sensibles. Para mantener controlado el ejemplo, sus rutas especiales pueden registrarse únicamente bajo `app.Environment.IsDevelopment()`.
+
+Los mecanismos que faltarían en un producto real incluyen verificación de credenciales mediante un proveedor adecuado, gestión del ciclo de vida de usuarios, configuración segura de cookies, HTTPS, protección de secretos, políticas de acceso y procedimientos de recuperación. No se desarrollan aquí porque la finalidad de M04 es observar los conceptos básicos dentro de seis horas.
+
+
+#### Diagnóstico guiado de un acceso fallido
+
+Si la página continúa mostrando una identidad anónima después de enviar el formulario, comprueba primero que el POST se ha enviado a la ruta correcta y que el navegador no lo ha tratado como una navegación parcial que impide observar la nueva cookie. Comprueba después que el token antifalsificación se envió y que el servidor aceptó la solicitud. Si la respuesta es satisfactoria, observa si la cookie se almacenó y si el navegador la envía al volver a consultar el servidor.
+
+Si la página muestra el usuario pero el recurso protegido deniega acceso, revisa la autorización del endpoint. Una identidad autenticada puede carecer del claim de rol requerido. Si la interfaz muestra el rol y aun así el endpoint rechaza la solicitud, revisa si ambas acciones se están ejecutando en el mismo host y bajo el mismo esquema de autenticación.
+
+Este procedimiento está orientado a clasificar errores. No necesitamos integrar un sistema de gestión de cuentas para aprender a diferenciar identidad, permisos, HTTP y presentación.
+
+
+#### Diagnóstico de un inicio que parece correcto
+
+Si el usuario introduce el código y sigue viendo NotAuthorized, no deberíamos cambiar inmediatamente los claims. Primero se comprueba que el formulario envía un POST HTTP normal a la ruta correcta. Después se observa si el token antifalsificación es válido y si el endpoint devuelve una redirección de éxito o de rechazo. Solo entonces examinamos la cookie de respuesta y su posterior envío por el navegador.
+
+Si el usuario está reconocido pero no puede abrir el recurso privado, revisamos el claim de rol y la política del endpoint. Una identidad con nombre no implica poseer Formador. Si en cambio el recurso privado es accesible estando anónimo, existe un problema más grave: la autorización del servidor no se está aplicando como debía.
+
+Si la aplicación se ejecuta en producción y el formulario deja de funcionar, debemos recordar que las rutas de demostración se limitan deliberadamente a Development. No debemos cambiar ese límite para «hacer que funcione en producción»: la autenticación fija de laboratorio no está diseñada para ese uso.
+
+
+#### Ordenar una investigación cuando una sesión parece no funcionar
 
 Una sesión fallida puede tener varias causas y el orden de análisis importa. Primero, ¿se envió realmente el formulario mediante POST y a la ruta correcta? Segundo, ¿el servidor recibió un token antifalsificación válido? Tercero, ¿la comprobación del código de demostración aceptó la solicitud? Cuarto, ¿se emitió una cookie y el navegador la presentó después? Quinto, ¿el principal resultante contiene el rol requerido por el recurso?
 
@@ -1759,14 +1868,6 @@ Si falla el primer paso, mirar ClaimsIdentity todavía es prematuro. Si el token
 También debemos comprobar el entorno. La implementación de laboratorio registra las rutas especiales solo en Development, por lo que no deben estar accesibles como sistema de acceso en Production. Habilitarlas indiscriminadamente para conseguir una demostración pública sería contrario al objetivo de seguridad.
 
 Esa secuencia de preguntas ofrece una estrategia transferible: no mezclar fallos de transporte, formulario, identidad, cookie y permisos. Cada comprobación debe aportar información sobre uno de esos límites.
-
-### 4.4.24. Seguridad del servidor y experiencia del usuario no son rivales
-
-Una interfaz puede informar de que falta iniciar sesión, mostrar el nombre de la persona o esconder opciones que no puede utilizar. Ese comportamiento facilita la navegación. El servidor, por su parte, debe comprobar los permisos con independencia de lo que se haya dibujado.
-
-No deberíamos elegir entre una interfaz comprensible y una autorización correcta. Las dos responsabilidades se complementan. La interfaz reduce confusión para el usuario, mientras que la política del servidor impide el acceso indebido al recurso.
-
-En nuestro ejemplo esta combinación se observa sin implantar un proveedor completo de identidades. Primero reconocemos un estado de sesión de demostración; después mostramos la información correspondiente y comprobamos que el endpoint exige Formador. El alumnado debe poder explicar por qué las dos comprobaciones siguen siendo necesarias aunque las pantallas parezcan coherentes.
 
 
 ### Taller transversal: una operación vista desde cuatro límites
