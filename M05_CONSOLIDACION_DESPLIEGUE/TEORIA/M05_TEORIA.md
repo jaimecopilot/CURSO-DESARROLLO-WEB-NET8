@@ -951,6 +951,104 @@ Este principio conecta los tres mecanismos de publicación del módulo sin conve
 
 
 
+
+### 5.2.21. Publicar una aplicación no significa trasladar su entorno de desarrollo
+
+Durante los días 1 y 2, MVC A fue evolucionando dentro de una solución de Visual Studio. El editor conocía el archivo de proyecto, ofrecía las vistas Razor y permitía ejecutar y depurar la aplicación. Ese entorno es una ayuda para construir el programa, no un requisito que deba copiarse íntegramente al servidor de destino.
+
+Una publicación dependiente del framework contiene artefactos del programa y presupone que el destino dispone de las condiciones de ejecución indicadas. Podemos imaginar el equipo de desarrollo con Visual Studio y LocalDB instalados y otro equipo con el runtime ASP.NET Core pero sin LocalDB. Copiar los archivos publicados permite intentar iniciar el host, pero la operación de inicialización SQL del `Program.cs` normal podría fallar.
+
+El resultado nos enseña a diferenciar **dependencias de construcción**, **dependencias de ejecución** y **dependencias funcionales**. Visual Studio y el SDK pertenecen a la construcción. El runtime y los ensamblados pertenecen a la ejecución. SQL Server Express LocalDB pertenece a la funcionalidad que realmente necesita persistencia. No todas las rutas del mismo sitio tienen por qué utilizar esa dependencia funcional.
+
+Por eso una publicación correcta no puede prometer más de lo que sus condiciones permiten. Al trasladarla a IIS, nos interesará comprobar qué identidad tiene el proceso y qué módulos de hospedaje existen. Al trasladarla al contenedor Linux, tendremos un runtime ASP.NET Core dentro de la imagen, pero no una instancia LocalDB de Windows.
+
+### 5.2.22. La diferencia entre un directorio preparado y un servidor escuchando
+
+La operación `dotnet publish` escribe archivos. Puede finalizar satisfactoriamente mientras no exista ningún servidor HTTP atendiendo. El explorador de Windows puede mostrar `CursoWeb.Mvc.dll`, `CursoWeb.Mvc.deps.json` y otros archivos; eso no significa que el navegador tenga una URL disponible.
+
+Un servidor aparece cuando se ejecuta el programa en un proceso con configuración válida, se preparan sus dependencias y se abre la escucha. La dirección utilizada depende del mecanismo de hospedaje. En Kestrel podemos indicar una URL local; en IIS la dirección visible se configura mediante bindings; en Docker la dirección del host requiere publicar el puerto del contenedor.
+
+Estas diferencias explican por qué la práctica avanza primero desde `dotnet build`, después hacia `dotnet publish`, luego a un proceso Kestrel y finalmente a otros mecanismos. No se debe comenzar creando un sitio IIS antes de saber qué carpeta publicada se va a utilizar.
+
+Un síntoma didáctico habitual es que el alumno declara «ya está publicada» tras comprobar únicamente la salida de compilación. Una formulación rigurosa sería: «se ha generado el directorio de publicación»; solo después de una petición real podrá añadir «el host está atendiendo esta ruta».
+
+### 5.2.23. Comprobar el mismo comportamiento después de dos cambios de contexto
+
+La primera ejecución de MVC A sucede desde el proyecto, con `dotnet run`. La segunda sucede desde la salida publicada, con `dotnet CursoWeb.Mvc.dll`. Queremos reconocer la continuidad: el controlador `HomeController`, la vista Razor y los recursos siguen perteneciendo al mismo proyecto.
+
+No se necesita modificar el código para crear un controlador llamado `HomePublicadoController`. Tampoco hace falta que cada modo de ejecución tenga su propia carpeta `Views` dentro de la solución. La publicación transforma y prepara los artefactos necesarios para servir la aplicación existente.
+
+Una prueba significativa consiste en abrir `/` desde el proceso inicial, detenerlo, iniciar la publicación en el mismo puerto y volver a abrir `/`. Si el contenido corresponde a la misma versión, el resultado visible puede ser idéntico, pero el contexto de ejecución habrá cambiado. La evidencia adicional es el comando de inicio y el directorio del que procede la DLL.
+
+Si se modificó una vista entre las dos publicaciones, podremos observar un contenido diferente. Eso no contradice la continuidad del proyecto: confirma que se ha ejecutado una versión distinta de sus artefactos.
+
+### 5.2.24. El uso de una carpeta de trabajo temporal facilita la reproducibilidad
+
+El repositorio debe conservar los proyectos fuente y los manuales, no múltiples directorios de salida improvisados. Por eso las instrucciones docentes utilizan `.work/M05` para alojar publicaciones de ensayo. La carpeta de trabajo permite repetir ejercicios, comparar dos versiones y limpiar sus resultados sin alterar la implementación.
+
+La práctica de dos publicaciones se apoya en esta idea: publica antes de cambiar la vista en una carpeta A, y después en una carpeta B. Al mantener esos destinos separados, puede demostrarse que el proceso A no cambia automáticamente cuando existe una publicación B.
+
+No debemos confundir el directorio `.work` con una solución o un módulo versionado. Tampoco es un almacén de resultados que el alumno tenga que entregar al repositorio. Es un espacio temporal para practicar el recorrido publicación→ejecución sin sobrescribir el código ni introducir archivos generados junto a las vistas de origen.
+
+### 5.2.25. Si una respuesta es antigua, identificar los artefactos que utiliza el proceso
+
+Imagina que el alumno actualiza la portada de MVC y vuelve a publicar. Sin embargo, el navegador sigue mostrando el texto anterior. Antes de modificar el controlador, debemos comprobar tres elementos:
+
+Primero, si la publicación nueva se produjo en la carpeta que el alumno esperaba. Una ruta relativa incorrecta puede haber escrito archivos en otro directorio.
+
+Segundo, si el proceso en ejecución fue iniciado desde la publicación nueva o desde una anterior. Un proceso Kestrel que seguía escuchando en el puerto conserva su instancia y sus artefactos.
+
+Tercero, si el navegador está consultando la dirección correcta. Dos procesos pueden estar escuchando en puertos diferentes y representar versiones distintas sin que exista ningún error.
+
+Esta investigación no requiere un sistema de despliegue avanzado. Solo necesita relacionar cambios de fuente, salida publicada, proceso y solicitud. Más adelante, en IIS, será la ruta física del sitio la que indique la publicación usada. En Docker será la imagen con la que se creó el contenedor.
+
+### 5.2.26. Qué información aporta una ruta que no depende de SQL Server
+
+La acción `/Productos/Estado` devuelve un texto breve y no necesita consultar la tabla de productos. Gracias a esa independencia, sirve para reconocer si el host ASP.NET Core, su routing y el controlador pueden responder aun cuando el escenario de despliegue no dispone de LocalDB.
+
+Una respuesta 200 en esa ruta no debe interpretarse como demostración de que los productos se pueden crear. Tampoco una respuesta 503 en `/Productos` significa necesariamente que el servidor web no está ejecutándose. El conjunto de observaciones distingue la capa web de una dependencia que falta deliberadamente.
+
+Esa separación es especialmente útil en una jornada introductoria de despliegue. No queremos introducir configuración empresarial de SQL Server accesible desde Linux únicamente para abrir la portada de MVC. Queremos que el alumno sepa decir: «el mecanismo de hospedaje funciona; la función de catálogo persistente no forma parte de este ensayo».
+
+Si se quiere comprobar el CRUD, hay que volver al contexto Windows con la instancia LocalDB preparada, desactivar la opción sin base y ejecutar operaciones reales. El curso nunca sustituye la tecnología de base de datos por SQLite para evitar ese requisito.
+
+### 5.2.27. Publicación, entorno y seguridad: no extraer conclusiones indebidas
+
+Un directorio publicado con `-c Release` puede ser técnicamente adecuado para ejecutar la aplicación y, al mismo tiempo, carecer de una configuración segura para Internet. La optimización de compilación y la protección frente a accesos externos pertenecen a problemas distintos.
+
+De la misma forma, elegir `ASPNETCORE_ENVIRONMENT=Production` no activa automáticamente certificados, autorización o una política de seguridad. Los valores del entorno determinan qué configuración se carga y pueden modificar comportamientos concretos, pero no sustituyen decisiones explícitas de administración y diseño.
+
+La práctica de IIS usa HTTP local y un puerto de laboratorio. Docker publica un puerto del host para hacer visible el contenedor en el mismo equipo. Ninguna de esas decisiones debe copiarse sin revisión a un despliegue público. El temario original delimitó deliberadamente una introducción sencilla, no un manual para operar servicios expuestos a Internet.
+
+El aprendizaje esperado es poder señalar las condiciones que cambian y reconocer qué garantías no se han ensayado. Una demostración limitada y correctamente explicada es preferible a una afirmación general de que el programa está «listo para producción» por el mero hecho de responder en un navegador.
+
+### 5.2.28. Leer una publicación como evidencia acumulativa
+
+Podemos establecer una cadena de resultados concretos sin crear un sistema de auditoría dentro del material del alumno. Después de `dotnet build` sabemos que la compilación ha terminado. Después de `dotnet publish` sabemos que se ha preparado una salida. Después de iniciar la DLL sabemos que el proceso ha llegado a ejecutarse. Después de GET a `/` sabemos que una ruta ha respondido. Después de GET a `/css/site.css` sabemos que se ha entregado un recurso estático. Después de una operación real de CRUD con SQL Server sabemos que esa operación y su dependencia han respondido.
+
+La secuencia evita una inferencia equivocada: que el paso anterior acredita automáticamente todos los siguientes. Una publicación puede compilar y carecer del runtime en destino; un host puede responder la portada y carecer de base de datos.
+
+Esta forma de argumentar es una competencia profesional transferible. El alumno debería poder explicar qué observación aporta cada acción y cuál es el siguiente hecho que necesita comprobar. No debe limitarse a recitar comandos; debe comprender qué estado han producido.
+
+### 5.2.29. Comparación de resultados con y sin LocalDB
+
+| Condición de ejecución | Inicialización de SQL | Página inicial | Ruta Estado | Rutas CRUD |
+|---|---|---|---|---|
+| Windows con LocalDB disponible y modo normal | Se intenta y puede completarse | Disponible si el host arranca | Disponible | Comprobables con EF Core |
+| Windows sin LocalDB y modo normal | Puede fallar durante el arranque | No garantizada | No garantizada | No garantizadas |
+| Windows en modo sin LocalDB | Se omite por diseño | Disponible si el host arranca | Disponible | 503 explícito |
+| Docker Linux en modo sin LocalDB | Se omite por diseño | Disponible si el host arranca | Disponible | 503 explícito |
+
+La tabla no sustituye las pruebas. Explica qué resultado sería coherente con cada condición. Si bajo el modo sin base la ruta de productos devolviera 200 con un catálogo fijo improvisado, la demostración sería engañosa: parecería que el CRUD funciona sin la infraestructura acordada. En cambio, el 503 mantiene visible el límite.
+
+### 5.2.30. Cierre: de la carpeta publicada al primer servidor
+
+El alumno está preparado para pasar a Kestrel cuando puede localizar el archivo de proyecto, producir una publicación, interpretar los archivos principales, elegir un directorio de ejecución y distinguir la disponibilidad de una página de la persistencia de productos.
+
+El siguiente punto no vuelve a enseñar MVC desde cero. Reutiliza el mismo proyecto y responde a otra pregunta: ¿qué proceso acepta solicitudes HTTP cuando ejecutamos la publicación y cómo interpretamos la relación entre puerto, ruta y resultado? La continuidad es deliberada. El nuevo aprendizaje se añade al recorrido previo, no lo sustituye.
+
+
+
 ## 5.3. Kestrel: proceso, dirección y respuesta HTTP
 
 ### 5.3.1. Qué es Kestrel y qué hace
