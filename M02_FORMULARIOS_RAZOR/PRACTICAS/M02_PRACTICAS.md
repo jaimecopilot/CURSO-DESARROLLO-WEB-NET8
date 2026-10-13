@@ -2984,6 +2984,473 @@ Mantén el botón «Enviar a OnPost» y el formulario. No copies el nombre del m
 
 **Por qué funciona:** Razor Pages reconoce handlers por la convención `OnPost` más el nombre `Mayusculas`. Ambos comparten `Nombre`, `ModelState` y la política antiforgery de la página. El método alternativo transforma la representación del nombre, pero no inserta, edita ni elimina productos. **Teoría relacionada:** «Más de un POST en una página».
 
+## Construcción íntegra P2.5 — Razor Pages y MVC en un mismo proceso
+
+La teoría compara controladores MVC y PageModel: los dos reciben HTTP, crean una respuesta y comprueban sus datos, aunque organizan las acciones de forma diferente. La aplicación del laboratorio sigue siendo el mismo catálogo persistente del punto 2.4. Aquí se estudian completos los diez archivos que se introducen o modifican, y se mantienen intactos los restantes.
+
+### P2.5 — Program.cs
+
+**Explicación del archivo completo.** Registra simultáneamente los servicios MVC y Razor Pages y mapea sus endpoints en el mismo host. El DbContext y la base de P2.4 siguen registrados; no hay una segunda aplicación ASP.NET Core. Las variantes comentadas son las que se activan cuando llegas al paso correspondiente: no añadas un segundo OnPost ni dupliques el formulario.
+
+~~~csharp
+using CursoWeb.Mvc.Data;
+using CursoWeb.Mvc.Models;
+using Microsoft.EntityFrameworkCore;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// PASO 2.5.1: coexistencia deliberada de MVC y Razor Pages en UN host.
+// No creamos una segunda WebApplication ni una API auxiliar.
+builder.Services.AddControllersWithViews();
+builder.Services.AddRazorPages();
+
+// Se conserva la misma base de P2.4, con una cadena configurable.
+var cadena = builder.Configuration.GetConnectionString("Productos")
+    ?? throw new InvalidOperationException("Falta ConnectionStrings:Productos.");
+builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(cadena));
+
+var app = builder.Build();
+
+// P2.4: EnsureCreated para el laboratorio nuevo; no son migraciones.
+// Solo insertar los tres productos iniciales cuando la base acaba de crearse.
+using (var scope = app.Services.CreateScope())
+{
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    if (db.Database.EnsureCreated())
+    {
+        db.Productos.AddRange(
+            new Producto { Nombre = "Cuaderno", Precio = 4.50m },
+            new Producto { Nombre = "Lápiz", Precio = 1.20m },
+            new Producto { Nombre = "Carpeta", Precio = 3.75m });
+        db.SaveChanges();
+    }
+}
+
+app.UseStaticFiles();
+app.UseRouting();
+
+// PASO 2.5.1: habilitar endpoints de Razor Pages y los controladores MVC.
+app.MapRazorPages();
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+app.Run();
+~~~
+
+**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+
+### P2.5 — Pages/Comparacion.cshtml
+
+**Explicación del archivo completo.** Página Razor que declara @page, un modelo de página y un formulario. Contrasta sus expresiones con la vista MVC Crear.cshtml. Las variantes comentadas son las que se activan cuando llegas al paso correspondiente: no añadas un segundo OnPost ni dupliques el formulario.
+
+~~~cshtml
+@page "/Comparacion"
+@model CursoWeb.Mvc.Pages.ComparacionModel
+@{
+    ViewData["Title"] = "MVC y Razor Pages";
+}
+
+<h1>P2.5 | Comparación entre MVC y Razor Pages</h1>
+<p>Esta página pertenece al mismo host del catálogo y reutiliza su layout.
+   No crea ni modifica productos de LocalDB.</p>
+
+@* PASO 2.5.2: OnGet prepara el mensaje. Tras un POST, OnPost escribe
+   otro mensaje en el mismo objeto PageModel. *@
+<p id="mensaje-page">@Model.Mensaje</p>
+
+@* PASO 2.5.3: el formulario se envía a la misma URL /Comparacion;
+   Razor Pages localiza el handler OnPost al recibir el método POST. *@
+<form method="post" asp-antiforgery="true">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <div>
+        <label asp-for="Nombre"></label>
+        <input asp-for="Nombre" />
+        <span asp-validation-for="Nombre" class="text-danger"></span>
+    </div>
+    <button type="submit">Enviar a OnPost</button>
+
+    @* RETO 2.5: activa OnPostMayusculas y elimina los delimitadores
+       del comentario que contiene el botón siguiente. *@
+    @* <button type="submit" asp-page-handler="Mayusculas">Mostrar en mayúsculas</button> *@
+</form>
+
+@* PASO 2.5.5: Anchor Tag Helper que vuelve al controlador MVC anterior. *@
+<p><a asp-controller="Productos" asp-action="Index">Volver al catálogo MVC</a></p>
+
+@* APLICACION 2.5.6 (ESCRIBIR): añade bajo el mensaje una condición
+   Razor que muestre un elemento id="respuesta-larga" cuando el texto
+   del mensaje tenga más de 40 caracteres. Comprueba GET y POST.
+   No se entrega aquí el bloque resuelto. *@
+~~~
+
+**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+
+### P2.5 — Pages/Comparacion.cshtml.cs
+
+**Explicación del archivo completo.** PageModel con OnGet, OnPost y un reto de segundo handler; el binding y la comprobación de ModelState se organizan junto a la página en lugar de un controlador MVC. Las variantes comentadas son las que se activan cuando llegas al paso correspondiente: no añadas un segundo OnPost ni dupliques el formulario.
+
+~~~csharp
+using System.ComponentModel.DataAnnotations;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.RazorPages;
+
+namespace CursoWeb.Mvc.Pages;
+
+// P2.5: comparación acotada con MVC, dentro del mismo host.
+// Es una página demostrativa: NO altera el catálogo ni escribe en LocalDB.
+public sealed class ComparacionModel : PageModel
+{
+    // PASO 2.5.3: a diferencia de Crear(ProductoFormulario entrada) en MVC,
+    // la propiedad enlazada vive en el PageModel.
+    // BindProperty recibe valores en POST; no implica SupportsGet=true.
+    [BindProperty]
+    // PASO 2.5.4 (ACTIVAR): descomenta ambas anotaciones y compara el resultado
+    // de un nombre ausente, uno de un carácter y uno correcto.
+    // [Required(ErrorMessage = "Introduce un nombre.")]
+    // [StringLength(60, MinimumLength = 2,
+    //     ErrorMessage = "El nombre debe tener entre 2 y 60 caracteres.")]
+    public string? Nombre { get; set; }
+
+    public string Mensaje { get; private set; } = string.Empty;
+
+    // PASO 2.5.2: un GET ejecuta OnGet, no una acción de ProductosController.
+    public void OnGet()
+    {
+        Mensaje = "OnGet prepara la página sin enviar un formulario.";
+    }
+
+    // PASO 2.5.3 (ACTIVAR): el POST de la misma URL ejecutará OnPost.
+    /* PASO 2.5.3 INICIO
+    public IActionResult OnPost()
+    {
+        // PASO 2.5.4: la comprobación da sentido a DataAnnotations.
+        // Repetimos la página con errores y conservamos la entrada escrita.
+        if (!ModelState.IsValid)
+            return Page();
+
+        // Antes de activar [Required], esta salvaguarda evita aceptar
+        // el nombre vacío; no reemplaza la validación declarativa.
+        if (string.IsNullOrWhiteSpace(Nombre))
+        {
+            ModelState.AddModelError(nameof(Nombre), "Introduce un nombre.");
+            return Page();
+        }
+
+        Mensaje = $"OnPost ha recibido: {Nombre.Trim()}";
+        return Page();
+    }
+    PASO 2.5.3 FIN */
+
+    // RETO 2.5 (ACTIVAR): dos handlers POST para una sola Razor Page.
+    // El alumno deberá crear en Comparacion.cshtml un botón
+    // con asp-page-handler="Mayusculas", además del botón inicial.
+    /* RETO 2.5 INICIO
+    public IActionResult OnPostMayusculas()
+    {
+        if (!ModelState.IsValid)
+            return Page();
+
+        if (string.IsNullOrWhiteSpace(Nombre))
+        {
+            ModelState.AddModelError(nameof(Nombre), "Introduce un nombre.");
+            return Page();
+        }
+
+        Mensaje = $"Nombre en mayúsculas: {Nombre.Trim().ToUpperInvariant()}";
+        return Page();
+    }
+    RETO 2.5 FIN */
+}
+~~~
+
+**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+
+### P2.5 — Pages/_ViewImports.cshtml
+
+**Explicación del archivo completo.** Importa los namespaces y Tag Helpers disponibles para Pages. No confundir con el archivo análogo que se conserva en Views. Las variantes comentadas son las que se activan cuando llegas al paso correspondiente: no añadas un segundo OnPost ni dupliques el formulario.
+
+~~~cshtml
+@namespace CursoWeb.Mvc.Pages
+@addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
+~~~
+
+**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+
+### P2.5 — Pages/_ViewStart.cshtml
+
+**Explicación del archivo completo.** Establece la plantilla de presentación de las Razor Pages para que el aspecto permanezca coherente con el catálogo MVC. Las variantes comentadas son las que se activan cuando llegas al paso correspondiente: no añadas un segundo OnPost ni dupliques el formulario.
+
+~~~cshtml
+@{
+    Layout = "/Views/Shared/_Layout.cshtml";
+}
+~~~
+
+**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+
+### P2.5 — Views/Shared/_Layout.cshtml
+
+**Explicación del archivo completo.** Incluye navegación a la Razor Page de comparación además de las rutas de productos, manteniendo la plantilla visual del módulo anterior. Las variantes comentadas son las que se activan cuando llegas al paso correspondiente: no añadas un segundo OnPost ni dupliques el formulario.
+
+~~~cshtml
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Curso Web .NET 8</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+    <link rel="stylesheet" href="/css/catalogo.css" />
+</head>
+<body>
+    <header>
+        <nav aria-label="Navegación principal">
+            <a href="/">Inicio</a>
+            <a href="/Productos">Productos</a>
+            @* PASO 2.5.5: elimina los delimitadores Razor del siguiente enlace. *@
+            @* <a asp-page="/Comparacion">Comparar Razor Pages</a> *@
+            <a href="/recursos/guia-publica.txt">Guía pública</a>
+        </nav>
+    </header>
+    <main class="container">
+        @RenderBody()
+    </main>
+    @* PASO 1.5.3: habilitado al terminar M01. *@
+    <aside id="notas-del-layout" aria-label="Notas de la página">
+        @await RenderSectionAsync("NotasPagina", required: false)
+    </aside>
+    
+    <footer>Curso ASP.NET Core MVC · .NET 8</footer>
+</body>
+</html>
+~~~
+
+**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+
+### P2.5 — Controllers/ProductosController.cs
+
+**Explicación del archivo completo.** Las acciones MVC del CRUD continúan presentes y consultando LocalDB. El PageModel nuevo no sustituye ni elimina el controlador de productos. Las variantes comentadas son las que se activan cuando llegas al paso correspondiente: no añadas un segundo OnPost ni dupliques el formulario.
+
+~~~csharp
+using CursoWeb.Mvc.Data;
+using CursoWeb.Mvc.Models;
+using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+
+namespace CursoWeb.Mvc.Controllers;
+
+public class ProductosController : Controller
+{
+    private readonly AppDbContext _db;
+    public ProductosController(AppDbContext db) => _db = db;
+
+    [HttpGet]
+    public async Task<IActionResult> Index()
+    {
+        var productos = await _db.Productos.AsNoTracking().OrderBy(p => p.Id).ToListAsync();
+        return View(productos);
+    }
+
+    [HttpGet]
+    public IActionResult Estado() => Content("Catalogo MVC disponible", "text/plain");
+
+    [HttpGet]
+    public async Task<IActionResult> Detalle(int id)
+    {
+        if (id <= 0) return BadRequest("El identificador debe ser mayor que cero.");
+        var producto = await _db.Productos.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
+        return producto is null ? NotFound() : View(producto);
+    }
+
+    [HttpGet("/catalogo/ficha/{id:int}")]
+    public async Task<IActionResult> Ficha(int id)
+    {
+        var producto = await _db.Productos.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
+        return producto is null ? NotFound() : View("Detalle", producto);
+    }
+
+    // P2.4: formulario de creación con el mismo contrato validado en P2.3.
+    [HttpGet]
+    public IActionResult Crear() => View(new ProductoFormulario());
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Crear(ProductoFormulario entrada)
+    {
+        if (!ModelState.IsValid) return View(entrada);
+
+        var producto = new Producto { Nombre = entrada.Nombre!, Precio = entrada.Precio!.Value };
+        _db.Productos.Add(producto);
+        await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(Detalle), new { id = producto.Id });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Editar(int id)
+    {
+        if (id <= 0) return BadRequest();
+        var producto = await _db.Productos.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
+        if (producto is null) return NotFound();
+
+        ViewData["ProductoId"] = producto.Id;
+        return View(new ProductoFormulario { Nombre = producto.Nombre, Precio = producto.Precio });
+    }
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> Editar(int id, ProductoFormulario entrada)
+    {
+        if (id <= 0) return BadRequest();
+        var producto = await _db.Productos.FirstOrDefaultAsync(p => p.Id == id);
+        if (producto is null) return NotFound();
+        if (!ModelState.IsValid)
+        {
+            ViewData["ProductoId"] = id;
+            return View(entrada);
+        }
+
+        producto.Nombre = entrada.Nombre!;
+        producto.Precio = entrada.Precio!.Value;
+        await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(Detalle), new { id });
+    }
+
+    [HttpGet]
+    public async Task<IActionResult> Eliminar(int id)
+    {
+        if (id <= 0) return BadRequest();
+        var producto = await _db.Productos.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
+        return producto is null ? NotFound() : View(producto);
+    }
+
+    [HttpPost, ActionName("Eliminar")]
+    [ValidateAntiForgeryToken]
+    public async Task<IActionResult> EliminarConfirmado(int id)
+    {
+        if (id <= 0) return BadRequest();
+        var producto = await _db.Productos.FirstOrDefaultAsync(p => p.Id == id);
+        if (producto is null) return NotFound();
+
+        _db.Productos.Remove(producto);
+        await _db.SaveChangesAsync();
+        return RedirectToAction(nameof(Index));
+    }
+
+    // Reto opcional anterior, adaptado a persistencia: no es requisito para los pasos 2.1–2.5.
+    /* RETO 1.4 INICIO
+    [HttpGet("/catalogo/resumen/{id:int}")]
+    public async Task<IActionResult> Resumen(int id)
+    {
+        var producto = await _db.Productos.AsNoTracking().FirstOrDefaultAsync(p => p.Id == id);
+        return producto is null ? NotFound() : Ok(new { producto.Id, producto.Nombre });
+    }
+    RETO 1.4 FIN */
+}
+~~~
+
+**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+
+### P2.5 — Models/Producto.cs
+
+**Explicación del archivo completo.** Entidad persistente cuyas propiedades siguen identificando los registros de SQL, incluso cuando la Razor Page de demostración utiliza otro formulario. Las variantes comentadas son las que se activan cuando llegas al paso correspondiente: no añadas un segundo OnPost ni dupliques el formulario.
+
+~~~csharp
+namespace CursoWeb.Mvc.Models;
+
+/// <summary>
+/// P2.4–P2.5: entidad persistida en LocalDB mediante EF Core.
+/// La demostración de Razor Pages no modifica ni duplica este modelo.
+/// </summary>
+public sealed class Producto
+{
+    public int Id { get; set; }
+    public string Nombre { get; set; } = string.Empty;
+    public decimal Precio { get; set; }
+}
+~~~
+
+**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+
+### P2.5 — Models/ProductoFormulario.cs
+
+**Explicación del archivo completo.** Contrato de entrada de las acciones MVC que continúa validándose; la nueva Razor Page no lo reemplaza. Las variantes comentadas son las que se activan cuando llegas al paso correspondiente: no añadas un segundo OnPost ni dupliques el formulario.
+
+~~~csharp
+using System.ComponentModel.DataAnnotations;
+namespace CursoWeb.Mvc.Models;
+
+public sealed class ProductoFormulario
+{
+    [Required(ErrorMessage = "Indica el nombre.")]
+    [StringLength(60, MinimumLength = 2, ErrorMessage = "El nombre debe tener entre 2 y 60 caracteres.")]
+    public string? Nombre { get; set; }
+
+    [Required(ErrorMessage = "Indica el precio.")]
+    [Range(typeof(decimal), "0.01", "9999.99", ParseLimitsInInvariantCulture = true, ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
+    public decimal? Precio { get; set; }
+}
+~~~
+
+**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+
+### P2.5 — Views/Productos/Index.cshtml
+
+**Explicación del archivo completo.** Mantiene los enlaces de detalle, creación, edición y eliminación para comprobar que la coexistencia no rompe la parte MVC del proyecto. Las variantes comentadas son las que se activan cuando llegas al paso correspondiente: no añadas un segundo OnPost ni dupliques el formulario.
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+@{
+    ViewData["Title"] = "Catálogo de productos";
+}
+
+<h1>P2.5 | Catálogo MVC persistente</h1>
+<p><a asp-controller="Productos" asp-action="Crear">Crear producto</a></p>
+<p id="proposito-vista">Esta vista representa los productos recuperados de SQL Server Express LocalDB.</p>
+
+@if (Model is null)
+{
+    <p id="sin-modelo">El controlador no ha proporcionado productos.</p>
+}
+else
+{
+    <p id="numero-productos">El controlador ha enviado <strong>@Model.Count</strong> productos.</p>
+
+    @* PASO 1.5.2: habilitado al terminar M01. *@
+    @if (Model.Count >= 3)
+    {
+        <p id="catalogo-completo">El catálogo contiene al menos tres productos.</p>
+    }
+    
+
+    <ul id="listado-productos">
+    @foreach (var producto in Model)
+    {
+        <li data-id="@producto.Id">
+            @producto.Nombre — @producto.Precio.ToString("0.00") €
+            <a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
+            <a asp-action="Editar" asp-route-id="@producto.Id">Editar</a>
+            <a asp-action="Eliminar" asp-route-id="@producto.Id">Eliminar</a>
+        </li>
+    }
+    </ul>
+
+    @* PASO 1.5.4: habilitado al terminar M01. *@
+    <section id="tarjetas-catalogo" aria-label="Tarjetas reutilizables de productos">
+        <h2>Vista de tarjetas</h2>
+        @foreach (var producto in Model)
+        {
+            <partial name="_TarjetaProducto" model="producto" />
+        }
+    </section>
+    
+}
+~~~
+
+**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+
+**Transferencia a M03.** La Razor Page organiza el mismo contrato HTTP en torno a PageModel; una página Blazor será un componente con un ciclo de vida y estado interactivo diferente. Para comprender esa comparación, conservar el catálogo MVC y su validación es más importante que añadir una segunda implementación de negocio.
+
 ## Cierre de P2.5 y conexión con Blazor
 
 Vuelve a `/Productos` después de realizar las pruebas. Los nombres escritos en `/Comparacion` **no deben haber aparecido como productos nuevos**. En particular, `ComparacionModel` no utiliza `AppDbContext`, `Add`, `Remove` ni `SaveChangesAsync`. Si el catálogo cambió, investiga alguna modificación ajena a esta práctica y no la atribuyas al handler de demostración.
