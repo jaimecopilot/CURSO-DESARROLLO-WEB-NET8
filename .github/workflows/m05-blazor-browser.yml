@@ -1,0 +1,47 @@
+name: M05 - interacción real Blazor en Chromium
+on:
+  push:
+    branches: [desarrollo/m05-consolidacion-despliegue]
+    paths:
+      - 'M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/BLAZOR/**'
+      - 'M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/API/**'
+      - 'VERIFICACION_INTERNA/m05_catalogo_browser.cjs'
+      - '.github/workflows/m05-blazor-browser.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  navegador:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Preparar Chromium
+        run: |
+          npm install --no-save playwright@1.55.0
+          npx playwright install chromium --with-deps
+      - name: Compilar la API y Blazor
+        run: |
+          dotnet build M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/API/CursoWeb.ProductosApi/CursoWeb.ProductosApi.csproj -c Release
+          dotnet build M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/BLAZOR/CursoWeb.Blazor/CursoWeb.Blazor.csproj -c Release
+      - name: Ejecutar la interfaz interactiva real en navegador
+        shell: bash
+        run: |
+          set -euo pipefail
+          ASPNETCORE_ENVIRONMENT=Development dotnet run -c Release --no-build --no-launch-profile --project M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/API/CursoWeb.ProductosApi/CursoWeb.ProductosApi.csproj --urls http://127.0.0.1:5081 > api.log 2>&1 &
+          apid=$!
+          ASPNETCORE_ENVIRONMENT=Development dotnet run -c Release --no-build --no-launch-profile --project M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/BLAZOR/CursoWeb.Blazor/CursoWeb.Blazor.csproj --urls http://127.0.0.1:5092 > blazor.log 2>&1 &
+          bid=$!
+          trap 'kill $apid $bid 2>/dev/null || true; tail -35 api.log; tail -35 blazor.log' EXIT
+          for i in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:5081/api/productos > /dev/null &&
+               curl -fsS http://127.0.0.1:5092/catalogo-remoto > /dev/null; then break; fi
+            sleep 1
+          done
+          node VERIFICACION_INTERNA/m05_catalogo_browser.cjs
