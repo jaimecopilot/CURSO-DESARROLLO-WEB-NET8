@@ -6,7 +6,7 @@
 <AuthorizeView>
     <Authorized>
         <p id="usuario-demo">Usuario: @context.User.Identity?.Name</p>
-        <AuthorizeView Roles="Formador">
+        <AuthorizeView Roles="Formador" Context="rolContexto">
             <Authorized><p id="formador-demo">Rol Formador reconocido</p></Authorized>
         </AuthorizeView>
         <form method="post" action="/demo/salir" data-enhance="false">
