@@ -2150,6 +2150,133 @@ El reto se considera comprendido cuando la respuesta a cada incidencia identific
 
 
 
+
+### Paso P5.5.15. Interpretar el ciclo completo de un contenedor sin confundir etapas
+
+**Fundamento:** 5.5.20 y 5.5.27. Hasta aquí el alumno ha construido y ejecutado manualmente la imagen. Ahora queremos reconocer el recorrido completo y las evidencias que aporta cada acción, sin crear una nueva solución ni cambiar el proveedor de datos.
+
+Comienza en la carpeta de proyecto MVC A. Comprueba que el Dockerfile contiene las dos etapas originales y que la aplicación sigue registrando `UseSqlServer`. Revisa además la presencia de `.dockerignore`; durante el build Docker no necesita enviar los archivos `bin` y `obj` generados por Visual Studio.
+
+Ejecuta `docker build -t cursoweb-mvc:m05 .` desde la carpeta que contiene el `.csproj`. Cuando termine, utiliza `docker images cursoweb-mvc` para confirmar la imagen. Todavía no abras el navegador: **una imagen no equivale a un contenedor ejecutándose**.
+
+Inicia después el contenedor en un puerto host libre y con la variable que indica ausencia de LocalDB:
+
+~~~powershell
+docker run --name cursoweb-m05 --rm `
+  -e Despliegue__SinLocalDb=true `
+  -p 8081:8080 `
+  cursoweb-mvc:m05
+~~~
+
+Desde otra terminal comprueba `docker ps`. Si el contenedor no aparece, investiga su proceso; la ejecución puede haber terminado. Si aparece, solicita la ruta de estado del proyecto MVC A. Esta tercera observación demuestra que el puerto publicado permite llegar al proceso web.
+
+**Interpretación solicitada:** ¿qué demostró el build?, ¿qué demostró `docker ps`? y ¿qué demuestra el 200 de `/Productos/Estado`? Las respuestas deben ser distintas. Si todo se resume como «Docker funciona», la actividad todavía no está comprendida.
+
+### Paso P5.5.16. Comparar los dos lados del mapeo sin modificar el Dockerfile
+
+**Fundamento:** 5.5.24–5.5.25. El programa ASP.NET Core sigue escuchando en 8080 dentro del contenedor. Desde Windows hemos publicado ese puerto como 8081. El navegador consulta al host, no una dirección interna que deba adivinar.
+
+Detén el contenedor anterior. Inicia otra instancia con el mismo proyecto e imagen, pero cambia solo el puerto exterior:
+
+~~~powershell
+docker run --name cursoweb-m05 --rm `
+  -e Despliegue__SinLocalDb=true `
+  -p 8082:8080 `
+  cursoweb-mvc:m05
+~~~
+
+Consulta `http://localhost:8082/Productos/Estado`. Debe seguir devolviendo el texto conocido. Ahora comprueba con `docker ps` qué relación de puertos se ha declarado. No edites `HomeController`, no modifiques el código de la API Blazor y no cambies la escucha 8080 del Dockerfile.
+
+El resultado ilustra que una configuración de host puede cambiar sin alterar la aplicación. El primer número de `-p` pertenece a Windows; el segundo al contenedor. Si el alumno solicita 8081 después de publicar 8082, está utilizando la URL equivocada.
+
+### Paso P5.5.17. Entender una variante autónoma que comprueba varias condiciones
+
+**Fundamento:** 5.5.27–5.5.29. El repositorio incluye un archivo PowerShell completo que automatiza una secuencia controlada del mismo laboratorio:
+
+`M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/VARIANTES/P5.5_DOCKER/ComprobarDockerMvc.ps1`
+
+La variante no crea una segunda aplicación. Construye la imagen de MVC A, inicia un contenedor Linux, espera una respuesta de Estado, comprueba la portada y CSS, confirma un 503 esperado de Productos y detiene únicamente el contenedor que creó.
+
+Se conserva como ampliación autónoma porque **primero** hay que entender cada comando manualmente. El script no sustituye el razonamiento. Su interés está en la forma de relacionar varias observaciones con mensajes específicos y en no dar por demostrada una función que no puede utilizar SQL Server LocalDB dentro de Linux.
+
+### Paso P5.5.18. Preparar el ensayo de la variante sin borrar contenedores ajenos
+
+Antes de ejecutar el archivo adicional, confirma que Docker Desktop utiliza contenedores Linux y que el motor responde:
+
+~~~powershell
+docker version
+docker info --format "{{.OSType}}"
+~~~
+
+Debe estar disponible un servidor Docker y su tipo debe ser `linux`. Si el cliente existe pero no puede contactar con el motor, el ejercicio no puede continuar hasta que se haya preparado ese requisito del laboratorio.
+
+Después comprueba si existe un contenedor llamado `cursoweb-m05-verificada`:
+
+~~~powershell
+docker ps -a --filter "name=^/cursoweb-m05-verificada$"
+~~~
+
+Si existe uno anterior, no ejecutes la variante como si el nombre estuviera libre. Inspecciona de dónde procede ese recurso y solicita al docente instrucciones para conservarlo, renombrar la variante o retirarlo si pertenece exclusivamente al ensayo.
+
+Este procedimiento evita que una automatización de aprendizaje borre recursos que no controla. El script comprueba el nombre y falla deliberadamente en vez de ejecutar una limpieza masiva.
+
+### Paso P5.5.19. Ejecutar la comprobación de imagen y HTTP desde la raíz
+
+El archivo de variante acepta la carpeta de MVC, un nombre de imagen, un nombre de contenedor y un puerto del host. Con el motor Docker preparado y sin un nombre duplicado, ejecuta:
+
+~~~powershell
+.\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\VARIANTES\P5.5_DOCKER\ComprobarDockerMvc.ps1 `
+  -CarpetaMvc ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\MVC\CursoWeb.Mvc" `
+  -Imagen "cursoweb-mvc:m05-verificada" `
+  -Contenedor "cursoweb-m05-verificada" `
+  -PuertoHost 8083
+~~~
+
+El script configura el contenedor con `Despliegue__SinLocalDb=true`. Debería confirmar HTTP 200 en la portada, en Estado y en CSS. Para `/Productos` exige 503. Si recibe 200 del CRUD, no lo presenta como éxito, porque el escenario carece de LocalDB y ese resultado requeriría investigar cómo se está atendiendo la ruta.
+
+La variante incluye un bloque `finally` de limpieza. Su finalidad es detener y retirar **el contenedor con el nombre que acaba de crear**, no todas las imágenes del equipo. La imagen de este ensayo permanece disponible para repetirlo sin reconstruirla si así lo desea el alumno.
+
+### Paso P5.5.20. Interpretar un fallo sin falsear el resultado
+
+Supongamos que el script no consigue conectar con la ruta de Estado tras iniciar el contenedor. No puede declarar éxito únicamente porque `docker run` devolvió un identificador. En ese caso consulta los logs y muestra un error. Las posibles causas incluyen un proceso que terminó, un problema de arranque de ASP.NET Core o una URL que no corresponde al puerto publicado.
+
+Si la portada responde 200 pero el CSS devuelve 404, eso no demuestra que todo el alojamiento haya fallado. La acción MVC pudo atender correctamente mientras un recurso estático no estaba disponible. Revisaremos la publicación de `wwwroot` y su URL.
+
+Si `/Productos` devuelve 503, el script reconoce ese resultado como coherente con el modo sin LocalDB. No modifica el archivo `.csproj`, no instala SQLite y no escribe un listado ficticio para conseguir una respuesta 200.
+
+El alumno debe poder explicar cada condición del script con palabras propias. Un script que imprime «OK» sin haber enviado una petición HTTP no cumpliría la finalidad pedagógica del reto.
+
+### Paso P5.5.21. Distinguir la vida del contenedor de la permanencia de la imagen
+
+Tras la ejecución, el contenedor de comprobación se detiene y se retira. Consulta:
+
+~~~powershell
+docker ps -a --filter "name=^/cursoweb-m05-verificada$"
+docker images cursoweb-mvc
+~~~
+
+La primera consulta no debería mostrar el contenedor de ensayo; la segunda puede seguir mostrando la imagen. Esta diferencia es normal: el contenedor era una instancia y la imagen es el artefacto reutilizable con el que fue creado.
+
+El Dockerfile del proyecto también sigue existiendo, y el código MVC no se ha modificado. La eliminación de una instancia no equivale a eliminar la imagen ni a borrar el proyecto fuente. Por eso una práctica de limpieza no debe utilizar comandos indiscriminados que retiren recursos de otros cursos.
+
+### Paso P5.5.22. Completar una comparación final basada en resultados observados
+
+Conserva un resumen de las tres modalidades que has probado, utilizando las mismas rutas del proyecto MVC A. Para Kestrel indica el puerto local elegido y la DLL publicada. Para IIS indica el sitio y binding y confirma si se ejecutó realmente la solicitud al servidor IIS. Para Docker indica el nombre de imagen, el contenedor y la relación de puertos.
+
+En cada modalidad explica si `/Productos/Estado` respondió y por qué esa ruta es apropiada para verificar alojamiento sin depender de SQL. Indica también si el CRUD fue probado de verdad con LocalDB en Windows o si el ensayo estuvo limitado al modo sin base.
+
+No se considera correcta una tabla que atribuya CRUD persistente a Docker Linux cuando solamente se ejecutaron la portada y CSS. La comparación debe conservar las limitaciones observadas.
+
+### Paso P5.5.23. Restaurar las condiciones de trabajo para otro alumno
+
+Detén las terminales de aplicaciones que todavía queden abiertas. Confirma que el contenedor de esta práctica no permanece en ejecución. Si cambiaste alguna variable de entorno en PowerShell, elimínala en esa misma terminal. Si reconstruiste el Dockerfile durante P5.5.10, comprueba que el archivo de referencia se restauró.
+
+La carpeta MVC A sigue siendo la acumulativa de M02. La API de productos y Blazor B permanecen como proyectos de la otra línea didáctica del curso. No borres sus carpetas al terminar un ensayo de Docker. Tampoco cambies el proveedor de base del CRUD original.
+
+**Resultado final de aprendizaje:** el alumno puede explicar dónde se construyó la imagen, qué ejecutó el contenedor, qué dirección atiende ASP.NET Core y qué respuesta concreta demuestra funcionamiento. La publicación se entiende como un cambio de entorno para el mismo proyecto, no como la creación de una aplicación nueva.
+
+
+
 ### Ampliación autónoma P5.5: una avería diferente en cada capa
 
 Estudia estos tres casos y expresa la acción correctiva más pequeña:
