@@ -858,6 +858,84 @@ Para diagnosticar una integración conviene separar observaciones. Primero ejecu
 
 En este punto **no** implantamos autenticación sobre el catálogo; la demostración limitada de seguridad corresponde a 4.4. Una API sin protección no se vuelve segura por el mero hecho de que la interfaz oculte un botón. La autorización debe comprobarse en el servidor del recurso protegido.
 
+
+### 4.3.9. Un servidor ASP.NET Core mínimo sigue siendo un servidor completo
+
+La plantilla web mínima crea un host que acepta peticiones mediante el servidor web configurado para la aplicación. La ausencia de controladores y de una estructura grande de carpetas no significa que no estemos usando ASP.NET Core. Minimal APIs es una manera concisa de describir rutas y manejadores dentro del mismo pipeline HTTP que utilizan otras aplicaciones ASP.NET Core.
+
+La variable app representa la aplicación construida a partir del builder. Antes de llamar a Run, se registran endpoints y middleware. Run inicia el procesamiento de solicitudes. En los ejemplos mantenemos todos los endpoints dentro de Program.cs porque facilita que el alumno relacione la sintaxis con el protocolo. En proyectos mayores podría organizarse en otros archivos, pero esa refactorización no mejoraría por sí sola la comprensión del contrato estudiado.
+
+Una vez que el host está operativo, una URL y un método HTTP permiten seleccionar un endpoint. El sistema de enrutamiento decide si una ruta como /api/productos/2 coincide con una plantilla que espera un identificador entero. Después se ejecuta la función asociada, que devuelve un resultado HTTP. Entender esta secuencia facilita distinguir un 404 originado por no encontrar una ruta del 404 devuelto por la lógica de un recurso inexistente.
+
+### 4.3.10. Rutas, verbos y datos de entrada
+
+Dos endpoints pueden compartir el mismo camino literal si utilizan verbos diferentes. GET /api/productos obtiene una colección; POST /api/productos intenta crear un recurso. El método forma parte del contrato, no es un detalle intercambiable. Enviar POST a una ruta preparada únicamente para GET no significa que se ejecute la misma acción de consulta.
+
+Para pedir un producto individual utilizamos /api/productos/{id:int}. El sufijo :int restringe el parámetro de ruta a valores enteros; evita tratar cualquier texto arbitrario como identificador numérico. Sin embargo, la restricción de ruta no significa que la colección contenga ese ID. La comprobación efectiva se realiza con TryGetValue, y su resultado decide entre 200 y 404.
+
+El POST recibe un objeto CrearProductoApi. ASP.NET Core se encarga del enlace del cuerpo JSON a ese tipo de entrada. A partir de ese momento, el propio endpoint debe aplicar las reglas funcionales del laboratorio. JSON bien formado no implica nombre válido ni precio positivo.
+
+### 4.3.11. 200, 201, 400 y 404 como decisiones de diseño
+
+El 200 de GET expresa éxito en la consulta. La respuesta de detalle puede incluir un objeto y la del listado un arreglo; ambas son 200, pero tienen formas distintas. El 201 de POST indica que se ha creado un recurso. Con Results.Created incluimos la dirección relativa del recurso creado y el objeto final, de modo que un cliente pueda identificarlo sin inventar el nuevo ID.
+
+El 400 tiene otro significado: la petición fue comprendida lo suficiente para detectar una entrada inaceptable. En el ejemplo ocurre si Nombre es vacío o si Precio no es positivo. No debemos cambiar arbitrariamente este resultado por 500; las reglas han rechazado datos, no hemos demostrado un fallo interno de ASP.NET Core.
+
+El 404 del detalle es una decisión normal cuando no existe el identificador solicitado. La ausencia de un producto no exige lanzar una excepción. En un servicio real podrían intervenir otras decisiones de dominio, pero no necesitamos introducir una arquitectura adicional para comprender la semántica del recurso.
+
+### 4.3.12. Concurrencia y almacenamiento en memoria: qué garantiza cada pieza
+
+El catálogo utiliza ConcurrentDictionary<int, ProductoApi>. Su propósito es permitir operaciones de diccionario concurrentes sin diseñar manualmente un mecanismo de bloqueo para las inserciones y lecturas simples del laboratorio. Los identificadores se obtienen mediante Interlocked.Increment; así dos peticiones que lleguen próximas en el tiempo no dependen de una lectura y escritura no atómica de un contador común.
+
+Son dos decisiones diferentes: una protege las operaciones sobre la colección y otra incrementa el contador. Ninguna aporta persistencia en disco. Después de detener y reiniciar la aplicación, el proceso vuelve a construir los dos productos iniciales y siguienteId vuelve a 2. Esta observación es una ventaja didáctica porque permite repetir el ejercicio con un estado conocido.
+
+Tampoco debemos interpretar esta estructura como un reemplazo de transacciones de base de datos. El curso presupone conocimientos de EF Core; aquí evitamos introducirlo porque el objetivo es estudiar la frontera HTTP entre cliente y servidor. Mezclar persistencia en este punto aumentaría la superficie de problemas sin mejorar el aprendizaje específico de GET, POST y contratos.
+
+### 4.3.13. Probar el contrato sin navegador: razonamiento sobre la evidencia
+
+Podemos comprobar un endpoint directamente con una herramienta HTTP. Esa prueba reduce el número de piezas implicadas. Si un GET directo responde 200 con la lista esperada, sabemos que el servidor está disponible y que ese endpoint satisface al menos el caso ensayado. No demuestra que Blazor esté configurado correctamente ni que todas las entradas posibles funcionen, pero sí aporta una evidencia localizada.
+
+Por el contrario, si el botón de Blazor no crea un producto, todavía no sabemos si el problema está en el formulario, en el servicio HTTP, en la configuración de URL, en el endpoint o en los datos. Ejecutar un POST independiente permite comprobar una parte importante del recorrido antes de modificar componentes.
+
+En un entorno docente es útil elegir casos con resultados exactos: GET inicial con dos productos, consulta ID 1 con Cuaderno, consulta ID 999 con 404, POST de Regla por 1,75 con 201 y un nuevo ID, POST de precio cero con 400. Después puede observarse que el listado ha aumentado y que al reiniciar el proceso vuelve a su estado inicial.
+
+Estas pruebas no convierten la aplicación de laboratorio en un producto validado para producción. Su valor es la trazabilidad entre un requisito observable y la respuesta HTTP real de la implementación.
+
+### 4.3.14. El principio de compatibilidad cuando reconstruimos la API
+
+Durante 4.1 y 4.2 el cliente utilizó una API proporcionada. Ahora el alumno construye otra. Para que esa sustitución sea transparente, el cliente debe poder seguir solicitando las mismas rutas, con los mismos verbos y las mismas formas de entrada y salida.
+
+La compatibilidad no significa conservar necesariamente los nombres privados de las clases del servidor. Podemos llamar ProductoApi al modelo dentro del proceso API y ProductoDto al tipo que usa Blazor, siempre que sus campos serializados expresen el contrato esperado.
+
+Tampoco significa que el servidor deba generar los mismos identificadores en todas las ejecuciones. La regla relevante es que cada nueva creación reciba un identificador válido y que el cliente utilice el devuelto. Eso permite separar la semántica de un contrato de detalles concretos de una ejecución en memoria.
+
+Si el nuevo servidor responde correctamente al GET pero devuelve 200 en lugar de 201 para un POST, quizá la UI siga mostrando un elemento, pero habremos cambiado la semántica de la respuesta. Si devuelve un objeto resumen donde el cliente espera una lista, la deserialización no funciona. Reconocer esas incompatibilidades es parte esencial de la ingeniería de integración.
+
+### 4.3.15. Añadir una ruta sin romper la ruta existente
+
+El resumen utiliza una URL propia. La operación lee los valores actuales, calcula cantidad y suma de precios, y devuelve un objeto con ambas propiedades. El endpoint original continúa devolviendo una colección de productos. Esto evita imponer al cliente existente un cambio estructural que nunca solicitó.
+
+Hay un matiz de enrutamiento: /api/productos/resumen no debe interpretarse como un identificador entero. La ruta de detalle usa la restricción {id:int}; por ello el literal resumen no satisface la plantilla de detalle, y puede resolverse el endpoint específico.
+
+La variante del reto añade hayProductos, un booleano obtenido de comparar la longitud con cero. Al activar ese reto no debemos registrar dos endpoints GET idénticos para la misma ruta, pues crearíamos una definición conflictiva. Se utiliza una variante u otra. El comentario de activación del proyecto permite observar esta decisión de forma tangible.
+
+### 4.3.16. Cómo enseñar un endpoint sin convertirlo en una clase magistral de Web API
+
+El alumnado conoce C# y Web API. Por tanto, el docente puede comenzar con un problema concreto: el cliente espera un catálogo remoto y necesitamos construir el servidor mínimo que lo satisfaga. Primero se arranca un host vacío; luego se añade GET, después el detalle, POST y validación. No hace falta repetir toda la teoría de controladores y middleware de ASP.NET Core para entender estos pasos.
+
+La práctica aprovecha esa experiencia previa y dedica esfuerzo a las decisiones que sí afectan al curso: contratos HTTP, funcionamiento del cliente Blazor, mensajes de error, aislamiento de responsabilidades y verificación del servidor por separado. El resultado es una API pequeña, pero completa para la historia que hemos elegido.
+
+### 4.3.17. Diagnosticar errores habituales de Program.cs
+
+Un error frecuente consiste en colocar declaraciones de tipo antes de las últimas instrucciones de nivel superior; el compilador puede rechazar el orden. Los registros ProductoApi y CrearProductoApi se declaran al final del archivo después de las instrucciones ejecutables, respetando el formato del ejemplo.
+
+Otro error consiste en registrar POST pero olvidar poner la variable siguienteId en el alcance correcto. La función de creación captura ese contador, que debe persistir mientras dure el proceso. Si se declara nuevamente en cada petición, el supuesto identificador secuencial dejaría de representar una colección compartida.
+
+También es común confundir el puerto de escucha con la ruta. Cambiar la ruta a /api/catalogo mientras el cliente continúa solicitando /api/productos rompe el contrato; cambiar el puerto sin actualizar la configuración impide alcanzar la API. Son dos problemas distintos y requieren comprobaciones diferentes.
+
+Por último, puede ocurrir que el servidor acepte un precio decimal pero el cuerpo POST esté escrito con un formato incompatible con JSON, por ejemplo una coma decimal sin comillas. El error puede producirse antes de entrar a la lógica de validación. Conviene distinguir errores de sintaxis del formato, errores de enlace al tipo y errores de reglas del dominio.
+
+
 ### Síntesis del punto 4.3
 
 Un endpoint es una asociación entre método HTTP, ruta y ejecución de código. Los DTO establecen el contrato; los resultados HTTP indican éxito o rechazo; el estado en memoria explica la duración de los datos. Hemos añadido una operación de resumen sin romper las rutas existentes, y disponemos de una API reproducible que se puede observar tanto directamente como desde Blazor.
