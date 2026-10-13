@@ -3274,6 +3274,320 @@ El ejemplo conserva una idea principal: autenticación y autorización son decis
 
 Por ello, una interfaz que oculta el enlace a un recurso no sustituye la exigencia de rol dentro del endpoint. La seguridad del recurso reside en el servidor y debe poder probarse independientemente del marcado Razor.
 
+
+### P4.4.6. Ampliación autónoma: ASP.NET Core Identity y JWT Bearer
+
+Este laboratorio no sustituye la sesión de cookie del punto P4.4 ni aumenta el itinerario presencial de seis horas. Construiremos una API independiente desde una plantilla vacía, utilizaremos Identity con SQLite y emitiremos JWT firmados que validará JwtBearer. Después consumiremos esos JWT desde Blazor. La carpeta de referencia es M04_APIS_SEGURIDAD/PROYECTO/4.5; su numeración designa un estado ampliado del módulo, no un sexto día de formación.
+
+#### Paso J1. Crear el servidor
+
+Desde un directorio nuevo, ejecuta en PowerShell:
+
+~~~powershell
+dotnet new web -n CursoWeb.IdentityJwtApi -f net8.0
+cd CursoWeb.IdentityJwtApi
+~~~
+
+El proyecto inicial es una Minimal API vacía. No registra usuarios ni dispone de tokens. Añade al archivo de proyecto estas dependencias .NET 8:
+
+~~~xml
+<ItemGroup>
+  <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.*" />
+  <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="8.0.*" />
+  <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="8.0.*" />
+</ItemGroup>
+~~~
+
+Ejecuta dotnet restore y dotnet build antes de introducir los endpoints. Las tres dependencias tienen responsabilidades diferentes: Identity administra credenciales, EF Core persiste usuarios y JwtBearer valida tokens recibidos.
+
+#### Paso J2. Configurar el secreto de firma sin publicarlo
+
+El servidor debe recibir una clave aleatoria desde configuración de entorno, no desde un archivo confirmado en Git:
+
+~~~powershell
+$env:ASPNETCORE_ENVIRONMENT = "Development"
+$env:Jwt__SigningKey = [Convert]::ToBase64String(
+    [System.Security.Cryptography.RandomNumberGenerator]::GetBytes(48))
+~~~
+
+No imprimas el secreto en el manual ni lo compartas en una captura. La variable existe en esta sesión. El programa comprobará que su longitud sea suficiente antes de empezar a atender solicitudes.
+
+En appsettings.json escribe únicamente los identificadores públicos del contrato:
+
+~~~json
+{
+  "Jwt": {
+    "Issuer": "CursoWeb.M04.IdentityJwt",
+    "Audience": "CursoWeb.M04.Cliente"
+  }
+}
+~~~
+
+El emisor y la audiencia permiten decidir qué tokens acepta la API; no son claves secretas. Los tokens emitidos con una clave distinta de la configurada no serán válidos aunque tengan el mismo emisor.
+
+#### Paso J3. Añadir usuarios y roles persistentes
+
+Declara IdentidadDbContext derivado de IdentityDbContext<IdentityUser> y registra UseSqlite, apuntando a un archivo de ensayo bajo .work. No copies archivos de base de datos al repositorio. Registra IdentityCore, roles, stores de EF Core y SignInManager.
+
+La contraseña debe comprobarse con las operaciones de Identity, no mediante una comparación con un valor escrito en Program.cs. UserManager.CreateAsync almacenará el hash gestionado por Identity; SignInManager.CheckPasswordSignInAsync verificará las credenciales y aplicará las reglas de bloqueo del ensayo.
+
+El ejemplo utiliza EnsureCreatedAsync para crear rápidamente las tablas de desarrollo. No es una sustitución de migraciones para una aplicación que deba mantenerse en producción.
+
+#### Paso J4. Crear el registro sin escalada de permisos
+
+Implementa POST /auth/registro con un DTO de correo y contraseña. Si el registro tiene éxito, asigna exclusivamente el rol Alumno. No aceptes que el cliente indique Formador en el cuerpo de su solicitud.
+
+Un alta válida devuelve 201 con identificador y correo, sin contraseña ni hash. Una clave que no satisface las reglas de Identity produce una respuesta de validación. El usuario ya existe en SQLite después de confirmar la creación.
+
+#### Paso J5. Verificar antes de emitir el JWT
+
+Implementa POST /auth/login. Busca el usuario por correo y verifica su contraseña mediante SignInManager. Si falla, responde 401 sin emitir un token. Si la verificación es correcta, consulta los roles y crea claims para sujeto, emisor, audiencia, expedición, caducidad y roles.
+
+Firma el JWT con HMAC SHA-256 y el secreto configurado en la terminal. No coloques contraseñas dentro del payload. La respuesta contiene accessToken, tokenType y expiresAtUtc. Un JWT de Alumno es una credencial de identidad válida, pero no otorga autorización para todos los recursos.
+
+#### Paso J6. Proteger dos recursos reales
+
+Registra AddAuthentication con JwtBearerDefaults.AuthenticationScheme y AddJwtBearer. Activa la comprobación de firma, emisor, audiencia y expiración. Ejecuta UseAuthentication antes de UseAuthorization.
+
+Protege GET /api/identidad/yo con RequireAuthorization y GET /api/identidad/formador con RequireRole("Formador"). El primer endpoint necesita un token válido; el segundo necesita, además, el rol indicado. Una petición anónima debe recibir 401, mientras que Alumno autenticado debe obtener 403 en el recurso Formador.
+
+#### Paso J7. Construir el estado final sin saltarse los anteriores
+
+El siguiente Program.cs es el resultado final de los pasos J1–J6. Está incluido íntegramente para que el alumno compruebe sus declaraciones y el orden de los registros. No es una invitación a sustituir los estados intermedios por una copia inexplicada.
+
+
+~~~csharp
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
+using System.Text;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
+using Microsoft.AspNetCore.Identity.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
+
+var builder = WebApplication.CreateBuilder(args);
+
+// P4.5.1: laboratorio local; no se abre en producción con credenciales de prueba.
+if (!builder.Environment.IsDevelopment())
+    throw new InvalidOperationException("La API Identity/JWT docente solo se ejecuta en Development.");
+
+var firma = builder.Configuration["Jwt:SigningKey"]
+    ?? throw new InvalidOperationException(
+        "Define Jwt__SigningKey con un secreto aleatorio fuera del repositorio.");
+var bytesFirma = Encoding.UTF8.GetBytes(firma);
+if (bytesFirma.Length < 32)
+    throw new InvalidOperationException("Jwt__SigningKey requiere al menos 32 bytes UTF-8.");
+
+var emisor = builder.Configuration["Jwt:Issuer"]
+    ?? throw new InvalidOperationException("Falta Jwt:Issuer.");
+var audiencia = builder.Configuration["Jwt:Audience"]
+    ?? throw new InvalidOperationException("Falta Jwt:Audience.");
+
+var datos = Path.Combine(builder.Environment.ContentRootPath, ".work");
+Directory.CreateDirectory(datos);
+var dbPath = Path.Combine(datos, "identity-m04.db");
+
+builder.Services.AddDbContext<IdentidadDbContext>(opciones =>
+    opciones.UseSqlite($"Data Source={dbPath}"));
+
+builder.Services.AddIdentityCore<IdentityUser>(opciones =>
+{
+    opciones.User.RequireUniqueEmail = true;
+    opciones.Password.RequiredLength = 8;
+    opciones.Password.RequireDigit = true;
+    opciones.Password.RequireUppercase = true;
+    opciones.Password.RequireLowercase = true;
+    opciones.Lockout.DefaultLockoutTimeSpan = TimeSpan.FromMinutes(5);
+    opciones.Lockout.MaxFailedAccessAttempts = 5;
+    opciones.Lockout.AllowedForNewUsers = true;
+})
+.AddRoles<IdentityRole>()
+.AddEntityFrameworkStores<IdentidadDbContext>()
+.AddSignInManager()
+.AddDefaultTokenProviders();
+
+// P4.5.2: JWT de verdad, validando firma, emisor, audiencia y expiración.
+builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
+    .AddJwtBearer(opciones =>
+    {
+        opciones.MapInboundClaims = false;
+        opciones.TokenValidationParameters = new TokenValidationParameters
+        {
+            ValidateIssuer = true,
+            ValidIssuer = emisor,
+            ValidateAudience = true,
+            ValidAudience = audiencia,
+            ValidateIssuerSigningKey = true,
+            IssuerSigningKey = new SymmetricSecurityKey(bytesFirma),
+            ValidateLifetime = true,
+            RequireExpirationTime = true,
+            RequireSignedTokens = true,
+            ClockSkew = TimeSpan.FromSeconds(5),
+            NameClaimType = ClaimTypes.NameIdentifier,
+            RoleClaimType = ClaimTypes.Role
+        };
+    });
+builder.Services.AddAuthorization();
+
+var app = builder.Build();
+
+// P4.5.3: tabla real de Identity en SQLite. EnsureCreated es SOLO docente.
+using (var alcance = app.Services.CreateScope())
+{
+    var db = alcance.ServiceProvider.GetRequiredService<IdentidadDbContext>();
+    await db.Database.EnsureCreatedAsync();
+
+    var roles = alcance.ServiceProvider.GetRequiredService<RoleManager<IdentityRole>>();
+    foreach (var nombre in new[] { "Alumno", "Formador" })
+        if (!await roles.RoleExistsAsync(nombre))
+            await roles.CreateAsync(new IdentityRole(nombre));
+
+    // Cuenta docente opcional: email y clave SOLO de variables de entorno.
+    var correoDocente = builder.Configuration["DemoFormador:Email"];
+    var claveDocente = builder.Configuration["DemoFormador:Password"];
+    if (!string.IsNullOrWhiteSpace(correoDocente) &&
+        !string.IsNullOrWhiteSpace(claveDocente))
+    {
+        var usuarios = alcance.ServiceProvider.GetRequiredService<UserManager<IdentityUser>>();
+        var existente = await usuarios.FindByEmailAsync(correoDocente);
+        if (existente is null)
+        {
+            existente = new IdentityUser { UserName = correoDocente, Email = correoDocente };
+            var creado = await usuarios.CreateAsync(existente, claveDocente);
+            if (!creado.Succeeded)
+                throw new InvalidOperationException("Cuenta docente inválida: " +
+                    string.Join("; ", creado.Errors.Select(e => e.Description)));
+        }
+        else if (!await usuarios.IsInRoleAsync(existente, "Formador"))
+        {
+            // Nunca elevar a Formador una cuenta previamente registrada por el público.
+            throw new InvalidOperationException(
+                "El correo de Formador ya pertenece a otra cuenta. Usa una base de ensayo limpia.");
+        }
+        if (!await usuarios.IsInRoleAsync(existente, "Formador"))
+        {
+            var resultadoRol = await usuarios.AddToRoleAsync(existente, "Formador");
+            if (!resultadoRol.Succeeded)
+                throw new InvalidOperationException("No se pudo asignar Formador.");
+        }
+    }
+}
+
+app.UseAuthentication();
+app.UseAuthorization();
+
+app.MapGet("/", () => Results.Ok(new
+{
+    servicio = "M04 Identity + JWT (Development)",
+    rutas = new[] { "/auth/registro", "/auth/login", "/api/identidad/yo",
+                    "/api/identidad/formador" }
+}));
+
+// P4.5.4: Identity aplica hash de contraseñas; no las almacenamos manualmente.
+app.MapPost("/auth/registro", async (RegistrarDto entrada,
+    UserManager<IdentityUser> usuarios) =>
+{
+    if (string.IsNullOrWhiteSpace(entrada.Email) ||
+        string.IsNullOrWhiteSpace(entrada.Password))
+        return Results.BadRequest("Correo y contraseña obligatorios.");
+
+    var nuevo = new IdentityUser
+    {
+        UserName = entrada.Email.Trim(),
+        Email = entrada.Email.Trim()
+    };
+    var resultado = await usuarios.CreateAsync(nuevo, entrada.Password);
+    if (!resultado.Succeeded)
+        return Results.ValidationProblem(
+            resultado.Errors.GroupBy(e => e.Code)
+                .ToDictionary(g => g.Key, g => g.Select(e => e.Description).ToArray()));
+
+    var asignacion = await usuarios.AddToRoleAsync(nuevo, "Alumno");
+    if (!asignacion.Succeeded)
+        return Results.Problem("No se pudo configurar el rol del usuario.");
+
+    return Results.Created("/api/identidad/yo", new
+    {
+        id = nuevo.Id,
+        email = nuevo.Email,
+        rol = "Alumno"
+    });
+});
+
+// P4.5.5: comprueba contraseñas y bloqueo mediante SignInManager.
+app.MapPost("/auth/login", async (AccederDto entrada,
+    UserManager<IdentityUser> usuarios,
+    SignInManager<IdentityUser> acceso) =>
+{
+    var usuario = await usuarios.FindByEmailAsync(entrada.Email ?? "");
+    if (usuario is null)
+        return Results.Unauthorized();
+
+    var resultado = await acceso.CheckPasswordSignInAsync(
+        usuario, entrada.Password ?? "", lockoutOnFailure: true);
+    if (!resultado.Succeeded)
+        return Results.Unauthorized();
+
+    var roles = await usuarios.GetRolesAsync(usuario);
+    var ahora = DateTime.UtcNow;
+    var caducidad = ahora.AddMinutes(15);
+    var claims = new List<Claim>
+    {
+        new(JwtRegisteredClaimNames.Sub, usuario.Id),
+        new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString("N")),
+        new(JwtRegisteredClaimNames.Iat,
+            DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(),
+            ClaimValueTypes.Integer64),
+        new(ClaimTypes.NameIdentifier, usuario.Id),
+        new(ClaimTypes.Email, usuario.Email ?? "")
+    };
+    claims.AddRange(roles.Select(rol => new Claim(ClaimTypes.Role, rol)));
+
+    var token = new JwtSecurityToken(
+        issuer: emisor,
+        audience: audiencia,
+        claims: claims,
+        notBefore: ahora,
+        expires: caducidad,
+        signingCredentials: new SigningCredentials(
+            new SymmetricSecurityKey(bytesFirma),
+            SecurityAlgorithms.HmacSha256));
+
+    return Results.Ok(new
+    {
+        accessToken = new JwtSecurityTokenHandler().WriteToken(token),
+        tokenType = "Bearer",
+        expiresAtUtc = caducidad
+    });
+});
+
+// P4.5.6: sin Bearer válido devuelve 401.
+app.MapGet("/api/identidad/yo", (ClaimsPrincipal principal) =>
+    Results.Ok(new
+    {
+        id = principal.FindFirstValue(ClaimTypes.NameIdentifier),
+        email = principal.FindFirstValue(ClaimTypes.Email),
+        roles = principal.FindAll(ClaimTypes.Role).Select(c => c.Value).ToArray()
+    }))
+    .RequireAuthorization();
+
+// P4.5.7: un token de Alumno es auténtico pero carece del rol => 403.
+app.MapGet("/api/identidad/formador", () =>
+    Results.Ok(new { mensaje = "Recurso reservado a Formador" }))
+    .RequireAuthorization(p => p.RequireRole("Formador"));
+
+app.Run();
+
+record RegistrarDto(string Email, string Password);
+record AccederDto(string Email, string Password);
+
+sealed class IdentidadDbContext(DbContextOptions<IdentidadDbContext> opciones)
+    : IdentityDbContext<IdentityUser>(opciones) { }
+public partial class Program { }
+
+~~~
+
 ### Cierre
 
 Hemos observado autenticación, autorización y representación visual de la identidad sin rehacer cursos de Web API o Identity. Nunca reutilices la credencial fija de laboratorio en un despliegue público.
