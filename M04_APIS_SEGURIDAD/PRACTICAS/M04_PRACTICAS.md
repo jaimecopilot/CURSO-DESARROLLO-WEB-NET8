@@ -1265,6 +1265,128 @@ Abre `/seguridad` sin sesión. Después intenta consultar directamente `/demo/pr
 
 Comenta temporalmente el bloque visual `AuthorizeView Roles="Formador"` y comprueba que `/demo/privado` sigue protegido. Después modifica **solo en una copia de ensayo** la regla de autorización del endpoint para exigir `OtroRol`; aunque el usuario de prueba continúe autenticado, el servidor debe denegar acceso. Restablece `Formador`.
 
+
+### P4.4 — Recorrido completo de una sesión, sin saltarse las transiciones
+
+El propósito de este laboratorio es observar una sesión autenticada y comprobar un recurso protegido **del lado del servidor**. La pantalla de seguridad sirve para mostrar el estado, pero el criterio de autorización de /demo/privado no se sustituye por esconder el enlace.
+
+Antes de iniciar, confirma que la aplicación está ejecutándose en **Development**. La versión del curso registra los endpoints de demostración únicamente en ese entorno. No actives estas rutas en Production para resolver un fallo de ejecución, porque el código de acceso es fijo y no constituye una credencial de producción.
+
+Trabajaremos con una sesión limpia del navegador. Cierra las pestañas abiertas de la aplicación o usa una ventana privada para evitar que una cookie creada en una ejecución anterior modifique el estado inicial. Abre la página /seguridad y observa su aspecto sin iniciar sesión. El componente debe presentar la rama anónima de AuthorizeView y el formulario para introducir el código.
+
+#### Escenario 4.4.A — Usuario anónimo: dos observaciones distintas
+
+Primero mira la página. El texto de usuario anónimo demuestra que la presentación conoce un estado de autenticación sin identidad reconocida. Todavía no demuestra que el servidor proteja un recurso.
+
+Segundo, introduce manualmente en la barra de direcciones la ruta /demo/privado. El servidor debe impedir que obtengas el objeto JSON de éxito. En esta demostración está configurada una respuesta 401 para el recurso anónimo. Anota la diferencia entre una página que decide qué dibujar y un endpoint que decide si entrega datos.
+
+El resultado esperado no consiste en que el enlace desaparezca. Si el recurso devolviera 200 a una petición anónima, existiría una falla real de autorización incluso aunque la interfaz ocultara la posibilidad de navegar hasta él.
+
+#### Escenario 4.4.B — Credencial de laboratorio incorrecta
+
+Vuelve a /seguridad y escribe un código diferente de curso-demo-44. Envía el formulario y comprueba que no se reconoce AlumnoDemo ni aparece la rama del rol Formador. El endpoint de acceso no debe emitir una sesión válida en este caso.
+
+Observa qué hace el navegador después del POST. La implementación redirige nuevamente a la página de demostración, añadiendo un parámetro de error en la URL. El parámetro permite distinguir un intento incorrecto del acceso inicial si decidimos mostrar esa información, pero no sustituye la comprobación del servidor.
+
+No modifiques el código para admitir cualquier cadena simplemente porque el alumno no recuerda el valor de ejemplo. Ese cambio anularía precisamente la condición que queremos observar: que el servidor decide cuándo crea la identidad.
+
+#### Escenario 4.4.C — Inicio de sesión válido
+
+Introduce el código de laboratorio correcto y envía el formulario. El servidor valida el token antifalsificación, lee el campo codigo y comprueba su valor. Después crea un principal con nombre AlumnoDemo y claim de rol Formador.
+
+La redirección completa permite observar una nueva navegación. La pantalla debe representar la rama Authorized y mostrar el nombre. El bloque anidado AuthorizeView Roles="Formador" debe reconocer el rol. En el navegador, el conjunto de cookies correspondiente al host habrá cambiado después de iniciar sesión.
+
+No hace falta copiar el valor de la cookie ni colocarlo en el Markdown: es información temporal de la sesión que no aporta nada al aprendizaje y no debe circular fuera del navegador.
+
+#### Escenario 4.4.D — La política del servidor permite el recurso
+
+Con la sesión iniciada, abre /demo/privado. Esta vez el servidor debe devolver el JSON del recurso protegido. La diferencia respecto a 4.4.A no es la URL, que no ha cambiado, sino la identidad que el servidor reconoce y su claim de rol.
+
+Vuelve a /seguridad y observa que el componente también reconoce Formador. Son dos observaciones que coinciden porque se apoyan en el mismo estado de autenticación, pero su responsabilidad es diferente: la página controla contenido representado y el endpoint controla acceso a información.
+
+#### Escenario 4.4.E — Salida mediante POST
+
+Pulsa el botón Cerrar sesión de la página. La acción envía un POST a /demo/salir, el servidor valida el token antifalsificación, ejecuta SignOutAsync y redirige. La página debe volver a presentar la rama anónima.
+
+Comprueba de nuevo /demo/privado. El servidor debe rechazar el acceso. Esta segunda consulta es imprescindible: si solo miráramos que el texto visual volvió a Usuario anónimo, no estaríamos demostrando que la credencial dejó de autorizar recursos.
+
+#### Escenario 4.4.F — POST sin antiforgery
+
+Desde una herramienta HTTP que no adjunte el token antifalsificación, intenta enviar POST al endpoint /demo/entrar con un código correcto. El resultado esperado es un rechazo 400, no una sesión autenticada.
+
+La clave del caso es que conocer el código de laboratorio no dispensa al cliente de la comprobación antifalsificación del formulario. Ese mecanismo evita ciertas solicitudes de cambio de estado originadas en sitios ajenos. No es una contraseña alternativa ni una forma de decidir qué rol debe tener una persona.
+
+Si se obtiene una cookie válida sin token, revisa si la implementación activa exige realmente IsRequestValidAsync en el endpoint, en lugar de confiar únicamente en que el componente Razor haya mostrado AntiforgeryToken.
+
+#### Escenario 4.4.G — Rol correcto y rol equivocado
+
+Vuelve a iniciar sesión con el código de laboratorio. En una copia temporal de Program.cs cambia la política del endpoint /demo/privado para que exija OtroRol en vez de Formador. Compila y reinicia la aplicación, iniciando una sesión nueva con el principal que sigue teniendo Formador.
+
+La pantalla reconocerá que existe un usuario autenticado, pero el servidor no debe entregar el recurso que ahora exige OtroRol. La observación esperada es una denegación para una identidad conocida, no la desaparición de la cookie.
+
+Restablece la política Formador y repite la operación. Esta variante enseña que autenticación y autorización son evaluaciones distintas. No debe quedar activada como estado de referencia al terminar el laboratorio.
+
+#### Escenario 4.4.H — Ocultar la rama visual no protege recursos
+
+Comenta temporalmente únicamente el bloque AuthorizeView Roles="Formador" de Seguridad.razor. No alteres el código del endpoint ni la cookie. Al iniciar sesión puede desaparecer el mensaje que anunciaba el rol, pero el recurso /demo/privado sigue verificando RequireRole("Formador").
+
+Si el servidor responde de forma distinta solo porque hemos cambiado una rama visual, entonces hemos introducido un acoplamiento indebido que no existe en el ejercicio original. Esa observación resume la idea más importante de 4.4: las restricciones efectivas se verifican donde están los recursos.
+
+#### Escenario 4.4.I — El entorno también forma parte del contrato de demostración
+
+Ejecuta, solo como comprobación controlada, la aplicación en un entorno diferente de Development. Las rutas de acceso de la demostración están deliberadamente restringidas y no deben quedar publicadas como mecanismo real de seguridad.
+
+No interpretes que dejan de estar disponibles como un error que deba arreglarse eliminando el condicional de entorno. La restricción expresa una decisión de seguridad: el código fijo sirve para la sesión formativa, no para desplegar una aplicación pública.
+
+Al volver al estado normal, restablece Development y no cambies configuraciones globales de la máquina que puedan afectar a otros proyectos del curso.
+
+### P4.4 — Qué observar en cada capa
+
+| Elemento | Antes de entrar | Después de entrar | Después de salir |
+|---|---|---|---|
+| Página /seguridad | Rama anónima | Usuario AlumnoDemo | Rama anónima |
+| Claim de rol | Sin Formador | Formador | Sin Formador |
+| Recurso /demo/privado | Denegado | Permitido | Denegado |
+| Cookie local reconocida | No | Sí | No |
+| API /api/productos separada | Pública en el laboratorio | Sin cambio | Sin cambio |
+
+El último renglón evita una conclusión falsa. La API auxiliar del ejercicio se ejecuta en otro proceso y conserva deliberadamente sus endpoints públicos. El inicio de sesión en Blazor no convierte automáticamente la API en un servidor que comparta identidad.
+
+### P4.4 — Dificultades frecuentes y correcciones explicadas
+
+**El formulario se ve, pero tras enviar no cambia el nombre del usuario.** Confirma que se envía mediante POST normal y que data-enhance="false" evita una navegación mejorada incompatible con el objetivo de observar la nueva cookie. Comprueba que el código es correcto y que se ha incluido AntiforgeryToken. Si el servidor devuelve 400, investiga primero la validación del token.
+
+**La compilación informa sobre Authorized y context duplicado.** Has anidado dos componentes AuthorizeView que usan el mismo identificador de plantilla. Asigna Context="rolContexto" al interior para distinguir sus parámetros. No es un error de rol: ocurre en la compilación Razor.
+
+**La página reconoce al usuario, pero /demo/privado sigue denegando.** Comprueba qué rol exige la política y cuál está incluido en el principal. Si cambiaste temporalmente a OtroRol, restaura Formador. Comprueba también que solicitas el recurso del mismo host que emitió la cookie.
+
+**La página local /productos falla después de añadir autenticación.** Revisa que no hayas eliminado las dependencias del módulo 3 ni cambiado sin necesidad su ruta. La demostración de seguridad no exige reescribir los servicios de memoria.
+
+**La API de productos falla, aunque /seguridad funciona.** Comprueba los procesos por separado. Una pantalla de autenticación visible en Blazor no demuestra que la API auxiliar esté iniciada ni que la dirección de ProductosApi:BaseUrl sea correcta.
+
+**No aparece /demo/entrar.** Revisa el entorno en que se ejecuta la aplicación. Si no es Development, la ruta está ausente deliberadamente. No la habilites en un entorno público por conveniencia.
+
+**El recurso anónimo redirige en vez de mostrar un JSON 401.** Algunas configuraciones de cookies redirigen al formulario de acceso por defecto. El ejemplo incluye una excepción para la ruta HTTP del laboratorio que responde 401, facilitando la comprobación. Para una aplicación real sería necesario diseñar deliberadamente el comportamiento de cada tipo de cliente.
+
+### P4.4 — Recuperar el estado limpio del proyecto
+
+Después de ensayar roles alternativos, formularios incorrectos y comentarios de presentación, el proyecto debe regresar a la configuración de referencia. Deja la política del recurso exigiendo Formador; la identidad de prueba incluye el mismo rol; el formulario de acceso conserva su token; la salida se efectúa con POST; y las rutas de laboratorio siguen restringidas a Development.
+
+Inicia una sesión limpia y ejecuta la secuencia mínima: anónimo denegado, acceso correcto, usuario y rol visibles, recurso permitido, salida y recurso denegado de nuevo. Una explicación oral de cada transición aporta más evidencia de comprensión que una captura aislada de la página tras iniciar sesión.
+
+### P4.4 — Preguntas de interpretación con respuesta razonada
+
+**¿Por qué AuthorizeView no sustituye RequireAuthorization?** Porque AuthorizeView condiciona la representación del componente, mientras que RequireAuthorization se comprueba al ejecutar el recurso del servidor. Un cliente distinto de la interfaz podría solicitar directamente el endpoint.
+
+**¿Por qué usamos POST para cerrar sesión?** Porque cambia el estado de autenticación. Un enlace GET no debería emplearse para una operación de cambio de estado, especialmente cuando está asociada a una cookie que un navegador puede enviar automáticamente.
+
+**¿Por qué el token antifalsificación no es una contraseña?** Porque no identifica a la persona ni determina sus permisos. Su finalidad es comprobar la legitimidad del envío de una solicitud en el contexto de un formulario y una sesión.
+
+**¿Por qué no usamos aquí Identity completo?** Porque el objetivo del módulo es comprender autenticación, autorización, cookies y estado visual, sin volver a impartir una infraestructura de gestión de usuarios. El ejemplo es controlado y no debe utilizarse para producción.
+
+**¿Por qué hay que probar el endpoint después de cerrar sesión?** Porque la pantalla puede cambiar por razones visuales. El criterio de seguridad consiste en que el servidor deje de entregar un recurso cuando la identidad ya no satisface la política.
+
+
 ### Cierre
 
 Hemos observado autenticación, autorización y representación visual de la identidad sin rehacer cursos de Web API o Identity. Nunca reutilices la credencial fija de laboratorio en un despliegue público.
