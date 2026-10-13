@@ -3,6 +3,8 @@ on:
   push:
     branches: [desarrollo/m04-reescritura-docente-integral]
     paths:
+      - 'M04_APIS_SEGURIDAD/TEORIA/M04_TEORIA.md'
+      - 'M04_APIS_SEGURIDAD/PRACTICAS/M04_PRACTICAS.md'
       - 'M04_APIS_SEGURIDAD/DOCS/**'
       - '.github/workflows/m04-medicion-pdf.yml'
   workflow_dispatch:
