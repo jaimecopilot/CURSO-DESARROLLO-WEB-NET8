@@ -42,6 +42,14 @@ def main():
             status=("LITERAL" if literal else
                     "VARIANTE" if coverage>=.95 else
                     "PARCIAL" if coverage>=.60 else "NO_ACREDITADO")
+            # Las soluciones autónomas se escriben por el alumno, no se
+            # entregan ya activadas. Solo se aceptan cuando el contexto
+            # inmediato las identifica explícitamente como solución y el
+            # ejercicio no pretende ser transcripción del archivo inicial.
+            nearby=body[max(0,m.start()-650):m.start()].lower()
+            if status in ("PARCIAL","NO_ACREDITADO") and re.search(
+                    r"soluci[oó]n (?:de referencia|razonada)",nearby):
+                status="SOLUCION_AUTONOMA"
             row={"punto":point,"linea":PRACT[:h.start()+m.start()].count("\n")+1,
                  "lenguaje":lang,"estado":status,"archivo":literal[0] if literal else name,
                  "cubiertas":len(lines) if literal else covered,"lineas":len(lines),
