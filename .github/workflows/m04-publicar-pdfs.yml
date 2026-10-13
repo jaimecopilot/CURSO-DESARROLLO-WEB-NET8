@@ -3,6 +3,9 @@ on:
   push:
     branches: [desarrollo/m04-reescritura-docente-integral]
     paths:
+      - 'M04_APIS_SEGURIDAD/TEORIA/M04_TEORIA.md'
+      - 'M04_APIS_SEGURIDAD/PRACTICAS/M04_PRACTICAS.md'
+      - 'M04_APIS_SEGURIDAD/DOCS/generar_m04_pdf.py'
       - '.github/workflows/m04-publicar-pdfs.yml'
   workflow_dispatch:
 permissions:
@@ -37,6 +40,13 @@ jobs:
           from pathlib import Path
           import fitz
           from markdown_it import MarkdownIt
+          import sys
+          sys.path.insert(0,'M04_APIS_SEGURIDAD/DOCS')
+          import generar_m04_pdf as g
+          assert 'font-size: 9.8pt; line-height: 1.46' in g.CSS
+          assert 'font-size: 8.2pt; line-height: 1.35' in g.CSS
+          assert 'font-size:12.3pt' not in g.CSS
+          assert 'font-size: 12.0pt' not in g.CSS
           base=Path('M04_APIS_SEGURIDAD')
           for kind in ('TEORIA','PRACTICAS'):
               md=(base/kind/f'M04_{kind}.md').read_text(encoding='utf-8')
@@ -44,7 +54,9 @@ jobs:
               fences=[x for x in MarkdownIt('commonmark').parse(md) if x.type=='fence']
               assert len(fences)>=40, (kind,len(fences))
               doc=fitz.open(base/kind/f'M04_{kind}.pdf')
-              assert 75<=len(doc)<=100, f'{kind}: {len(doc)} páginas fuera de objetivo'
+              # No imponer una cifra con tipografía ampliada: medir páginas honestamente.
+              assert len(doc)>0
+              print(f'{kind}: extensión natural {len(doc)} páginas con tipografía M01')
               assert len(doc[1].get_links())==4, f'{kind}: índice sin enlaces a capítulos'
               assert len(doc[1].get_text().strip())>300, f'{kind}: página 2 insuficiente'
               for i,page in enumerate(doc):
