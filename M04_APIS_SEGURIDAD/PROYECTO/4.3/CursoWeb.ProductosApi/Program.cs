@@ -104,6 +104,30 @@ app.MapDelete("/api/productos/{id:int}", (int id) =>
 */
 // FIN DE AMPLIACIÓN 4.3.7
 
+
+// AMPLIACIÓN AUTÓNOMA 4.3.8: POST con errores de validación estructurados.
+// IMPORTANTE: comentar el MapPost original ANTES de activar esta alternativa.
+// NO publicar dos MapPost del mismo método y ruta simultáneamente.
+/*
+app.MapPost("/api/productos", (CrearProductoApi entrada) =>
+{
+    var errores = new Dictionary<string, string[]>();
+    if (string.IsNullOrWhiteSpace(entrada.Nombre))
+        errores["nombre"] = ["El nombre es obligatorio."];
+    if (entrada.Precio <= 0)
+        errores["precio"] = ["El precio debe ser positivo."];
+
+    if (errores.Count > 0)
+        return Results.ValidationProblem(errores);
+
+    var id = Interlocked.Increment(ref siguienteId);
+    var creado = new ProductoApi(id, entrada.Nombre.Trim(), entrada.Precio);
+    productos[id] = creado;
+    return Results.Created($"/api/productos/{id}", creado);
+});
+*/
+// FIN DE AMPLIACIÓN 4.3.8
+
 app.Run();
 
 record ProductoApi(int Id, string Nombre, decimal Precio);
