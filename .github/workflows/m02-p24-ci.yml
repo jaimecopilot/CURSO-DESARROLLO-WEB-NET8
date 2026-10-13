@@ -1,7 +1,7 @@
 name: M02 - CRUD LocalDB Windows
 on:
   push:
-    branches: [desarrollo/m02-sobre-m01-aprobado]
+    branches: [desarrollo/m02-sobre-m01-aprobado, desarrollo/reconstruccion-m01-m02-trazable]
     paths:
       - "M02_FORMULARIOS_RAZOR/PROYECTO/2.4/**"
       - "M02_FORMULARIOS_RAZOR/TESTS/2.4_e2e.ps1"
