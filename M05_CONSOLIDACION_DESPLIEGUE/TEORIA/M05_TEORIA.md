@@ -676,6 +676,113 @@ Esa es la finalidad de este apartado: dar significado técnico a la palabra publ
 
 
 
+
+### 5.2.13. Dos publicaciones del mismo proyecto pueden mostrar vistas diferentes
+
+Consideremos la aplicación MVC A. Tiene una vista `Views/Home/Index.cshtml` que muestra un texto sencillo. Un alumno publica el proyecto a la carpeta A. Después modifica el texto de la vista y publica a la carpeta B. Ambas publicaciones contienen artefactos de **la misma aplicación**, pero se construyeron en momentos diferentes.
+
+Si iniciamos la DLL de A en el puerto 5091 y la DLL de B en el 5094, cada proceso sirve el contenido correspondiente a los archivos con los que se inició. El hecho de haber editado después el proyecto fuente no obliga a una publicación anterior a actualizar sus vistas compiladas.
+
+Este ejemplo elimina una intuición incorrecta: «tengo el proyecto abierto con el nuevo texto; luego todos los servidores que inicié antes ya utilizan esa versión». La publicación es una operación que prepara artefactos en un instante concreto. Ejecutar una publicación significa utilizar esos artefactos, no volver continuamente al editor para leer las últimas modificaciones.
+
+**Recorrido conceptual:**
+
+~~~text
+Proyecto MVC — Vista original
+       |
+       +--- publicar en A ------> A / ensamblados / recursos
+       |                             |
+       |                             +--> Kestrel en 5091
+       |
+Modificar la vista en el proyecto
+       |
+       +--- publicar en B ------> B / ensamblados / recursos
+                                     |
+                                     +--> Kestrel en 5094
+~~~
+
+Ambos procesos pueden devolver HTTP 200 para `/`, pero ese código no garantiza que la representación HTML sea idéntica. Para comprobar el cambio hay que buscar el contenido esperado en cada respuesta, no limitarse al estado HTTP.
+
+Esta comparación enseña a localizar un problema frecuente en despliegues: el administrador copió los archivos nuevos a una carpeta, pero el servicio está apuntando a otra. Antes de cambiar código de negocio, debe verificarse qué directorio utiliza el proceso realmente.
+
+### 5.2.14. El cuerpo de una respuesta confirma qué versión está en uso
+
+Cuando examinamos un despliegue, el estado 200 responde a la pregunta «¿se completó satisfactoriamente esta solicitud HTTP?». No responde necesariamente a «¿es esta la versión del programa que pretendía desplegar?». Una aplicación antigua puede servir perfectamente HTTP 200.
+
+Por ejemplo, si la segunda publicación añade:
+
+~~~razor
+<p id="marca-publicacion-m05">
+    Esta versión se publicó después de modificar la vista MVC.
+</p>
+~~~
+
+el contenido de la respuesta nos permite distinguir las dos salidas. Ese marcador no cambia el controlador ni el enrutamiento; solo cambia el HTML que la vista produce. Es un experimento especialmente útil porque evita introducir una nueva dependencia o una nueva aplicación para verificar el efecto de publicar.
+
+El alumno debe poder explicar tres hechos separados: la publicación A fue creada antes del cambio, la publicación B se creó después y los procesos apuntan a carpetas distintas. Si ambos muestran la misma página, revisar primero la ruta de publicación y el proceso activo suele ser más razonable que alterar el modelo de productos.
+
+### 5.2.15. La ruta relativa puede engañar incluso cuando el comando es correcto
+
+La opción `-o` de `dotnet publish` recibe una ruta de salida. Una ruta relativa se interpreta respecto al directorio desde el que se ejecuta el comando. Si el alumno cree que está en la raíz del repositorio, pero se encuentra dentro del directorio del proyecto, la misma ruta textual puede producir una carpeta distinta.
+
+Por eso la práctica define rutas desde una raíz conocida y utiliza una carpeta `.work` ignorada por Git. Separar esos resultados del código del proyecto evita mezclar archivos compilados con fuentes o incorporarlos por accidente a un commit.
+
+**Ejemplo de duda frecuente:** «He publicado, pero no encuentro la DLL en la carpeta indicada». La primera comprobación no es reinstalar .NET ni regenerar el proyecto. Es consultar el directorio actual, la salida de `dotnet publish` y la ubicación efectiva donde se escribieron los archivos.
+
+En una práctica bien preparada el alumno aprende a leer el mensaje de publicación, no solo a recordar qué parámetro escribió. La salida de una orden y la estructura del sistema de archivos son evidencias complementarias.
+
+### 5.2.16. Los recursos estáticos y las vistas siguen caminos distintos
+
+Una vista MVC es código de presentación Razor que participa en la producción dinámica de HTML. Una hoja CSS situada en `wwwroot`, en cambio, es un archivo estático que el middleware puede entregar como recurso. Aunque ambos afecten a cómo se ve una página, sus mecanismos no son idénticos.
+
+La publicación prepara recursos estáticos y ensamblados. Un fallo de una hoja de estilos puede hacer que la página tenga aspecto incorrecto aunque la acción Home/Index esté funcionando. Por el contrario, un fallo al ejecutar una acción MVC puede impedir producir HTML aunque `wwwroot` siga estando disponible.
+
+Al comprobar la publicación conviene solicitar ambos tipos de contenido: la raíz `/`, que pasa por MVC, y `/css/site.css`, que corresponde a un recurso estático. La combinación permite descartar algunas hipótesis sin modificar el programa.
+
+Una respuesta 404 para CSS obliga a preguntar si el archivo se publicó en la ruta esperada, si la URL solicitada corresponde a su ubicación y si está configurado el middleware de archivos estáticos. Un 404 para una ruta MVC puede exigir revisar el enrutamiento o el nombre de la acción. **El mismo código HTTP no implica la misma causa interna.**
+
+### 5.2.17. La publicación dependiente del framework conserva una obligación en el destino
+
+En el itinerario se utiliza un despliegue dependiente del framework. Los archivos publicados no contienen necesariamente todos los componentes de runtime .NET que requiere la aplicación. El destino debe contar con una versión compatible del runtime ASP.NET Core 8.
+
+Esa decisión reduce el tamaño de los artefactos distribuidos y encaja con equipos de laboratorio que tienen .NET 8 instalado. No significa que copiar la DLL a cualquier equipo Windows sea suficiente para ejecutarla. Una máquina sin el runtime requerido puede mostrar un mensaje de ejecución que indique el framework ausente.
+
+El despliegue autocontenido es otra modalidad posible, con tamaño y requisitos diferentes. Se menciona para entender la distinción, pero no se añade como un segundo itinerario obligatorio. Mantener un único modo de publicación permite comparar Kestrel, IIS y Docker sin introducir variables de plataforma innecesarias.
+
+En Docker, la imagen final basada en `mcr.microsoft.com/dotnet/aspnet:8.0` proporciona el runtime del contenedor. El proceso que se inicia allí sigue siendo la publicación de MVC A, no una aplicación transformada en otro framework.
+
+### 5.2.18. La existencia de una configuración no garantiza la disponibilidad de sus recursos
+
+El archivo `appsettings.json` puede contener una cadena `ConnectionStrings:Productos`. Esa cadena es una instrucción sobre cómo localizar una base, pero no instala SQL Server Express LocalDB. Tampoco asegura que la identidad del proceso pueda abrir la instancia o que la base de datos exista.
+
+Este punto es fundamental para interpretar la publicación del CRUD. En Windows, bajo el usuario que ha preparado LocalDB, puede ser posible crear y consultar productos. Bajo la identidad de un Application Pool de IIS, la misma cadena puede no encontrar una instancia accesible. Dentro de un contenedor Linux, la instancia LocalDB de Windows no está presente de forma ordinaria.
+
+La aplicación no puede inventar una base disponible por el simple hecho de ejecutarse correctamente. En M05 se ha añadido un modo explícito que aísla las rutas independientes de SQL y rechaza con 503 las dependientes. No se ha cambiado la tecnología de persistencia.
+
+**Conclusión:** dos publicaciones con el mismo código pueden ofrecer capacidades distintas porque se ejecutan con diferentes identidades y dependencias. Una clase C# no cambia, pero el contexto en que opera sí.
+
+### 5.2.19. Una comprobación completa necesita al menos cuatro observaciones
+
+Para evaluar una publicación sencilla no basta con una captura del explorador de archivos. Conviene reunir cuatro observaciones en secuencia.
+
+Primero, el resultado de `dotnet publish`: debemos saber que la operación terminó y dónde dejó la salida. Segundo, la presencia del ensamblado y los archivos necesarios en esa carpeta. Tercero, el arranque de un proceso que utiliza esa salida, distinguiendo su dirección de escucha. Cuarto, una solicitud HTTP concreta cuyo resultado podamos interpretar.
+
+Podemos ampliar la última observación a diferentes recursos: HTML MVC, estado del controlador y CSS. La prueba de operaciones CRUD con LocalDB corresponde a otro escenario en el que la dependencia de datos esté disponible.
+
+Las cuatro observaciones responden a preguntas diferentes; juntas construyen una explicación sólida de lo que significa publicar. El alumno no necesita ejecutar un pipeline empresarial ni implantar infraestructura avanzada para comprenderlas.
+
+### 5.2.20. Caso completo: he publicado, pero sigo viendo la pantalla anterior
+
+Un desarrollador modifica el texto de Home/Index, ejecuta `dotnet publish` y sigue viendo la página antigua. La primera reacción suele ser repetir el comando hasta que cambie. Una investigación más útil comienza localizando qué proceso escucha el puerto consultado.
+
+Si el proceso inició la publicación A y el desarrollador acaba de publicar en B, no hay motivo para que el proceso A cambie automáticamente. Incluso si se vuelve a abrir la página, seguirá solicitando a A. Necesitamos comprobar la carpeta que utiliza el proceso, detenerlo si corresponde e iniciar la salida nueva.
+
+Si el mecanismo de hospedaje fuera IIS, habría que revisar su ruta física. Si fuera Docker, habría que distinguir la imagen anterior de la nueva y comprobar qué imagen utiliza el contenedor. La causa general es la misma: **editar o construir no equivale automáticamente a sustituir la instancia en ejecución**.
+
+Este principio conecta los tres mecanismos de publicación del módulo sin convertirlos en tecnologías aisladas. En cada uno existe alguna forma de seleccionar los artefactos que ejecuta el host. Reconocer esa selección permite explicar muchos errores antes de tocar el código fuente.
+
+
+
 ## 5.3. Kestrel: proceso, dirección y respuesta HTTP
 
 ### 5.3.1. Qué es Kestrel y qué hace
