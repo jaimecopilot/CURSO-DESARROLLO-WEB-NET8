@@ -1266,6 +1266,78 @@ Esto tiene consecuencias prácticas. Al recargar la página Blazor sin reiniciar
 También muestran por qué el componente no debería tratar su lista de DTO como fuente universal de verdad. Es una representación del estado que la API devolvió en un instante. Si otro cliente crea un recurso, la pantalla necesitaría consultar nuevamente para observarlo. El ejemplo no implementa notificaciones en tiempo real, pero sí permite reconocer que una copia local y el estado remoto no son la misma cosa.
 
 
+
+### 4.3.27. Una ampliación opcional con sentido: buscar productos por nombre
+
+Hasta este momento GET /api/productos devuelve todos los elementos y GET /api/productos/{id:int} busca un recurso por su identificador. Un tercer caso frecuente consiste en consultar **una selección** de la colección a partir de un criterio proporcionado por el usuario. Podemos construirlo como reto opcional sin cambiar el contrato de los endpoints anteriores.
+
+La URL puede ser:
+
+~~~http
+GET /api/productos/buscar?nombre=cuad HTTP/1.1
+Host: localhost:5081
+Accept: application/json
+~~~
+
+La ruta identifica la operación y la cadena de consulta contiene el criterio nombre. A diferencia del ID incluido en un segmento de ruta, el parámetro de consulta representa una condición de filtrado. No significa que cuad sea una clave única: es solo un fragmento de nombre que podría coincidir con varios productos.
+
+ASP.NET Core permite enlazar el valor de la consulta a un parámetro del manejador. Nuestro endpoint opcional utiliza string? para representar que puede no existir un valor. En ese caso no devuelve todos los productos sin avisar; decide rechazar la solicitud con 400 porque la operación se ha definido como una búsqueda con término obligatorio.
+
+~~~csharp
+app.MapGet("/api/productos/buscar", (string? nombre) =>
+{
+    if (string.IsNullOrWhiteSpace(nombre))
+        return Results.BadRequest("Indica el nombre que deseas buscar.");
+
+    var termino = nombre.Trim();
+    var encontrados = productos.Values
+        .Where(p => p.Nombre.Contains(
+            termino, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(p => p.Id)
+        .ToArray();
+
+    return Results.Ok(encontrados);
+});
+~~~
+
+Hay varias decisiones didácticas dentro de este bloque. Primero, la búsqueda no modifica el estado del catálogo: es GET. Segundo, normaliza el texto del filtro con Trim, pero no cambia los nombres almacenados. Tercero, Contains con StringComparison.OrdinalIgnoreCase realiza una comparación insensible a mayúsculas de manera explícita para este laboratorio. Cuarto, ordena los resultados por identificador, evitando basarse en el orden interno del diccionario concurrente.
+
+La salida mantiene la misma **forma de lista de productos** que el cliente ya conoce. Si se encuentra Cuaderno, devuelve un arreglo con ese objeto. Si no hay coincidencias, devuelve un arreglo vacío con 200, porque la búsqueda se ha ejecutado correctamente aunque no haya resultados. Si no hay un término válido, devuelve 400 porque no se cumplen los requisitos de esa operación. Esta secuencia permite distinguir de nuevo un éxito vacío de una entrada rechazada.
+
+### 4.3.28. Cómo convive una ruta literal con una ruta parametrizada
+
+Nuestro servidor ya publica /api/productos/{id:int}. ¿Puede entrar en conflicto con /api/productos/buscar? No en el contrato definido: buscar es un segmento literal y no cumple la restricción de entero del endpoint de detalle. Eso permite conservar ambas operaciones sin obligar a cambiar la dirección del catálogo.
+
+El diseño también muestra por qué no conviene utilizar una única ruta para operaciones semánticamente diferentes si eso obliga a interpretar todo a partir de formatos ambiguos. Un segmento con un número se utiliza para consultar un producto concreto; la ruta buscar junto a un parámetro nombre expresa un criterio de selección. La decisión se hace visible para quien prueba la API con un archivo .http.
+
+Con independencia de este ejemplo, una API profesional debe acordar sus rutas y criterios de búsqueda en función de sus consumidores. Nuestro laboratorio no pretende establecer una convención universal de búsqueda, sino demostrar el papel distinto de segmentos de ruta y parámetros de consulta.
+
+### 4.3.29. Tres resultados que enseñan más que una sola respuesta
+
+Con los productos iniciales, la solicitud a /api/productos/buscar?nombre=cuad debe devolver un arreglo con Cuaderno. No se crea ni elimina ningún producto.
+
+Si consultamos /api/productos/buscar?nombre=nohaycoincidencia, el resultado es 200 con []. La API ha entendido y ejecutado el filtro y no ha encontrado datos. Esa respuesta es diferente de un 404, porque no estamos pidiendo por su dirección un recurso individual que deba existir.
+
+Si consultamos /api/productos/buscar sin nombre, el endpoint responde 400. La entrada incumple la regla de término obligatorio. En el laboratorio decidimos que un filtro vacío sea una petición incorrecta y no un listado completo; ese comportamiento debe documentarse para los consumidores.
+
+Podemos ampliar el experimento creando mediante POST un producto llamado Cuaderno grande y repitiendo el filtro cuad. La respuesta pasará a incluir más de un objeto. El servicio de búsqueda no contiene resultados prefijados; calcula la respuesta a partir del diccionario actual. Al reiniciar la API, ese producto desaparece porque el almacenamiento sigue siendo temporal.
+
+### 4.3.30. Cuándo un componente necesitaría conocer un filtro
+
+La pantalla actual de Blazor solo consume ObtenerAsync y CrearAsync. El reto de búsqueda se prueba directamente sobre la API mediante el editor HTTP para conservar el alcance obligatorio. Si decidiéramos añadir a la interfaz un campo de búsqueda remota, deberíamos introducir una nueva operación en IProductosApiService y una implementación que formara correctamente la URL con el criterio proporcionado.
+
+Es importante codificar los caracteres de un parámetro de consulta cuando proceden de un usuario, en lugar de concatenar sin más espacios, símbolos o caracteres especiales a la dirección. El cliente dispone de utilidades para preparar componentes de URL y las APIs HTTP cuentan con mecanismos para representarlos correctamente. En el ejercicio no hace falta desarrollar una biblioteca de construcción de URLs, pero sí identificar el problema.
+
+Tampoco deberíamos alterar el método ObtenerAsync para que comenzara a devolver silenciosamente una búsqueda filtrada. Eso cambiaría el significado de una operación ya utilizada en el catálogo. La separación de responsabilidades que aprendimos en 4.2 nos permite agregar funciones sin romper los métodos anteriores.
+
+### 4.3.31. Verificar el reto sin modificar el itinerario obligatorio
+
+El código de búsqueda permanece comentado con un marcador de activación en Program.cs del proyecto 4.3. Se puede habilitar en una copia aislada, comprobar el funcionamiento y desactivarlo después. La versión obligatoria del módulo sigue cumpliendo GET de lista y detalle, POST validado y el resumen del punto 4.3.
+
+La ventaja de un reto así no es simplemente añadir líneas, sino reunir varias decisiones que el alumno puede justificar: criterio de consulta frente a identificador en ruta, respuesta vacía frente a 400, filtrado sin mutación, comparación de texto, compatibilidad de DTO y prueba directa mediante solicitudes HTTP.
+
+No obliga a incorporar EF Core, Identity, paginación ni una interfaz adicional. Permite trabajar un poco más con la API que el alumno ya ha construido, sin convertir una jornada de integración Blazor en un curso completo de servicios REST.
+
 ### Síntesis del punto 4.3
 
 Un endpoint es una asociación entre método HTTP, ruta y ejecución de código. Los DTO establecen el contrato; los resultados HTTP indican éxito o rechazo; el estado en memoria explica la duración de los datos. Hemos añadido una operación de resumen sin romper las rutas existentes, y disponemos de una API reproducible que se puede observar tanto directamente como desde Blazor.
