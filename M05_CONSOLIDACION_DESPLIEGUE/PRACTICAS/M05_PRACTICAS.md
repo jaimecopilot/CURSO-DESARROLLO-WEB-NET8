@@ -1257,6 +1257,133 @@ Registra los resultados observados en esta matriz:
 
 No debes completar una casilla con «sí» si la herramienta correspondiente no estaba instalada. Si solo leíste el Dockerfile, no construiste la imagen; si solo ejecutaste Kestrel, no probaste IIS; si se sirvió la portada sin base, no confirmaste CRUD persistente.
 
+
+### Paso P5.5.10. Reconstruir desde el principio el Dockerfile de la aplicación real
+
+**Relación con la teoría:** apartados 5.5.8–5.5.10. El recorrido obligatorio ya ha probado la imagen preparada. Esta ampliación autónoma demuestra que el alumno es capaz de construir su contenido de forma progresiva, sin iniciar una tercera aplicación y sin perder el estado entregado.
+
+Desde la raíz del repositorio, detén el contenedor de la práctica anterior y prepara una copia de referencia:
+
+~~~powershell
+Push-Location .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\MVC\CursoWeb.Mvc
+Copy-Item .\Dockerfile .\Dockerfile.p55-referencia -Force
+~~~
+
+Abre el Dockerfile en Visual Studio, conserva el respaldo y sustituye temporalmente el contenido por el estado inicial de la **etapa de compilación**:
+
+~~~dockerfile
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS compilacion
+WORKDIR /src
+COPY . .
+~~~
+
+Explica antes de continuar dónde estará `CursoWeb.Mvc.csproj` después de `COPY`. Este archivo todavía no representa una imagen que sirva HTTP. Hemos elegido herramientas de construcción y una carpeta de trabajo, pero no hemos publicado la aplicación ni definido el proceso que la ejecutará.
+
+Añade dos instrucciones y estudia su propósito por separado:
+
+~~~dockerfile
+RUN dotnet restore CursoWeb.Mvc.csproj
+RUN dotnet publish CursoWeb.Mvc.csproj -c Release --no-restore -o /app/publicada
+~~~
+
+`restore` resuelve dependencias; `publish` prepara los archivos de ejecución. Ambas instrucciones se ejecutan durante `docker build`, no durante cada petición HTTP. Una restauración que falla no puede arreglarse modificando una vista Razor.
+
+Ahora crea una **segunda etapa** para la ejecución:
+
+~~~dockerfile
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS ejecucion
+WORKDIR /app
+COPY --from=compilacion /app/publicada .
+~~~
+
+Esta etapa usa el runtime ASP.NET Core y copia la publicación producida por el SDK. La imagen final no necesita transportar el SDK de compilación. Sin embargo, todavía falta decirle al contenedor qué proceso debe ejecutar.
+
+Completa el archivo con las instrucciones de escucha, documentación del puerto y arranque:
+
+~~~dockerfile
+ENV ASPNETCORE_URLS=http://+:8080
+EXPOSE 8080
+ENTRYPOINT ["dotnet", "CursoWeb.Mvc.dll"]
+~~~
+
+Comprueba el resultado final: debe existir una etapa SDK, otra etapa runtime, una copia de archivos publicados y un `ENTRYPOINT` que apunta a la DLL MVC. Si el nombre de la DLL fuera el de Blazor o el de la API de M04, habríamos roto la continuidad del curso.
+
+### Paso P5.5.11. Construir y ejecutar la variante creada por el alumno
+
+Desde la misma carpeta del proyecto MVC:
+
+~~~powershell
+docker build -t cursoweb-mvc:m05-reconstruida .
+docker images cursoweb-mvc
+~~~
+
+El identificador `m05-reconstruida` diferencia esta imagen de la creada en la práctica principal. Si Docker informa de que no encuentra el proyecto, confirma que el contexto indicado con el punto corresponde a la carpeta que contiene el archivo `.csproj`.
+
+Ejecuta ahora la publicación en un contenedor propio y un puerto de host diferente:
+
+~~~powershell
+docker run --name cursoweb-m05-reconstruida --rm `
+  -p 8083:8080 `
+  -e Despliegue__SinLocalDb=true `
+  cursoweb-mvc:m05-reconstruida
+~~~
+
+En una segunda terminal PowerShell consulta los tres tipos de recurso y la ruta limitada:
+
+~~~powershell
+docker ps --filter "name=cursoweb-m05-reconstruida"
+curl.exe -i http://localhost:8083/
+curl.exe -i http://localhost:8083/Productos/Estado
+curl.exe -i http://localhost:8083/css/site.css
+curl.exe -i http://localhost:8083/Productos
+~~~
+
+La página inicial, Estado y CSS deben responder satisfactoriamente; Productos debe devolver 503 porque el modo del contenedor no dispone de LocalDB. El resultado permite comparar dos imágenes construidas a partir del mismo programa: la de referencia y la que acabas de reconstruir desde un Dockerfile progresivo.
+
+**Por qué no consideramos suficiente el resultado de `docker images`:** una imagen disponible no garantiza que exista un proceso activo ni que el mapeo de puertos permita llegar a él. Hemos añadido una ejecución real y cuatro peticiones por ese motivo.
+
+Detén el contenedor:
+
+~~~powershell
+docker stop cursoweb-m05-reconstruida
+~~~
+
+### Paso P5.5.12. Reconocer el contexto de construcción y sus exclusiones
+
+**Relación con la teoría:** 5.5.9. Observa el `.dockerignore` situado junto al Dockerfile. Contiene exclusiones para los directorios locales `bin`, `obj` y archivos propios de Visual Studio. Su propósito es que el contexto de Docker transporte el material de origen necesario y no se confunda con salidas anteriores generadas en el equipo del alumno.
+
+No es una alternativa a `dotnet restore` ni a `dotnet publish`. La etapa SDK sigue realizando estas operaciones dentro de la construcción. Una imagen que se construye correctamente después de eliminar los artefactos locales de desarrollo muestra que no depende de una DLL compilada previamente en Windows.
+
+Este laboratorio no necesita incorporar certificados privados ni credenciales al contexto. Se trabaja con el mismo proyecto MVC y datos de demostración. La imagen no incluye SQL Server LocalDB y la configuración de ejecución declara su ausencia para las rutas que lo necesitan.
+
+### Paso P5.5.13. Restaurar el Dockerfile canónico del curso
+
+Una vez detenido el contenedor de la reconstrucción, vuelve a la terminal inicial, donde conservaste la copia del archivo:
+
+~~~powershell
+Copy-Item .\Dockerfile.p55-referencia .\Dockerfile -Force
+Remove-Item .\Dockerfile.p55-referencia
+Pop-Location
+~~~
+
+Si habías dejado un proceso Docker ejecutándose, ciérralo antes de dar por terminada la sesión. La restauración asegura que la próxima persona encuentre el Dockerfile original y no un archivo incompleto del proceso de aprendizaje.
+
+**Explicación final del alumno:** describe la diferencia entre las herramientas SDK de la primera etapa, el runtime de la segunda, el contexto entregado a Docker, el programa que inicia `ENTRYPOINT` y la URL pública del host. Debe poder señalar la función de cada elemento sin cambiar el código MVC.
+
+### Paso P5.5.14. Una avería distinta en cada etapa del recorrido
+
+**Si falla `docker build` al buscar el proyecto**, revisa el contexto y la instrucción `COPY`: el Dockerfile no puede obtener automáticamente un archivo que no está en la estructura copiada.
+
+**Si la imagen existe pero no aparece un contenedor en `docker ps`**, comprueba que ejecutaste `docker run` y que el proceso no terminó inmediatamente. La imagen no es un servidor activo por sí misma.
+
+**Si hay contenedor activo y el navegador no conecta**, compara el puerto 8083 del host con el 8080 del contenedor y consulta los logs del proceso. No cambies HomeController para corregir una dirección equivocada.
+
+**Si `/` responde 200 y `/Productos` devuelve 503**, la limitación coincide con `Despliegue__SinLocalDb=true`. No se ha sustituido SQL Server por SQLite ni se ha habilitado un CRUD ficticio.
+
+El reto se considera comprendido cuando la respuesta a cada incidencia identifica qué capa está implicada y cuál es la corrección más pequeña. Reconocer las causas es más importante que memorizar el orden de los comandos sin entenderlo.
+
+
+
 ### Ampliación autónoma P5.5: una avería diferente en cada capa
 
 Estudia estos tres casos y expresa la acción correctiva más pequeña:
