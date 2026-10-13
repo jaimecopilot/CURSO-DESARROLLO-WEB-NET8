@@ -12,10 +12,10 @@ excluyendo las cabeceras y pies repetidos y los bloques Mermaid transformados en
 | TEORIA | 2.4 | 49-72 | 99.99% | 1 |
 | TEORIA | 2.5 | 73-84 | 100.00% | 0 |
 | PRACTICAS | P2.1 | 3-23 | 100.00% | 0 |
-| PRACTICAS | P2.2 | 24-42 | 100.00% | 0 |
-| PRACTICAS | P2.3 | 43-69 | 99.99% | 1 |
-| PRACTICAS | P2.4 | 70-104 | 99.98% | 2 |
-| PRACTICAS | P2.5 | 105-125 | 100.00% | 0 |
+| PRACTICAS | P2.2 | 24-43 | 100.00% | 0 |
+| PRACTICAS | P2.3 | 44-70 | 99.99% | 1 |
+| PRACTICAS | P2.4 | 71-105 | 99.98% | 2 |
+| PRACTICAS | P2.5 | 106-126 | 100.00% | 0 |
 
 Los contadores de tokens son un diagnóstico de extracción textual: no prueban idéntica maquetación,
 igualdad visual de los diagramas ni ausencia de errores de lectura humana.
@@ -142,55 +142,26 @@ igualdad visual de los diagramas ni ausencia de errores de lectura humana.
   },
   {
     "tipo": "PRACTICAS",
-    "paginas": 125,
+    "paginas": 126,
     "fuente_original_incrustada_identica": true,
     "capitulos": [
       {
         "punto": "P2.1",
         "desde": 3,
         "hasta": 23,
-        "palabras_visibles_md": 5937,
-        "palabras_extraidas_pdf": 5944,
+        "palabras_visibles_md": 6150,
+        "palabras_extraidas_pdf": 6150,
         "cobertura": 1.0,
         "tokens_no_encontrados": 0,
         "ejemplos_missing": [],
-        "ejemplos_extra": [
-          [
-            "del",
-            1
-          ],
-          [
-            "paso",
-            1
-          ],
-          [
-            "archivo",
-            1
-          ],
-          [
-            "acción",
-            1
-          ],
-          [
-            "alumno",
-            1
-          ],
-          [
-            "evidencia",
-            1
-          ],
-          [
-            "observable",
-            1
-          ]
-        ]
+        "ejemplos_extra": []
       },
       {
         "punto": "P2.2",
         "desde": 24,
-        "hasta": 42,
-        "palabras_visibles_md": 5637,
-        "palabras_extraidas_pdf": 5637,
+        "hasta": 43,
+        "palabras_visibles_md": 5751,
+        "palabras_extraidas_pdf": 5751,
         "cobertura": 1.0,
         "tokens_no_encontrados": 0,
         "ejemplos_missing": [],
@@ -198,11 +169,11 @@ igualdad visual de los diagramas ni ausencia de errores de lectura humana.
       },
       {
         "punto": "P2.3",
-        "desde": 43,
-        "hasta": 69,
-        "palabras_visibles_md": 7656,
-        "palabras_extraidas_pdf": 7657,
-        "cobertura": 0.999869,
+        "desde": 44,
+        "hasta": 70,
+        "palabras_visibles_md": 7677,
+        "palabras_extraidas_pdf": 7678,
+        "cobertura": 0.99987,
         "tokens_no_encontrados": 1,
         "ejemplos_missing": [
           [
@@ -223,11 +194,11 @@ igualdad visual de los diagramas ni ausencia de errores de lectura humana.
       },
       {
         "punto": "P2.4",
-        "desde": 70,
-        "hasta": 104,
-        "palabras_visibles_md": 9986,
-        "palabras_extraidas_pdf": 9988,
-        "cobertura": 0.9998,
+        "desde": 71,
+        "hasta": 105,
+        "palabras_visibles_md": 9860,
+        "palabras_extraidas_pdf": 9862,
+        "cobertura": 0.999797,
         "tokens_no_encontrados": 2,
         "ejemplos_missing": [
           [
@@ -260,10 +231,10 @@ igualdad visual de los diagramas ni ausencia de errores de lectura humana.
       },
       {
         "punto": "P2.5",
-        "desde": 105,
-        "hasta": 125,
-        "palabras_visibles_md": 5184,
-        "palabras_extraidas_pdf": 5184,
+        "desde": 106,
+        "hasta": 126,
+        "palabras_visibles_md": 5178,
+        "palabras_extraidas_pdf": 5178,
         "cobertura": 1.0,
         "tokens_no_encontrados": 0,
         "ejemplos_missing": [],
