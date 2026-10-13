@@ -2834,6 +2834,107 @@ Detén y retira solamente la instancia creada por ti, comprueba que el proyecto 
 
 
 
+
+### Paso P5.5.33. Caso integrador: localizar el servidor al que pertenece una respuesta
+
+**Fundamento:** consolidación de 5.2–5.5. Al terminar la jornada, el alumno conoce varios puertos y varios procesos. Es posible que una pestaña antigua del navegador muestre una página válida de una instancia que no corresponde al último ensayo.
+
+Este caso requiere identificar tres URLs distintas del mismo proyecto MVC A: la usada en Kestrel, la configurada en IIS y la publicada por Docker. No es necesario que las tres estén activas simultáneamente. Puedes realizar las comprobaciones de forma secuencial y anotar los resultados en el momento correspondiente.
+
+La secuencia de referencia utiliza:
+
+~~~text
+Kestrel:  http://localhost:5091/
+IIS:      http://localhost:8091/
+Docker:   http://localhost:8081/
+~~~
+
+Los números son convenciones del laboratorio; si has tenido que utilizar puertos alternativos, adapta las solicitudes y anota cuál usaste realmente.
+
+Para cada modalidad identifica **quién inicia el proceso**, **dónde están los artefactos** y **qué dirección atiende el navegador**. Si dos direcciones muestran la misma portada, explica por qué eso no demuestra que sean el mismo proceso. La coincidencia visual procede de que comparten una aplicación, no de que compartan necesariamente una instancia.
+
+### Paso P5.5.34. Caso integrador: la portada responde pero una dependencia falta
+
+Arranca la publicación MVC mediante el mecanismo que quieras comparar, utilizando explícitamente el modo sin LocalDB. Solicita una portada y la ruta de productos.
+
+Espera 200 en la portada y 503 en Productos. Después responde: ¿qué parte del despliegue ha quedado demostrada y qué parte no? Hemos demostrado que el host ASP.NET Core puede servir la portada en ese entorno; no hemos demostrado que el CRUD EF Core utilice la base real.
+
+La misma interpretación corresponde al ensayo IIS y al contenedor Linux. La causa de la limitación está documentada en la configuración de aplicación y no requiere modificar `ProductoFormulario`, `AppDbContext` ni el modelo de producto.
+
+**Respuesta inadmisible:** «Como el servidor devuelve alguna página, toda la aplicación está desplegada». **Respuesta también inadmisible:** «Como Productos devuelve 503, el servidor HTTP no responde». Ambas contradicen el conjunto de observaciones.
+
+### Paso P5.5.35. Caso integrador: un cambio de código no llega al navegador
+
+Imagina que el docente modifica la vista `Home/Index.cshtml` del proyecto fuente mientras una versión anterior ya está publicada en IIS o empaquetada en una imagen Docker. El navegador continúa mostrando la versión previa.
+
+Antes de reescribir la vista, identifica qué artefactos está utilizando el servidor. En IIS comprueba la ruta física y la fecha de la publicación. En Docker comprueba qué imagen originó el contenedor. En Kestrel comprueba desde qué carpeta se inició la DLL. Solo después decide si hay que publicar de nuevo, reconstruir la imagen o iniciar otro proceso.
+
+El recorrido de P5.2 con dos carpetas de publicación ya mostró el comportamiento. Ahora la misma idea sirve para explicar un problema de despliegue sin añadir otra aplicación ni otro lenguaje.
+
+**Pregunta razonada:** ¿por qué modificar una vista en Visual Studio no puede garantizar que un contenedor ya creado cambie de contenido? Porque el contenedor utiliza los archivos de la imagen construida anteriormente, no una conexión viva con la carpeta de desarrollo.
+
+### Paso P5.5.36. Caso integrador: clasificar tres errores de una misma URL
+
+Considera tres resultados posibles al solicitar `/Productos/Estado`:
+
+En el primero no existe un proceso accesible en el puerto consultado. El navegador no logra establecer conexión. Revisa la instancia, la escucha y el mapeo externo si se trata de Docker.
+
+En el segundo el servidor responde 404. Ya existe comunicación HTTP, pero el recurso solicitado no se encontró. Comprueba que ejecutas la versión correcta de MVC y que has escrito la ruta prevista.
+
+En el tercero el servidor responde 200 con `Catalogo MVC disponible`. Se ha demostrado una ruta de controlador específica. Aún falta comprobar otras funciones si queremos afirmarlas, especialmente las que dependen de SQL.
+
+La diferencia enseña que un síntoma genérico como «no abre» no es información suficiente. Se necesitan dirección efectiva, código HTTP y contenido de la respuesta.
+
+### Paso P5.5.37. Caso integrador: comparar un CSS con una acción de controlador
+
+Solicita tanto `/` como `/css/site.css` en cualquiera de las modalidades de hospedaje que tengas activas. Si la página principal responde y el CSS falta, revisa el directorio publicado y `wwwroot`. Si la ruta de Estado tampoco responde, puede existir un problema diferente en el host, el enrutamiento o la versión desplegada.
+
+El experimento controlado de P5.4 con el CSS retirado mostró que un recurso estático puede faltar mientras MVC continúa funcionando. En Docker la causa puede ser que la imagen se construyó desde un contexto incorrecto o que no incluyó la publicación esperada. En Kestrel puede ser que se esté ejecutando una carpeta de salida incompleta.
+
+El criterio de comprobación es común, aunque el mecanismo para localizar los archivos publicados cambie. No debemos atribuir todos los fallos visuales al controlador Home/Index.
+
+### Paso P5.5.38. Caso integrador: interpretar un puerto ocupado sin borrar recursos
+
+Si Kestrel no inicia porque 5091 está ocupado, revisa qué proceso escucha. Si Docker no puede publicar el puerto exterior 8081, comprueba si existe otra instancia utilizando esa dirección. Si IIS no puede activar un binding en 8091, revisa los sitios que ya utilizan el puerto.
+
+La corrección adecuada puede consistir en detener **un recurso propio** que ya no se necesite o en elegir un puerto alternativo. No debe consistir en borrar sitios ajenos, matar indiscriminadamente procesos o eliminar todos los contenedores del equipo.
+
+Esta comparación vincula tres mecanismos a una misma noción de sistema operativo: las direcciones de escucha son recursos compartidos. La aplicación MVC no necesita nuevos controladores para resolver una colisión exterior.
+
+### Paso P5.5.39. Caso integrador: elegir la siguiente acción sin modificar código
+
+Ante un fallo, elige primero una observación:
+
+| Evidencia inicial | Comprobación siguiente razonable |
+|---|---|
+| No hay respuesta HTTP | Proceso, puerto y dirección de escucha |
+| 404 de un endpoint MVC | URL, routing y publicación utilizada |
+| HTML 200 con CSS 404 | `wwwroot`, ruta de recurso y archivos publicados |
+| 503 en Productos con modo sin base | Confirmar limitación intencionada |
+| Imagen Docker disponible sin contenedor | Revisar `docker run` y salida |
+| Sitio IIS Started sin HTML | Revisar ANCM, runtime y carpeta física |
+| Portada de una versión antigua | Identificar artefactos del proceso activo |
+
+No hay una única orden que repare todos estos escenarios. Cada comprobación busca información nueva acerca de una capa concreta. Esta es la competencia práctica central del módulo: relacionar evidencia con una decisión proporcionada.
+
+### Paso P5.5.40. Restituir la infraestructura compartida al terminar
+
+Detén los procesos Kestrel que hayas arrancado y libera sus puertos. Si utilizaste Docker, comprueba que el contenedor del ensayo está detenido; no necesitas eliminar la imagen si el docente desea conservarla para futuras repeticiones. Si creaste un sitio IIS adicional, informa de su nombre, binding y pool para que el docente decida su conservación o retirada.
+
+Restaura todos los archivos de proyecto que hubieras modificado temporalmente mediante variantes; no dejes un Dockerfile a medio construir ni una API que devuelve respuestas de diagnóstico. Conserva el proyecto MVC A con su proveedor SQL Server y la aplicación Blazor B con su servicio HTTP tipado.
+
+La restauración garantiza que otra persona pueda empezar desde un estado conocido y reproducir los resultados del manual. El objetivo no es una limpieza destructiva de la máquina, sino retirar únicamente las condiciones temporales del ensayo.
+
+### Paso P5.5.41. Explicar el recorrido sin depender de las capturas de pantalla
+
+Como síntesis final, describe una de las tres modalidades de hospedaje en un párrafo que relacione el proyecto, la publicación, el proceso o contenedor, el puerto y la respuesta HTTP. Añade después una segunda frase que identifique la dependencia de datos y su disponibilidad real.
+
+Un ejemplo correcto para Docker diría que se construyó una imagen multietapa de MVC A, se inició un contenedor Linux que ejecuta ASP.NET Core y se comprobó la portada a través de un puerto publicado desde Windows. Añadiría que el CRUD no se probó porque el ensayo utilizó explícitamente el modo sin LocalDB.
+
+El alumno que puede formular estas afirmaciones ha comprendido más que una receta de comandos: sabe delimitar el resultado de una publicación y evitar atribuirle capacidades no comprobadas. Con ello concluye el recorrido didáctico del M05 sin incorporar contenidos ajenos al temario acordado.
+
+
+
 ### Ampliación autónoma P5.5: una avería diferente en cada capa
 
 Estudia estos tres casos y expresa la acción correctiva más pequeña:
