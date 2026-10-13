@@ -2851,7 +2851,7 @@ public class ProductosController : Controller
 }
 ~~~
 
-**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.4. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+**Cómo interviene este controlador en P1.4.** `Index` entrega la colección que necesita el listado; `Estado` permite comparar una respuesta de texto con una vista; `Detalle(int id)` decide entre `BadRequest`, `NotFound` y `View(producto)`; y `Ficha(int id)` demuestra que una ruta por atributos puede reutilizar la misma vista y el mismo modelo. La colección común evita que cada acción invente productos distintos: cambia la forma de llegar al recurso, no el dominio que se está mostrando.
 
 ### P1.4 — Program.cs
 
@@ -2878,7 +2878,7 @@ app.MapControllerRoute(
 app.Run();
 ~~~
 
-**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.4. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+**Cómo interviene `Program.cs` en P1.4.** El patrón `{controller=Home}/{action=Index}/{id?}` permite que `/Productos/Detalle/2` entregue `2` al parámetro `id` de la acción. El segmento opcional explica por qué la convención admite URLs sin identificador cuando la acción correspondiente puede atenderlas. Las rutas por atributos de `ProductosController` conviven con esta convención: no sustituyen el patrón global, añaden otras plantillas que el sistema de routing también puede seleccionar.
 
 ### P1.4 — Views/Productos/Detalle.cshtml
 
@@ -2898,7 +2898,7 @@ app.Run();
 <p><a href="/Productos">Volver al catálogo</a></p>
 ~~~
 
-**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.4. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+**Cómo interviene esta vista en P1.4.** `@model Producto` establece que la vista solo puede representar un producto concreto. Cuando `Detalle` o `Ficha` encuentran el identificador, pasan ese mismo objeto a `View(...)` y Razor lee `Id`, `Nombre` y `Precio`. Si la acción devuelve `BadRequest` o `NotFound`, esta vista ni siquiera se ejecuta; por eso el código de presentación no debe intentar resolver por su cuenta un identificador inválido o inexistente.
 
 ### P1.4 — Views/Productos/Index.cshtml
 
@@ -2933,7 +2933,7 @@ else
 }
 ~~~
 
-**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.4. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+**Cómo interviene el listado en P1.4.** El `foreach` ya dispone de cada `Producto`; al activar el enlace, incorpora `producto.Id` a la URL de detalle. Ese valor viaja después por routing hasta el parámetro `id` del controlador, que vuelve a localizar el objeto antes de enviarlo a la vista tipada. El listado inicia la navegación, pero no decide si el identificador es válido ni construye la respuesta 404.
 
 ### P1.4 — Views/Shared/_Layout.cshtml
 
@@ -2968,7 +2968,7 @@ else
 </html>
 ~~~
 
-**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.4. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+**Cómo interviene el layout en P1.4.** `_Layout.cshtml` conserva una única estructura HTML y una navegación común para todas las vistas. `@RenderBody()` marca el lugar donde se inserta `Index` o `Detalle`; el layout no recibe el `id` del producto ni decide qué acción se ejecuta. Así se separa la navegación global de la lógica de routing y de la representación específica de cada producto.
 
 ### P1.4 — README.md
 
@@ -3004,7 +3004,7 @@ En el estado inicial funcionan `/` y `/Productos`, pero aún no se han habilitad
 Los bloques están **incluidos en este proyecto** y se explican con el código completo en la sección P1.4 de `../../../PRACTICAS/M01_PRACTICAS.md`.
 ~~~~
 
-**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.4. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+**Cómo utilizar este `README.md`.** Este archivo no participa en el pipeline de ASP.NET Core. Su función es dejar reproducible el estado didáctico del proyecto: qué bloques están inicialmente comentados, en qué orden se activan y qué URL permite comprobar cada cambio. Los comandos y resultados esperados son una guía de ejecución; la lógica que produce esos resultados sigue estando en `Program.cs`, el controlador y las vistas.
 
 ## Aplicación autónoma P1.4 — diseñar una búsqueda por nombre y reutilizar una vista
 
@@ -3925,7 +3925,7 @@ public class ProductosController : Controller
 }
 ~~~
 
-**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+**Cómo interviene este controlador en P1.5.** El controlador conserva las acciones y resultados HTTP construidos en P1.4 mientras la práctica cambia la capa de presentación. `Index` continúa entregando una colección y `Detalle`/`Ficha` un `Producto` individual; precisamente esos modelos permiten que las vistas y la parcial se reutilicen sin trasladar lógica de acceso o routing a Razor. Que el controlador apenas cambie es una evidencia útil de separación de responsabilidades.
 
 ### P1.5 — Views/Productos/Detalle.cshtml
 
@@ -3960,7 +3960,7 @@ PASO 1.5.3 (fin) *@
 PASO 1.5.5 (fin) *@
 ~~~
 
-**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+**Cómo interviene `Detalle.cshtml` en P1.5.** La vista sigue recibiendo un único `Producto`, pero ahora puede declarar la sección `NotasPagina` y reutilizar `_TarjetaProducto` con `model="Model"`. La sección aporta contenido exclusivo de esta página al layout; la parcial representa el mismo producto con un fragmento reutilizable. Son dos mecanismos de composición distintos y ninguno obliga al controlador a conocer cómo se organiza el HTML.
 
 ### P1.5 — Views/Productos/Index.cshtml
 
@@ -4012,7 +4012,7 @@ else
 }
 ~~~
 
-**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+**Cómo interviene `Index.cshtml` en P1.5.** La vista recibe la colección completa, aplica una condición Razor sobre el estado del catálogo y, al activar el bloque de tarjetas, recorre los productos pasando uno a uno a `_TarjetaProducto`. El bucle decide cuántas veces se reutiliza la parcial; la parcial decide cómo se representa cada elemento. Los datos siguen llegando desde `ProductosController`, de modo que la vista no crea un segundo origen de información.
 
 ### P1.5 — Views/Shared/_TarjetaProducto.cshtml
 
@@ -4039,7 +4039,7 @@ else
 </article>
 ~~~
 
-**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+**Cómo interviene `_TarjetaProducto.cshtml` en P1.5.** Su contrato es un único `Producto`: con ese objeto genera nombre, precio y enlace de detalle sin conocer si ha sido invocada desde el listado o desde una ficha. El reto añade aquí la condición de «precio económico» para que una sola regla de presentación afecte a ambos lugares. Si la misma condición se copiara en `Index` y `Detalle`, cualquier cambio futuro tendría que mantenerse dos veces.
 
 ### P1.5 — Views/Shared/_Layout.cshtml
 
@@ -4076,7 +4076,7 @@ else
 </html>
 ~~~
 
-**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+**Cómo interviene `_Layout.cshtml` en P1.5.** El layout continúa envolviendo todas las vistas mediante `@RenderBody()` y añade una zona opcional con `RenderSectionAsync("NotasPagina", required: false)`. Al ser opcional, `Detalle` puede aportar notas sin obligar a `Index` ni al resto de páginas a declarar la sección. Este comportamiento pertenece a la composición de la interfaz, no al routing ni al modelo de productos.
 
 ### P1.5 — wwwroot/css/site.css
 
@@ -4096,7 +4096,7 @@ section { border-left: 4px solid #16324f; padding-left: 1rem; }
 footer { text-align: center; font-size: 0.9rem; color: #4b5563; padding: 2rem; }
 ~~~
 
-**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+**Cómo interviene `site.css` en P1.5.** Las reglas de `.tarjeta-producto`, `.etiqueta-economico` y `#notas-del-layout` se aplican al HTML que generan la parcial y el layout. El archivo se sirve como recurso estático y no ejecuta lógica C# ni Razor: si una tarjeta no aparece, primero debe comprobarse que Razor la haya generado; si aparece sin el aspecto esperado, entonces se investiga la carga y los selectores CSS.
 
 ### P1.5 — README.md
 
@@ -4129,7 +4129,7 @@ dotnet run --no-launch-profile --urls http://localhost:5091
 En `../../../PRACTICAS/M01_PRACTICAS.md` (sección P1.5) se explican todas las instrucciones, el código exacto, su comportamiento y los resultados esperados.
 ~~~~
 
-**Cómo entenderlo en funcionamiento.** Predice qué sucede si ejecutas el caso descrito en los pasos de P1.5. Distingue la parte responsable del enrutamiento, la construcción del modelo y la presentación Razor; ninguna de estas responsabilidades se reemplaza por otro archivo de prueba independiente.
+**Cómo utilizar este `README.md`.** El README documenta la secuencia reproducible de P1.5: qué capacidades de P1.4 ya están activas, qué bloques de Razor se habilitan ahora y qué resultado debe observarse. No forma parte de la ejecución de la aplicación. Su utilidad es impedir que el alumno confunda el estado inicial con el final y ofrecer un mapa de activación coherente con las instrucciones del cuaderno.
 
 ## Reto: aplicación de los pasos
 
