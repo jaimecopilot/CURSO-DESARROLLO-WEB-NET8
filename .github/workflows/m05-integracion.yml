@@ -1,0 +1,6 @@
+name: M05 - Blazor API Kestrel y Docker reales
+on:
+  push:
+    branches: [desarrollo/m05-consolidacion-despliegue]
+    paths:
+      - 'M05_CONSOLIDACION_DESPLIEGUE/PROYECTO
