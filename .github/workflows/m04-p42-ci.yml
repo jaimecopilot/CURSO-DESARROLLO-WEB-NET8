@@ -1,0 +1,35 @@
+name: M04 P4.2 - servicio tipado y regresion
+on:
+  push:
+    branches:
+      - desarrollo/m04-apis-seguridad-trazable
+    paths:
+      - 'M04_APIS_SEGURIDAD/PROYECTO/4.2/**'
+      - '.github/workflows/m04-p42-ci.yml'
+  workflow_dispatch:
+jobs:
+  p42:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Compilar API disponible desde P4.1
+        run: dotnet build M04_APIS_SEGURIDAD/PROYECTO/4.1/CursoWeb.ProductosApi/CursoWeb.ProductosApi.csproj -c Release
+      - name: Compilar Blazor refactorizado P4.2
+        run: dotnet build M04_APIS_SEGURIDAD/PROYECTO/4.2/CursoWeb.Blazor/CursoWeb.Blazor.csproj -c Release
+      - name: Verificar limite entre componente y servicio
+        shell: bash
+        run: |
+          set -euo pipefail
+          base=M04_APIS_SEGURIDAD/PROYECTO/4.2/CursoWeb.Blazor
+          grep -q '@inject IProductosApiService CatalogoApi' "$base/Components/Pages/CatalogoRemoto.razor"
+          grep -q 'AddHttpClient<IProductosApiService, ProductosApiService>' "$base/Program.cs"
+          grep -q 'GetFromJsonAsync' "$base/Services/ProductosApiService.cs"
+          grep -q 'PostAsJsonAsync' "$base/Services/ProductosApiService.cs"
+          if grep -E 'Clientes.CreateClient|PostAsJsonAsync|GetFromJsonAsync' "$base/Components/Pages/CatalogoRemoto.razor"; then
+            echo 'HTTP sigue incrustado en la pantalla'
+            exit 1
+          fi
+          test -f "$base/Components/Pages/Productos.razor"
