@@ -1349,6 +1349,186 @@ Cuando sustituimos el registro, las dos primeras decisiones son diferentes: el c
 Esa narración deja claro que la inyección de dependencias no es una tecnología aislada del comportamiento. Se utiliza para definir quién decide qué implementación proporciona los productos. Esa decisión permite refactorizar, enseñar y probar separadamente componentes y comunicación.
 
 
+
+### Ampliación autónoma P4.2 — Probar un cliente HTTP sin arrancar una API
+
+El servicio simulado que hemos estudiado en P4.2 sustituye por completo ProductosApiService. Es útil para comprobar que el componente se desacopla de la comunicación, pero no demuestra que la implementación HTTP concreta utilice el verbo y la ruta correctos. En esta ampliación crearemos un **cliente de pruebas muy pequeño con un HttpMessageHandler controlado** para comprobar esa segunda responsabilidad.
+
+No utilizaremos un framework de mocking ni instalaremos librerías adicionales. Trabajaremos con C# y HttpClient, que el alumnado ya conoce. El objetivo no es automatizar toda una aplicación, sino observar qué parte del comportamiento puede probarse sin disponer de un servidor escuchando.
+
+#### Paso H1. Crear una aplicación de consola de ensayo
+
+Desde PowerShell crea un proyecto independiente:
+
+~~~powershell
+dotnet new console -n ClienteHttpLaboratorio -f net8.0
+cd ClienteHttpLaboratorio
+~~~
+
+No copies todo el proyecto Blazor a esta nueva carpeta. El laboratorio solo necesita un cliente HTTP, los DTO mínimos y un manejador que devuelva respuestas simuladas. Evitar dependencias innecesarias hace que el alumno pueda aislar el concepto.
+
+El programa no debe modificar las rutas del proyecto ASP.NET Core ni ocupar el puerto 5081. Toda la respuesta se producirá dentro del propio proceso de consola, por lo que puede ejecutarse aun cuando la API esté detenida.
+
+#### Paso H2. Comprender el contrato que queremos comprobar
+
+Queremos que una operación ObtenerAsync envíe GET a /api/productos y convierta un JSON de lista en una colección de DTO. El resultado conocido de la prueba será un objeto Cuaderno con ID 1 y precio 2,50.
+
+La API real no interviene. Lo que vamos a comprobar es que el código de cliente construye la solicitud prevista y sabe interpretar una respuesta con el cuerpo que hemos acordado.
+
+Para realizar esta observación, HttpClient puede recibir un HttpMessageHandler. Nuestro manejador registrará el método y la ruta y devolverá un HttpResponseMessage definido por el propio ejercicio.
+
+#### Paso H3. Construir Program.cs íntegro
+
+Sustituye el contenido de Program.cs por el siguiente programa, que contiene los tipos mínimos necesarios. Es autocontenido y no requiere paquetes externos:
+
+~~~csharp
+using System.Net;
+using System.Net.Http.Json;
+using System.Text;
+
+using var manejador = new ManejadorDeLaboratorio();
+using var cliente = new HttpClient(manejador)
+{
+    BaseAddress = new Uri("http://laboratorio.local/")
+};
+
+var productos = await ObtenerAsync(cliente);
+if (productos.Count != 1 || productos[0].Nombre != "Cuaderno")
+    throw new InvalidOperationException("El JSON no coincide con el DTO.");
+
+if (manejador.UltimoMetodo != HttpMethod.Get ||
+    manejador.UltimaRuta != "/api/productos")
+    throw new InvalidOperationException("La solicitud no usa el contrato.");
+
+Console.WriteLine("GET y deserialización correctos.");
+
+static async Task<List<ProductoDto>> ObtenerAsync(HttpClient cliente)
+{
+    return await cliente.GetFromJsonAsync<List<ProductoDto>>(
+        "api/productos") ?? [];
+}
+
+record ProductoDto(int Id, string Nombre, decimal Precio);
+
+sealed class ManejadorDeLaboratorio : HttpMessageHandler
+{
+    public HttpMethod? UltimoMetodo { get; private set; }
+    public string? UltimaRuta { get; private set; }
+
+    protected override Task<HttpResponseMessage> SendAsync(
+        HttpRequestMessage solicitud,
+        CancellationToken cancelacion)
+    {
+        UltimoMetodo = solicitud.Method;
+        UltimaRuta = solicitud.RequestUri?.AbsolutePath;
+
+        var respuesta = new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(
+                "[{\"id\":1,\"nombre\":\"Cuaderno\",\"precio\":2.50}]",
+                Encoding.UTF8,
+                "application/json")
+        };
+        return Task.FromResult(respuesta);
+    }
+}
+~~~
+
+El método ObtenerAsync utiliza la misma operación HTTP que la primera versión del componente, pero no presenta HTML. La clase ManejadorDeLaboratorio hereda de HttpMessageHandler y decide qué HttpResponseMessage devolver. El programa comprueba los datos deserializados y la forma de la solicitud.
+
+Si el alumno modifica la ruta a api/catalogo, la prueba debe detectar que UltimaRuta ya no es /api/productos. Si modifica el contenido JSON para que nombre sea una propiedad diferente, debe investigar la correspondencia con ProductoDto.
+
+#### Paso H4. Ejecutar sin servidor
+
+Compila y ejecuta:
+
+~~~powershell
+dotnet run
+~~~
+
+La salida esperada es «GET y deserialización correctos». Detén o mantén apagada la API del curso y ejecuta de nuevo: el resultado debe ser el mismo. El host laboratorio.local no está funcionando como un servidor real; el manejador está suministrando toda la respuesta.
+
+La observación es importante: una comprobación de cliente HTTP no necesita siempre un servidor remoto. Sin embargo, tampoco demuestra por sí sola que una API exista o cumpla realmente el contrato. Es una prueba de un límite, no del sistema completo.
+
+#### Paso H5. Provocar un cambio de ruta
+
+Localiza la cadena api/productos en ObtenerAsync y sustitúyela temporalmente por api/catalogo. El manejador seguirá devolviendo una lista, porque en nuestra implementación de prueba no verifica por sí mismo la ruta; registra lo que recibe. La comprobación posterior debe detectar que UltimaRuta ya no coincide con el contrato esperado.
+
+Esto permite explicar por qué una prueba necesita aserciones. Que un manejador de prueba devuelva 200 incondicionalmente no significa que la solicitud haya sido correcta. Tenemos que comprobar de manera explícita el verbo y la ruta, de lo contrario el programa podría aceptar una llamada distinta de la que pretendíamos construir.
+
+Restaura api/productos antes de continuar.
+
+#### Paso H6. Provocar una respuesta 404 controlada
+
+En el manejador sustituye temporalmente la creación de la respuesta por:
+
+~~~csharp
+var respuesta = new HttpResponseMessage(
+    HttpStatusCode.NotFound)
+{
+    Content = new StringContent("Recurso inexistente")
+};
+return Task.FromResult(respuesta);
+~~~
+
+Si mantienes GetFromJsonAsync, la operación debe fallar por el estado HTTP no satisfactorio. El programa ya no imprimirá la confirmación de GET correcto. Este experimento enseña que el error no depende de una desconexión: el manejador ha devuelto una respuesta HTTP 404 de manera explícita.
+
+Restablece después la respuesta 200 de la versión original. No crees un segundo método SendAsync con la misma firma dentro de la clase, porque el ejercicio utiliza una implementación alternativa del mismo comportamiento.
+
+#### Paso H7. Provocar un JSON incompatible
+
+Deja el estado HTTP en 200, pero cambia el contenido a:
+
+~~~json
+{
+  "cantidad": 1
+}
+~~~
+
+El código ObtenerAsync sigue intentando convertir la respuesta a List<ProductoDto>. La respuesta puede ser JSON válido, pero no corresponde a una lista. Debe producirse un fallo de deserialización.
+
+Esta prueba demuestra una segunda frontera: un estado 200 no garantiza que el contenido tenga la forma contratada. Restaurar la lista correcta soluciona el problema sin cambiar el método HTTP ni la dirección base.
+
+#### Paso H8. Probar una colección vacía auténtica
+
+Sustituye el cuerpo simulado por [] y adapta únicamente la comprobación de datos del programa para aceptar cero elementos. El método de deserialización debe devolver una lista vacía, que no es un error técnico.
+
+Distingue esta situación de 404 y JSON incompatible. En el primer caso el servidor simulado ha respondido correctamente a una consulta con cero resultados. En el segundo ha rechazado la solicitud y en el tercero no cumplía el contrato de datos.
+
+Vuelve después a la respuesta de Cuaderno y restaura las comprobaciones originales.
+
+#### Paso H9. Conectar la prueba con IProductosApiService
+
+El programa de consola era deliberadamente pequeño y contiene una función local ObtenerAsync. En el proyecto real, ProductosApiService utiliza un HttpClient suministrado por DI y ofrece operaciones mediante IProductosApiService.
+
+La idea es equivalente: podemos pasar a esa implementación un HttpClient construido con un manejador de prueba, siempre que configuremos la dirección base apropiadamente, y observar el verbo y la ruta que genera. No hace falta copiar un framework de pruebas completo dentro del curso para comprender el principio.
+
+El alumno debe explicar por qué es útil tener una capa dedicada a HTTP: el cliente puede examinarse por separado de Razor, y la UI puede utilizar una implementación alternativa de su interfaz. Son dos modalidades distintas de sustitución, cada una con una finalidad concreta.
+
+#### Paso H10. Contrastar una prueba sin red con una integración real
+
+Cuando hayas restaurado el programa, inicia la API de 4.3 en 5081 y consulta GET /api/productos con curl.exe o Visual Studio. La respuesta real también debe ser una lista compatible, pero ahora intervienen Kestrel, el enrutamiento de ASP.NET Core, el diccionario de productos y la serialización del servidor.
+
+Compara las preguntas:
+
+- La consola con manejador controlado comprueba qué solicitud construye el cliente y cómo interpreta un cuerpo conocido.
+- La petición directa al servidor comprueba cómo responde la API para una entrada dada.
+- La página Blazor prueba cómo colaboran componente, servicio y API durante una interacción real.
+
+No intercambies esas evidencias como si fueran idénticas. Una prueba exitosa del cliente no corrige un endpoint inexistente, del mismo modo que un GET directo correcto no demuestra automáticamente que la pantalla muestre los datos.
+
+### P4.2 — Matriz de observaciones del manejador
+
+| Variante | Código HTTP | Cuerpo | Resultado previsto |
+|---|---|---|---|
+| Respuesta de referencia | 200 | Lista con Cuaderno | DTO correcto |
+| Ruta cliente cambiada | 200 simulado | Lista con Cuaderno | Falla la aserción de ruta |
+| Recurso rechazado | 404 | Texto | Falla por estado HTTP |
+| Estructura incompatible | 200 | Objeto resumen | Falla por deserialización |
+| Catálogo vacío | 200 | [] | Lista vacía válida |
+
+Esta ampliación termina cuando el estudiante puede distinguir una prueba controlada del cliente HTTP de una prueba de integración con un servidor real. La distinción evita atribuir garantías que una comprobación nunca llegó a observar.
+
 ### Consolidación
 
 El resultado de P4.2 no es una pantalla nueva, sino una frontera de responsabilidades: el componente presenta y gestiona el estado; `IProductosApiService` expresa las operaciones que necesita; `ProductosApiService` resuelve el transporte; y la API mantiene las reglas del servidor. En P4.3 estudiaremos y modificaremos esta última.
