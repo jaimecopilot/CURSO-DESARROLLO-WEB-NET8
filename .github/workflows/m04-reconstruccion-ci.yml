@@ -1,0 +1,84 @@
+name: M04 reconstrucción - fuente, API del alumno y Blazor
+on:
+  push:
+    branches: [desarrollo/m04-reescritura-docente-integral]
+    paths:
+      - 'M04_APIS_SEGURIDAD/**'
+      - '.github/workflows/m04-reconstruccion-ci.yml'
+  workflow_dispatch:
+jobs:
+  reconstruccion:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Compilar cliente y API de cada capítulo
+        shell: bash
+        run: |
+          set -euo pipefail
+          for point in 4.1 4.2 4.3 4.4; do
+            dotnet build "M04_APIS_SEGURIDAD/PROYECTO/$point/CursoWeb.Blazor/CursoWeb.Blazor.csproj" -c Release
+          done
+          for point in 4.1 4.3; do
+            dotnet build "M04_APIS_SEGURIDAD/PROYECTO/$point/CursoWeb.ProductosApi/CursoWeb.ProductosApi.csproj" -c Release
+          done
+      - name: Construir desde cero API de la práctica (estado final P4.3)
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/curso-api-alumno
+          cd /tmp/curso-api-alumno
+          dotnet new web -n CursoWeb.ProductosApi -f net8.0 --no-restore
+          cat > CursoWeb.ProductosApi/Program.cs <<'CS'
+          using System.Collections.Concurrent;
+          var builder = WebApplication.CreateBuilder(args);
+          var app = builder.Build();
+          var productos = new ConcurrentDictionary<int, ProductoApi>();
+          productos[1] = new ProductoApi(1, "Cuaderno", 2.50m);
+          productos[2] = new ProductoApi(2, "Lápiz", 0.80m);
+          var siguienteId = 2;
+          app.MapGet("/", () => Results.Ok("API de Productos disponible"));
+          app.MapGet("/api/productos", () => Results.Ok(productos.Values.OrderBy(p => p.Id)));
+          app.MapGet("/api/productos/{id:int}", (int id) =>
+              productos.TryGetValue(id, out var producto) ? Results.Ok(producto) : Results.NotFound());
+          app.MapPost("/api/productos", (CrearProductoApi entrada) =>
+          {
+              if (string.IsNullOrWhiteSpace(entrada.Nombre) || entrada.Precio <= 0)
+                  return Results.BadRequest("Nombre y precio deben ser válidos.");
+              var id = Interlocked.Increment(ref siguienteId);
+              var creado = new ProductoApi(id, entrada.Nombre.Trim(), entrada.Precio);
+              productos[id] = creado;
+              return Results.Created($"/api/productos/{id}", creado);
+          });
+          app.Run();
+          record ProductoApi(int Id, string Nombre, decimal Precio);
+          record CrearProductoApi(string Nombre, decimal Precio);
+          CS
+          dotnet build CursoWeb.ProductosApi/CursoWeb.ProductosApi.csproj -c Release
+      - name: Ejecutar GET POST y errores desde API creada desde cero
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet run --no-build -c Release --project /tmp/curso-api-alumno/CursoWeb.ProductosApi/CursoWeb.ProductosApi.csproj --urls http://127.0.0.1:5088 > /tmp/alumno-api.log 2>&1 &
+          pid=$!
+          trap 'kill "$pid" || true; cat /tmp/alumno-api.log' EXIT
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:5088/api/productos > /tmp/alumno-lista.json; then break; fi
+            sleep 1
+          done
+          python3 - <<'PY'
+          import json
+          x=json.load(open("/tmp/alumno-lista.json"))
+          assert len(x)==2 and x[0]["nombre"]=="Cuaderno",x
+          PY
+          status=$(curl -s -o /tmp/alumno-alta.json -w '%{http_code}' -H 'Content-Type: application/json' -d '{"nombre":"Regla","precio":1.75}' http://127.0.0.1:5088/api/productos)
+          test "$status" = "201"
+          python3 - <<'PY'
+          import json
+          x=json.load(open("/tmp/alumno-alta.json"))
+          assert x["id"]==3 and x["nombre"]=="Regla" and x["precio"]==1.75,x
+          PY
+          test "$(curl -s -o /dev/null -w '%{http_code}' -H 'Content-Type: application/json' -d '{"nombre":"","precio":0}' http://127.0.0.1:5088/api/productos)" = "400"
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:5088/api/productos/999)" = "404"
