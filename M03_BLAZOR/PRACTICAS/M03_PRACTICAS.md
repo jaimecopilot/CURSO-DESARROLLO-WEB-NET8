@@ -1211,7 +1211,7 @@ Localiza RETO INTEGRADOR 3.5.5 en el padre. Activa el bloque C# completo, que co
 
 El padre memoriza una tupla con el objeto y el índice que ocupaba, por lo que no tiene que construir un Producto de sustitución. Para recuperar ejecuta Insert sobre el índice guardado (siempre dentro del rango) y descarta la eliminación pendiente. No aparece un historial ilimitado: un segundo borrado antes de deshacer sobrescribe el registro anterior.
 
-Prueba este recorrido completo: inicialmente Cuaderno–Lápiz–Carpeta, con botón Deshacer deshabilitado; elimina Lápiz; observa dos tarjetas y el texto pendiente; pulsa Deshacer; recupera Cuaderno–Lápiz–Carpeta y el Id 2. Después modifica el nombre del producto recuperado y confirma que el editor y el buscador continúan funcionando, igual que antes de añadir callbacks.
+Prueba este recorrido completo: inicialmente Lápiz–Carpeta–Cuaderno, con botón Deshacer deshabilitado; elimina Lápiz; observa dos tarjetas y el texto pendiente; pulsa Deshacer; recupera Lápiz–Carpeta–Cuaderno y el Id 2. Después modifica el nombre del producto recuperado y confirma que el editor y el buscador continúan funcionando, igual que antes de añadir callbacks.
 
 ### 3.5.6 — Diagnosticar comportamientos sin simplificar el proyecto
 
