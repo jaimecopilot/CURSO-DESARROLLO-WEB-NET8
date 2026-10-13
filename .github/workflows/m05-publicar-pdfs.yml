@@ -1,0 +1,94 @@
+name: M05 - publicar PDF canónicos revisados
+on:
+  push:
+    branches: [desarrollo/m05-consolidacion-despliegue]
+    paths:
+      - 'M05_CONSOLIDACION_DESPLIEGUE/TEORIA/M05_TEORIA.md'
+      - 'M05_CONSOLIDACION_DESPLIEGUE/PRACTICAS/M05_PRACTICAS.md'
+      - 'M05_CONSOLIDACION_DESPLIEGUE/DOCS/generar_m05_pdf.py'
+      - '.github/workflows/m05-publicar-pdfs.yml'
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: m05-publicacion-pdf-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  publicar:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - name: Dependencias de documentos
+        run: |
+          python -m pip install 'markdown-it-py>=3,<5' 'pygments>=2.17,<3' 'weasyprint>=63,<69' 'pypdf>=5,<8' 'pymupdf>=1.24,<2' 'beautifulsoup4>=4.12,<5'
+          sudo apt-get update -qq
+          sudo apt-get install -y graphviz fonts-dejavu-core
+      - name: Generar y comprobar PDF desde Markdown canónicos
+        run: python M05_CONSOLIDACION_DESPLIEGUE/DOCS/generar_m05_pdf.py
+      - name: Puertas editoriales automáticas y renderizado de todas las páginas
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import fitz
+          from markdown_it import MarkdownIt
+          import sys
+          sys.path.insert(0,'M05_CONSOLIDACION_DESPLIEGUE/DOCS')
+          import generar_m05_pdf as g
+          assert 'font-size: 9.8pt; line-height: 1.46' in g.CSS
+          assert 'font-size: 8.2pt; line-height: 1.35' in g.CSS
+          assert 'font-size:12.3pt' not in g.CSS
+          assert 'font-size: 12.0pt' not in g.CSS
+          base=Path('M05_CONSOLIDACION_DESPLIEGUE')
+          for kind in ('TEORIA','PRACTICAS'):
+              md=(base/kind/f'M05_{kind}.md').read_text(encoding='utf-8')
+              assert chr(92)+chr(96) not in md, f'{kind}: código Markdown escapado'
+              fences=[x for x in MarkdownIt('commonmark').parse(md) if x.type=='fence']
+              assert len(fences)>=40, (kind,len(fences))
+              doc=fitz.open(base/kind/f'M05_{kind}.pdf')
+              # No imponer una cifra con tipografía ampliada: medir páginas honestamente.
+              assert 75 <= len(doc) <= 100, f"{kind}: incumple 75-100 páginas: {len(doc)}"
+              print(f'{kind}: extensión natural {len(doc)} páginas con tipografía M01')
+              assert len(doc[1].get_links())==5, f'{kind}: índice sin enlaces a capítulos'
+              assert len(doc[1].get_text().strip())>300, f'{kind}: página 2 insuficiente'
+              for i,page in enumerate(doc):
+                  assert page.get_text().strip(), f'{kind}: página {i+1} vacía'
+                  pix=page.get_pixmap(matrix=fitz.Matrix(.6,.6),alpha=False)
+                  assert pix.width>300 and pix.height>400
+              print(f'{kind}: {len(doc)} páginas, {len(fences)} bloques de código, índice navegable, ninguna página vacía')
+          PY
+      - name: Conservar PDF y evidencias de esta revisión
+        uses: actions/upload-artifact@v4
+        with:
+          name: m05-publicacion-final-pdfs-y-fidelidad
+          path: |
+            M05_CONSOLIDACION_DESPLIEGUE/TEORIA/M05_TEORIA.pdf
+            M05_CONSOLIDACION_DESPLIEGUE/PRACTICAS/M05_PRACTICAS.pdf
+            M05_CONSOLIDACION_DESPLIEGUE/TEORIA/M05_TEORIA.md
+            M05_CONSOLIDACION_DESPLIEGUE/PRACTICAS/M05_PRACTICAS.md
+            VERIFICACION_INTERNA/M05_PDFS_VALIDACION.md
+          if-no-files-found: error
+      - name: Publicar solo en esta rama y sin sobrescribir HEAD posterior
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add M05_CONSOLIDACION_DESPLIEGUE/TEORIA/M05_TEORIA.pdf M05_CONSOLIDACION_DESPLIEGUE/PRACTICAS/M05_PRACTICAS.pdf VERIFICACION_INTERNA/M05_PDFS_VALIDACION.md
+          if git diff --cached --quiet; then
+            echo "Los PDF ya están publicados y coinciden con los MD"
+          else
+            git commit -m "docs(m05): publicar PDFs canónicos tras controles documentales y técnicos"
+            remote_sha="$(git ls-remote origin "refs/heads/$GITHUB_REF_NAME" | cut -f1)"
+            if [ "$remote_sha" != "$GITHUB_SHA" ]; then
+              echo "::warning::La rama avanzó: no publicar PDF construidos con un HEAD anterior."
+              exit 0
+            fi
+            git push origin "HEAD:$GITHUB_REF_NAME"
+          fi
