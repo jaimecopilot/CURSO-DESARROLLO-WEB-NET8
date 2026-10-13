@@ -1658,6 +1658,143 @@ El conocimiento que debes conservar no es la posición de un botón de la consol
 
 
 
+
+### Paso P5.4.14. Identificar un sitio IIS con una consulta administrativa
+
+**Fundamento:** 5.4.16–5.4.18. El alumno ya ha creado el sitio mediante la interfaz gráfica. Ahora aprenderá a identificar los mismos objetos mediante PowerShell para comprobar que las opciones escogidas se han aplicado.
+
+Abre PowerShell con las autorizaciones que requiera el laboratorio IIS e importa el módulo:
+
+~~~powershell
+Import-Module WebAdministration
+~~~
+
+Consulta el sitio concreto sin modificarlo:
+
+~~~powershell
+Get-Website -Name "CursoWeb-M05" |
+    Select-Object Name, State, PhysicalPath, ApplicationPool
+~~~
+
+El resultado debe identificar el sitio, su estado, la ruta física publicada y el pool asignado. Una configuración correcta debería apuntar a `C:\CursoWeb\M05\IIS`, siempre que hayas utilizado la carpeta recomendada.
+
+Consulta después su binding:
+
+~~~powershell
+Get-WebBinding -Name "CursoWeb-M05" |
+    Select-Object Protocol, BindingInformation
+~~~
+
+No basta con reconocer la cadena `8091` en la salida. Relaciona protocolo, puerto y sitio. Si la URL se abre en otro puerto, puede estar utilizando un sitio diferente y la prueba ya no demuestra el mecanismo que pretendíamos estudiar.
+
+**Resultado observable:** el sitio existe y su configuración es coherente con los valores definidos en la práctica. La existencia del sitio todavía no prueba una respuesta HTTP de nuestra aplicación; esa es una comprobación independiente.
+
+### Paso P5.4.15. Preparar una variante ejecutable sin sustituir la enseñanza manual
+
+**Fundamento:** 5.4.19–5.4.22. La práctica principal utiliza el Administrador de IIS para que el alumno comprenda cada elemento. Después de realizarla y comprenderla, se puede estudiar una variante PowerShell completa incluida fuera del proyecto compilable.
+
+La variante se conserva en esta ruta:
+
+`M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/VARIANTES/P5.4_IIS/CrearSitioIis.ps1`
+
+No es un nuevo proyecto ASP.NET Core. Es un archivo de automatización limitado al **sitio docente del laboratorio**. Su finalidad es enseñar qué decisiones de interfaz gráfica pueden expresarse mediante comandos y cómo evitar sobrescribir una instalación ya existente.
+
+**Preparación obligatoria:** antes de usarla, confirma que Windows dispone de IIS y ASP.NET Core Hosting Bundle 8. Comprueba que el nombre de sitio y el pool elegidos no existen. Si ya completaste el recorrido principal y conservaste `CursoWeb-M05`, no ejecutes la variante con los nombres predeterminados: se ha diseñado para detectar y rechazar ese estado, no para reemplazar un sitio anterior.
+
+Puedes conservar el sitio previo y leer la variante sin ejecutarla, o utilizar otro nombre, pool y puerto autorizado exclusivamente para un ensayo adicional. Nunca cambies ni borres el Default Web Site para liberar un nombre de práctica.
+
+### Paso P5.4.16. Entender los parámetros de un ensayo reversible
+
+El archivo empieza con un conjunto de parámetros:
+
+~~~powershell
+param(
+    [string]$Proyecto = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\MVC\CursoWeb.Mvc\CursoWeb.Mvc.csproj",
+    [string]$Destino = "C:\CursoWeb\M05\IIS",
+    [int]$Puerto = 8091,
+    [string]$Sitio = "CursoWeb-M05",
+    [string]$Pool = "CursoWeb-M05-Pool"
+)
+~~~
+
+El alumno debe explicar cada entrada: dónde está el proyecto fuente, dónde estará la publicación, qué puerto utilizará IIS, cómo se identificará el sitio y qué pool administrará su proceso.
+
+La variante comprueba la existencia del proyecto antes de publicar. También comprueba si existen un sitio o pool con los nombres elegidos y si hay otro binding utilizando el puerto solicitado. En vez de eliminar recursos ajenos, produce un error descriptivo. Esa precaución es esencial para que una ampliación docente no destruya configuraciones de un equipo compartido.
+
+Para ensayar sin colisionar con el sitio principal, una ejecución posible en un host preparado sería:
+
+~~~powershell
+.\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\VARIANTES\P5.4_IIS\CrearSitioIis.ps1 `
+  -Proyecto ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\MVC\CursoWeb.Mvc\CursoWeb.Mvc.csproj" `
+  -Destino "C:\CursoWeb\M05\IIS-Ensayo" `
+  -Puerto 8094 `
+  -Sitio "CursoWeb-M05-Ensayo" `
+  -Pool "CursoWeb-M05-Ensayo-Pool"
+~~~
+
+Este ejemplo exige PowerShell con autorización administrativa y las características IIS ya preparadas. Se ejecuta desde la raíz del repositorio para que la ruta relativa del proyecto sea correcta. No se incluye una política para borrar automáticamente el sitio: el docente supervisa cualquier retirada de recursos de IIS después de comprobar sus nombres.
+
+### Paso P5.4.17. Reconocer las operaciones que lleva a cabo la variante
+
+En el archivo encontrarás una secuencia de acciones que corresponden a lo aprendido:
+
+- Importar `WebAdministration` para disponer de las órdenes administrativas IIS.
+- Rechazar un nombre de sitio o pool que ya exista, sin sobrescribirlo.
+- Comprobar que el puerto solicitado no tenga un binding HTTP incompatible.
+- Ejecutar `dotnet publish` para preparar la aplicación MVC original.
+- Comprobar que existen la DLL, `web.config` y el CSS publicado.
+- Escribir **solo en la carpeta publicada** un `appsettings.Production.json` que activa el modo sin LocalDB.
+- Crear un pool con `No Managed Code` y conceder permisos de lectura pertinentes a su identidad.
+- Crear el sitio, asociarlo al pool y comunicar su dirección local.
+
+Lee los comandos del archivo y señala la línea responsable de cada operación. No basta con responder que «el script despliega IIS». La competencia buscada es relacionar cada instrucción con un objeto administrativo y explicar qué pasaría si fallara.
+
+**Atención a LocalDB:** el script no da acceso a la base del usuario a la identidad IIS, ni pretende hacerlo. Mantiene la aplicación MVC y su proveedor SQL Server, pero activa el ensayo sin base para las rutas que no requieren persistencia.
+
+### Paso P5.4.18. Verificar la variante mediante solicitudes HTTP reales
+
+Si has ejecutado la variante con puerto 8094 y nombres alternativos, no uses por costumbre la URL 8091 del sitio principal. Abre las siguientes direcciones:
+
+~~~powershell
+curl.exe -i http://localhost:8094/
+curl.exe -i http://localhost:8094/Productos/Estado
+curl.exe -i http://localhost:8094/css/site.css
+curl.exe -i http://localhost:8094/Productos
+~~~
+
+Las tres primeras deberían responder satisfactoriamente cuando IIS, ANCM y la publicación están correctos. La última debe devolver 503 por el modo sin LocalDB que la variante configura. Un resultado diferente requiere comprobar la configuración efectiva del proceso; no se resuelve cambiando el proveedor EF Core.
+
+Después consulta la ruta física del sitio de ensayo:
+
+~~~powershell
+Get-Website -Name "CursoWeb-M05-Ensayo" |
+    Select-Object Name, State, PhysicalPath, ApplicationPool
+~~~
+
+Comprueba que corresponde al destino utilizado al ejecutar la variante. Si muestra otra carpeta, no puedes atribuir las respuestas del navegador a los archivos que pretendías publicar.
+
+### Paso P5.4.19. Explicar por qué la automatización no sustituye la práctica principal
+
+Es posible automatizar la creación de un sitio sin comprender qué significa un binding o un Application Pool. Por eso el aprendizaje comienza con la interfaz gráfica y continúa con una variante cuyos comandos ya pueden explicarse.
+
+El estudiante debe ser capaz de leer `New-Website` y relacionarlo con «Agregar sitio web», de reconocer la configuración `managedRuntimeVersion` del pool y de identificar por qué el módulo ASP.NET Core es necesario aunque IIS funcione con otras aplicaciones.
+
+Un fallo de `New-Website` por nombre duplicado no exige borrar un sitio existente a ciegas. Un error de publicación no debe resolverse instalando una base nueva. Una respuesta HTTP 503 en Productos, cuando se ha activado explícitamente el modo sin base, no representa un fallo de ANCM.
+
+La automatización solo es útil cuando preserva la comprensión del recorrido y evita introducir riesgos innecesarios en el entorno.
+
+### Paso P5.4.20. Documentar el estado final del hospedaje
+
+Al terminar el laboratorio IIS deben poder describirse cinco hechos independientes: qué carpeta contiene la publicación, qué sitio y binding utiliza IIS, bajo qué pool se ejecuta, qué módulo y runtime soportan ASP.NET Core 8 y qué respuesta produce una ruta conocida.
+
+No se exige instalar SQL Server bajo la identidad del pool ni convertir el CRUD de M02 en una aplicación sin persistencia. El proyecto original conserva su dependencia de LocalDB y puede reutilizarse en Windows con el contexto adecuado.
+
+Si utilizaste la variante adicional, entrega al docente los nombres concretos del sitio y el pool para decidir una retirada controlada. No suprimas recursos cuya pertenencia no puedas identificar. Conserva la carpeta de proyecto MVC A y, si el docente lo permite, el directorio publicado de referencia para comparar con el siguiente hospedaje.
+
+**Conclusión:** la publicación IIS no es una modificación del controlador MVC. Es un mecanismo de alojamiento que combina artefactos, sitio, binding, pool, módulo y permisos. La práctica queda comprendida cuando el alumno puede explicar todas esas piezas y demostrar una respuesta HTTP del sitio real.
+
+
+
 ### Ampliación autónoma P5.4: explicar una diferencia de proceso
 
 Compara la dirección 5091 utilizada en Kestrel con 8091 de IIS. Argumenta por qué ambos pueden servir la misma acción `HomeController.Index` sin modificar su código, pero dependen de procesos de arranque, identidad y permisos diferentes. Explica además por qué un fallo 503 de `/Productos` deliberadamente producido por el modo sin base no es una avería del módulo IIS.
