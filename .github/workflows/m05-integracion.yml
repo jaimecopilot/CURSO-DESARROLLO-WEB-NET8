@@ -63,6 +63,50 @@ jobs:
           assert a==200 and any(p["nombre"]=="Regla" for p in json.loads(data))
           print("GET 200/404, POST 201/400 y GET posterior: OK; host Blazor HTTP 200")
           PY
+
+      - name: Compilar y ejecutar escenarios reales de API vacía y JSON no válido
+        shell: bash
+        run: |
+          set -euo pipefail
+          carpeta=M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/API/CursoWeb.ProductosApi
+          variante=M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/VARIANTES/P5.1_DIAGNOSTICO/Program.cs
+          cp "$carpeta/Program.cs" "$RUNNER_TEMP/M05-Program-original.cs"
+          trap 'cp "$RUNNER_TEMP/M05-Program-original.cs" "$carpeta/Program.cs"' EXIT
+          cp "$variante" "$carpeta/Program.cs"
+          salida="$RUNNER_TEMP/M05-API-variante"
+          dotnet publish "$carpeta/CursoWeb.ProductosApi.csproj" -c Release -o "$salida"
+          (cd "$salida"; Laboratorio__EscenarioCatalogo=vacio dotnet CursoWeb.ProductosApi.dll --urls http://127.0.0.1:5095) > api-variante.log 2>&1 &
+          pid=$!
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:5095/api/productos > "$RUNNER_TEMP/catalogo.json"; then break; fi
+            sleep 1
+          done
+          python - <<'PY'
+          import json,os
+          with open(os.environ["RUNNER_TEMP"]+"/catalogo.json",encoding="utf-8") as f:
+              assert json.load(f)==[], "200 con catálogo vacío válido"
+          print("API variante: catálogo [] con respuesta HTTP 200")
+          PY
+          kill "$pid"
+          wait "$pid" || true
+          (cd "$salida"; Laboratorio__EscenarioCatalogo=json-invalido dotnet CursoWeb.ProductosApi.dll --urls http://127.0.0.1:5096) > api-invalida.log 2>&1 &
+          pid2=$!
+          trap 'kill "$pid2" 2>/dev/null || true; cp "$RUNNER_TEMP/M05-Program-original.cs" "$carpeta/Program.cs"' EXIT
+          for i in $(seq 1 40); do
+            if curl -fsS http://127.0.0.1:5096/api/productos > "$RUNNER_TEMP/no-json.json"; then break; fi
+            sleep 1
+          done
+          python - <<'PY'
+          import json,os
+          try:
+              with open(os.environ["RUNNER_TEMP"]+"/no-json.json",encoding="utf-8") as f:json.load(f)
+              raise AssertionError("La respuesta debió ser JSON inválido")
+          except json.JSONDecodeError:
+              print("API variante: HTTP 200 con JSON inválido reproducido")
+          PY
+          kill "$pid2"
+          wait "$pid2" || true
+
       - name: Publicar MVC y comprobar Kestrel real con modo sin LocalDB
         shell: bash
         run: |
