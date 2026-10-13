@@ -1,0 +1,79 @@
+name: M04 - Blazor JWT navegador E2E
+on:
+  push:
+    branches: [desarrollo/m04-reescritura-docente-integral]
+    paths:
+      - 'M04_APIS_SEGURIDAD/PROYECTO/4.5/**'
+      - 'M04_APIS_SEGURIDAD/PROYECTO/4.4/CursoWeb.Blazor/Components/Pages/PerfilJwt.razor'
+      - '.github/workflows/m04-identity-jwt-blazor-e2e.yml'
+  workflow_dispatch:
+jobs:
+  navegador-jwt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      ASPNETCORE_ENVIRONMENT: Development
+      DemoFormador__Email: formador@ejemplo.local
+      DemoFormador__Password: 'ClaveDemoSegura-2026!'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Crear secreto efímero e instalar Chromium
+        run: |
+          echo "Jwt__SigningKey=$(openssl rand -base64 48)" >> "$GITHUB_ENV"
+          npm install --no-save playwright@1.55.0
+          npx playwright install chromium --with-deps
+      - name: Compilar ambos servidores
+        run: |
+          dotnet build M04_APIS_SEGURIDAD/PROYECTO/4.5/CursoWeb.IdentityJwtApi/CursoWeb.IdentityJwtApi.csproj -c Release
+          dotnet build M04_APIS_SEGURIDAD/PROYECTO/4.4/CursoWeb.Blazor/CursoWeb.Blazor.csproj -c Release
+      - name: Login JWT, perfil, rol y olvidar token en navegador real
+        shell: bash
+        run: |
+          set -euo pipefail
+          dotnet run --no-build -c Release --project M04_APIS_SEGURIDAD/PROYECTO/4.5/CursoWeb.IdentityJwtApi/CursoWeb.IdentityJwtApi.csproj --urls http://127.0.0.1:5086 > /tmp/jwt-api.log 2>&1 &
+          api_pid=$!
+          dotnet run --no-build -c Release --no-launch-profile --project M04_APIS_SEGURIDAD/PROYECTO/4.4/CursoWeb.Blazor/CursoWeb.Blazor.csproj --urls http://127.0.0.1:5094 > /tmp/jwt-blazor.log 2>&1 &
+          blazor_pid=$!
+          trap 'kill "$api_pid" "$blazor_pid" || true; tail -n 40 /tmp/jwt-api.log; tail -n 40 /tmp/jwt-blazor.log' EXIT
+          for i in $(seq 1 50); do
+            if curl -fsS http://127.0.0.1:5086/ >/dev/null && curl -fsS http://127.0.0.1:5094/perfil-jwt >/dev/null; then break; fi
+            sleep 1
+          done
+          node - <<'JS'
+          const { chromium } = require('playwright');
+          (async ()=>{
+            const api='http://127.0.0.1:5086';
+            const reg=await fetch(api+'/auth/registro',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email:'alumno@example.test',password:'ClaveAlumnoSegura-2026!'})});
+            if(reg.status!==201)throw Error('Registro Identity='+reg.status);
+            const browser=await chromium.launch({headless:true});
+            try{
+              const page=await browser.newPage();
+              await page.goto('http://127.0.0.1:5094/perfil-jwt',{waitUntil:'domcontentloaded'});
+              await page.locator('#jwt-email').fill('alumno@example.test');
+              await page.locator('#jwt-clave').fill('ClaveAlumnoSegura-2026!');
+              await page.locator('#jwt-entrar').click();
+              await page.locator('#jwt-sesion').waitFor({timeout:30000});
+              await page.locator('#jwt-perfil').click();
+              await page.locator('#jwt-perfil-respuesta').waitFor({timeout:30000});
+              const perfil=await page.locator('#jwt-perfil-respuesta').innerText();
+              if(!perfil.includes('Alumno'))throw Error('El perfil no contiene Alumno: '+perfil);
+              await page.locator('#jwt-formador').click();
+              await page.locator('#jwt-estado').getByText('HTTP 403',{exact:false}).waitFor({timeout:30000});
+              await page.locator('#jwt-salir').click();
+              await page.locator('#jwt-sesion').waitFor({state:'detached',timeout:30000});
+              await page.locator('#jwt-email').fill('formador@ejemplo.local');
+              await page.locator('#jwt-clave').fill('ClaveDemoSegura-2026!');
+              await page.locator('#jwt-entrar').click();
+              await page.locator('#jwt-sesion').waitFor({timeout:30000});
+              await page.locator('#jwt-formador').click();
+              await page.locator('#jwt-estado').getByText('Acceso permitido',{exact:false}).waitFor({timeout:30000});
+              console.log('E2E Blazor Identity/JWT correcto: registro, token, perfil, 403, olvido local, Formador 200');
+            } finally{await browser.close();}
+          })().catch(err=>{console.error(err);process.exit(1)});
+          JS
