@@ -1,0 +1,69 @@
+@page "/diagnostico-http"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Net.Http.Json
+@inject IHttpClientFactory Clientes
+
+<h1>Diagnóstico HTTP · variante P4.1</h1>
+<p>Esta pantalla compara un GET válido, una ruta 404 y un fallo de conexión.</p>
+<div>
+    <button id="diagnostico-correcto" disabled="@consultando"
+            @onclick='() => ConsultarAsync("api/productos")'>GET catálogo</button>
+    <button id="diagnostico-404" disabled="@consultando"
+            @onclick='() => ConsultarAsync("api/no-existe")'>GET ruta inexistente</button>
+</div>
+@if (consultando)
+{
+    <p role="status">Consultando la API...</p>
+}
+<p id="diagnostico-resultado" role="status">@resultado</p>
+@if (productos.Count > 0)
+{
+    <ul>
+        @foreach (var producto in productos)
+        {
+            <li>@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+        }
+    </ul>
+}
+
+@code {
+    private bool consultando;
+    private string resultado = "Selecciona una petición.";
+    private List<ProductoDto> productos = [];
+
+    private async Task ConsultarAsync(string ruta)
+    {
+        consultando = true;
+        resultado = "Esperando respuesta...";
+        productos.Clear();
+        try
+        {
+            var cliente = Clientes.CreateClient("ProductosApi");
+            using var respuesta = await cliente.GetAsync(ruta);
+            if (!respuesta.IsSuccessStatusCode)
+            {
+                resultado = $"Respuesta HTTP {(int)respuesta.StatusCode} ({respuesta.ReasonPhrase}).";
+                return;
+            }
+            productos = await respuesta.Content
+                .ReadFromJsonAsync<List<ProductoDto>>() ?? [];
+            resultado = $"HTTP {(int)respuesta.StatusCode}: {productos.Count} producto(s).";
+        }
+        catch (HttpRequestException)
+        {
+            resultado = "No existe una respuesta HTTP válida de la API: comprueba host y puerto.";
+        }
+        catch (TaskCanceledException)
+        {
+            resultado = "La consulta agotó el tiempo configurado.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            resultado = "El cuerpo JSON no se corresponde con una lista de productos.";
+        }
+        finally
+        {
+            consultando = false;
+        }
+    }
+}
