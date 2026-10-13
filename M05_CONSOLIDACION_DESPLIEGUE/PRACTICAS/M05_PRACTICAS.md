@@ -229,6 +229,194 @@ Recorre esta matriz antes de considerar la integración terminada:
 
 Si los resultados no coinciden, diagnostica empezando en la API directa, después servicio tipado y finalmente el componente. No copies un `Program.cs` ajeno para resolver un problema de puerto. Esta matriz describe escenarios observables que el alumno puede ejecutar; la confirmación técnica automática se documenta fuera del material docente.
 
+
+### Paso P5.1.8. Diferenciar ausencia de resultados y error de comunicación
+
+**Relación con la teoría:** apartados 5.1.10, 5.1.12 y 5.1.13. Hemos aprendido que recibir un arreglo vacío no es lo mismo que no recibir respuesta HTTP. La interfaz inicial representaba la lista mediante un `<ul>`; si el servidor devolvía `[]`, el usuario veía una lista sin elementos, pero no una explicación del estado.
+
+**Situación inicial.** El componente `M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/BLAZOR/CursoWeb.Blazor/Components/Pages/CatalogoRemoto.razor` ya posee la propiedad `productos`, el indicador `cargando` y la propiedad `error`. No añadiremos otra llamada al servidor ni otro servicio. Cambiaremos únicamente la presentación de una colección recibida satisfactoriamente.
+
+**Archivo que debes editar:** `PROYECTO/BLAZOR/CursoWeb.Blazor/Components/Pages/CatalogoRemoto.razor`, siempre interpretando esa ruta desde la carpeta `M05_CONSOLIDACION_DESPLIEGUE`.
+
+Busca el bloque de renderizado. Después de la rama que comprueba `error`, y antes del `else` que dibuja el `<ul>`, introduce esta rama:
+
+~~~razor
+else if (productos.Count == 0)
+{
+    <p id="estado-api">
+        El servidor respondió correctamente, pero no hay productos disponibles.
+    </p>
+}
+~~~
+
+El orden es parte del ejercicio, no un detalle cosmético. Si pusiéramos la comprobación de lista vacía antes del error, podríamos mostrar «no hay productos» cuando la conexión ha fallado y la lista simplemente no llegó a cargarse. Si la situáramos después de la rama `else` final, sería código inalcanzable dentro de esa secuencia de condiciones.
+
+El conjunto de ramas, una vez construido, debe conservar este orden lógico:
+
+~~~razor
+@if (cargando)
+{
+    <p id="estado-api" role="status">Cargando catálogo remoto...</p>
+}
+else if (error is not null)
+{
+    <p id="error-api" role="alert">@error</p>
+}
+else if (productos.Count == 0)
+{
+    <p id="estado-api">
+        El servidor respondió correctamente, pero no hay productos disponibles.
+    </p>
+}
+else
+{
+    <p id="estado-api">Catálogo remoto disponible</p>
+    <ul id="productos-api">
+        @foreach (var producto in productos)
+        {
+            <li>@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+        }
+    </ul>
+}
+~~~
+
+Este bloque usa los campos que ya creó M04; **no** debes duplicar sus declaraciones ni insertar otra propiedad con el mismo nombre. En el árbol de proyecto de referencia la transformación ya aparece aplicada. Para reconstruirla desde el estado anterior, utiliza `PROYECTO/VARIANTES/P5.1_ANTES/Components/Pages/CatalogoRemoto.razor` y vuelve a incorporar primero los cambios de P5.1.4 y después los de este apartado.
+
+Compila el proyecto:
+
+~~~powershell
+dotnet build .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\BLAZOR\CursoWeb.Blazor\CursoWeb.Blazor.csproj
+~~~
+
+**Resultado intermedio esperado:** el proyecto compila y, con la API normal, sigue mostrando Cuaderno y Lápiz. Esto confirma que la rama nueva no ha roto el escenario conocido. Todavía no confirma que el mensaje de colección vacía se muestre realmente. Ese escenario se ejecuta a continuación.
+
+**Razonamiento solicitado al alumno:** explica por qué una rama de error tiene prioridad sobre una rama de lista vacía y por qué ninguna de las dos demuestra, por sí sola, que el proceso de Blazor está detenido. La respuesta debe identificar la diferencia entre una respuesta HTTP válida, un error de transporte y la decisión de renderizado.
+
+### Paso P5.1.9. Preparar una variante reversible del mismo servidor
+
+**Relación con la teoría:** 5.1.3, 5.1.12 y 5.1.16. Para estudiar un catálogo vacío y un cuerpo JSON inválido no hace falta crear una tercera aplicación ni modificar el proyecto Blazor. Podemos sustituir temporalmente **un solo archivo** de la API por una variante completa, incluida en el repositorio, con tres modos de salida seleccionados mediante configuración.
+
+El archivo de referencia para esta ampliación se encuentra en:
+
+`M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/VARIANTES/P5.1_DIAGNOSTICO/Program.cs`
+
+No es otro proyecto ni un resultado que el estudiante tenga que inventar. Contiene los mismos endpoints de la API de M04; únicamente cambia la respuesta de `GET /api/productos` cuando se elige expresamente un escenario de diagnóstico. Por defecto, sigue atendiendo el GET normal.
+
+**Preparación segura.** Detén el proceso de la API con Ctrl+C. Puedes mantener Blazor abierto. Abre una terminal PowerShell en la raíz del repositorio y ejecuta las instrucciones completas siguientes:
+
+~~~powershell
+$origen = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\Program.cs"
+$variante = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\VARIANTES\P5.1_DIAGNOSTICO\Program.cs"
+$respaldo = "$origen.p51-copia"
+
+Copy-Item $origen $respaldo -Force
+Copy-Item $variante $origen -Force
+
+dotnet build .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\CursoWeb.ProductosApi.csproj
+~~~
+
+No suprimas la copia de seguridad hasta haber terminado los tres escenarios. Si al copiar el archivo aparece un error de acceso, comprueba que el proceso de API se ha detenido. Si falla la compilación, restaura inmediatamente el original con el procedimiento final de este apartado y comprueba que sigues partiendo de la misma versión del curso.
+
+**Qué contiene la variante.** Localiza `ObtenerCatalogo` y observa la selección de una respuesta en función del valor `Laboratorio:EscenarioCatalogo`:
+
+~~~csharp
+IResult ObtenerCatalogo()
+{
+    if (escenarioCatalogo == "vacio")
+        return Results.Ok(Array.Empty<ProductoApi>());
+
+    if (escenarioCatalogo == "json-invalido")
+        return Results.Text("{\"productos\":[", "application/json");
+
+    return Results.Ok(productos.Values.OrderBy(p => p.Id));
+}
+
+app.MapGet("/api/productos", ObtenerCatalogo);
+~~~
+
+El bloque depende del resto del `Program.cs` **completo** que se ha entregado: la variable de configuración, el diccionario de productos y el tipo `ProductoApi` ya aparecen en él. No copies solo estas líneas en otro proyecto vacío. `Results.Ok(Array.Empty<ProductoApi>())` constituye una respuesta 200 con colección válida vacía. `Results.Text` entrega, intencionadamente, contenido malformado con tipo de medio JSON para mostrar que un HTTP 200 tampoco garantiza poder deserializar el cuerpo. Esta variante se reserva al entorno de aprendizaje.
+
+### Paso P5.1.10. Ejecutar tres respuestas sin modificar el componente Blazor
+
+**Escenario A — servidor y catálogo normales.** En la terminal de API, desde la raíz del repositorio:
+
+~~~powershell
+$env:Laboratorio__EscenarioCatalogo = "normal"
+dotnet run --project .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\CursoWeb.ProductosApi.csproj --no-launch-profile --urls http://localhost:5081
+~~~
+
+Desde otra terminal ejecuta:
+
+~~~powershell
+curl.exe -i http://localhost:5081/api/productos
+~~~
+
+Debe observarse HTTP 200 con un arreglo que contiene Cuaderno y Lápiz. Pulsa «Consultar servidor» en `http://localhost:5092/catalogo-remoto` y comprueba que aparecen los productos. El resultado confirma que copiar el archivo de variante no cambia el comportamiento normal mientras la configuración sea `normal`.
+
+**Escenario B — servidor disponible, lista vacía.** Detén la API con Ctrl+C y, en su terminal, ejecuta:
+
+~~~powershell
+$env:Laboratorio__EscenarioCatalogo = "vacio"
+dotnet run --project .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\CursoWeb.ProductosApi.csproj --no-launch-profile --urls http://localhost:5081
+~~~
+
+Comprueba otra vez la URL directa. El código de respuesta seguirá siendo **200**; el cuerpo debe representar `[]`. En Blazor pulsa «Consultar servidor». Ahora debe aparecer el mensaje «El servidor respondió correctamente, pero no hay productos disponibles». No debe aparecer el mensaje de error de comunicación. Comprueba que el botón sigue habilitándose después de la consulta.
+
+**Razón:** el servidor funciona y está cumpliendo un contrato de colección, pero esa colección no tiene elementos. Si la interfaz lo presentara como fallo, enseñaría una conclusión falsa.
+
+**Escenario C — servidor disponible, contenido JSON incorrecto.** Vuelve a detener la API y ejecuta:
+
+~~~powershell
+$env:Laboratorio__EscenarioCatalogo = "json-invalido"
+dotnet run --project .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\CursoWeb.ProductosApi.csproj --no-launch-profile --urls http://localhost:5081
+~~~
+
+Consulta mediante `curl.exe -i` el mismo endpoint. Observa que puede responder **HTTP 200**, pero el cuerpo no representa una lista JSON deserializable. En Blazor pulsa «Consultar servidor» y comprueba que se muestra el aviso «La API no devolvió un catálogo JSON válido». La rama de error tiene prioridad sobre la condición de lista vacía.
+
+**Razón:** el transporte y el código de respuesta HTTP han funcionado; el contrato de contenido no. Cambiar de puerto al azar no corregiría el problema porque la respuesta llega al destino correcto.
+
+**Restauración obligatoria del ejercicio.** Detén la API y ejecuta:
+
+~~~powershell
+$origen = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\Program.cs"
+$respaldo = "$origen.p51-copia"
+
+Copy-Item $respaldo $origen -Force
+Remove-Item $respaldo
+Remove-Item Env:\Laboratorio__EscenarioCatalogo -ErrorAction SilentlyContinue
+
+dotnet build .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\API\CursoWeb.ProductosApi\CursoWeb.ProductosApi.csproj
+~~~
+
+Arranca otra vez la API en su modo normal y pulsa «Consultar servidor». Deben reaparecer Cuaderno y Lápiz. Si decides conservar el proyecto para seguir practicando, la restauración garantiza que el siguiente alumno no encuentre una API que devuelve JSON defectuoso por una prueba anterior.
+
+### Paso P5.1.11. Comprobar un rechazo de servidor que el formulario local no puede ocultar
+
+**Relación con la teoría:** 5.1.5 y 5.1.14. El componente Blazor valida un nombre y un precio antes de enviar el POST. Pero otro cliente HTTP puede saltarse la interfaz; el servidor debe validar por sí mismo.
+
+Con la API normal arrancada, crea un archivo temporal `producto-invalido.json`, fuera de la carpeta de código, con este contenido íntegro:
+
+~~~json
+{
+  "nombre": "     ",
+  "precio": 0
+}
+~~~
+
+Desde la carpeta donde guardaste el JSON, ejecuta:
+
+~~~powershell
+curl.exe -i -X POST http://localhost:5081/api/productos -H "Content-Type: application/json" --data-binary "@producto-invalido.json"
+~~~
+
+La API debe devolver **400 Bad Request**. Vuelve a solicitar `GET /api/productos` y comprueba que no aparece un producto nuevo creado por esa petición. Después vuelve a Blazor, intenta enviar el mismo nombre y precio mediante el formulario y observa el rechazo local.
+
+El ejercicio demuestra dos validaciones con responsabilidades diferentes: la interfaz impide un envío evitable, pero el endpoint rechaza de manera independiente cualquier cliente que incumpla el contrato. No debemos considerar la API protegida solo porque la pantalla esté programada correctamente.
+
+**Cierre razonado del caso:** enumera qué pruebas demostrarían que la API está detenida, que ha respondido con una colección válida vacía, que ha respondido 200 con JSON malformado y que ha rechazado un POST. En los cuatro casos el aspecto inicial puede parecerse, pero el diagnóstico correcto exige comparar estado HTTP, cuerpo y mensaje del componente.
+
+
+
 ### Resultado final y conexión con P5.2
 
 La aplicación B está consolidada cuando GET, POST, validación, error y recarga quedan comprensibles y reproducibles. Detén ambos procesos al terminar. Desde P5.2 dejamos de utilizar Blazor y su API: los tres mecanismos de publicación siguientes se comprobarán **solo con la aplicación MVC A**, evitando ejecutar servicios adicionales que no participan en ese ensayo.
