@@ -1023,6 +1023,89 @@ El token antifalsificación dificulta que un sitio externo envíe solicitudes qu
 
 La demostración es intencionalmente superficial. Identity, proveedores externos, permisos de producción y protección del catálogo completo quedan fuera de este curso de 30 horas.
 
+
+### 4.4.11. Del navegador a la identidad: seguir el primer acceso
+
+Antes de comenzar la autenticación, la aplicación Blazor puede dibujar páginas y consumir la API auxiliar. El navegador no presenta una cookie de sesión reconocida por el esquema de demostración. En ese estado, el principal es anónimo y AuthorizeView muestra la rama NotAuthorized. Esta vista condicional no decide todavía el permiso de un recurso remoto; solo permite presentar información adecuada al estado de autenticación conocido por el componente.
+
+El usuario escribe el código de laboratorio en un formulario HTML y pulsa acceder. La petición POST se envía a /demo/entrar, un endpoint configurado en el mismo host de Blazor. El servidor recibe los campos, comprueba el token antifalsificación y compara el código de demostración. Si la comparación no se satisface, no emite una cookie válida y redirige a la página de acceso. Si el código es correcto, construye un ClaimsPrincipal a partir de una ClaimsIdentity con nombre AlumnoDemo y rol Formador.
+
+La llamada SignInAsync solicita al middleware de cookie que emita la información de autenticación en la respuesta HTTP. Una vez devuelta esa respuesta, el navegador guarda la cookie según sus atributos y la envía en posteriores peticiones compatibles con su ámbito. Así, cuando el usuario vuelve a /seguridad, la aplicación puede reconocer el principal y mostrar la rama Authorized.
+
+La cookie no es una variable global accesible a cualquier proceso del ordenador. La API auxiliar es otra aplicación y no queda automáticamente protegida por el hecho de que el usuario haya entrado en la pantalla Blazor. Para proteger una operación del servidor remoto, esa API necesitaría su propio esquema y sus políticas. No construiremos tal infraestructura dentro del alcance de esta jornada.
+
+### 4.4.12. La autorización es una segunda decisión
+
+Un usuario autenticado no recibe automáticamente permiso para cualquier recurso. En nuestra aplicación, /demo/privado requiere el rol Formador mediante RequireRole. La comprobación ocurre en el servidor, de manera que escribir directamente la URL no evita la política.
+
+Supongamos tres identidades. La primera es anónima y carece de sesión válida. La segunda está autenticada con rol Alumno. La tercera está autenticada con rol Formador. Solo la tercera satisface la regla definida para el recurso privado. Este experimento permite observar la diferencia entre demostrar quién eres y demostrar que puedes ejecutar una operación determinada.
+
+En general, 401 se asocia a una autenticación inexistente o no válida, mientras que 403 representa una identidad conocida a la que no se concede permiso. En aplicaciones web con cookies pueden producirse redirecciones a páginas de acceso o denegación en lugar de entregar directamente esos códigos. Para el endpoint HTTP del laboratorio configuramos explícitamente una respuesta 401 cuando se solicita de manera anónima, de modo que la observación sea sencilla.
+
+### 4.4.13. AuthorizeView no es un cortafuegos
+
+AuthorizeView permite expresar en Razor que una parte del contenido se representa solo para un usuario reconocido o para un rol concreto. Eso mejora la experiencia: puede ocultar controles que el usuario no podrá utilizar y mostrar mensajes de acceso. Sin embargo, ni ocultar un botón ni omitir una sección HTML impiden que alguien escriba manualmente una URL HTTP.
+
+La diferencia es sencilla de demostrar. Podemos comentar temporalmente la rama visual que anuncia el rol y volver a consultar /demo/privado: el endpoint sigue requiriendo autorización. También podríamos mostrar siempre el enlace al recurso, pero el servidor continuaría denegando accesos no autorizados. Por lo tanto, el criterio de seguridad debe definirse en el recurso real, no únicamente en el componente.
+
+Cuando una página completa usa un atributo de autorización, puede convenir que el enrutador Blazor trabaje con AuthorizeRouteView. No debemos confundir ese mecanismo de navegación y representación con la protección de la API auxiliar, alojada en otro proceso. Cada mecanismo protege el límite donde se aplica.
+
+### 4.4.14. Antifalsificación: qué amenaza aborda y cuál no
+
+Los navegadores envían ciertas cookies de manera automática cuando una petición coincide con las reglas de la cookie. Esta propiedad facilita mantener una sesión, pero también crea la posibilidad de que un sitio ajeno intente provocar peticiones que modifican el estado en nombre del usuario.
+
+Un token antifalsificación aporta una comprobación adicional de procedencia para esas solicitudes. En el formulario Razor declaramos AntiforgeryToken y el servidor valida el token antes de procesar la acción. Cuando se utiliza una ruta que lee manualmente formularios, la validación explícita mediante IAntiforgery.IsRequestValidAsync ayuda a dejar visible el requisito. Un POST sin token correcto debe rechazarse, aunque incluya el código del laboratorio.
+
+El token antifalsificación **no** demuestra la identidad de una persona y tampoco convierte un código fijo en una credencial segura. Su finalidad es diferente: reducir solicitudes de cambio de estado falsificadas. Por eso las dos comprobaciones aparecen en momentos distintos del endpoint: primero validar la solicitud, después comprobar el código de acceso o ejecutar la salida.
+
+La salida de sesión también modifica el estado y debe realizarse mediante POST con antiforgery. Usar un enlace GET que cierre la sesión cuando se visita una URL mezclaría la semántica de consulta con una operación que cambia el estado de autenticación.
+
+### 4.4.15. ¿Por qué no hacemos el inicio desde un evento interactivo?
+
+Blazor Interactive Server mantiene un circuito para procesar eventos y actualizar componentes. Cuando un evento se ejecuta, el servidor no dispone necesariamente de una respuesta HTTP normal cuyas cabeceras pueda modificar. Emitir una cookie requiere establecer una cabecera en una respuesta HTTP antes de que se haya enviado su contenido.
+
+Intentar resolver esa discrepancia con un método SignInAsync invocado ingenuamente desde el evento de un botón interactivo puede provocar errores relacionados con cabeceras ya iniciadas. El laboratorio evita esa confusión mediante formularios HTML normales que se envían a endpoints POST del servidor. La redirección posterior recarga la página y establece un nuevo contexto de navegación.
+
+No debemos concluir que Blazor es incompatible con la autenticación moderna; simplemente estamos eligiendo un flujo didáctico que hace observable dónde se crea una cookie. Una aplicación real puede integrar Identity y otros proveedores mediante configuraciones apropiadas y componentes preparados para ello, pero esas opciones quedan deliberadamente fuera del ejercicio.
+
+### 4.4.16. Roles, claims y políticas
+
+Un claim expresa una afirmación sobre el principal, como su nombre o un valor de rol. Un rol es una clasificación que puede utilizarse en reglas de autorización. En una aplicación real, el diseño de permisos no siempre puede reducirse a roles; algunas reglas dependen de recursos, operaciones y contexto. Nuestro caso solo necesita demostrar el mecanismo básico de comprobación de una afirmación.
+
+Al crear el principal de laboratorio incluimos ClaimTypes.Name y ClaimTypes.Role. Al registrarlo en la cookie, la aplicación puede recuperar posteriormente esos datos para tomar decisiones. En la presentación los usamos para mostrar AlumnoDemo y reconocer Formador. En el endpoint usamos RequireRole para una regla efectiva.
+
+Si reemplazamos temporalmente Formador por un rol diferente en la política, la identidad puede seguir autenticada y la pantalla puede seguir mostrando el nombre, pero el recurso privado ya no estará autorizado. Esa observación es más formativa que limitarse a mostrar un mensaje de éxito al iniciar sesión.
+
+### 4.4.17. Describir el alcance sin ofrecer falsas garantías
+
+Nuestro ejemplo entrega una identidad de prueba mediante un código fijo en un entorno de desarrollo. Es adecuado para demostrar el papel de una cookie, los claims y una política local. No es adecuado para publicar una aplicación expuesta a Internet.
+
+Una implementación profesional necesitaría mecanismos legítimos de verificación de identidad, gestión de contraseñas o proveedores externos, secretos protegidos, HTTPS, configuración segura de cookies, expiración de sesiones, auditoría apropiada y políticas de autorización acordes con los datos protegidos. No se obtienen estas propiedades simplemente porque AddAuthentication aparezca en Program.cs.
+
+Para reforzar el carácter experimental, las rutas /demo/entrar, /demo/salir y /demo/privado se registran solo en Development. La página puede existir como contenido, pero el mecanismo de acceso no debe desplegarse como sistema de seguridad público.
+
+### 4.4.18. Diagnóstico de un inicio que parece correcto
+
+Si el usuario introduce el código y sigue viendo NotAuthorized, no deberíamos cambiar inmediatamente los claims. Primero se comprueba que el formulario envía un POST HTTP normal a la ruta correcta. Después se observa si el token antifalsificación es válido y si el endpoint devuelve una redirección de éxito o de rechazo. Solo entonces examinamos la cookie de respuesta y su posterior envío por el navegador.
+
+Si el usuario está reconocido pero no puede abrir el recurso privado, revisamos el claim de rol y la política del endpoint. Una identidad con nombre no implica poseer Formador. Si en cambio el recurso privado es accesible estando anónimo, existe un problema más grave: la autorización del servidor no se está aplicando como debía.
+
+Si la aplicación se ejecuta en producción y el formulario deja de funcionar, debemos recordar que las rutas de demostración se limitan deliberadamente a Development. No debemos cambiar ese límite para «hacer que funcione en producción»: la autenticación fija de laboratorio no está diseñada para ese uso.
+
+### 4.4.19. Análisis final comparado
+
+| Pregunta | Componente | Servidor Blazor | API auxiliar |
+|---|---|---|---|
+| ¿Quién dibuja la interfaz? | Sí | Aloja su ejecución | No |
+| ¿Quién consume HTTP remoto? | Invoca servicio C# | Ejecuta cliente HTTP | Recibe peticiones |
+| ¿Quién valida nombre y precio del POST? | Puede ofrecer ayuda inicial | No sustituye la API | Sí |
+| ¿Quién emite cookie local de demostración? | Presenta formulario | Sí, en POST | No |
+| ¿Quién protege /demo/privado? | Puede ocultar enlace | Sí, mediante política | No |
+| ¿Quién asigna el ID del producto? | No | Solo solicita el alta | Sí |
+
+Esta tabla describe fronteras, no una obligación de multiplicar proyectos. Saber qué proceso ejecuta cada acción evita atribuir a AuthorizeView una protección que en realidad depende del servidor.
+
+
 ### Conclusión del módulo
 
 4.1 enseña a consumir HTTP; 4.2 separa interfaz y servicios; 4.3 explica el servidor; 4.4 distingue la identidad, la decisión de acceso del servidor y la presentación condicional de Blazor.
