@@ -2151,7 +2151,7 @@ La teoría de P2.4 introduce EF Core, DbContext y persistencia SQL Server Expres
 </Project>
 ~~~
 
-**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+**Cómo participa en el CRUD persistente.** La referencia `Microsoft.EntityFrameworkCore.SqlServer` aporta el proveedor que permite a EF Core trabajar con SQL Server/LocalDB. Este archivo hace posible compilar las llamadas a `UseSqlServer`, `DbContext` y las operaciones asíncronas, pero no contiene la cadena de conexión, reglas de `ProductoFormulario` ni consultas concretas: esas responsabilidades aparecen en otros archivos del mismo estado.
 
 ### P2.4 — Models/Producto.cs
 
@@ -2173,7 +2173,7 @@ public sealed class Producto
 }
 ~~~
 
-**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+**Cómo participa en el CRUD persistente.** `Producto` es la entidad que EF Core almacena en `DbSet<Producto>`; su `Id` identifica la fila y lo asigna la base cuando se inserta un objeto nuevo. `Nombre` y `Precio` son los valores persistidos. La entidad no recibe directamente el POST de creación/edición: el controlador transforma primero un `ProductoFormulario` válido, evitando que el cliente decida el identificador.
 
 ### P2.4 — Models/ProductoFormulario.cs
 
@@ -2197,7 +2197,7 @@ public sealed class ProductoFormulario
 }
 ~~~
 
-**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+**Cómo participa en el CRUD persistente.** Las DataAnnotations continúan protegiendo las entradas de Create y Edit antes de cualquier `SaveChangesAsync`. El contrato no contiene `Id`, de modo que un formulario no puede sobrepublicar esa propiedad. Comprueba que un nombre inválido o un precio fuera de rango devuelve la vista con errores y no crea ni actualiza una fila.
 
 ### P2.4 — Data/AppDbContext.cs
 
@@ -2220,7 +2220,7 @@ public sealed class AppDbContext(DbContextOptions<AppDbContext> options) : DbCon
 }
 ~~~
 
-**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+**Cómo participa en el CRUD persistente.** `AppDbContext` expone `DbSet<Producto>` como punto de entrada a las consultas y cambios sobre productos. El controlador recibe este contexto por inyección; no abre conexiones manuales. Que `DbSet` represente una colección consultable no significa que cada lectura siga una entidad: el controlador elige `AsNoTracking()` cuando solo necesita mostrar datos.
 
 ### P2.4 — Program.cs
 
@@ -2276,7 +2276,7 @@ app.MapControllerRoute(
 app.Run();
 ~~~
 
-**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+**Cómo participa en el CRUD persistente.** `Program.cs` registra `AppDbContext` con la cadena `Productos`, crea el esquema del laboratorio con `EnsureCreated()` y carga la semilla únicamente cuando la base acaba de crearse. Después conserva archivos estáticos y rutas MVC. Reiniciar Kestrel no vuelve a sembrar una base ya existente, por eso un alta, edición o borrado debe persistir entre ejecuciones.
 
 ### P2.4 — appsettings.json
 
@@ -2297,7 +2297,7 @@ app.Run();
 }
 ~~~
 
-**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+**Cómo participa en el CRUD persistente.** `ConnectionStrings:Productos` contiene la dirección de SQL Server Express LocalDB utilizada por `UseSqlServer`. Cambiar esta cadena modifica dónde se guardan los datos, no las reglas de validación ni el HTML. Para aislar pruebas del aula puede usarse una base con otro nombre, pero el manual no cambia de motor ni presupone LocalDB fuera de Windows.
 
 ### P2.4 — Controllers/ProductosController.cs
 
@@ -2489,7 +2489,7 @@ public class ProductosController : Controller
 }
 ~~~
 
-**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+**Cómo participa en el CRUD persistente.** Este controlador concentra la coordinación HTTP y EF Core: `Index` y `Detalle` consultan; `Crear` transforma una entrada válida, llama a `Add` y guarda; `Editar` recupera el Id existente y modifica solo nombre/precio; `EliminarConfirmado` borra únicamente por POST protegido. Los casos inválidos retornan antes de `SaveChangesAsync`, y los Id inexistentes producen `NotFound`, de modo que cada operación tiene un resultado observable distinto.
 
 ### P2.4 — Views/Productos/Crear.cshtml
 
@@ -2517,7 +2517,7 @@ public class ProductosController : Controller
 <p><a asp-action="Index">Volver al catálogo</a></p>
 ~~~
 
-**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+**Cómo participa en el CRUD persistente.** `Crear.cshtml` sigue enlazado a `ProductoFormulario`, muestra errores por campo y envía un POST protegido al controlador. La vista no llama a EF Core: solo recoge nombre y precio. Tras un POST válido el controlador inserta la entidad y redirige a `Detalle` usando el Id asignado por SQL Server, por lo que ya no se utiliza la antigua vista temporal de confirmación de P2.1–P2.3.
 
 ### P2.4 — Views/Productos/Editar.cshtml
 
@@ -2545,7 +2545,7 @@ public class ProductosController : Controller
 <p><a asp-action="Index">Cancelar y volver</a></p>
 ~~~
 
-**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+**Cómo participa en el CRUD persistente.** `Editar.cshtml` envía el Id por la ruta mediante `asp-route-id` y mantiene nombre/precio en el modelo de entrada. Si la validación falla, el controlador repone `ViewData["ProductoId"]` antes de devolver la vista para no perder el destino del formulario. Un POST válido actualiza la fila ya existente; no crea otro `Producto` con un Id nuevo.
 
 ### P2.4 — Views/Productos/Eliminar.cshtml
 
@@ -2565,7 +2565,7 @@ public class ProductosController : Controller
 <p><a asp-action="Index">No, volver al catálogo</a></p>
 ~~~
 
-**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+**Cómo participa en el CRUD persistente.** El GET de eliminación utiliza esta vista para mostrar qué producto se propone borrar, sin modificar aún la base. El formulario posterior envía un POST con el Id y antiforgery; solo `EliminarConfirmado` ejecuta `Remove` y `SaveChangesAsync`. Abrir o recargar la pantalla de confirmación no debe borrar ninguna fila.
 
 ### P2.4 — Views/Productos/Index.cshtml
 
@@ -2642,7 +2642,7 @@ else
 }
 ~~~
 
-**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+**Cómo participa en el CRUD persistente.** `Index.cshtml` representa ahora los objetos recuperados de LocalDB y genera acciones de detalle, edición y eliminación con el Id real de cada fila. La aplicación autónoma del catálogo vacío pertenece a la presentación; el reto de búsqueda utiliza GET porque consulta sin escribir. Tras crear, editar o eliminar, este listado permite comprobar el estado persistente resultante.
 
 ### P2.4 — Views/Shared/_Layout.cshtml
 
@@ -2679,7 +2679,7 @@ else
 </html>
 ~~~
 
-**Relación teoría-práctica y comprobación.** Explica cómo participa este archivo en crear un producto válido, rechazar un formulario inválido, abrir la misma ficha por Id, editar sin perder el identificador y eliminar mediante confirmación. Si el archivo solo configura servicios o el layout, justifica por qué no debe contener reglas de validación del producto ni escribir directamente HTML de otra vista. Ejecuta el paso numerado correspondiente antes de pasar al siguiente archivo.
+**Cómo participa en el CRUD persistente.** El layout conserva navegación, estilos y composición de las vistas mientras cambia la fuente de los productos. No debe contener `DbContext`, consultas ni validación del formulario: su responsabilidad sigue siendo presentar el marco común. Que el CRUD sea persistente no exige crear una segunda plantilla ni perder las páginas heredadas de M01.
 
 **Prueba de continuidad.** Reinicia Kestrel y abre de nuevo el catálogo de la misma base LocalDB: un registro persistente continúa existiendo. Este hecho contrasta con el estado en memoria de P2.1–P2.3. La vista de Confirmacion que se utilizó allí deja de formar parte de esta instantánea porque el POST de creación redirige a la ficha persistida; ya no hay dos salidas activas contradictorias. También se retira la vista parcial de scripts de validación de cliente de la instantánea anterior cuando no forma parte de este recorrido; las validaciones obligatorias del servidor y antiforgery se conservan.
 
@@ -3038,7 +3038,7 @@ app.MapControllerRoute(
 app.Run();
 ~~~
 
-**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+**Cómo demuestra la coexistencia MVC–Razor Pages.** `Program.cs` mantiene `AppDbContext` y el esquema LocalDB de P2.4, registra Razor Pages y mapea `app.MapRazorPages()` además de la ruta MVC. Ambos modelos de programación viven en el mismo proceso y comparten servicios. Visitar `/Comparacion` ejecuta un endpoint nuevo, pero no vuelve a crear la base ni reemplaza `ProductosController`.
 
 ### P2.5 — Pages/Comparacion.cshtml
 
@@ -3084,7 +3084,7 @@ app.Run();
    No se entrega aquí el bloque resuelto. *@
 ~~~
 
-**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+**Cómo demuestra la coexistencia MVC–Razor Pages.** `@page "/Comparacion"` convierte este archivo en endpoint y `@model ComparacionModel` lo vincula a su PageModel. El formulario POST vuelve a la misma página; `asp-validation-for` muestra errores y `asp-page-handler="Mayusculas"` puede seleccionar un segundo handler. El enlace final regresa a MVC, haciendo visible que ambas organizaciones comparten navegación y layout.
 
 ### P2.5 — Pages/Comparacion.cshtml.cs
 
@@ -3164,7 +3164,7 @@ public sealed class ComparacionModel : PageModel
 }
 ~~~
 
-**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+**Cómo demuestra la coexistencia MVC–Razor Pages.** `ComparacionModel` reúne propiedades enlazadas y handlers: `OnGet` prepara el mensaje, `OnPost` procesa el formulario y el reto añade `OnPostMayusculas`. `ModelState` y DataAnnotations conservan el mismo significado aprendido en MVC. Ningún handler usa `AppDbContext`, por lo que esta demostración no añade, modifica ni elimina productos persistentes.
 
 ### P2.5 — Pages/_ViewImports.cshtml
 
@@ -3175,7 +3175,7 @@ public sealed class ComparacionModel : PageModel
 @addTagHelper *, Microsoft.AspNetCore.Mvc.TagHelpers
 ~~~
 
-**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+**Cómo demuestra la coexistencia MVC–Razor Pages.** `_ViewImports.cshtml` habilita el namespace de Pages y los Tag Helpers utilizados por `Comparacion.cshtml`. No registra rutas ni contiene handlers; proporciona contexto de compilación Razor. Es paralelo al archivo de `Views`, pero se aplica a la jerarquía `Pages` y permite escribir `asp-page`, `asp-page-handler` y otros atributos sin duplicar configuración en cada página.
 
 ### P2.5 — Pages/_ViewStart.cshtml
 
@@ -3187,7 +3187,7 @@ public sealed class ComparacionModel : PageModel
 }
 ~~~
 
-**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+**Cómo demuestra la coexistencia MVC–Razor Pages.** `_ViewStart.cshtml` hace que las Razor Pages utilicen el mismo `_Layout.cshtml` que las vistas MVC. Por eso `/Comparacion` puede mantener cabecera, navegación y estilos sin copiar el documento HTML exterior. Este archivo solo selecciona la plantilla compartida; no decide qué handler atiende GET o POST.
 
 ### P2.5 — Views/Shared/_Layout.cshtml
 
@@ -3226,7 +3226,7 @@ public sealed class ComparacionModel : PageModel
 </html>
 ~~~
 
-**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+**Cómo demuestra la coexistencia MVC–Razor Pages.** El layout añade opcionalmente un enlace `asp-page="/Comparacion"` al menú ya existente. Ese enlace genera la URL de la Razor Page, mientras `@RenderBody()` sigue recibiendo tanto vistas MVC como el contenido de la página. La navegación común demuestra integración visual sin mezclar controladores con `PageModel`.
 
 ### P2.5 — Controllers/ProductosController.cs
 
@@ -3349,7 +3349,7 @@ public class ProductosController : Controller
 }
 ~~~
 
-**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+**Cómo demuestra la coexistencia MVC–Razor Pages.** `ProductosController` conserva íntegro el CRUD de P2.4 y continúa usando `AppDbContext`. Crear, editar, consultar y eliminar siguen pasando por acciones MVC y LocalDB; `ComparacionModel` no las sustituye. Comprueba un producto antes y después de visitar/enviar la Razor Page para demostrar que la nueva organización no reinicializa el catálogo.
 
 ### P2.5 — Models/Producto.cs
 
@@ -3370,7 +3370,7 @@ public sealed class Producto
 }
 ~~~
 
-**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+**Cómo demuestra la coexistencia MVC–Razor Pages.** `Producto` sigue siendo la entidad persistida y su Id mantiene la identidad de las filas del catálogo. La Razor Page de comparación no recibe ni crea este tipo: utiliza su propia propiedad `Nombre` para estudiar handlers. Esta separación evita convertir P2.5 en un segundo CRUD y conserva el dominio construido en P2.4.
 
 ### P2.5 — Models/ProductoFormulario.cs
 
@@ -3392,7 +3392,7 @@ public sealed class ProductoFormulario
 }
 ~~~
 
-**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+**Cómo demuestra la coexistencia MVC–Razor Pages.** `ProductoFormulario` continúa siendo el contrato de entrada de Create/Edit MVC, con las mismas reglas `Required`, `StringLength` y `Range`. La Razor Page utiliza anotaciones sobre su propia propiedad únicamente para comparar el mecanismo; no reemplaza este modelo ni cambia las reglas que protegen las operaciones persistentes.
 
 ### P2.5 — Views/Productos/Index.cshtml
 
@@ -3447,7 +3447,7 @@ else
 }
 ~~~
 
-**Qué debe saber demostrar el alumno.** A partir de este archivo identifica la URL que lo utiliza, el dato o servicio que recibe y el HTML o resultado HTTP que contribuye a producir. Relaciónalo con el punto teórico 2.5 y confirma que visitar la Razor Page no borra ni reinicializa los registros guardados por las acciones MVC.
+**Cómo demuestra la coexistencia MVC–Razor Pages.** `Index.cshtml` mantiene el catálogo persistente y sus enlaces de creación, detalle, edición y eliminación. Después de usar `/Comparacion`, vuelve a esta vista y confirma que las filas siguen presentes con los mismos Id. Ese recorrido es la evidencia funcional de que Razor Pages se ha añadido al host sin convertir el catálogo MVC en otra aplicación.
 
 **Transferencia a M03.** La Razor Page organiza el mismo contrato HTTP en torno a PageModel; una página Blazor será un componente con un ciclo de vida y estado interactivo diferente. Para comprender esa comparación, conservar el catálogo MVC y su validación es más importante que añadir una segunda implementación de negocio.
 
