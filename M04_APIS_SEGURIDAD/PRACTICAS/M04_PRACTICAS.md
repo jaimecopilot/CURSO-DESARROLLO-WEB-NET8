@@ -3588,6 +3588,234 @@ public partial class Program { }
 
 ~~~
 
+#### Paso J8. Ejecutar el registro y el acceso
+
+Con el secreto de desarrollo ya configurado, arranca la API con:
+
+~~~powershell
+dotnet run --urls http://localhost:5086
+~~~
+
+Desde otra terminal prepara un usuario Alumno. La API usa Identity, no almacena contraseñas en texto ni permite registrar el rol Formador mediante el cuerpo de la petición.
+
+~~~powershell
+$registro = @{ email = "alumno@ejemplo.local"; password = "ClaveAlumnoSegura-2026!" } | ConvertTo-Json -Compress
+Invoke-WebRequest -Uri "http://localhost:5086/auth/registro" -Method Post -ContentType "application/json" -Body $registro
+~~~
+
+El primer registro debe devolver 201; el mismo correo registrado dos veces o una contraseña débil deben ser rechazados. La nueva base SQLite se crea en la carpeta .work del proyecto.
+
+Solicita después el JWT, sin imprimirlo ni almacenarlo en un archivo:
+
+~~~powershell
+$sesion = Invoke-RestMethod -Uri "http://localhost:5086/auth/login" -Method Post -ContentType "application/json" -Body $registro
+$sesion.tokenType
+$sesion.expiresAtUtc
+~~~
+
+Con una contraseña incorrecta se espera 401. Con credenciales válidas obtienes un JWT firmado de quince minutos. Para consultar el perfil, presenta la credencial expresamente:
+
+~~~powershell
+$cabeceras = @{ Authorization = "Bearer $($sesion.accessToken)" }
+Invoke-RestMethod -Uri "http://localhost:5086/api/identidad/yo" -Method Get -Headers $cabeceras
+~~~
+
+Debe devolver el correo y el rol Alumno. Una petición sin token se rechaza con 401. Una petición a /api/identidad/formador con el token de Alumno se rechaza con 403, porque autenticación y autorización son decisiones diferentes.
+
+#### Paso J9. Crear una cuenta Formador solo desde el entorno
+
+Detén la API, configura una cuenta docente en las variables DemoFormador__Email y DemoFormador__Password, con una contraseña nueva y segura de ensayo, y vuelve a iniciar. No guardes esos valores en Git. La aplicación solo se ejecuta en Development. Un correo ya registrado públicamente no debe elevarse automáticamente de Alumno a Formador.
+
+Inicia sesión con esa cuenta y presenta su JWT al recurso /api/identidad/formador. Se espera 200. No cambies la política del servidor para que el token de Alumno tenga acceso.
+
+#### Paso J10. Consumir el JWT desde Blazor
+
+En Program.cs del proyecto Blazor de 4.4 conserva CookiesDemo y el servicio de productos. Añade otro cliente con nombre:
+
+~~~csharp
+builder.Services.AddHttpClient("IdentityJwtApi", cliente =>
+{
+    cliente.BaseAddress = new Uri(
+        builder.Configuration["IdentityJwtApi:BaseUrl"] ?? "http://localhost:5086/");
+    cliente.Timeout = TimeSpan.FromSeconds(10);
+});
+~~~
+
+Configura el valor IdentityJwtApi:BaseUrl en appsettings.json. Crea Components/Pages/PerfilJwt.razor. El componente solicita el token a /auth/login y lo transmite en Authorization: Bearer al consultar el perfil y la ruta Formador. No presenta el token en la interfaz ni lo almacena permanentemente. Este es el archivo completo:
+
+
+~~~razor
+@page "/perfil-jwt"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Net.Http.Headers
+@using System.Net.Http.Json
+@inject IHttpClientFactory Clientes
+
+<h1>Identity y JWT: cliente de laboratorio</h1>
+<p>La API de Identity/JWT funciona en otro proceso. Esta página conserva el token
+   solo en el estado temporal del componente, sin cookies ni almacenamiento del navegador.
+   No representa un mecanismo de identidad de producción.</p>
+
+<div>
+    <label>Correo <input id="jwt-email" type="email" @bind="correo" /></label>
+    <label>Contraseña <input id="jwt-clave" type="password" @bind="clave" /></label>
+    <button id="jwt-entrar" disabled="@ocupado" @onclick="EntrarAsync">Obtener JWT</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(token))
+{
+    <p id="jwt-sesion">Se recibió un JWT de acceso (no se muestra su valor).</p>
+    <button id="jwt-perfil" disabled="@ocupado" @onclick="ConsultarPerfilAsync">GET /api/identidad/yo</button>
+    <button id="jwt-formador" disabled="@ocupado" @onclick="ConsultarFormadorAsync">GET /api/identidad/formador</button>
+    <button id="jwt-salir" @onclick="OlvidarToken">Olvidar token local</button>
+}
+
+<p id="jwt-estado" role="status">@estado</p>
+@if (perfil is not null)
+{
+    <p id="jwt-perfil-respuesta">Identidad: @perfil.Email — roles: @string.Join(", ", perfil.Roles)</p>
+}
+
+@code {
+    private string correo = "";
+    private string clave = "";
+    private string? token;
+    private string estado = "Introduce las credenciales de un usuario registrado.";
+    private bool ocupado;
+    private PerfilRespuesta? perfil;
+
+    private async Task EntrarAsync()
+    {
+        ocupado = true;
+        token = null;
+        perfil = null;
+        estado = "Solicitando token...";
+        try
+        {
+            var cliente = Clientes.CreateClient("IdentityJwtApi");
+            using var respuesta = await cliente.PostAsJsonAsync(
+                "auth/login", new { Email = correo, Password = clave });
+            if (!respuesta.IsSuccessStatusCode)
+            {
+                estado = $"Acceso rechazado (HTTP {(int)respuesta.StatusCode}).";
+                return;
+            }
+            var sesion = await respuesta.Content.ReadFromJsonAsync<TokenRespuesta>();
+            token = sesion?.AccessToken;
+            estado = token is null ? "No se recibió un JWT válido." :
+                "JWT recibido. Ya puedes probar los recursos protegidos.";
+        }
+        catch (HttpRequestException)
+        {
+            estado = "No se pudo contactar con la API de Identity.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            estado = "La respuesta de login no coincide con el contrato JSON.";
+        }
+        finally
+        {
+            clave = ""; // No conservar la contraseña tras la petición.
+            ocupado = false;
+        }
+    }
+
+    private async Task ConsultarPerfilAsync()
+    {
+        if (token is null) return;
+        ocupado = true;
+        try
+        {
+            var cliente = Clientes.CreateClient("IdentityJwtApi");
+            using var solicitud = new HttpRequestMessage(HttpMethod.Get, "api/identidad/yo");
+            solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            using var respuesta = await cliente.SendAsync(solicitud);
+            if (!respuesta.IsSuccessStatusCode)
+            {
+                perfil = null;
+                estado = $"Perfil rechazado: HTTP {(int)respuesta.StatusCode}.";
+                return;
+            }
+            perfil = await respuesta.Content.ReadFromJsonAsync<PerfilRespuesta>();
+            estado = "Perfil obtenido con Authorization: Bearer.";
+        }
+        catch (HttpRequestException)
+        {
+            estado = "No se pudo consultar el perfil.";
+        }
+        finally
+        {
+            ocupado = false;
+        }
+    }
+
+    private async Task ConsultarFormadorAsync()
+    {
+        if (token is null) return;
+        ocupado = true;
+        try
+        {
+            var cliente = Clientes.CreateClient("IdentityJwtApi");
+            using var solicitud = new HttpRequestMessage(
+                HttpMethod.Get, "api/identidad/formador");
+            solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            using var respuesta = await cliente.SendAsync(solicitud);
+            estado = respuesta.StatusCode switch
+            {
+                System.Net.HttpStatusCode.OK => "Acceso permitido: rol Formador.",
+                System.Net.HttpStatusCode.Forbidden => "HTTP 403: token válido, sin rol Formador.",
+                System.Net.HttpStatusCode.Unauthorized => "HTTP 401: token ausente, inválido o caducado.",
+                _ => $"Respuesta HTTP {(int)respuesta.StatusCode}."
+            };
+        }
+        catch (HttpRequestException)
+        {
+            estado = "No se pudo consultar el recurso Formador.";
+        }
+        finally
+        {
+            ocupado = false;
+        }
+    }
+
+    private void OlvidarToken()
+    {
+        token = null;
+        perfil = null;
+        clave = "";
+        estado = "Token eliminado del estado del componente. No revoca el JWT emitido.";
+    }
+
+    private sealed record TokenRespuesta(string AccessToken, string TokenType, DateTime ExpiresAtUtc);
+    private sealed record PerfilRespuesta(string Id, string Email, string[] Roles);
+}
+
+~~~
+
+#### Paso J11. Comprobar el recorrido completo en dos procesos
+
+Arranca la API Identity/JWT en 5086 y Blazor en 5094. Abre /perfil-jwt, entra como Alumno, consulta el perfil y comprueba que el endpoint Formador devuelve 403. Repite con la identidad del docente para observar 200.
+
+Después pulsa Olvidar token local. Esa acción elimina únicamente la copia del componente: **no revoca un JWT ya emitido**. El token caduca según su claim exp y el servidor valida esa condición. Si se manipula el payload sin una firma nueva válida, el recurso debe rechazarlo con 401.
+
+La página anterior /seguridad mantiene su cookie de demostración. Una cookie del host Blazor no equivale a un JWT de la API, y la autenticación de una aplicación no se comparte automáticamente con otra.
+
+#### Matriz de comprobación Identity/JWT
+
+| Comprobación | Estado |
+|---|---:|
+| Registro válido | 201 |
+| Registro duplicado o contraseña débil | 400 |
+| Contraseña incorrecta | 401 |
+| Perfil sin token | 401 |
+| Perfil con JWT válido | 200 |
+| Recurso Formador con JWT Alumno | 403 |
+| Recurso Formador con JWT Formador | 200 |
+| JWT modificado o caducado | 401 |
+
+El ejemplo sirve para aprender autenticación y autorización, no para publicar un proveedor de identidad propio. No incluye MFA, recuperación, tokens de renovación ni revocación centralizada. Para acceso real se requiere HTTPS y un diseño de identidad adecuado.
+
+
 ### Cierre
 
 Hemos observado autenticación, autorización y representación visual de la identidad sin rehacer cursos de Web API o Identity. Nunca reutilices la credencial fija de laboratorio en un despliegue público.
