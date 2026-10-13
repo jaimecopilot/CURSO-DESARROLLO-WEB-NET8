@@ -18,6 +18,13 @@ builder.Services.AddHttpClient<IProductosApiService, ProductosApiService>(client
         builder.Configuration["ProductosApi:BaseUrl"] ?? "http://localhost:5081/");
     cliente.Timeout = TimeSpan.FromSeconds(10);
 });
+// AMPLIACIÓN P4.5: el JWT se consume desde el host Blazor, sin alterar CookiesDemo.
+builder.Services.AddHttpClient("IdentityJwtApi", cliente =>
+{
+    cliente.BaseAddress = new Uri(
+        builder.Configuration["IdentityJwtApi:BaseUrl"] ?? "http://localhost:5086/");
+    cliente.Timeout = TimeSpan.FromSeconds(10);
+});
 builder.Services.AddAuthentication("CookiesDemo").AddCookie("CookiesDemo", options =>
 {
     options.LoginPath = "/seguridad";
