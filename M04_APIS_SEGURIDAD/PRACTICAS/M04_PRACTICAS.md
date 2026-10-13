@@ -1,5 +1,14 @@
 # M04 — Prácticas: integración con APIs y seguridad básica
 
+## Desarrollo Web con ASP.NET Core MVC, Razor y Blazor en .NET 8
+
+**CURSO: Desarrollo Web con ASP.NET Core MVC, Razor y Blazor en .NET 8**
+
+**TIPO: PRÁCTICAS**
+
+**AUTOR: JAIME GALLO**
+
+
 ## P4.1 — Primer consumo HTTP desde Blazor
 
 ### Resultado que construiremos
