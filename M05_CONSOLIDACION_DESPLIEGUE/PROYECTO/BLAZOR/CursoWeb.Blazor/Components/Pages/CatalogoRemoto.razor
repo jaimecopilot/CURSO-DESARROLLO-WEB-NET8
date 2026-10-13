@@ -5,6 +5,7 @@
 
 <h1>Catálogo remoto · P4.1</h1>
 <p>Esta página consume una API HTTP. El catálogo local de M03 sigue disponible en /productos.</p>
+<button id="recargar-api" disabled="@cargando" @onclick="ConsultarAsync">Consultar servidor</button>
 @if (cargando)
 {
     <p id="estado-api" role="status">Cargando catálogo remoto...</p>
@@ -43,8 +44,14 @@ else
     private bool enviando;
     private string? mensaje;
 
-    protected override async Task OnInitializedAsync()
+    // PASO P5.1.4: la consulta inicial y el botón de actualización
+    // recorren el mismo servicio tipado; no duplican endpoints HTTP.
+    protected override async Task OnInitializedAsync() => await ConsultarAsync();
+
+    private async Task ConsultarAsync()
     {
+        cargando = true;
+        error = null;
         try
         {
             productos = (await CatalogoApi.ObtenerAsync()).ToList();
