@@ -1268,6 +1268,113 @@ Ninguna de esas acciones sustituyó el proveedor EF Core SQL Server ni convirti�
 
 
 
+
+### Paso P5.2.26. Comparar dos fuentes de configuración sin recompilar MVC
+
+**Fundamento teórico:** 5.2.4, 5.2.10 y 5.2.12. En los experimentos anteriores activamos el modo sin base mediante una variable de entorno de PowerShell. Ahora obtendremos el mismo comportamiento a partir de un archivo específico del entorno **Production**, pero solamente dentro de la carpeta publicada.
+
+**Estado inicial:** disponemos de la publicación MVC A en `.work\M05\publicacion-mvc`, con el proyecto fuente intacto. No existe ningún proceso que esté ejecutando esa carpeta en el puerto 5091. Para evitar sobrescrituras de archivos que podrían pertenecer a otro ensayo, antes de comenzar comprueba que no existe `appsettings.Production.json` en la publicación:
+
+~~~powershell
+$salida = ".\.work\M05\publicacion-mvc"
+$config = Join-Path $salida "appsettings.Production.json"
+if (Test-Path $config) {
+    Write-Host "Ya existe configuración Production: revísala y no la sobrescribas."
+}
+~~~
+
+Si existe, detén aquí este ensayo y consulta su contenido con el docente. No borres un archivo de configuración sin conocer su procedencia. Si la carpeta de salida todavía no se ha creado, vuelve al comando `dotnet publish` de P5.2.4.
+
+### Paso P5.2.27. Preparar el archivo JSON de la variante
+
+El repositorio incluye un archivo íntegro de configuración docente:
+
+`M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/VARIANTES/P5.2_CONFIGURACION/appsettings.Production.json`
+
+Su contenido completo es:
+
+~~~json
+{
+  "Despliegue": {
+    "SinLocalDb": true
+  }
+}
+~~~
+
+No cambia el proveedor EF Core, no contiene otra cadena de conexión y no activa un almacén de productos ficticio. Expresa exclusivamente la decisión de omitir LocalDB para comprobar páginas que no dependen de SQL Server.
+
+Copia el archivo **a la publicación**, no al árbol fuente de MVC A:
+
+~~~powershell
+$variante = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\VARIANTES\P5.2_CONFIGURACION\appsettings.Production.json"
+Copy-Item $variante $config
+Get-Content $config
+~~~
+
+La salida debe mostrar la clave `Despliegue:SinLocalDb`. El directorio de código fuente sigue conservando su configuración original de SQL Server Express LocalDB.
+
+### Paso P5.2.28. Ejecutar con Production sin definir la variable de despliegue
+
+Abre una terminal PowerShell nueva y ejecuta desde la raíz del repositorio:
+
+~~~powershell
+$salida = ".\.work\M05\publicacion-mvc"
+$env:ASPNETCORE_ENVIRONMENT = "Production"
+Remove-Item Env:\Despliegue__SinLocalDb -ErrorAction SilentlyContinue
+Push-Location $salida
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5091
+~~~
+
+El proceso debe leer su configuración habitual y el archivo específico del entorno Production de la carpeta publicada. Si la publicación y el runtime están preparados, debería arrancar sin intentar inicializar LocalDB.
+
+Desde otra terminal comprueba:
+
+~~~powershell
+curl.exe -i http://localhost:5091/
+curl.exe -i http://localhost:5091/Productos/Estado
+curl.exe -i http://localhost:5091/Productos
+~~~
+
+La portada y Estado deben responder 200. La ruta Productos debe devolver 503. Ese comportamiento permite inferir que el modo sin base está aplicado; **no demuestra que una consulta a SQL Server se haya realizado correctamente**.
+
+### Paso P5.2.29. Repetir el resultado con una variable de entorno en vez del JSON
+
+Detén el proceso anterior con Ctrl+C y ejecuta `Pop-Location`. Desde la raíz, elimina únicamente el archivo de variante que acabas de colocar en la publicación:
+
+~~~powershell
+$config = ".\.work\M05\publicacion-mvc\appsettings.Production.json"
+Remove-Item $config
+~~~
+
+Ahora define la opción de despliegue directamente para el nuevo proceso:
+
+~~~powershell
+$env:Despliegue__SinLocalDb = "true"
+Push-Location ".\.work\M05\publicacion-mvc"
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5091
+~~~
+
+Solicita las mismas tres rutas. Deben producir respuestas coherentes con el modo sin base. El archivo Production ya no está presente, pero el programa recibe la opción mediante otro proveedor de configuración.
+
+**Conclusión causal:** la aplicación lee una clave lógica cuyo valor puede provenir de diferentes fuentes. La configuración no es código nuevo. El mismo ensamblado puede comportarse de forma distinta al cambiar las condiciones de inicio.
+
+### Paso P5.2.30. Restaurar la carpeta y la terminal del ejercicio
+
+Detén Kestrel, ejecuta `Pop-Location` y elimina las variables que modificaste en esa terminal:
+
+~~~powershell
+Remove-Item Env:\Despliegue__SinLocalDb -ErrorAction SilentlyContinue
+Remove-Item Env:\ASPNETCORE_ENVIRONMENT -ErrorAction SilentlyContinue
+~~~
+
+Comprueba que no quedó el `appsettings.Production.json` del ensayo dentro de `.work\M05\publicacion-mvc`. El proyecto MVC A conserva el `Program.cs` y la conexión SQL Server Express LocalDB originales.
+
+Si el archivo específico del entorno ya existía antes de comenzar, no deberías haber realizado este recorrido sobre él. Utiliza una carpeta publicada independiente para repetir el experimento sin sobrescribir configuraciones que no te pertenecen.
+
+El resultado que debe poder explicar el alumno es la diferencia entre **configuración incorporada a la carpeta publicada** y **variable de entorno suministrada al proceso**. Ambas pueden activar una opción del mismo código, pero no deben confundirse con compilar, publicar o proporcionar un servidor SQL.
+
+
+
 ### Resultado y estado final P5.2
 
 La carpeta `.work\M05\publicacion-mvc` contiene los artefactos de MVC. El alumno sabe identificar qué cambió al publicar: no el código fuente ni las acciones, sino los archivos preparados para ejecutarse fuera de la estructura de desarrollo. No edites la fuente para corregir un problema que solo aparece por una variable del entorno de ejecución.
