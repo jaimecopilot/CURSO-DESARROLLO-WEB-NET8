@@ -1,0 +1,26 @@
+@page "/seguridad"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using Microsoft.AspNetCore.Components.Authorization
+<h1>Seguridad básica: demostración local</h1>
+<p>Esta sesión es solo una demostración y no debe desplegarse.</p>
+<AuthorizeView>
+    <Authorized>
+        <p id="usuario-demo">Usuario: @context.User.Identity?.Name</p>
+        <AuthorizeView Roles="Formador">
+            <Authorized><p id="formador-demo">Rol Formador reconocido</p></Authorized>
+        </AuthorizeView>
+        <form method="post" action="/demo/salir" data-enhance="false">
+            <AntiforgeryToken />
+            <button id="salir-demo" type="submit">Cerrar sesión</button>
+        </form>
+        <p><a href="/demo/privado">Recurso protegido por el servidor</a></p>
+    </Authorized>
+    <NotAuthorized>
+        <p id="anonimo-demo">Usuario anónimo</p>
+        <form method="post" action="/demo/entrar" data-enhance="false">
+            <AntiforgeryToken />
+            <label>Código de laboratorio <input id="codigo-demo" name="codigo" type="password" /></label>
+            <button id="entrar-demo" type="submit">Acceder</button>
+        </form>
+    </NotAuthorized>
+</AuthorizeView>
