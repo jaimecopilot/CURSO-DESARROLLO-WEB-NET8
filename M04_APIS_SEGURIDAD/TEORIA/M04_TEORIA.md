@@ -1158,6 +1158,114 @@ También es común confundir el puerto de escucha con la ruta. Cambiar la ruta a
 Por último, puede ocurrir que el servidor acepte un precio decimal pero el cuerpo POST esté escrito con un formato incompatible con JSON, por ejemplo una coma decimal sin comillas. El error puede producirse antes de entrar a la lógica de validación. Conviene distinguir errores de sintaxis del formato, errores de enlace al tipo y errores de reglas del dominio.
 
 
+
+### 4.3.18. Por qué no empezamos por los controladores ni por EF Core
+
+En la enseñanza de ASP.NET Core es habitual presentar primero las capas de una aplicación completa: controladores, servicios, repositorios y persistencia. Esos elementos tienen sentido cuando hay requisitos que justifican separar operaciones y conservar datos. Sin embargo, nuestro problema de M04 es mucho más acotado: queremos comprender cómo una aplicación Blazor consume datos de otra aplicación mediante un contrato HTTP.
+
+La plantilla dotnet new web y las Minimal APIs son suficientes para estudiar ese límite con poco código auxiliar. El endpoint GET expresa una lectura y el POST una creación. El cuerpo JSON se enlaza a un DTO y el resultado HTTP expresa el desenlace. El alumno que conoce Web API de módulos o cursos anteriores puede reconocer conceptos equivalentes a los de acciones de controlador, sin necesidad de repetir una explicación extensa sobre la estructura MVC de una API.
+
+El catálogo se almacena en memoria para que los escenarios sean deterministas y fáciles de reiniciar. Si usáramos EF Core aquí, aparecerían nuevas responsabilidades: cadena de conexión, esquema, migraciones, ciclo de vida de DbContext y persistencia. Ya se presupone que el alumnado conoce EF Core, pero esas operaciones no son la meta formativa del día. Una implementación más compleja podría ocultar la relación básica entre solicitud HTTP y respuesta.
+
+La decisión tiene un precio conocido. Al reiniciar la API desaparecen los productos creados; el diccionario no realiza transacciones; y la operación de creación no dispone de reglas avanzadas contra duplicados. La enseñanza adecuada consiste en señalar estos límites, no en disfrazar una colección temporal de sistema de datos empresarial.
+
+### 4.3.19. Analizar el enrutamiento sin confundir parámetros y literales
+
+Consideremos estas dos plantillas de ruta:
+
+~~~csharp
+app.MapGet("/api/productos/{id:int}", (int id) =>
+    productos.TryGetValue(id, out var producto)
+        ? Results.Ok(producto)
+        : Results.NotFound());
+
+app.MapGet("/api/productos/resumen", () =>
+{
+    var actuales = productos.Values.ToArray();
+    return Results.Ok(new
+    {
+        cantidad = actuales.Length,
+        precioTotal = actuales.Sum(p => p.Precio)
+    });
+});
+~~~
+
+En la primera, el segmento id tiene una restricción de entero. En la segunda, resumen es un literal. Por tanto, una solicitud a /api/productos/resumen no necesita convertirse en un identificador numérico. Esta distinción permite ampliar la API con un recurso de resumen sin alterar la consulta individual.
+
+Ahora pensemos en /api/productos/999. El servidor puede seleccionar correctamente el endpoint con id=999, pero la búsqueda en el diccionario no encuentra el elemento. Se devuelve 404 por decisión del manejador. Si en cambio solicitamos /api/catalogo, ninguna de estas plantillas corresponde a la ruta; el resultado no proviene de un producto que falta, sino de una URL no publicada.
+
+Dos observaciones con el mismo estado HTTP no siempre proceden de la misma causa. Cuando diagnosticamos una API conviene preguntar primero si la ruta y el verbo coinciden, y después si la operación pudo encontrar los datos que necesitaba.
+
+### 4.3.20. La frontera entre deserializar JSON y validar una regla
+
+ASP.NET Core puede convertir un cuerpo JSON a un tipo como CrearProductoApi. Esa conversión establece que los datos recibidos tienen una representación compatible con el tipo de entrada, pero no decide por sí sola si el producto es aceptable para nuestro dominio.
+
+La función del ejemplo comprueba dos reglas: nombre no vacío y precio positivo. Son deliberadamente sencillas para poder observarlas. Una petición con nombre formado por espacios es JSON válido, pero se rechaza porque no aporta un nombre significativo. Una petición con precio cero también es sintácticamente correcta, pero no cumple el contrato funcional de creación.
+
+La distinción importa especialmente al enseñar depuración. Si el cuerpo HTTP está mal formado, la solicitud puede fallar antes de entrar al bloque de validación. Si el cuerpo enlaza correctamente pero no cumple una regla, el manejador devuelve 400. Y si cumple las reglas, el servidor asigna un ID y devuelve 201.
+
+Podemos identificar tres capas conceptuales en una única operación:
+
+~~~text
+Bytes y cabeceras HTTP
+    → interpretación del JSON
+    → CrearProductoApi
+    → reglas de nombre y precio
+    → asignación de identificador
+    → respuesta 201 y ProductoApi
+~~~
+
+Cada transición puede explicar un fallo distinto. El alumno debe aprender a localizar cuál de ellas no se ha completado, en lugar de cambiar todos los elementos de la solución ante un mensaje de error.
+
+### 4.3.21. La cabecera Location como parte de la creación
+
+Cuando una API crea un recurso, puede informar de la dirección donde será consultable. Results.Created permite incluir una dirección relativa y el objeto creado. En nuestro contrato, POST /api/productos devuelve Location: /api/productos/{id}, y GET de esa dirección puede obtener el producto mientras permanezca en memoria.
+
+El valor de Location no sustituye el cuerpo JSON. Para la interfaz que estamos construyendo es cómodo recibir también el producto completo, porque puede actualizar su lista sin realizar otra consulta de detalle. El cuerpo permite conocer el ID, el nombre normalizado y el precio que ha confirmado el servidor.
+
+Imaginemos una respuesta que declarara 201 y devolviera un cuerpo vacío. Podría existir un diseño de API en el que el cliente realizara una petición posterior a Location, pero no es el contrato que espera nuestro ProductosApiService, que intenta leer un ProductoDto inmediatamente. Una decisión legítima en abstracto puede ser incompatible con un consumidor concreto.
+
+### 4.3.22. Cuándo una extensión del contrato es segura para este cliente
+
+El endpoint /api/productos/resumen devuelve un objeto diferente del listado. La ruta nueva evita alterar la forma del GET que ya consume Blazor. Añadir hayProductos al objeto de resumen es una variación de su salida que podemos estudiar en aislamiento.
+
+No debemos concluir que añadir siempre cualquier propiedad a cualquier respuesta es automáticamente seguro. Un cliente puede imponer reglas estrictas sobre contratos, versiones o validación. En el laboratorio actual, el consumidor del catálogo no consulta la nueva ruta y por eso no cambia. Si quisiéramos crear una página de resumen, definiríamos su DTO y su operación cliente de manera explícita.
+
+Este ejemplo introduce una idea útil para trabajos reales: la compatibilidad de una API no consiste únicamente en que el servidor compile. Hay que comprobar las operaciones que consumen las aplicaciones existentes y distinguir entre ampliar recursos y sustituir contratos ya publicados.
+
+### 4.3.23. Verificaciones después de construir la API desde cero
+
+La secuencia de comprobación debe seguir los hitos de construcción. Primero, el host responde en /. Segundo, el listado inicial devuelve dos productos. Tercero, un identificador existente devuelve su recurso y uno inexistente produce 404. Cuarto, un POST válido crea un objeto con ID y 201. Quinto, un POST inválido produce 400 sin modificar el número de productos. Sexto, el endpoint de resumen refleja los valores actuales cuando se activa.
+
+Solo después iniciamos Blazor y sustituimos la API que se entregaba al principio de 4.1. Si ambas implementaciones satisfacen el mismo contrato, el cliente puede seguir funcionando sin alterar su código. Esta última comprobación es especialmente reveladora porque une 4.1, 4.2 y 4.3: no basta con construir endpoints, deben respetar los acuerdos de la aplicación consumidora.
+
+La herramienta HTTP y el proyecto Blazor ofrecen evidencias distintas. Una consulta directa demuestra la respuesta concreta del servidor para un caso. Una consulta desde Blazor demuestra además que el servicio tipado, sus DTO y el componente colaboran correctamente. Las dos son necesarias para localizar problemas con precisión.
+
+### 4.3.24. Leer un archivo de peticiones HTTP como documentación ejecutable
+
+Un archivo .http puede conservar una colección pequeña de solicitudes representativas. Cada bloque especifica un método y una URL, y para POST incluye cabecera Content-Type y cuerpo JSON. Visual Studio permite ejecutar esos bloques individualmente y observar respuesta y cabeceras.
+
+Esto resulta útil en un curso porque evita que el alumno tenga que instalar o programar un cliente distinto para cada escenario. También permite conservar en el repositorio las operaciones del contrato junto al código que las implementa. El archivo no garantiza por sí mismo que todas las respuestas sean correctas: hace posible ejecutar solicitudes reproducibles y compararlas con resultados esperados.
+
+No debemos interpretar una colección de peticiones como un sustituto universal de pruebas automatizadas. Puede ser una excelente herramienta de aprendizaje y diagnóstico, mientras que las pruebas de integración automatizadas aportan comprobaciones repetibles cuando se modifica el código. Ambos enfoques se complementan, pero persiguen objetivos diferentes.
+
+### 4.3.25. Reconstrucción, no copia: el propósito de los estados intermedios
+
+Si entregáramos únicamente el Program.cs final, el alumno podría ejecutarlo sin conocer el orden de decisiones que permitió construirlo. Por eso comenzamos con un host vacío que responde en /, añadimos los modelos, publicamos GET, incorporamos detalle, creamos POST y finalmente ampliamos el servidor con el resumen.
+
+Cada estado debe poder compilar y demostrar un comportamiento único. No adelantamos la creación antes de comprobar la consulta, ni mezclamos la validación de POST con un error del puerto. Este modo de trabajar permite aislar causas y favorece que el estudiante pueda reproducir la API en otra solución de ASP.NET Core.
+
+La habilidad transferible no es recordar todas las líneas de memoria. Es poder definir un contrato pequeño, construir sus endpoints por etapas y verificarlo con un cliente independiente antes de conectarlo a la interfaz principal.
+
+### 4.3.26. Del almacenamiento local a la comunicación entre procesos
+
+En M03 la colección podía depender de un servicio de memoria dentro del proceso Blazor. En M04, aunque el servidor también utilice una colección en memoria, la ubicación de esa memoria cambia: ahora pertenece al proceso API y Blazor solo recibe representaciones serializadas.
+
+Esto tiene consecuencias prácticas. Al recargar la página Blazor sin reiniciar la API, los productos creados continúan en el servidor. Si detenemos y reiniciamos la API, la colección se reconstruye desde los datos iniciales. Si detenemos Blazor pero la API sigue funcionando, los datos del servidor no tienen por qué desaparecer. Estos experimentos demuestran la separación de procesos sin introducir una base de datos.
+
+También muestran por qué el componente no debería tratar su lista de DTO como fuente universal de verdad. Es una representación del estado que la API devolvió en un instante. Si otro cliente crea un recurso, la pantalla necesitaría consultar nuevamente para observarlo. El ejemplo no implementa notificaciones en tiempo real, pero sí permite reconocer que una copia local y el estado remoto no son la misma cosa.
+
+
 ### Síntesis del punto 4.3
 
 Un endpoint es una asociación entre método HTTP, ruta y ejecución de código. Los DTO establecen el contrato; los resultados HTTP indican éxito o rechazo; el estado en memoria explica la duración de los datos. Hemos añadido una operación de resumen sin romper las rutas existentes, y disponemos de una API reproducible que se puede observar tanto directamente como desde Blazor.
