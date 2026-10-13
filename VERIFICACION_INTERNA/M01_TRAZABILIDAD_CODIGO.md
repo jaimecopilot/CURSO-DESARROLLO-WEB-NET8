@@ -6,10 +6,10 @@ La correspondencia estática verifica archivos, marcas de activación y fragment
 | Punto | Pasos y reto en MD | Correspondencias de código | E2E |
 |---|---|---:|---|
 | P1.1 | 6 etapas distintas, incluido reto | 8 | 7 escenarios |
-| P1.2 | 5 etapas distintas, incluido reto | 5 | 6 escenarios |
-| P1.3 | 6 etapas distintas, incluido reto | 8 | 6 escenarios |
-| P1.4 | 6 etapas distintas, incluido reto | 7 | 7 escenarios |
-| P1.5 | 6 etapas distintas, incluido reto | 9 | 9 escenarios |
+| P1.2 | 5 etapas distintas, incluido reto | 5 | 5 escenarios |
+| P1.3 | 6 etapas distintas, incluido reto | 8 | 5 escenarios |
+| P1.4 | 6 etapas distintas, incluido reto | 7 | 6 escenarios |
+| P1.5 | 6 etapas distintas, incluido reto | 9 | 6 escenarios |
 
 **Total: 37 correspondencias de código comprobadas.**
 
@@ -55,4 +55,4 @@ La correspondencia estática verifica archivos, marcas de activación y fragment
 | 1.5.5 | `PROYECTO/1.5/CursoWeb.Mvc/Views/Productos/Detalle.cshtml` | `PASO 1.5.5` | 1 |
 | RETO 1.5 | `PROYECTO/1.5/CursoWeb.Mvc/Views/Shared/_TarjetaProducto.cshtml` | `RETO 1.5` | 2 |
 
-**Límite:** los fragmentos conceptuales de teoría que no se presentan como ejercicios ejecutables no generan código nuevo. Los recuentos de escenarios anteriores se han contrastado con los scripts `M01_MVC/TESTS/1.1_e2e.sh` a `1.5_e2e.sh`: incluyen estados base, activaciones, aplicaciones autónomas y retos, además de regresiones del catálogo. Esta auditoría no acredita observación visual de los PDF ni la ejecución manual en Visual Studio.
+**Límite:** los fragmentos conceptuales de teoría que no se presentan como ejercicios ejecutables no generan código nuevo. Las pruebas E2E de cada punto verifican las activaciones de los ejercicios, incluida la regresión del catálogo. Esta auditoría no acredita observación visual de los PDF ni la ejecución manual en Visual Studio.
