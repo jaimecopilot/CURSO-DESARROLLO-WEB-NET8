@@ -75,7 +75,7 @@ Crea `Components/Pages/CatalogoRemoto.razor`. Incluye una directiva `@page "/cat
 
 En `OnInitializedAsync`, usa `Clientes.CreateClient("ProductosApi")` y `GetFromJsonAsync<List<ProductoDto>>("api/productos")`. Presenta tres estados separados: «Cargando…», listado y error.
 
-El **código de referencia completo y razonado** está en teoría 4.1.6. Escribe esta primera versión siguiendo aquella explicación; comprueba que al navegar a `/catalogo-remoto` se ven los mismos dos productos que aparecen en el JSON del navegador.
+El **código íntegro de esta primera versión** figura inmediatamente a continuación en estas mismas prácticas. Escríbelo y comprueba sus resultados; comprueba que al navegar a `/catalogo-remoto` se ven los mismos dos productos que aparecen en el JSON del navegador.
 
 Una observación importante: el GET se realiza desde el proceso de Blazor en Interactive Server, no desde el navegador; no necesitamos añadir una política CORS ficticia a la API de este laboratorio.
 
@@ -233,6 +233,196 @@ productos = await respuesta.Content
 ```
 
 Mantén el `finally` que desactiva el indicador de carga. Puedes cambiar temporalmente la ruta por `api/no-existe` y comparar «La API respondió 404» con el error de conexión que aparece al apagar el servidor. Restablece la ruta real al terminar el reto.
+
+
+### Taller de consolidación P4.1: del GET inicial al archivo final
+
+Una vez que la consulta funciona, necesitamos convertirla en una pantalla que permita crear productos sin perder las garantías anteriores. No copies el archivo final al principio de la práctica: compáralo con el estado exclusivamente GET que ya has compilado. Localiza los nuevos elementos, identifica su propósito y escríbelos en el mismo componente.
+
+Primero aparecen los inputs de Nombre y Precio. En Blazor los valores se enlazan con variables de estado mediante @bind. Estos campos no realizan todavía una llamada HTTP: solamente cambian el estado del componente.
+
+En segundo lugar aparece el botón Crear en API. Su evento @onclick invoca un método Task, y la propiedad disabled observa el estado enviando. La validación inicial comprueba nombre no vacío y precio mayor que cero. Es una ayuda al usuario: el servidor volverá a validar independientemente esos datos.
+
+En tercer lugar aparece CrearAsync. Esta operación hace POST y lee la respuesta. Si la API confirma la creación, añade a la colección el objeto devuelto, que ya contiene el identificador asignado. Solo entonces limpia los dos inputs. Si ocurre un error, presenta un mensaje y conserva los valores para que el alumno pueda corregirlos o intentarlo de nuevo cuando la API esté disponible.
+
+El siguiente archivo reúne el estado final de P4.1. Se muestra íntegro para que el alumno pueda comparar y localizar cada diferencia; no sustituye los pasos previos, porque se trata de comprender cómo se ha llegado a él.
+
+
+~~~razor
+@page "/catalogo-remoto"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Net.Http.Json
+@inject IHttpClientFactory Clientes
+<PageTitle>Productos desde API</PageTitle>
+
+<h1>Catálogo remoto · P4.1</h1>
+<p>Esta página consume una API HTTP. El catálogo local de M03 sigue disponible en /productos.</p>
+@if (cargando)
+{
+    <p id="estado-api" role="status">Cargando catálogo remoto...</p>
+}
+else if (error is not null)
+{
+    <p id="error-api" role="alert">@error</p>
+}
+else
+{
+    <p id="estado-api">Catálogo remoto disponible</p>
+    <ul id="productos-api">
+        @foreach (var producto in productos)
+        {
+            <li>@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+        }
+    </ul>
+}
+<section>
+    <h2>Crear producto</h2>
+    <label>Nombre: <input id="nombre-api" @bind="nombreNuevo" /></label>
+    <label>Precio: <input id="precio-api" type="number" min="0" step="0.01" @bind="precioNuevo" /></label>
+    <button id="crear-api" disabled="@enviando" @onclick="CrearAsync">Crear en API</button>
+    @if (mensaje is not null)
+    {
+        <p id="resultado-api" role="status">@mensaje</p>
+    }
+</section>
+
+@code {
+    private List<ProductoDto> productos = [];
+    private bool cargando = true;
+    private string? error;
+    private string nombreNuevo = string.Empty;
+    private decimal precioNuevo;
+    private bool enviando;
+    private string? mensaje;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var cliente = Clientes.CreateClient("ProductosApi");
+            productos = await cliente.GetFromJsonAsync<List<ProductoDto>>("api/productos") ?? [];
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo obtener el catálogo remoto.";
+        }
+        catch (TaskCanceledException)
+        {
+            error = "La petición superó el tiempo disponible.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            error = "La API no devolvió un catálogo JSON válido.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task CrearAsync()
+    {
+        if (string.IsNullOrWhiteSpace(nombreNuevo) || precioNuevo <= 0)
+        {
+            mensaje = "Indica un nombre y un precio mayor que cero.";
+            return;
+        }
+
+        enviando = true;
+        mensaje = null;
+        try
+        {
+            var cliente = Clientes.CreateClient("ProductosApi");
+            using var respuesta = await cliente.PostAsJsonAsync(
+                "api/productos", new CrearProductoDto(nombreNuevo.Trim(), precioNuevo));
+            respuesta.EnsureSuccessStatusCode();
+            var creado = await respuesta.Content.ReadFromJsonAsync<ProductoDto>()
+                ?? throw new InvalidOperationException("Alta sin producto de respuesta.");
+            productos.Add(creado);
+            nombreNuevo = string.Empty;
+            precioNuevo = 0;
+            mensaje = $"Producto creado: {creado.Nombre} (id {creado.Id}).";
+        }
+        catch (HttpRequestException)
+        {
+            mensaje = "La API no pudo completar el alta.";
+        }
+        catch (TaskCanceledException)
+        {
+            mensaje = "Se agotó el tiempo al crear el producto.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            mensaje = "La respuesta de alta no contiene JSON válido.";
+        }
+        catch (InvalidOperationException)
+        {
+            mensaje = "La respuesta de alta está incompleta.";
+        }
+        finally
+        {
+            enviando = false;
+        }
+    }
+
+    /* RETO P4.1: reemplazar temporalmente la lectura GET de OnInitializedAsync.
+    using var respuesta = await cliente.GetAsync("api/productos");
+    if (!respuesta.IsSuccessStatusCode)
+    {
+        error = $"La API respondió {(int)respuesta.StatusCode}.";
+        return;
+    }
+    productos = await respuesta.Content.ReadFromJsonAsync<List<ProductoDto>>() ?? [];
+    FIN RETO P4.1 */
+}
+
+~~~
+
+
+#### Ejecución A: consulta satisfactoria
+
+Arranca la API antes que el cliente Blazor. Comprueba su URL /api/productos directamente y anota cuántos productos devuelve. A continuación abre /catalogo-remoto y verifica que la lista visual corresponde con el JSON observado. Si ambos procesos funcionan pero no aparece el catálogo, inspecciona la dirección base en appsettings.json y la ruta relativa del cliente.
+
+No escribas todavía un producto nuevo. La finalidad de esta primera comprobación es demostrar que el sistema puede consultar datos remotos. Es importante realizarla antes de modificar el estado por POST, porque así dispones de una referencia conocida.
+
+#### Ejecución B: creación confirmada
+
+Escribe Regla y el precio decimal 1,75 utilizando el formato admitido por el campo de la interfaz. Pulsa Crear en API una sola vez y observa el mensaje de confirmación que incluye el nombre y el ID. Verifica que la lista ahora contiene una entrada nueva. Recarga la página: el nuevo recurso debe seguir presente porque reside en el proceso API y este no se ha reiniciado.
+
+Si el formulario se limpia pero no aparece el producto, revisa en qué instante borras los valores y cuándo añades el DTO devuelto por el servidor. El orden correcto es esperar el resultado, incorporar el recurso y entonces limpiar. No es correcto confundir «se pulsó el botón» con «el servidor confirmó el alta».
+
+#### Ejecución C: rechazo por reglas del servidor
+
+El formulario no envía un precio cero, porque realiza una validación previa. Para demostrar que la API mantiene sus propias reglas, prepara un archivo JSON con nombre Regla y precio 0 y envíalo directamente por HTTP desde la terminal. Debes observar 400. Después realiza GET para comprobar que no se ha añadido una entrada nueva.
+
+No hace falta eliminar la validación de Blazor para provocar la situación: en este ejercicio estamos estudiando precisamente la diferencia entre una ayuda visual y una regla del servidor. Si el POST inválido se aceptara, la API tendría un defecto independiente de la interfaz.
+
+#### Ejecución D: fallo de comunicación
+
+Con ambos procesos operativos, abre la pantalla y comprueba que se ve el catálogo. Ahora detén únicamente la API, sin detener Blazor, y recarga el componente. Debe aparecer un mensaje de comunicación o petición agotada. El hecho de que la página Blazor siga pudiendo representarse mientras falla la API demuestra que son procesos diferentes.
+
+Vuelve a iniciar la API y recarga. Si recupera el listado inicial, has validado el camino de ida y vuelta del cliente. Si el listado contiene todavía productos creados antes de un reinicio completo del servidor, revisa si realmente has detenido el proceso API correcto.
+
+#### Ejecución E: ruta incorrecta frente a servidor apagado
+
+Con la API encendida, cambia temporalmente la ruta de consulta desde api/productos a api/no-existe. Si utilizas GetAsync y compruebas StatusCode, verás un 404 explícito. Restablece la ruta original antes de continuar. Este resultado no debe confundirse con una conexión rechazada: en el primer caso el servidor existe y responde; en el segundo no recibimos una respuesta HTTP del servidor objetivo.
+
+#### Ejecución F: contrato JSON incompatible
+
+Como experimento razonado, imagina que el servidor respondiera con el objeto de resumen en la ruta de listado. Ese objeto puede ser JSON correcto, pero la pantalla espera List<ProductoDto>. Predice qué parte del programa fallaría: no se trata de un problema de @bind ni del botón de crear, sino de deserialización del contrato. La práctica no requiere romper la API de manera permanente para entenderlo.
+
+### Hoja de resultados esperados P4.1
+
+| Acción | Resultado del servidor | Resultado visible | Interpretación |
+|---|---|---|---|
+| GET inicial | 200, dos productos | Dos entradas | Consulta remota correcta |
+| POST Regla 1,75 | 201, producto con ID | Tercera entrada y mensaje | Alta confirmada |
+| POST de precio 0 desde HTTP | 400 | Sin nuevo producto | Regla del servidor |
+| GET del ID 999 | 404 | Respuesta no encontrada | Recurso inexistente |
+| API detenida | Sin respuesta válida | Aviso de conectividad | Límite de proceso |
+| API reiniciada | 200, estado inicial | Dos entradas | Memoria no persistente |
+
+Al cerrar P4.1, el alumno debe poder explicar qué parte del flujo se ejecuta en el proceso Blazor y cuál se ejecuta en el proceso API. Esa explicación es la base del refactor de P4.2.
 
 ### Resultado y continuidad
 
