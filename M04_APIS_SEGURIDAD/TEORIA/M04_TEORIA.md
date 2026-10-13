@@ -769,6 +769,92 @@ Un cliente robusto no es el que contiene más bloques catch, sino el que conserv
 
 La interfaz seguirá siendo sencilla. El valor añadido de este desarrollo teórico es que ahora podemos justificar cada una de sus decisiones y reconocer por qué una implementación aparentemente corta puede ser correcta o engañosa según lo que haga con las respuestas.
 
+
+### Ampliación 4.1 — Origen de las peticiones, JavaScript y CORS
+
+Para diagnosticar correctamente una integración entre Blazor y una API es necesario saber **dónde se ejecuta el cliente HTTP**. En nuestros componentes Interactive Server, el código C# que usa HttpClient se ejecuta en el servidor Blazor. La API recibe una petición originada por otro proceso .NET, no directamente por una instrucción JavaScript del navegador.
+
+Si, en cambio, ejecutamos JavaScript en una página web y utilizamos fetch para consultar la misma API, la petición sale del navegador. En ese escenario pueden entrar en juego las reglas CORS, que los navegadores utilizan para controlar el acceso del código web a respuestas de otros orígenes.
+
+#### Comparar dos recorridos
+
+En el ejercicio obligatorio el camino es:
+
+~~~text
+Navegador → host Blazor Interactive Server → HttpClient .NET → API
+~~~
+
+En un ejemplo JavaScript sería:
+
+~~~text
+Navegador → fetch JavaScript → API
+~~~
+
+Aunque ambos terminen solicitando GET /api/productos, no se ejecutan bajo las mismas reglas. La comunicación ordinaria entre dos procesos de servidor no necesita superar la comprobación CORS del navegador. Por ello no añadimos una política CORS como requisito para P4.1 y P4.2.
+
+El origen web se identifica principalmente por esquema, host y puerto. Así, http://localhost:5091 y http://localhost:5081 son orígenes distintos, aunque ambos utilicen localhost. Una página alojada en el primero que intenta ejecutar fetch hacia el segundo realiza una solicitud de origen cruzado.
+
+#### Un ejemplo JavaScript distinto del cliente Blazor
+
+El código siguiente podría ejecutarse desde una página con JavaScript:
+
+~~~javascript
+const respuesta = await fetch("http://localhost:5081/api/productos");
+const productos = await respuesta.json();
+console.log(productos);
+~~~
+
+Si la API no permite a ese origen acceder a la respuesta, el navegador puede impedir que el código JavaScript la lea. Al mismo tiempo, curl.exe o un cliente HttpClient de servidor podrían consultar la API correctamente. Esto no es contradictorio: CORS es una restricción aplicada por el navegador en un contexto específico.
+
+Por tanto, no conviene afirmar «la API está caída» únicamente porque un fetch de navegador muestre un error CORS. Tampoco conviene añadir políticas que permitan cualquier origen para resolverlo sin estudiar los requisitos de la aplicación.
+
+#### CORS no es autenticación
+
+Autorizar a un origen web a leer determinadas respuestas no significa autenticar a la persona que utiliza la página. Tampoco sustituye una política RequireAuthorization del recurso. Una API pública puede permitir acceso desde ciertos orígenes de navegador y seguir siendo pública para otros clientes HTTP.
+
+En el punto 4.4 veremos autenticación mediante cookies y autorización por roles. Esos mecanismos responden preguntas diferentes. CORS se refiere a la relación entre el código del navegador y los orígenes de las respuestas; la autorización controla si una identidad tiene permiso para utilizar un recurso.
+
+Es importante no confundir estos límites cuando aparecen mensajes de error aparentemente relacionados con «acceso» o «permiso».
+
+#### Cómo se define una política restringida cuando es necesaria
+
+ASP.NET Core proporciona una infraestructura para configurar CORS. Si un proyecto concreto necesitara permitir fetch desde el origen de desarrollo de Blazor, podría definir una política explícita:
+
+~~~csharp
+builder.Services.AddCors(opciones =>
+{
+    opciones.AddPolicy("ClienteDesarrollo", politica =>
+        politica.WithOrigins("http://localhost:5091")
+                .AllowAnyHeader()
+                .WithMethods("GET", "POST"));
+});
+~~~
+
+Después, en el lugar adecuado del pipeline, se puede utilizar:
+
+~~~csharp
+app.UseCors("ClienteDesarrollo");
+~~~
+
+Esta configuración es un ejemplo conceptual y **no se añade al proyecto obligatorio**. El alumno debe reconocer que permitir un origen es una decisión deliberada para clientes de navegador, no una receta automática para cualquier problema de HttpClient.
+
+#### Por qué algunas solicitudes de navegador usan OPTIONS
+
+Según el método y las cabeceras de una petición de origen cruzado, el navegador puede enviar previamente una solicitud OPTIONS para comprobar qué operaciones admite el servidor desde ese origen. Una solicitud POST con JSON y determinadas cabeceras puede desencadenar ese intercambio previo.
+
+La respuesta de esa comprobación no es el producto creado: es una decisión sobre el acceso desde el origen web. Confundirla con el POST de negocio llevaría a interpretar de forma incorrecta los estados y cuerpos de respuesta.
+
+Nuestro ejemplo principal de Blazor Interactive Server no necesita que el alumno construya ese flujo. Lo presentamos como una lectura adicional para que pueda comprenderlo cuando trabaje con JavaScript o con aplicaciones Blazor que utilicen otros modelos de ejecución.
+
+#### Diagnóstico práctico de la diferencia
+
+Si el catálogo Blazor no carga, comprueba primero si la solicitud utiliza HttpClient en el host Interactive Server. Si es así, investiga servidor API, puerto, ruta, estado HTTP y contrato JSON. No atribuyas sin evidencia una excepción de conexión a CORS.
+
+Si el error procede de fetch ejecutado en la consola JavaScript del navegador, examina el origen de la página y el destino de la petición. Observa si el navegador ha realizado una solicitud preliminar y qué cabeceras de respuesta se han recibido. Solo entonces tiene sentido evaluar una política CORS concreta.
+
+La competencia que se busca es identificar **qué proceso inició realmente la comunicación**. Esa pregunta permite distinguir fallos de red, problemas de contrato, restricciones del navegador y decisiones de seguridad del servidor sin modificar indiscriminadamente todas las capas de la aplicación.
+
+
 ## 4.2. Extraer el consumo HTTP a una capa de servicio
 
 ### De un componente que hace todo a dos responsabilidades
