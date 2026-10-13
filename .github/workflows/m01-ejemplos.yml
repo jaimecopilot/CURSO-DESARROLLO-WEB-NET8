@@ -3,7 +3,7 @@ name: M01 - Auditoría completa de ejemplos
 on:
   workflow_dispatch:
   push:
-    branches: [desarrollo/m01-mvc]
+    branches: [desarrollo/m01-mvc, desarrollo/reconstruccion-m01-m02-trazable]
     paths:
       - "M01_MVC/DOCS/auditar_ejemplos_vs_codigo.py"
       - ".github/workflows/m01-ejemplos.yml"
