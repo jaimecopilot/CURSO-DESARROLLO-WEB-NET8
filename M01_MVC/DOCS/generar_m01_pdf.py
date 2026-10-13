@@ -446,7 +446,7 @@ def main():
     text += ["","## Alcance y límites","",
              "La validación calcula conteos, inspecciona texto extraído y cajas de texto mediante PyMuPDF, y comprueba que cada diagrama Mermaid tiene salida SVG. "
              "Este resultado **no implica** inspección visual manual de todas las páginas, navegación con lectores de pantalla o una clase piloto.",
-             "Las pruebas E2E del código se ejecutan mediante el workflow independiente \`m01-ci.yml\`.",
+             "Las pruebas E2E del código se ejecutan mediante el workflow independiente `m01-ci.yml`.",
              ""]
     OUTPUT.parent.mkdir(parents=True,exist_ok=True)
     OUTPUT.write_text("\n".join(text),encoding="utf-8")
