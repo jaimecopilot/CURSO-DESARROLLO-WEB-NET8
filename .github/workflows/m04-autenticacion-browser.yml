@@ -37,5 +37,4 @@ jobs:
             sleep 1
           done
           cp VERIFICACION_INTERNA/m04_seguir_login_browser.mjs ./m04_browser.mjs
-          mv m04_browser.mjs m04_browser.mjs
           node m04_browser.mjs
