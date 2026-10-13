@@ -50,7 +50,7 @@ try {
     foreach ($ruta in @("/", "/Productos/Estado", "/css/site.css")) {
         $r = Invoke-WebRequest "$base$ruta" -UseBasicParsing -TimeoutSec 5
         if ($r.StatusCode -ne 200) { throw "Se esperaba 200 en $ruta" }
-        Write-Host "$ruta: 200"
+        Write-Host "${ruta}: 200"
     }
     try {
         Invoke-WebRequest "$base/Productos" -UseBasicParsing -TimeoutSec 5 | Out-Null
