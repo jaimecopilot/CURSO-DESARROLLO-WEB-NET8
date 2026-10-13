@@ -984,6 +984,105 @@ Al terminar registra el nombre del sitio, el binding utilizado, la carpeta publi
 
 **Estado final:** mismo MVC A, publicado a una carpeta gestionada por IIS, con respuesta comprobada en rutas sin base y con una explicación explícita de por qué el ensayo no acredita acceso a LocalDB bajo la identidad del pool.
 
+
+### Paso P5.4.9. Relacionar la carpeta publicada con el sitio que realmente la utiliza
+
+**Relación con la teoría:** 5.4.8 y 5.4.9. Este recorrido de observación complementa la creación del sitio que hicimos con la interfaz gráfica. No es necesario instalar otra característica ni crear un segundo sitio: debemos identificar los recursos del mismo laboratorio.
+
+En una ventana PowerShell con permisos adecuados sobre IIS, importa el módulo administrativo:
+
+~~~powershell
+Import-Module WebAdministration
+Get-Website -Name "CursoWeb-M05" |
+    Select-Object Name, State, PhysicalPath, ApplicationPool
+
+Get-WebBinding -Name "CursoWeb-M05" |
+    Select-Object Protocol, BindingInformation
+~~~
+
+Compara la ruta física mostrada con `C:\CursoWeb\M05\IIS`, que elegiste al publicar. Después confirma que esa carpeta contiene los artefactos de aplicación:
+
+~~~powershell
+$destinoIis = "C:\CursoWeb\M05\IIS"
+
+Test-Path (Join-Path $destinoIis "CursoWeb.Mvc.dll")
+Test-Path (Join-Path $destinoIis "CursoWeb.Mvc.runtimeconfig.json")
+Test-Path (Join-Path $destinoIis "web.config")
+Test-Path (Join-Path $destinoIis "wwwroot\css\site.css")
+~~~
+
+Los cuatro resultados deberían ser `True` en una publicación correcta del proyecto. Si IIS apunta a otra ruta, no tendrá por qué servir el contenido que acabas de publicar, aunque `dotnet publish` haya terminado sin errores.
+
+**Interpretación:** la publicación prepara archivos y el sitio IIS decide qué carpeta física utiliza. Se trata de dos operaciones diferentes. Una página que sigue mostrando contenido antiguo puede deberse a que IIS esté leyendo otra carpeta, no necesariamente a un fallo de compilación.
+
+### Paso P5.4.10. Verificar el Application Pool sin confundir el CLR clásico con .NET 8
+
+**Relación con la teoría:** 5.4.9, 5.4.10 y 5.4.11. La aplicación debe ejecutarse mediante ASP.NET Core Module. El Application Pool conserva una configuración particular que hemos elegido para ese mecanismo de hospedaje.
+
+Desde PowerShell, con el módulo de IIS importado, consulta:
+
+~~~powershell
+Get-ItemProperty "IIS:\AppPools\CursoWeb-M05-Pool" |
+    Select-Object Name, ManagedRuntimeVersion, ProcessModel
+
+Get-WebAppPoolState -Name "CursoWeb-M05-Pool"
+~~~
+
+El valor de `ManagedRuntimeVersion` configurado para «No Managed Code» suele representarse como cadena vacía. Eso no significa que nuestro proyecto haya pasado a ser una página estática sin .NET. Significa que el CLR tradicional de .NET Framework no se usa para hospedar ASP.NET Core como si fuera una aplicación antigua.
+
+Si el pool está detenido, consulta la causa antes de iniciarlo. Si está iniciado pero la página devuelve un error, no atribuyas automáticamente el fallo al código MVC. Revisa el Hosting Bundle, el ASP.NET Core Module, los permisos y los artefactos publicados.
+
+**Pregunta guiada:** ¿por qué no demuestra una propiedad `State = Started` que Home/Index devuelve HTML? Porque el estado administrativo del pool y la respuesta de una acción MVC son observaciones distintas. Solo una petición HTTP a la URL correcta permite comprobar la segunda.
+
+### Paso P5.4.11. Separar respuesta de hospedaje de respuesta de una función dependiente de SQL
+
+**Relación con la teoría:** 5.4.13–5.4.15. Con el sitio operativo, realiza tres solicitudes que no necesitan acceso a LocalDB:
+
+~~~powershell
+curl.exe -i http://localhost:8091/
+curl.exe -i http://localhost:8091/Productos/Estado
+curl.exe -i http://localhost:8091/css/site.css
+~~~
+
+Para una instalación preparada, deben responder 200. Ahora solicita una función que en MVC A utiliza el `AppDbContext` de SQL Server:
+
+~~~powershell
+curl.exe -i http://localhost:8091/Productos
+~~~
+
+Con el archivo `appsettings.Production.json` de P5.4.3 y el entorno correspondiente, la respuesta prevista es 503. No se ha fingido un catálogo en memoria ni se ha cambiado `UseSqlServer`. En este ensayo nos interesa demostrar que IIS hospeda la aplicación, no que dispone de una instancia SQL Server Express LocalDB asociada a su identidad de proceso.
+
+Si aparece un 500 durante el arranque, no es equivalente a este 503 deliberado. Revisa qué configuración se cargó realmente y los mensajes de ANCM. Si todas las rutas fallan, el problema se sitúa probablemente antes de la acción concreta del catálogo. Si solo una ruta de datos falla y la portada funciona, el análisis deberá considerar la dependencia de base.
+
+**Por qué importa la identidad:** un Application Pool utiliza una cuenta distinta de la sesión interactiva del alumno. LocalDB en Windows está asociado a un contexto de usuario. La misma cadena de conexión que funcionaba desde Visual Studio no demuestra que IIS tenga acceso autorizado a esa instancia.
+
+### Paso P5.4.12. Comparar dos publicaciones sin cambiar un solo controlador
+
+**Relación con la teoría:** 5.4.9 y 5.4.14. En P5.2 aprendimos que modificar una vista de origen no sustituye automáticamente la carpeta publicada. IIS añade otra relación: el sitio sirve la carpeta física que se le configuró.
+
+Imagina dos carpetas con publicaciones del mismo proyecto: `C:\CursoWeb\M05\IIS` y una copia de ensayo bajo `.work`. Aunque ambas contengan una DLL llamada `CursoWeb.Mvc.dll`, solo una de ellas corresponde a la ruta física del sitio `CursoWeb-M05`.
+
+No necesitas cambiar el binding ni crear otro sitio. Consulta el valor `PhysicalPath` y comprueba que coincide con el destino al que ejecutaste `dotnet publish`. Si acabas de modificar una vista del origen y la portada IIS sigue siendo la antigua, identifica primero si repúblicaste y si el sitio utiliza la salida nueva.
+
+El resultado esperado de este razonamiento es una explicación completa: fuente, publicación, ruta física IIS, módulo ASP.NET Core y petición HTTP. Se trata de cinco elementos distintos; cambiar uno no implica que los otros hayan cambiado.
+
+### Paso P5.4.13. Dejar el host IIS preparado para el siguiente ejercicio
+
+La práctica Docker no necesita que IIS permanezca activo en 8091. Si el laboratorio utiliza una máquina compartida, conserva el nombre del sitio y del pool, informa al docente y detén únicamente lo que hayas creado para la sesión siguiendo las reglas del aula. No borres el Default Web Site ni otras publicaciones.
+
+Puedes consultar el estado final sin modificarlo:
+
+~~~powershell
+Get-Website -Name "CursoWeb-M05" |
+    Select-Object Name, State, PhysicalPath
+
+Get-WebAppPoolState -Name "CursoWeb-M05-Pool"
+~~~
+
+El conocimiento que debes conservar no es la posición de un botón de la consola administrativa, sino la relación entre el sitio, su binding, el pool, el módulo de hospedaje, los archivos publicados y el resultado de una petición concreta. Esa misma disciplina permitirá interpretar después las imágenes, los puertos y los procesos de Docker.
+
+
+
 ### Ampliación autónoma P5.4: explicar una diferencia de proceso
 
 Compara la dirección 5091 utilizada en Kestrel con 8091 de IIS. Argumenta por qué ambos pueden servir la misma acción `HomeController.Index` sin modificar su código, pero dependen de procesos de arranque, identidad y permisos diferentes. Explica además por qué un fallo 503 de `/Productos` deliberadamente producido por el modo sin base no es una avería del módulo IIS.
