@@ -2210,6 +2210,93 @@ El resultado formativo final es una explicación técnica completa de la publica
 
 
 
+
+### 5.5.32. Cuatro fases de un despliegue Docker correctamente descrito
+
+Un despliegue elemental en Docker puede expresarse en cuatro fases: obtener el contexto de construcción, generar la imagen, ejecutar un contenedor y comprobar la aplicación mediante HTTP. Esta secuencia reúne lo aprendido en Kestrel y en publicación sin añadir infraestructura de operación empresarial.
+
+En la primera fase debemos garantizar que el contexto contiene el proyecto MVC A y su Dockerfile. Si `COPY . .` copia una estructura distinta, la restauración o publicación no encontrará el `.csproj` esperado. La carpeta actual es una condición de la construcción.
+
+En la segunda fase Docker utiliza la imagen SDK de .NET 8 para restaurar y publicar. Un build satisfactorio produce una imagen, pero todavía no significa que haya un servidor escuchando. El archivo `ENTRYPOINT` indica qué se ejecutará al crear una instancia.
+
+En la tercera fase `docker run` inicia un contenedor de la imagen. El proceso ASP.NET Core debe arrancar con sus dependencias disponibles y escuchar en el puerto interno elegido. La variable `Despliegue__SinLocalDb=true` hace explícita la restricción del ensayo Linux.
+
+En la cuarta fase el navegador de Windows solicita el puerto exterior que Docker ha publicado. La ruta `/Productos/Estado` permite comprobar el funcionamiento básico del host, y `/Productos` confirma la limitación 503 prevista.
+
+El alumno debe saber indicar qué evidencia corresponde a cada fase: salida de build, presencia de imagen, contenedor activo y respuesta HTTP. No son equivalentes ni se implican automáticamente unas a otras.
+
+### 5.5.33. Dos errores de contexto que parecen errores de programación
+
+Un estudiante ejecuta `docker build -t cursoweb-mvc:m05 .` desde una carpeta que no contiene el proyecto MVC. La construcción informa de que no encuentra `CursoWeb.Mvc.csproj`. El error puede aparecer durante un comando `dotnet restore`, pero el problema real es que `COPY . .` ha copiado un contexto diferente al previsto. La solución consiste en situarse en la carpeta correcta y repetir la construcción, no en modificar la clase `AppDbContext`.
+
+Otro estudiante utiliza el contexto correcto, pero ha alterado su `.dockerignore` de forma que excluye archivos necesarios. El resultado puede ser parecido: faltan archivos dentro de la etapa SDK. La investigación debe revisar qué se envía al contexto y qué entra en `/src`.
+
+Estos ejemplos muestran que una orden de compilación puede fallar por razones externas al lenguaje C#. Antes de tocar controladores o servicios hay que localizar la fase en que falla la secuencia. Esta estrategia coincide con la seguida durante las publicaciones a carpeta en Windows.
+
+### 5.5.34. El estado del contenedor y el resultado de una ruta pertenecen a planos distintos
+
+`docker ps` permite saber si un contenedor está activo y observar cómo se han publicado sus puertos. Pero un contenedor activo no garantiza que una ruta MVC concreta devuelva 200: el programa podría servir 404 para una URL inexistente o 503 para una función deshabilitada.
+
+El estado administrativo tampoco revela por sí solo que el navegador esté utilizando el puerto correcto. Si el contenedor escucha en 8080 y Docker ha publicado 8082:8080, una petición al host 8081 no corresponde al mapeo declarado. El contenedor puede estar perfectamente activo y responder correctamente a través de 8082.
+
+Por eso la comprobación final siempre incluye la URL visible desde el host. Las herramientas de Docker explican el estado del contenedor; una solicitud HTTP verifica el recorrido hasta la aplicación.
+
+### 5.5.35. La imagen no modifica la semántica de los controladores
+
+El Dockerfile no introduce nuevos endpoints. La misma acción `HomeController.Index` genera una vista y la acción de Estado devuelve su texto de referencia. La etapa runtime ejecuta el ensamblado publicado de MVC A; no crea otro proyecto ni cambia la manera de seleccionar rutas.
+
+Si la página inicial responde en Kestrel Windows y en Docker Linux, es una demostración de portabilidad del host y de esas funcionalidades concretas, siempre dentro de las dependencias disponibles. No se debe extender esa conclusión al CRUD con LocalDB sin pruebas adicionales y una infraestructura SQL accesible.
+
+La presencia de una DLL con el mismo nombre tampoco garantiza que la imagen contenga la versión más reciente de la aplicación. Si se modifica una vista después de construir la imagen, el contenedor creado desde la imagen anterior continuará utilizando sus artefactos. Hace falta reconstruir una imagen e iniciar una instancia de esa nueva versión para observar el cambio.
+
+### 5.5.36. La relación entre una imagen antigua y una pantalla antigua
+
+Supongamos que el alumno modifica Home/Index en el proyecto fuente y abre de nuevo el navegador sobre el contenedor que ya estaba ejecutándose. La página no cambia. No hay que deducir que Razor está roto.
+
+La imagen se construyó a partir de un estado anterior del proyecto. Su etapa de publicación preparó los ensamblados y vistas de ese estado. El contenedor que se ejecuta desde esa imagen no consulta continuamente los archivos fuente del equipo Windows.
+
+El recorrido correcto consiste en guardar los cambios, volver a construir una imagen con un identificador controlado y ejecutar un contenedor de esa imagen. Después podremos comparar el contenido HTTP recibido. El principio ya se enseñó con las carpetas A y B de `dotnet publish`: los artefactos son estados concretos, no vínculos vivos con el editor.
+
+Esta explicación conecta dos tecnologías aparentemente distintas mediante el mismo concepto de versión desplegada.
+
+### 5.5.37. La limpieza forma parte de un experimento reproducible
+
+Un laboratorio puede dejar imágenes, contenedores y procesos activos si el alumno solo cierra la pestaña del navegador. Esa situación dificulta la siguiente práctica: un puerto puede seguir ocupado o un nombre de contenedor puede existir aunque la aplicación ya no sea visible.
+
+El comando `docker stop` solicita la detención de un contenedor que controlamos. Si fue creado con `--rm`, la retirada posterior forma parte de su configuración de ciclo de vida. La imagen puede permanecer disponible para iniciar un contenedor nuevo sin construirla de nuevo.
+
+La limpieza responsable no consiste en eliminar todos los recursos Docker del equipo. El estudiante debe identificar por nombre el contenedor de ensayo, comprobar su estado y detenerlo sin afectar a otras aplicaciones. Esta precaución es análoga a no cerrar procesos Windows ajenos porque usan un puerto.
+
+### 5.5.38. Las dependencias externas no desaparecen al utilizar contenedores
+
+Docker encapsula un entorno de ejecución, pero no cambia mágicamente los contratos funcionales del programa. Si una aplicación necesita una base de datos, un servicio de archivos o una API externa, debe poder acceder a ellos desde el contenedor en las condiciones correspondientes.
+
+MVC A utiliza SQL Server Express LocalDB en el recorrido Windows. El contenedor Linux del curso no incluye esa instancia ni configura una base externa. En consecuencia, el ensayo solo declara disponibles las rutas independientes de SQL y responde 503 para las dependientes.
+
+Una versión empresarial podría configurar un SQL Server independiente y las credenciales y redes necesarias, pero eso exigiría más contenidos que los asignados a M05. No se sustituye de manera silenciosa LocalDB por SQLite para simular una funcionalidad completa.
+
+El alumno aprende a reconocer este límite técnico y a decirlo expresamente. Esa precisión es una competencia más importante que conseguir una respuesta 200 mediante datos inventados.
+
+### 5.5.39. Análisis final de una incidencia con resultados mixtos
+
+Observamos lo siguiente: `docker build` termina correctamente, `docker ps` muestra un contenedor en marcha, `/` responde 200, `/css/site.css` responde 200 y `/Productos` responde 503. ¿Está mal el despliegue?
+
+En el alcance acordado, el resultado es coherente. La imagen se construyó, el contenedor ejecuta el host, la ruta MVC de portada y el recurso estático responden y la ruta SQL está declarada no disponible. No hay evidencia de un error de publicación que deba corregirse.
+
+Si por el contrario `/css/site.css` respondiera 404, deberíamos revisar el archivo `wwwroot` incluido en la imagen y la URL solicitada. Si todas las rutas fueran inaccesibles, investigaríamos el proceso y el mapeo de puertos. Si el contenedor terminara inmediatamente, leeríamos su salida para identificar un fallo de arranque.
+
+Estos resultados orientan a capas diferentes. El alumno debe explicar la situación con el grado de precisión que permiten las observaciones, sin atribuir a Docker propiedades que corresponden al código ASP.NET Core o a la infraestructura SQL.
+
+### 5.5.40. Lo que permanece después de finalizar los cinco módulos
+
+El curso ha construido una aplicación MVC con Razor y SQL Server Express LocalDB y otra aplicación Blazor Interactive Server que consume una API docente. M05 no sustituye ninguna de ellas. Consolida la comunicación de B y demuestra distintas formas elementales de ejecutar A.
+
+Desde el punto de vista didáctico, el cierre necesita integrar varias habilidades. El alumno debe comprender los archivos de un proyecto, interpretar el ciclo de vida de una llamada asincrónica, reconocer el papel de un servicio tipado, producir una publicación, identificar procesos y puertos y distinguir una funcionalidad web disponible de otra que exige una dependencia externa.
+
+La finalidad de este recorrido no consiste en convertir seis horas de clase en un curso avanzado de administración, seguridad o contenedores. Consiste en conseguir que cada paso pueda explicarse, ejecutarse y comprobarse con el mismo proyecto que el alumno ha construido.
+
+
+
 ### 5.5.19. Conclusión del curso
 
 Tras M05 el alumno habrá recorrido dos ideas complementarias: una aplicación Blazor que se comunica correctamente con una API y una aplicación MVC que puede ser publicada y ejecutada en distintas modalidades de hospedaje. Habrá aprendido a distinguir compilación de ejecución, respuesta HTTP de funcionamiento completo, interfaz de servidor, y estado temporal de persistencia.
