@@ -23,6 +23,36 @@ En clase, cada idea se presenta con **un problema concreto y el fragmento mínim
 
 # 1.1. Introducción al desarrollo web con ASP.NET Core
 
+## Del código de arranque a una respuesta HTTP: demostración de código
+
+El host ASP.NET Core registra primero los servicios necesarios y después determina qué partes de la aplicación pueden responder a una URL. El navegador no ejecuta Program.cs: hace una petición y recibe una representación o un código de estado. Este archivo completo permite distinguir servicios, middlewares y endpoints.
+
+**Archivo completo del ejemplo:** Program.cs, en el proyecto 1.1. Sus fragmentos activos y sus variantes comentadas tienen las mismas responsabilidades que se estudian en la teoría y se ejecutarán en la práctica.
+
+~~~csharp
+var builder = WebApplication.CreateBuilder(args);
+
+// PASO 1.1.2 — Servicios para controladores con vistas.
+builder.Services.AddControllersWithViews();
+
+var app = builder.Build();
+
+// PASO 1.1.3 — Middleware de archivos estáticos y enrutamiento.
+app.UseStaticFiles();
+app.UseRouting();
+
+// La ruta convencional permite que "/" corresponda a HomeController.Index.
+app.MapControllerRoute(
+    name: "default",
+    pattern: "{controller=Home}/{action=Index}/{id?}");
+
+// Kestrel atiende las solicitudes; ASP.NET Core procesa cada petición HTTP.
+app.Run();
+~~~
+
+El orden de registro de los servicios y la configuración de rutas son responsabilidades distintas del navegador y del controlador. En P1.1 seguiremos una petición por el host hasta obtener HTML, y diferenciaremos una dirección válida de otra inexistente.
+
+
 
 
 **Objetivos de aprendizaje.**
@@ -650,6 +680,46 @@ Cuando en 1.2 aparezca un modelo de producto, no tendremos que reaprender qué e
 
 # 1.2. Arquitectura Model-View-Controller
 
+## Del controlador al modelo tipado y la vista: demostración de código
+
+El controlador decide qué datos reúne y qué resultado devuelve, pero no construye manualmente las etiquetas HTML. El siguiente archivo completo del estado 1.2 muestra cómo una acción entrega objetos Producto a una vista y cómo otra acción puede producir texto plano.
+
+**Archivo completo del ejemplo:** Controllers/ProductosController.cs, en el proyecto 1.2. Sus fragmentos activos y sus variantes comentadas tienen las mismas responsabilidades que se estudian en la teoría y se ejecutarán en la práctica.
+
+~~~csharp
+using CursoWeb.Mvc.Models;
+using Microsoft.AspNetCore.Mvc;
+
+namespace CursoWeb.Mvc.Controllers;
+
+public class ProductosController : Controller
+{
+    [HttpGet]
+    public IActionResult Index()
+    {
+        // PASO 1.2.3: quitar los delimitadores del comentario de datos y
+        // comentar el 'return View();' de la última línea de esta acción.
+        /* PASO 1.2.3 INICIO
+        var productos = new List<Producto>
+        {
+            new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+            // RETO 1.2 — Comentar la línea de Cuaderno y descomentar la siguiente:
+            // new() { Id = 1, Nombre = "Bloc", Precio = 4.50m },
+            new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+            new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+        };
+
+        return View(productos);
+        PASO 1.2.3 FIN */
+
+        return View(); // PASO 1.2.3: comentar al activar el envío de datos.
+    }
+}
+~~~
+
+Observa que View recibe los objetos que después consumirá Razor. Separar la selección de datos de su presentación permite modificar la vista sin cambiar la consulta. P1.2 reconstruye el flujo HTTP → acción → objeto → HTML y obliga a reconocer a qué capa pertenece cada decisión.
+
+
 
 
 **Objetivos.**
@@ -1094,6 +1164,49 @@ Es importante no confundir el alcance de este primer día con el de una aplicaci
 - Microsoft Learn, sintaxis Razor y vistas tipadas: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/razor?view=aspnetcore-8.0
 
 # 1.3. Estructura, convenciones y puesta en marcha de un proyecto ASP.NET Core MVC
+
+## Cómo funciona un diseño compartido sin duplicar vistas: demostración de código
+
+El layout define el armazón que utilizan distintas vistas MVC: navegación, recursos estáticos, contenido común y un espacio donde se inserta la respuesta particular mediante RenderBody. No selecciona los productos ni define reglas de persistencia.
+
+**Archivo completo del ejemplo:** Views/Shared/_Layout.cshtml, en el proyecto 1.3. Sus fragmentos activos y sus variantes comentadas tienen las mismas responsabilidades que se estudian en la teoría y se ejecutarán en la práctica.
+
+~~~cshtml
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Curso Web .NET 8</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+    @* PASO 1.3.4 (inicio)
+    <link rel="stylesheet" href="/css/catalogo.css" />
+    PASO 1.3.4 (fin) *@
+</head>
+<body>
+    <header>
+        <nav aria-label="Navegación principal">
+            <a href="/">Inicio</a>
+            <a href="/Productos">Productos</a>
+            @* PASO 1.3.5 (inicio)
+            <a href="/recursos/guia-publica.txt">Guía pública</a>
+            PASO 1.3.5 (fin) *@
+            @* APLICACION 1.3.5: escribe aquí tu propio enlace <a> al recurso /recursos/ejercicio-publicacion.txt. Debe quedar junto a los enlaces de la navegación. *@
+            @* RETO 1.3 (inicio)
+            <a href="/recursos/aviso-laboratorio.txt">Aviso de laboratorio</a>
+            RETO 1.3 (fin) *@
+        </nav>
+    </header>
+    <main class="container">
+        @RenderBody()
+    </main>
+    <footer>Curso ASP.NET Core MVC · .NET 8</footer>
+</body>
+</html>
+~~~
+
+La hoja CSS se sirve como recurso estático de wwwroot y no contiene código C# ejecutado por el navegador. En P1.3 se comprobará que el mismo layout acompaña a distintas acciones y que una referencia a un recurso privado no equivale a una URL pública.
+
 
 
 
@@ -1630,6 +1743,109 @@ El alumno debe terminar explicando **en qué carpeta se modifica una cosa y por 
 - Vistas Razor y convenciones: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/overview?view=aspnetcore-8.0
 
 # 1.4. Controladores, acciones, parámetros y routing en ASP.NET Core MVC
+
+## Rutas, identificadores y respuestas HTTP distintas: demostración de código
+
+Un identificador enviado por la URL puede resultar inválido, ser válido pero no corresponder a ningún producto, o localizar un objeto real. El controlador permite mostrar por qué BadRequest, NotFound y View no son respuestas equivalentes.
+
+**Archivo completo del ejemplo:** Controllers/ProductosController.cs, en el proyecto 1.4. Sus fragmentos activos y sus variantes comentadas tienen las mismas responsabilidades que se estudian en la teoría y se ejecutarán en la práctica.
+
+~~~csharp
+using CursoWeb.Mvc.Models;
+using Microsoft.AspNetCore.Mvc;
+
+namespace CursoWeb.Mvc.Controllers;
+
+public class ProductosController : Controller
+{
+    // PASO 1.4.1 — Reutilización de los datos fijos por Index y Detalle.
+    // No hay base de datos: cada consulta genera una lista de ejemplo.
+    private static IReadOnlyList<Producto> ObtenerProductosEjemplo() =>
+        new List<Producto>
+        {
+            new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+            // RETO 1.2 (variante histórica del capítulo anterior):
+            // new() { Id = 1, Nombre = "Bloc", Precio = 4.50m },
+            new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+            new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+        };
+
+    [HttpGet]
+    public IActionResult Index()
+    {
+        return View(ObtenerProductosEjemplo());
+    }
+
+    // PASO 1.4.2: añadir acción sin modificar la ruta convencional.
+    /* PASO 1.4.2 INICIO
+    [HttpGet]
+    public IActionResult Estado()
+    {
+        return Content("Catalogo MVC disponible", "text/plain");
+    }
+    PASO 1.4.2 FIN */
+
+    // PASO 1.4.3: valor id desde la ruta; distinguir 200, 400 y 404.
+    /* PASO 1.4.3 INICIO
+    [HttpGet]
+    public IActionResult Detalle(int id)
+    {
+        if (id <= 0)
+        {
+            return BadRequest("El identificador debe ser mayor que cero.");
+        }
+
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        if (producto is null)
+        {
+            return NotFound();
+        }
+
+        return View(producto);
+    }
+    PASO 1.4.3 FIN */
+
+    // PASO 1.4.4: la ruta absoluta definida por atributos
+    // "/catalogo/ficha/{id:int}" exige un segmento que sea entero.
+    /* PASO 1.4.4 INICIO
+    [HttpGet("/catalogo/ficha/{id:int}")]
+    public IActionResult Ficha(int id)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        if (producto is null)
+        {
+            return NotFound();
+        }
+
+        return View("Detalle", producto);
+    }
+    PASO 1.4.4 FIN */
+
+    // APLICACION 1.4 — Escribe aquí una acción propia BuscarPorNombre(string nombre).
+    // Utiliza [HttpGet("/catalogo/buscar/{nombre}")], busca sin distinguir
+    // mayúsculas en ObtenerProductosEjemplo(), devuelve NotFound() si no hay
+    // coincidencia y reutiliza View("Detalle", producto) si existe.
+    // No copies el método Detalle: resuelve tú mismo el enlace del parámetro.
+    //
+    // RETO 1.4: comparar un resultado JSON de MVC con una vista HTML.
+    /* RETO 1.4 INICIO
+    [HttpGet("/catalogo/resumen/{id:int}")]
+    public IActionResult Resumen(int id)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        if (producto is null)
+        {
+            return NotFound();
+        }
+
+        return Ok(new { producto.Id, producto.Nombre });
+    }
+    RETO 1.4 FIN */
+}
+~~~
+
+El enrutador resuelve una acción y sus parámetros; el controlador comprueba el dato y elige un resultado HTTP. La vista solo interviene cuando la acción devuelve una representación apropiada. P1.4 hará reproducir cada caso sin borrar el catálogo ya construido.
+
 
 
 
@@ -2413,6 +2629,36 @@ El capítulo siguiente, **1.5**, profundizará en la sintaxis Razor, la composic
 - Microsoft Learn, vistas Razor y tipado de modelos: https://learn.microsoft.com/en-us/aspnet/core/mvc/views/overview?view=aspnetcore-8.0
 
 # 1.5. Vistas Razor, modelos tipados, layouts y vistas parciales
+
+## Reutilizar una presentación sin duplicar el contrato de datos: demostración de código
+
+Una vista parcial permite utilizar el mismo marcado de una tarjeta tanto en el listado como en el detalle. A diferencia de una acción, no busca el producto: recibe un objeto ya seleccionado mediante su declaración @model y representa sus propiedades.
+
+**Archivo completo del ejemplo:** Views/Shared/_TarjetaProducto.cshtml, en el proyecto 1.5. Sus fragmentos activos y sus variantes comentadas tienen las mismas responsabilidades que se estudian en la teoría y se ejecutarán en la práctica.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+
+@* PASO 1.5.4: vista parcial tipada. No declara @page ni layout propio. *@
+<article class="tarjeta-producto" data-producto-id="@Model.Id">
+    <h3>@Model.Nombre</h3>
+    <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
+
+    @* APLICACION 1.5 — Escribe aquí una condición Razor propia: si Model.Precio >= 4m, representa <strong class="etiqueta-destacada">Producto destacado</strong>. La misma parcial se reutiliza en listado y detalle. *@
+    @* APLICACION 1.5.B: tras activar la parcial, sustituye este enlace con href por un enlace con asp-controller, asp-action y asp-route-id. Conserva el mismo destino visible. *@
+    <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
+
+    @* RETO 1.5 (inicio)
+    @if (Model.Precio < 3m)
+    {
+        <strong class="etiqueta-economico">Precio económico</strong>
+    }
+    RETO 1.5 (fin) *@
+</article>
+~~~
+
+Las condiciones y retos comentados permanecen disponibles, pero no se activan automáticamente. El alumno podrá reutilizar la misma parcial para un producto individual y para cada elemento de una colección. P1.5 completa la presentación conservando los resultados HTTP y los enlaces de P1.4.
+
 
 
 
