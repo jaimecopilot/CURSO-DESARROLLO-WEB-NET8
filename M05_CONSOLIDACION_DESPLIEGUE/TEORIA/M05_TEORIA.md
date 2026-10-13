@@ -695,6 +695,142 @@ El aprendizaje esperado es expresar con precisión **cuándo se obtuvo la inform
 
 
 
+
+### 5.1.35. La ubicación de una llamada HTTP en Blazor Interactive Server
+
+En los módulos anteriores se aprendió que una página Razor puede contener código C# que se ejecuta en el servidor. En Blazor Interactive Server ese principio se extiende a componentes que atienden eventos del usuario. Es fácil que el alumno vea un botón y suponga que toda llamada HTTP procede directamente del navegador. En nuestro proyecto no es así: el componente se ejecuta en el servidor Blazor, y el servicio tipado utiliza `HttpClient` desde ese proceso para comunicarse con la API.
+
+La ruta física de una solicitud de catálogo se describe mejor así:
+
+~~~text
+Navegador: clic en Consultar servidor
+              |
+              v
+Blazor Interactive Server: recibe el evento
+              |
+              v
+Componente: ConsultarAsync
+              |
+              v
+IProductosApiService / ProductosApiService
+              |
+              v
+HttpClient del servidor Blazor
+              |
+              v
+HTTP GET a la API en localhost:5081
+              |
+              v
+API: JSON y código de estado
+              |
+              v
+Blazor actualiza el estado del componente
+              |
+              v
+Navegador recibe la representación actualizada
+~~~
+
+Esta cadena justifica que el proyecto de aula ejecute dos servidores ASP.NET Core distintos. El proceso de Blazor no se transforma en API de productos porque consuma un endpoint HTTP, y el servidor API no se convierte en interfaz Blazor porque responda JSON.
+
+El modelo también orienta el diagnóstico: si una dirección funciona en el navegador del alumno, no se ha demostrado automáticamente que un proceso Blazor alojado en otra máquina pueda alcanzarla. Cada proceso interpreta las direcciones y sus condiciones de red desde su propio entorno.
+
+### 5.1.36. Por qué `localhost` debe interpretarse desde el proceso que consulta
+
+Durante el laboratorio todos los servidores se ejecutan en la misma máquina del alumno, y por eso `http://localhost:5081/` es una dirección sencilla para la API. El nombre `localhost` siempre se interpreta respecto al contexto de red que realiza la conexión. No significa una dirección universal de un servidor disponible desde cualquier equipo.
+
+En el modelo Interactive Server, el `HttpClient` utilizado por el componente pertenece al proceso de Blazor. Ese proceso necesita poder resolver y conectar con `localhost:5081`. Si Blazor se trasladara a otra máquina y la API permaneciera en la original, la misma dirección dejaría de señalar al servicio deseado. Habría que configurar una dirección alcanzable desde el nuevo proceso.
+
+Este razonamiento es pertinente también para Docker: dentro de un contenedor, `localhost` identifica el propio contenedor. Por tanto, no debemos copiar indiscriminadamente una dirección de API local de Windows dentro de una imagen Linux y esperar que siga llegando al mismo destino. En M05 Docker utiliza solamente MVC A y evita ejecutar el cliente Blazor en ese entorno, precisamente para mantener un alcance de despliegue elemental.
+
+### 5.1.37. CORS y solicitudes de servidor: no confundir dos escenarios
+
+CORS regula determinadas solicitudes HTTP realizadas por código de navegador entre orígenes distintos. En el recorrido principal de Blazor Interactive Server, el servicio tipado realiza una solicitud **desde el servidor Blazor hacia la API**, no un `fetch` de JavaScript del navegador a `localhost:5081`.
+
+Por ello, ante una conexión fallida desde el servicio tipado, no debemos afirmar que hace falta configurar CORS sin comprobar primero desde dónde se está realizando la solicitud. El problema podría ser un puerto incorrecto, una API detenida o una ruta HTTP no existente.
+
+Si diseñáramos un cliente WebAssembly que llamara directamente a la API desde el navegador, las condiciones serían diferentes y CORS podría intervenir. Ese no es el modelo elegido para esta práctica y no se añade como tercer modo Blazor. La finalidad de la comparación es evitar un diagnóstico equivocado, no ampliar el curso a otra arquitectura.
+
+### 5.1.38. La dirección base y la ruta relativa constituyen una URL completa
+
+El registro del cliente tipado establece una `BaseAddress`. Los métodos del servicio utilizan rutas relativas como `api/productos`. Para que el resultado sea coherente debemos comprender cómo se combinan esas partes.
+
+Con la base `http://localhost:5081/` y la ruta `api/productos`, el destino es `http://localhost:5081/api/productos`. El separador final de la dirección base y la ausencia de una barra inicial en la ruta ayudan a expresar que la llamada se realiza bajo la raíz de ese servidor.
+
+En URI relativas existen reglas de resolución que pueden producir resultados inesperados cuando se omite la barra final de una dirección base con subruta o se utiliza una ruta absoluta que reemplaza parte de la base. El proyecto se mantiene deliberadamente sencillo y no explora todos los casos de resolución URI; utiliza una base local terminada en barra y una ruta de endpoint sin barra inicial.
+
+**Caso resuelto:** si la API escucha en 5081 y la configuración del cliente contiene 5082, el código del método `ObtenerAsync` podría ser perfectamente correcto, pero no llegará al servidor previsto. La corrección corresponde a la fuente de configuración de `BaseAddress`, no a duplicar la URL dentro del componente.
+
+### 5.1.39. El registro del cliente tipado concentra decisiones comunes
+
+La aplicación B utiliza inyección de dependencias para asociar `IProductosApiService` con `ProductosApiService`. El registro proporciona un `HttpClient` configurado y permite que el componente pida el servicio por su contrato.
+
+Una versión ilustrativa del registro es:
+
+~~~csharp
+builder.Services.AddHttpClient<IProductosApiService, ProductosApiService>(
+    cliente =>
+    {
+        cliente.BaseAddress = new Uri("http://localhost:5081/");
+        cliente.Timeout = TimeSpan.FromSeconds(10);
+    });
+~~~
+
+En el proyecto real la dirección se obtiene de configuración. El objetivo del fragmento es mostrar que el timeout y la dirección base se establecen para el cliente que realizará las solicitudes, no en el marcado HTML de cada botón.
+
+El componente no necesita instanciar `new HttpClient()` cada vez que el usuario consulta el catálogo. La fábrica de clientes HTTP utilizada en ASP.NET Core administra la infraestructura correspondiente y evita que cada componente duplique la preparación del transporte. El alumno no tiene que aprender aquí su configuración avanzada: basta con reconocer la responsabilidad del registro y el contrato que consume la vista.
+
+### 5.1.40. El evento del botón y el ciclo de vida no son momentos equivalentes
+
+`OnInitializedAsync` inicia la consulta cuando el componente se inicializa. `@onclick` vincula una acción del usuario con un método que se ejecuta posteriormente. Ambos pueden delegar en `ConsultarAsync`, pero representan momentos diferentes.
+
+Una primera consulta puede producir dos productos. Una creación externa puede modificar el servidor sin afectar la instancia actual del componente. Solo cuando el usuario pulsa «Consultar servidor» se inicia otra operación de lectura. Este hecho prueba que el ciclo de vida no actúa como un mecanismo de actualización permanente.
+
+Si se duplicara el código de consulta dentro de `OnInitializedAsync` y del manejador del botón, podrían aparecer diferencias en los mensajes de error o el estado de carga. Delegar ambos en una operación reutilizable preserva un único comportamiento y facilita probarlo.
+
+En un componente interactivo, la finalización de un evento asincrónico provoca el proceso de renderizado correspondiente. No es necesario enseñar a llamar indiscriminadamente a `StateHasChanged` en cada línea como condición para que un botón funcione. El ejemplo conserva el modelo de actualización de Blazor que se introdujo en M03.
+
+### 5.1.41. Qué significa desactivar la prerrepresentación en esta página
+
+La directiva de la página utiliza:
+
+~~~razor
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+~~~
+
+El modo Interactive Server permite ejecutar eventos del componente en el servidor. La opción `prerender: false` evita la fase de prerrepresentación previa a la interactividad para este componente. En esta demostración facilita razonar sobre una inicialización que se realiza dentro del ciclo interactivo.
+
+Esto no significa que la página deje de utilizar ASP.NET Core ni que su HTML aparezca mágicamente en el navegador. Significa que hemos elegido un comportamiento concreto del ciclo de vida y de su representación inicial.
+
+El curso no transforma la página en WebAssembly ni introduce JavaScript propio para consumir la API. La explicación es importante para que un alumno no trate de corregir una consulta duplicada cambiando sin fundamento el endpoint HTTP o el componente de datos. Primero hay que reconocer el modo de renderizado y el ciclo de vida configurados.
+
+### 5.1.42. Un cliente HTTP puede terminar por éxito, error o cancelación
+
+Una solicitud asincrónica no devuelve siempre una colección. Puede finalizar correctamente con datos, finalizar correctamente con una colección vacía, devolver un error HTTP o fallar en transporte o deserialización. También puede verse afectada por el timeout configurado en `HttpClient`.
+
+Por eso `ConsultarAsync` no debe cambiar el estado visual únicamente en la rama satisfactoria. Necesita iniciar la bandera de carga, capturar los errores que el laboratorio distingue y restaurar esa bandera en `finally`. El orden establece una correspondencia entre el estado técnico y lo que el usuario observa.
+
+Un timeout no es lo mismo que un 404. En el primero podría no haberse obtenido una respuesta HTTP útil dentro del plazo. En el segundo un servidor atendió y contestó explícitamente que no existe la ruta o recurso. La interfaz presenta mensajes distintos cuando dispone de esa información.
+
+**Pregunta de comprensión:** si la API tarda más que el tiempo admitido, ¿debe mostrar la interfaz «el catálogo está vacío»? No: sin una colección satisfactoria no conocemos el contenido actual del servidor.
+
+### 5.1.43. Contar elementos visibles es una operación local
+
+En la ampliación práctica se calcula el número de productos y la suma de precios sobre la colección `productos` del componente. Esta operación no ejecuta SQL ni una solicitud GET adicional. Sus resultados se obtienen de la representación local que Blazor mantiene.
+
+El ejemplo sirve para visualizar un hecho que de otro modo puede pasar inadvertido: el servidor remoto puede haber cambiado mientras el contador sigue mostrando el número anterior. El contador no está defectuoso; responde fielmente a los objetos del componente. Hace falta obtener otra respuesta para actualizar esa representación.
+
+En una aplicación con actualización automática podrían existir otros mecanismos, pero el laboratorio utiliza un botón explícito para mantener visible la relación entre acción, solicitud, respuesta y renderizado. Esta elección es pedagógica y suficiente para la consolidación del proyecto.
+
+### 5.1.44. El éxito de integración se compone de hechos independientes
+
+Una pantalla que abre demuestra que el host Blazor sirve la ruta. Un GET directo 200 con JSON demuestra que la API dispone del endpoint. Un listado visible demuestra que el componente obtuvo y representó datos. Un POST 201 con DTO demuestra una creación en el servidor según su contrato. Una recarga posterior demuestra que el componente puede obtener otra instantánea. Un error recuperable demuestra que la interfaz maneja una incidencia externa sin quedar bloqueada.
+
+Ninguna observación por sí sola sustituye las demás. Por eso P5.1 solicita tanto operaciones desde el navegador como peticiones externas y variantes controladas de errores. El alumno no necesita añadir una arquitectura empresarial para entenderlo; necesita poder seguir con precisión cada frontera.
+
+Esta capacidad completa el recorrido de Blazor B en el curso. Los puntos siguientes reutilizan la aplicación MVC A y se centran en otras fronteras: fuente y publicación, proceso y puerto, IIS y módulo de hospedaje, imagen y contenedor.
+
+
+
 ## 5.2. Ejecutar, compilar y publicar una aplicación ASP.NET Core MVC
 
 ### 5.2.1. ¿Por qué compilar no equivale a publicar?
