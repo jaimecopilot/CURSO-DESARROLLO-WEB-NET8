@@ -3022,6 +3022,152 @@ El alumno debería poder construir una pequeña API compatible con el cliente, o
 No introducimos en esta actividad base de datos, un proveedor de identidad completo ni despliegue público. Esos ámbitos modificarían el alcance de seis horas que hemos acordado. El material adicional proporciona profundidad, variantes y diagnóstico, pero no exige que cada escenario se imparta íntegramente durante el tiempo presencial.
 
 
+
+### Ampliación autónoma P4.4 — Probar la diferencia entre identidad reconocida y permiso insuficiente
+
+El recorrido de seguridad de P4.4 demuestra que una persona anónima no puede abrir /demo/privado y que la identidad de laboratorio con rol Formador sí puede. Hay un tercer caso relevante: una identidad autenticada que no posee el rol requerido. En esta ampliación construiremos deliberadamente ese estado en una **copia del proyecto 4.4**.
+
+No cambiaremos la API de productos. Los endpoints que vamos a comprobar pertenecen al host Blazor y permanecen restringidos a Development. No publicaremos un nuevo sistema de acceso real ni añadiremos cuentas persistentes.
+
+#### Paso R1. Preparar una copia de seguridad del escenario
+
+Abre el proyecto Blazor de 4.4 y conserva una copia de su Program.cs. Compila y ejecuta la aplicación en entorno Development. Desde una ventana privada del navegador, abre /seguridad y comprueba que se muestra Usuario anónimo.
+
+Es importante trabajar con una sesión limpia. Si el navegador conserva una cookie anterior, podrías estar comprobando un principal con rol Formador aunque todavía no hayas ejecutado el formulario durante esta prueba.
+
+Consulta directamente /demo/privado sin iniciar sesión. El servidor debe impedirte recibir el objeto JSON protegido. En el laboratorio el flujo para un usuario anónimo está configurado para responder 401. Esta es la primera referencia.
+
+#### Paso R2. Definir qué identidad alternativa necesitamos
+
+Una identidad autenticada se construye a partir de claims. En la versión base creamos un principal con nombre AlumnoDemo y rol Formador. Para examinar el caso de acceso denegado por rol necesitamos construir otra identidad, también autenticada, pero con un rol distinto, por ejemplo Lector.
+
+No es necesario añadir una tabla de usuarios. Vamos a aceptar un segundo código fijo **solo en esta copia de desarrollo**, con la finalidad de generar el principal alternativo. El código de Formador seguirá siendo curso-demo-44; el código lector será curso-demo-lector.
+
+Estas cadenas existen únicamente para el laboratorio. No deben convertirse en credenciales de una aplicación publicada.
+
+#### Paso R3. Modificar la comprobación del formulario en una copia
+
+Dentro de la ruta POST /demo/entrar localiza la comprobación del campo codigo. En la versión básica se acepta una sola cadena. Sustituye esa parte por:
+
+~~~csharp
+var codigo = form["codigo"].ToString();
+var rol = codigo switch
+{
+    "curso-demo-44" => "Formador",
+    "curso-demo-lector" => "Lector",
+    _ => null
+};
+
+if (rol is null)
+    return Results.Redirect("/seguridad?error=1");
+~~~
+
+Más adelante, cuando prepares los claims, conserva ClaimTypes.Name y sustituye el valor fijo del rol por la variable rol:
+
+~~~csharp
+var claims = new[]
+{
+    new Claim(ClaimTypes.Name, "AlumnoDemo"),
+    new Claim(ClaimTypes.Role, rol)
+};
+~~~
+
+No modifiques el esquema CookiesDemo ni el registro general de autenticación. El objetivo es cambiar el contenido de la identidad para la sesión de ensayo, no introducir un nuevo proveedor o una cookie diferente.
+
+Compila. Si obtienes un error de variable local repetida, asegúrate de haber sustituido el bloque anterior y no de haber declarado otra variable claims junto a la original.
+
+#### Paso R4. Configurar un rechazo HTTP observable para falta de permiso
+
+En las opciones AddCookie ya existe un evento OnRedirectToLogin utilizado para que las peticiones anónimas a /demo/privado reciban 401. Añade también el tratamiento de acceso denegado para ese endpoint:
+
+~~~csharp
+options.Events.OnRedirectToAccessDenied = contexto =>
+{
+    if (contexto.Request.Path.StartsWithSegments("/demo/privado"))
+    {
+        contexto.Response.StatusCode = 403;
+        return Task.CompletedTask;
+    }
+
+    contexto.Response.Redirect(contexto.RedirectUri);
+    return Task.CompletedTask;
+};
+~~~
+
+La primera condición no sustituye la segunda. OnRedirectToLogin se ocupa del caso de autenticación ausente, mientras que OnRedirectToAccessDenied permite expresar falta de autorización de un principal ya reconocido. Los códigos 401 y 403 corresponden a situaciones distintas.
+
+La política del recurso debe permanecer:
+
+~~~csharp
+app.MapGet("/demo/privado", () =>
+    Results.Ok(new { mensaje = "Recurso protegido" }))
+    .RequireAuthorization(p => p.RequireRole("Formador"));
+~~~
+
+No cambies RequireRole por Lector, porque perderíamos la referencia de permiso que queremos comprobar.
+
+#### Paso R5. Comprobar el caso anónimo
+
+Con una nueva sesión privada, solicita /demo/privado antes de enviar ningún formulario. El resultado esperado sigue siendo 401.
+
+El navegador podría mostrar una página de error con información resumida o vacía; eso no significa que el endpoint haya entregado su contenido protegido. Para observar el código con precisión puedes utilizar las herramientas de desarrollo del navegador y examinar la respuesta en la pestaña Red o utilizar un cliente HTTP.
+
+No envíes una cookie inventada ni copies valores de sesión a otro documento. El navegador gestionará la cookie que emita nuestro host de desarrollo.
+
+#### Paso R6. Autenticarse como Lector
+
+En /seguridad escribe curso-demo-lector y envía el formulario. El servidor debe aceptar el código alternativo, emitir una cookie y devolver una navegación que reconozca al usuario. El nombre AlumnoDemo puede continuar apareciendo, pero el bloque AuthorizeView Roles="Formador" no debe mostrar el mensaje de rol Formador.
+
+Esto demuestra que una identidad reconocida no satisface automáticamente todas las reglas. El usuario Lector está autenticado, pero no posee el claim de rol requerido por el endpoint.
+
+Consulta ahora /demo/privado. El servidor debe devolver 403 y no el objeto JSON de éxito. Si observas 200, revisa el claim de rol y la política RequireRole. Si observas 401, investiga si el navegador ha enviado la cookie de sesión correcta o si la autenticación no llegó a establecerse.
+
+#### Paso R7. Probar el rol Formador sin cambiar el endpoint
+
+Cierra la sesión de Lector mediante el formulario POST de salida. Vuelve a /seguridad e inicia sesión con curso-demo-44. Ahora AuthorizeView debe reconocer Formador y /demo/privado debe devolver 200 con su JSON.
+
+No modifiques el endpoint entre ambas pruebas. El hecho de que la misma ruta dé 403 para Lector y 200 para Formador constituye una observación clara de que la autorización depende de la política aplicada sobre el principal.
+
+#### Paso R8. Probar credenciales incorrectas como escenario independiente
+
+Cierra la sesión e introduce una cadena distinta de los dos códigos admitidos. El servidor debe redirigir al formulario sin crear una cookie autenticada. La siguiente consulta a /demo/privado debe permanecer denegada como petición anónima.
+
+No confundas esta situación con Lector: en el caso de código incorrecto no se ha reconocido una identidad; en el caso de Lector sí se ha creado una sesión, pero sin el rol necesario para el recurso.
+
+La distinción se reconoce mejor si las pruebas se ejecutan una a una y con sesiones limpias.
+
+#### Paso R9. Verificar un POST sin token antifalsificación
+
+Sin sesión iniciada, intenta enviar POST /demo/entrar con un cliente HTTP que no adjunte el token del formulario. Incluso si utilizas un código reconocido, el servidor debe rechazar la operación por falta de token válido.
+
+Este caso no demuestra que los roles funcionen, porque la solicitud puede rechazarse antes de construir cualquier identidad. Su finalidad es comprobar una protección independiente, relacionada con el envío de formularios y las cookies del navegador.
+
+Una prueba de autorización no sustituye a una prueba de antiforgery, y viceversa. Ambas se necesitan para comprender el recorrido completo.
+
+#### Paso R10. Restaurar el estado de referencia
+
+Cuando termines, restaura Program.cs para aceptar solo el código original del laboratorio y devolver únicamente el rol Formador. Conserva la política RequireRole y la comprobación antifalsificación. Las rutas continúan registradas exclusivamente en Development.
+
+La variación Lector no debe quedar activada inadvertidamente en el proyecto de referencia del curso. Puedes guardar la copia de ensayo como ejercicio autónomo, pero el estado oficial de P4.4 debe seguir siendo sencillo y reproducible.
+
+### Pruebas comparadas de identidad y autorización
+
+| Estado del usuario | Cookie reconocida | Rol | /demo/privado |
+|---|---|---|---|
+| Anónimo | No | Ninguno | 401 |
+| Código incorrecto | No | Ninguno | 401 |
+| Código lector de ensayo | Sí | Lector | 403 |
+| Código original del laboratorio | Sí | Formador | 200 |
+| Después de cerrar sesión | No | Ninguno | 401 |
+
+Esta tabla expresa cinco estados distintos del recorrido de seguridad. La prueba es válida cuando el alumno puede reproducirlos y explicar el motivo de cada respuesta, no simplemente cuando ve el texto de un rol en la pantalla.
+
+### Interpretación final de la ampliación
+
+El ejemplo conserva una idea principal: autenticación y autorización son decisiones diferentes. Un claim de nombre permite representar una identidad reconocida; un claim de rol permite comprobar una política concreta. Las respuestas 401 y 403 pueden comunicar que falta autenticación o que faltan permisos, aunque la configuración de cookies de otros proyectos pueda decidir redirigir a páginas HTML.
+
+Por ello, una interfaz que oculta el enlace a un recurso no sustituye la exigencia de rol dentro del endpoint. La seguridad del recurso reside en el servidor y debe poder probarse independientemente del marcado Razor.
+
 ### Cierre
 
 Hemos observado autenticación, autorización y representación visual de la identidad sin rehacer cursos de Web API o Identity. Nunca reutilices la credencial fija de laboratorio en un despliegue público.
