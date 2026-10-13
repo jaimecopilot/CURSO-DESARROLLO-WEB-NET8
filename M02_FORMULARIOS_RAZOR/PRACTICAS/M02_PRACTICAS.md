@@ -232,6 +232,299 @@ La meta de P2.1 es poder explicar el recorrido entero sin confundir entrada HTTP
 **Estado final del recorrido esencial:** GET representa el formulario, POST protegido recibe Nombre y Precio y muestra una confirmación. El catálogo todavía contiene tres productos. Ese resultado es correcto y prepara la siguiente práctica.
 
 
+## Construcción del código completo en P2.1
+
+La aplicación MVC ya construida durante M01 mantiene su catálogo, controlador de consulta, layouts y hojas de estilo. P2.1 incorpora un nuevo recorrido GET/POST; por eso se muestran completos los siete archivos que cambian y se explican sus responsabilidades. Los demás siguen como fueron documentados en M01.
+
+### P2.1 — Controllers/ProductosController.cs
+
+Conserva Index y Detalle e incorpora GET Crear y POST Crear: la misma aplicación recibe datos sin guardar aún en SQL. Identifica cómo la acción responde al resultado del enlace de modelos. El archivo siguiente es completo y conserva los comentarios de los pasos didácticos. Relaciónalo con la teoría de formularios y model binding antes de activar sus variantes.
+
+~~~csharp
+using CursoWeb.Mvc.Models;
+using Microsoft.AspNetCore.Mvc;
+
+namespace CursoWeb.Mvc.Controllers;
+
+public class ProductosController : Controller
+{
+    // La colección fija es compartida por Index, Detalle y Ficha.
+    // Se mantiene el dominio de productos de M01, sin base de datos.
+    private static IReadOnlyList<Producto> ObtenerProductosEjemplo() =>
+        new List<Producto>
+        {
+            new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+            new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+            new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+        };
+
+    [HttpGet]
+    public IActionResult Index()
+    {
+        return View(ObtenerProductosEjemplo());
+    }
+
+    [HttpGet]
+    public IActionResult Estado()
+    {
+        return Content("Catalogo MVC disponible", "text/plain");
+    }
+
+    [HttpGet]
+    public IActionResult Detalle(int id)
+    {
+        if (id <= 0)
+        {
+            return BadRequest("El identificador debe ser mayor que cero.");
+        }
+
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        return producto is null ? NotFound() : View(producto);
+    }
+
+    [HttpGet("/catalogo/ficha/{id:int}")]
+    public IActionResult Ficha(int id)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        return producto is null ? NotFound() : View("Detalle", producto);
+    }
+
+
+    // P2.1: GET representa el formulario; POST recibe sus datos mediante model binding.
+    [HttpGet]
+    public IActionResult Crear() => View(new Producto());
+
+    // PASO 2.1.3: comparar un formulario visible (GET) con su envío (POST).
+    // Quita solo los delimitadores del bloque al completar P2.1.3;
+    // conserva [ValidateAntiForgeryToken]. Los datos todavía no se guardan.
+    /* PASO 2.1.3 INICIO
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult Crear(Producto producto)
+    {
+        // Model binding crea y rellena Producto desde los campos Nombre y Precio.
+        // Id sigue siendo 0, porque la vista no envía un identificador.
+        // P2.3 añadirá un modelo de entrada específico y comprobará ModelState.
+        // P2.4 introducirá la persistencia EF Core/LocalDB.
+        return View("Confirmacion", producto);
+    }
+    PASO 2.1.3 FIN */
+
+    // El reto 1.4 permanece identificado como variante histórica.
+    // P1.5 trabaja específicamente con presentación Razor y vistas parciales.
+    /* RETO 1.4 INICIO
+    [HttpGet("/catalogo/resumen/{id:int}")]
+    public IActionResult Resumen(int id)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        return producto is null ? NotFound() : Ok(new { producto.Id, producto.Nombre });
+    }
+    RETO 1.4 FIN */
+}
+~~~
+
+Identifica en estas líneas qué responde a GET, qué recoge el POST y qué se limita a presentar datos. Ejecuta el caso asociado en los pasos de P2.1 y comprueba que el catálogo anterior sigue siendo navegable.
+
+### P2.1 — Views/Productos/Crear.cshtml
+
+Contiene los controles del formulario, su destino y la protección antiforgery. Los nombres HTML de los campos deben corresponder con las propiedades C# recibidas. El archivo siguiente es completo y conserva los comentarios de los pasos didácticos. Relaciónalo con la teoría de formularios y model binding antes de activar sus variantes.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Crear producto";
+}
+<h1>Crear producto — P2.1</h1>
+<p>Este primer formulario permite observar el envío de datos, pero todavía no persiste productos.</p>
+<form method="post" action="/Productos/Crear">
+    @Html.AntiForgeryToken()
+    <div><label for="Nombre">Nombre</label><input id="Nombre" name="Nombre" value="@Model.Nombre" /></div>
+    <div><label for="Precio">Precio</label><input id="Precio" name="Precio" type="number" step="0.01" value="@Model.Precio.ToString(System.Globalization.CultureInfo.InvariantCulture)" /></div>
+    <button type="submit">Enviar producto</button>
+</form>
+<p><a href="/Productos">Volver al catálogo</a></p>
+~~~
+
+Identifica en estas líneas qué responde a GET, qué recoge el POST y qué se limita a presentar datos. Ejecuta el caso asociado en los pasos de P2.1 y comprueba que el catálogo anterior sigue siendo navegable.
+
+### P2.1 — Views/Productos/Confirmacion.cshtml
+
+Presenta la confirmación de los datos enviados al servidor; no prueba que el objeto se haya persistido. El archivo siguiente es completo y conserva los comentarios de los pasos didácticos. Relaciónalo con la teoría de formularios y model binding antes de activar sus variantes.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Datos recibidos";
+}
+<h1>Datos recibidos del formulario</h1>
+<p id="producto-recibido">Nombre: <strong>@Model.Nombre</strong></p>
+<p id="precio-recibido">Precio: <strong>@Model.Precio.ToString("0.00")</strong> €</p>
+@* APLICACION 2.1.5 — Escribe aquí una condición Razor propia:
+   cuando Model.Precio >= 4m, muestra <strong id="precio-elevado">Importe elevado para el ejemplo</strong>.
+   Cuando el precio sea menor, no debe aparecer la etiqueta. No modifiques el modelo ni el controlador.
+   NO se entrega el resultado activado: el alumno debe escribir el código.
+*@
+@* RETO 2.1 INICIO
+@if (!string.IsNullOrWhiteSpace(Model.Nombre) && Model.Nombre.Length > 8)
+{
+    <p id="nombre-extenso">El nombre tiene más de ocho caracteres.</p>
+}
+RETO 2.1 FIN *@
+<p>Este resultado confirma el enlace de modelos; los productos aún no se guardan.</p>
+<p><a asp-controller="Productos" asp-action="Crear">Enviar otro formulario</a></p>
+<p><a asp-controller="Productos" asp-action="Index">Volver al catálogo</a></p>
+~~~
+
+Identifica en estas líneas qué responde a GET, qué recoge el POST y qué se limita a presentar datos. Ejecuta el caso asociado en los pasos de P2.1 y comprueba que el catálogo anterior sigue siendo navegable.
+
+### P2.1 — Views/Productos/Index.cshtml
+
+El listado sigue mostrando los productos de M01 y ofrece navegación hacia el nuevo formulario. El archivo siguiente es completo y conserva los comentarios de los pasos didácticos. Relaciónalo con la teoría de formularios y model binding antes de activar sus variantes.
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+@{
+    ViewData["Title"] = "Catálogo de productos";
+}
+
+<h1>1.5 | Razor y presentación de productos</h1>
+<p><a asp-controller="Productos" asp-action="Crear">Crear producto</a></p>
+<p id="proposito-vista">La vista representa datos del catálogo, sin consultas a base de datos.</p>
+
+@if (Model is null)
+{
+    <p id="sin-modelo">El controlador no ha proporcionado productos.</p>
+}
+else
+{
+    <p id="numero-productos">El controlador ha enviado <strong>@Model.Count</strong> productos.</p>
+
+    @* PASO 1.5.2: habilitado al terminar M01. *@
+    @if (Model.Count >= 3)
+    {
+        <p id="catalogo-completo">El catálogo contiene al menos tres productos.</p>
+    }
+    
+
+    <ul id="listado-productos">
+    @foreach (var producto in Model)
+    {
+        <li data-id="@producto.Id">
+            @producto.Nombre — @producto.Precio.ToString("0.00") €
+            <a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
+        </li>
+    }
+    </ul>
+
+    @* PASO 1.5.4: habilitado al terminar M01. *@
+    <section id="tarjetas-catalogo" aria-label="Tarjetas reutilizables de productos">
+        <h2>Vista de tarjetas</h2>
+        @foreach (var producto in Model)
+        {
+            <partial name="_TarjetaProducto" model="producto" />
+        }
+    </section>
+    
+}
+~~~
+
+Identifica en estas líneas qué responde a GET, qué recoge el POST y qué se limita a presentar datos. Ejecuta el caso asociado en los pasos de P2.1 y comprueba que el catálogo anterior sigue siendo navegable.
+
+### P2.1 — Views/Productos/Detalle.cshtml
+
+El detalle por Id sigue funcionando incluso cuando se introduce otra operación HTTP. El archivo siguiente es completo y conserva los comentarios de los pasos didácticos. Relaciónalo con la teoría de formularios y model binding antes de activar sus variantes.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Detalle del producto";
+}
+
+<h1 id="titulo-detalle">1.4 | Detalle de producto</h1>
+<dl id="detalle-producto">
+    <dt>Identificador</dt><dd id="detalle-id">@Model.Id</dd>
+    <dt>Nombre</dt><dd id="detalle-nombre">@Model.Nombre</dd>
+    <dt>Precio</dt><dd id="detalle-precio">@Model.Precio.ToString("0.00") €</dd>
+</dl>
+<p><a href="/Productos">Volver al catálogo</a></p>
+
+@* PASO 1.5.3: habilitado al terminar M01. *@
+@section NotasPagina
+{
+    <p id="nota-pagina-detalle">Detalle construido con una vista Razor tipada.</p>
+}
+
+
+@* PASO 1.5.5: habilitado al terminar M01. *@
+<section id="tarjeta-detalle" aria-label="Ficha presentada como tarjeta">
+    <h2>Tarjeta reutilizada en el detalle</h2>
+    <partial name="_TarjetaProducto" model="Model" />
+</section>
+~~~
+
+Identifica en estas líneas qué responde a GET, qué recoge el POST y qué se limita a presentar datos. Ejecuta el caso asociado en los pasos de P2.1 y comprueba que el catálogo anterior sigue siendo navegable.
+
+### P2.1 — Views/Shared/_TarjetaProducto.cshtml
+
+La parcial de tarjeta continúa presentando productos sin convertirse en formulario. El archivo siguiente es completo y conserva los comentarios de los pasos didácticos. Relaciónalo con la teoría de formularios y model binding antes de activar sus variantes.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+
+@* PASO 1.5.4: vista parcial tipada. No declara @page ni layout propio. *@
+<article class="tarjeta-producto" data-producto-id="@Model.Id">
+    <h3>@Model.Nombre</h3>
+    <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
+    <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
+
+    @* RETO 1.5 (inicio)
+    @if (Model.Precio < 3m)
+    {
+        <strong class="etiqueta-economico">Precio económico</strong>
+    }
+    RETO 1.5 (fin) *@
+</article>
+~~~
+
+Identifica en estas líneas qué responde a GET, qué recoge el POST y qué se limita a presentar datos. Ejecuta el caso asociado en los pasos de P2.1 y comprueba que el catálogo anterior sigue siendo navegable.
+
+### P2.1 — Views/Shared/_Layout.cshtml
+
+El layout mantiene una navegación coherente por las páginas MVC. El archivo siguiente es completo y conserva los comentarios de los pasos didácticos. Relaciónalo con la teoría de formularios y model binding antes de activar sus variantes.
+
+~~~cshtml
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Curso Web .NET 8</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+    <link rel="stylesheet" href="/css/catalogo.css" />
+</head>
+<body>
+    <header>
+        <nav aria-label="Navegación principal">
+            <a href="/">Inicio</a>
+            <a href="/Productos">Productos</a>
+            <a href="/recursos/guia-publica.txt">Guía pública</a>
+        </nav>
+    </header>
+    <main class="container">
+        @RenderBody()
+    </main>
+    @* PASO 1.5.3: habilitado al terminar M01. *@
+    <aside id="notas-del-layout" aria-label="Notas de la página">
+        @await RenderSectionAsync("NotasPagina", required: false)
+    </aside>
+    
+    <footer>Curso ASP.NET Core MVC · .NET 8</footer>
+</body>
+</html>
+~~~
+
+Identifica en estas líneas qué responde a GET, qué recoge el POST y qué se limita a presentar datos. Ejecuta el caso asociado en los pasos de P2.1 y comprueba que el catálogo anterior sigue siendo navegable.
+
 ## Cuaderno de profundización opcional P2.1 — Rastrear el contrato completo
 
 Esta actividad no añade acciones MVC ni obliga a cambiar el proyecto. Sirve para practicar la lectura de solicitudes reales una vez que hayas activado el bloque `PASO 2.1.3`. Utiliza el mismo proyecto `PROYECTO/2.1/CursoWeb.Mvc` y la misma dirección de `/Productos/Crear`. Mantén abierta la pestaña **Red** de las herramientas de desarrollo antes de pulsar el botón del formulario.
