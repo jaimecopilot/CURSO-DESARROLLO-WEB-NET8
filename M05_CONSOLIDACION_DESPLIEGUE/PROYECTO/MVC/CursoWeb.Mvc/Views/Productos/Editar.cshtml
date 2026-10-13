@@ -1,0 +1,19 @@
+@model CursoWeb.Mvc.Models.ProductoFormulario
+@{
+    ViewData["Title"] = "Editar producto";
+    var productoId = ViewData["ProductoId"];
+}
+<h1>Editar producto</h1>
+<form asp-controller="Productos" asp-action="Editar" asp-route-id="@productoId" method="post">
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <div>
+        <label asp-for="Nombre"></label><input asp-for="Nombre" />
+        <span asp-validation-for="Nombre" class="text-danger"></span>
+    </div>
+    <div>
+        <label asp-for="Precio"></label><input asp-for="Precio" type="number" step="0.01" />
+        <span asp-validation-for="Precio" class="text-danger"></span>
+    </div>
+    <button type="submit">Guardar cambios</button>
+</form>
+<p><a asp-action="Index">Cancelar y volver</a></p>
