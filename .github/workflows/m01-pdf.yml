@@ -3,12 +3,13 @@ name: M01 - Generar y verificar los dos PDF
 on:
   workflow_dispatch:
   push:
-    branches: [desarrollo/m01-mvc, revision-didactica/m01]
+    branches: [desarrollo/m01-mvc, revision-didactica/m01, desarrollo/reconstruccion-m01-m02-trazable]
     paths:
       - "M01_MVC/TEORIA/M01_TEORIA.md"
       - "M01_MVC/PRACTICAS/M01_PRACTICAS.md"
       - "M01_MVC/DOCS/**"
       - "VERIFICACION_INTERNA/auditar_fidelidad_m01.py"
+      - "VERIFICACION_INTERNA/verificar_fuentes_completas_m01_m02.py"
       - ".github/workflows/m01-pdf.yml"
 
 permissions:
@@ -34,6 +35,8 @@ jobs:
           sudo apt-get update -qq
           sudo apt-get install -y graphviz
           dot -V
+      - name: Comprobar archivos completos y continuidad M01-M02
+        run: python VERIFICACION_INTERNA/verificar_fuentes_completas_m01_m02.py
       - name: Auditar correspondencia de prácticas con los proyectos
         run: python M01_MVC/DOCS/auditar_trazabilidad_practicas.py
       - name: Verificar progresión y correspondencias semánticas
