@@ -1653,6 +1653,84 @@ Si la aplicación se ejecuta en producción y el formulario deja de funcionar, d
 Esta tabla describe fronteras, no una obligación de multiplicar proyectos. Saber qué proceso ejecuta cada acción evita atribuir a AuthorizeView una protección que en realidad depende del servidor.
 
 
+
+### 4.4.20. Secuencia completa de la sesión y lugar de cada decisión
+
+Para cerrar el estudio de autenticación conviene representar las transiciones como un intercambio de solicitudes y respuestas. El formulario se dibuja en un componente, pero quien emite la cookie es el servidor, y quien la presenta en solicitudes posteriores es el navegador. El rol no se decide en el HTML: se almacena como un claim asociado al principal y se comprueba por la política del endpoint.
+
+~~~mermaid
+sequenceDiagram
+    participant U as Usuario
+    participant N as Navegador
+    participant B as Servidor Blazor
+    U->>N: Abre seguridad
+    N->>B: GET seguridad
+    B-->>N: Pagina anonima
+    U->>N: Introduce codigo
+    N->>B: POST demo entrar + token
+    B-->>N: Cookie y redireccion
+    N->>B: GET demo privado + cookie
+    B-->>N: Recurso segun rol
+    U->>N: Cierra sesion
+    N->>B: POST demo salir + token
+    B-->>N: Salida y redireccion
+~~~
+
+El esquema sirve para localizar cuándo se transmite el token antifalsificación, cuándo se emite la cookie y cuándo se evalúa la autorización. No significa que el servidor acepte cualquier POST con token: debe comprobar también el código del laboratorio antes de establecer una identidad.
+
+Consideremos el primer GET. El navegador abre /seguridad y el servidor entrega una página que permite iniciar sesión. Todavía no hay un principal reconocido, de modo que AuthorizeView puede mostrar NotAuthorized.
+
+En el POST de acceso, el navegador envía un formulario. El servidor comprueba el token antifalsificación y después la entrada de demostración. Si el código es incorrecto, no emite una cookie de autenticación. Si es correcto, construye el principal con nombre y rol y prepara la respuesta con la cookie.
+
+En la siguiente consulta del recurso privado, el navegador presenta la cookie válida. El middleware identifica al usuario y la política exige el rol Formador. Solo si ambas condiciones se satisfacen se devuelve el contenido protegido. Si el usuario es anónimo o tiene un rol distinto, no debe recibir esa respuesta de éxito.
+
+Por último, la salida utiliza un POST protegido por antiforgery. SignOutAsync hace que el navegador deje de disponer de una autenticación válida para esa sesión. Una nueva consulta del recurso protegido debe volver a ser denegada.
+
+El punto esencial es que cada etapa sucede en un límite distinto: representación en el componente, petición en el navegador, cookie y políticas en el servidor. Los nombres concretos de las clases pueden variar, pero esas responsabilidades siguen existiendo.
+
+### 4.4.21. Analizar un recurso protegido desde tres perfiles
+
+Imaginemos tres situaciones independientes. En la primera no existe cookie reconocida. En la segunda existe una sesión con nombre AlumnoDemo pero sin el rol Formador. En la tercera existe una sesión con nombre AlumnoDemo y con ese rol.
+
+| Situación | Autenticación | Autoriza RequireRole("Formador") |
+|---|---|---|
+| Navegador anónimo | No | No |
+| Usuario reconocido con otro rol | Sí | No |
+| Usuario reconocido con Formador | Sí | Sí |
+
+La tabla ayuda a explicar que autenticación y autorización no son sinónimos. En particular, la segunda fila demuestra que conocer la identidad no significa permitir automáticamente cualquier operación. En aplicaciones de negocio reales es común que usuarios reconocidos tengan permisos distintos sobre recursos concretos.
+
+La interfaz puede reflejar esas distinciones mediante AuthorizeView, pero las decisiones efectivas deben ser comprobadas por el servidor. Si el componente no dibuja el enlace al recurso privado, una persona todavía podría escribir la dirección manualmente; por eso la política del endpoint es la que protege los datos.
+
+### 4.4.22. Qué no protege el inicio de sesión de Blazor en este proyecto
+
+La API auxiliar escucha en otro proceso y publica /api/productos. El laboratorio no transmite a esa API una credencial de usuario ni configura en ella una política de autorización para el catálogo. Por eso no podemos afirmar que iniciar sesión en Blazor protege automáticamente la creación remota de productos.
+
+Este límite puede desconcertar al estudiante si solo observa dos pantallas en un navegador. Desde su perspectiva visual, catálogo remoto y seguridad son páginas de una misma aplicación Blazor. Pero desde el punto de vista de los servidores, una de ellas utiliza una API separada que continúa recibiendo sus propias solicitudes.
+
+Para proteger una API real habría que definir cómo se identifica a sus clientes, qué credenciales acepta y qué políticas se aplican a cada operación. Ese diseño podría implicar tokens, cookies compartidas bajo condiciones concretas u otros mecanismos adecuados, pero no se resuelve añadiendo AuthorizeView alrededor de un botón en Blazor.
+
+En M04 deliberadamente mantenemos independientes las dos demostraciones: la integración HTTP permite aprender GET, POST, DTO y servicios tipados; el recurso local privado permite aprender identidad, cookie, rol y autorización. La separación evita presentar una seguridad ficticia sobre el CRUD remoto.
+
+### 4.4.23. Ordenar una investigación cuando una sesión parece no funcionar
+
+Una sesión fallida puede tener varias causas y el orden de análisis importa. Primero, ¿se envió realmente el formulario mediante POST y a la ruta correcta? Segundo, ¿el servidor recibió un token antifalsificación válido? Tercero, ¿la comprobación del código de demostración aceptó la solicitud? Cuarto, ¿se emitió una cookie y el navegador la presentó después? Quinto, ¿el principal resultante contiene el rol requerido por el recurso?
+
+Si falla el primer paso, mirar ClaimsIdentity todavía es prematuro. Si el token no valida, cambiar RequireRole no ayudará. Si existe un principal con nombre pero no con el rol correcto, el problema se sitúa en la autorización y no en la carga de la página.
+
+También debemos comprobar el entorno. La implementación de laboratorio registra las rutas especiales solo en Development, por lo que no deben estar accesibles como sistema de acceso en Production. Habilitarlas indiscriminadamente para conseguir una demostración pública sería contrario al objetivo de seguridad.
+
+Esa secuencia de preguntas ofrece una estrategia transferible: no mezclar fallos de transporte, formulario, identidad, cookie y permisos. Cada comprobación debe aportar información sobre uno de esos límites.
+
+### 4.4.24. Seguridad del servidor y experiencia del usuario no son rivales
+
+Una interfaz puede informar de que falta iniciar sesión, mostrar el nombre de la persona o esconder opciones que no puede utilizar. Ese comportamiento facilita la navegación. El servidor, por su parte, debe comprobar los permisos con independencia de lo que se haya dibujado.
+
+No deberíamos elegir entre una interfaz comprensible y una autorización correcta. Las dos responsabilidades se complementan. La interfaz reduce confusión para el usuario, mientras que la política del servidor impide el acceso indebido al recurso.
+
+En nuestro ejemplo esta combinación se observa sin implantar un proveedor completo de identidades. Primero reconocemos un estado de sesión de demostración; después mostramos la información correspondiente y comprobamos que el endpoint exige Formador. El alumnado debe poder explicar por qué las dos comprobaciones siguen siendo necesarias aunque las pantallas parezcan coherentes.
+
+
 ### Taller transversal: una operación vista desde cuatro límites
 
 Este apartado relaciona los cuatro conceptos del módulo mediante un mismo caso: una persona desea crear un producto nuevo llamado «Agenda», con precio 6,40. Seguir la operación de un extremo a otro ayuda a detectar errores que quedan ocultos cuando se estudian las tecnologías como listas de instrucciones.
