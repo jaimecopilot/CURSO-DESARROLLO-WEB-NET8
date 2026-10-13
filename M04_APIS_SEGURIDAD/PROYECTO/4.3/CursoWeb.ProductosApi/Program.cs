@@ -76,7 +76,38 @@ app.MapGet("/api/productos/buscar", (string? nombre) =>
 */
 // RETO OPCIONAL 4.3.6 FIN
 
+
+// AMPLIACIÓN AUTÓNOMA 4.3.7: probar actualización PUT y eliminación DELETE.
+// No forma parte del recorrido obligatorio de seis horas.
+// Para activarla, retirar solo los dos delimitadores /* */ del bloque.
+// Registrar los tipos de entrada después de app.Run(), junto a los demás records.
+/*
+app.MapPut("/api/productos/{id:int}", (int id, ActualizarProductoApi entrada) =>
+{
+    if (string.IsNullOrWhiteSpace(entrada.Nombre) || entrada.Precio <= 0)
+        return Results.BadRequest("Nombre y precio deben ser válidos.");
+
+    // TryUpdate exige que el recurso conserve el valor que acabamos de observar.
+    while (productos.TryGetValue(id, out var anterior))
+    {
+        var actualizado = new ProductoApi(id, entrada.Nombre.Trim(), entrada.Precio);
+        if (productos.TryUpdate(id, actualizado, anterior))
+            return Results.Ok(actualizado);
+    }
+    return Results.NotFound();
+});
+
+app.MapDelete("/api/productos/{id:int}", (int id) =>
+    productos.TryRemove(id, out _)
+        ? Results.NoContent()
+        : Results.NotFound());
+*/
+// FIN DE AMPLIACIÓN 4.3.7
+
 app.Run();
 
 record ProductoApi(int Id, string Nombre, decimal Precio);
 record CrearProductoApi(string Nombre, decimal Precio);
+
+// AMPLIACIÓN 4.3.7: activar este tipo junto a MapPut.
+/* record ActualizarProductoApi(string Nombre, decimal Precio); */
