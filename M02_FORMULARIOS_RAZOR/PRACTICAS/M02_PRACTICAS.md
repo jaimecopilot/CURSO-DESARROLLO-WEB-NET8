@@ -1371,6 +1371,358 @@ Al completar el recorrido esencial, el alumno debe poder describir sin ambigüed
 El proyecto conserva las reglas activadas y los elementos de validación en el flujo principal. La demostración de scripts y los retos no deben impedir que la jornada avance hacia las operaciones persistentes. **P2.4** incorporará SQL Server Express LocalDB y Entity Framework Core para que crear, editar o eliminar productos produzca cambios reales en el catálogo. Como el alumnado ya conoce EF Core, la atención estará puesta en cómo se combina el modelo de entrada validado con las acciones MVC y las vistas Razor.
 
 
+## Construcción íntegra P2.3 — validación sin perder la aplicación
+
+Hasta P2.2 el navegador enviaba nombres y precios y el servidor sabía construir un objeto. Ahora enseñamos cómo se declara el modelo de entrada, cómo se recoge el resultado en ModelState y cómo se representan errores sin perder los campos correctos. Los siete archivos siguientes **son los que realmente cambian**; el proyecto conserva el catálogo, la navegación y las acciones que ya funcionan.
+
+### P2.3 — Models/ProductoFormulario.cs
+
+**Responsabilidad y comprensión.** Modelo de entrada independiente de Producto, con atributos Required, StringLength y Range inicialmente preparados para activación. Razona por qué una conversión numérica inválida y un dato fuera de rango son errores distintos. La transcripción reproduce íntegramente este archivo, con las alternativas comentadas que se activan en los pasos de P2.3.
+
+~~~csharp
+using System.ComponentModel.DataAnnotations;
+
+namespace CursoWeb.Mvc.Models;
+
+/// <summary>
+/// P2.3: contrato de entrada del formulario, separado de la entidad Producto.
+/// No contiene Id: el navegador no debe determinar el identificador persistente.
+/// </summary>
+public sealed class ProductoFormulario
+{
+    // PASO 2.3.2 (ACTIVAR): descomenta las dos reglas del nombre.
+    // Comprueba primero el envío con Nombre vacío y luego con un solo carácter.
+    // [Required(ErrorMessage = "Indica el nombre.")]
+    // [StringLength(60, MinimumLength = 2, ErrorMessage = "El nombre debe tener entre 2 y 60 caracteres.")]
+    public string? Nombre { get; set; }
+
+    // PASO 2.3.2 (ACTIVAR): descomenta ambas reglas del precio.
+    // decimal? diferencia un campo ausente de un valor numérico real.
+    // [Required(ErrorMessage = "Indica el precio.")]
+    // [Range(typeof(decimal), "0.01", "9999.99", ParseLimitsInInvariantCulture = true, ErrorMessage = "El precio debe estar entre 0,01 y 9999,99.")]
+    public decimal? Precio { get; set; }
+
+    // APLICACION 2.3.6 (ESCRIBIR): prueba una etiqueta Display(Name = "Nombre del producto")
+    // sobre Nombre y observa la salida del Label Tag Helper sin renombrar la propiedad.
+
+    // RETO 2.3 (ACTIVAR y probar): más adelante, añade una regla opcional
+    // para impedir nombres que incluyan solo espacios después de [Required].
+    // Pista: [Required] ya rechaza cadenas compuestas exclusivamente por espacios;
+    // estudia ese comportamiento antes de añadir una regla que duplique la protección.
+}
+~~~
+
+**Actividad de lectura vinculada a la teoría.** Revisa las propiedades, los atributos de Razor y las ramas del controlador que intervienen en los casos de Nombre vacío, Nombre corto, Precio fuera de intervalo o dato no convertible. Identifica qué condición decide aceptar o rechazar el envío, qué recibe el usuario y qué se conserva de P2.2.
+
+### P2.3 — Controllers/ProductosController.cs
+
+**Responsabilidad y comprensión.** Conserva la navegación del catálogo, recibe el formulario tipado, comprueba ModelState y decide qué vista devolver. Un resultado de validación fallido no debe insertarse en una base de datos ni perder los valores correctos. La transcripción reproduce íntegramente este archivo, con las alternativas comentadas que se activan en los pasos de P2.3.
+
+~~~csharp
+using CursoWeb.Mvc.Models;
+using Microsoft.AspNetCore.Mvc;
+
+namespace CursoWeb.Mvc.Controllers;
+
+public class ProductosController : Controller
+{
+    // La colección fija es compartida por Index, Detalle y Ficha.
+    // Se mantiene el dominio de productos de M01, sin base de datos.
+    private static IReadOnlyList<Producto> ObtenerProductosEjemplo() =>
+        new List<Producto>
+        {
+            new() { Id = 1, Nombre = "Cuaderno", Precio = 4.50m },
+            new() { Id = 2, Nombre = "Lápiz", Precio = 1.20m },
+            new() { Id = 3, Nombre = "Carpeta", Precio = 3.75m }
+        };
+
+    [HttpGet]
+    public IActionResult Index()
+    {
+        return View(ObtenerProductosEjemplo());
+    }
+
+    [HttpGet]
+    public IActionResult Estado()
+    {
+        return Content("Catalogo MVC disponible", "text/plain");
+    }
+
+    [HttpGet]
+    public IActionResult Detalle(int id)
+    {
+        if (id <= 0)
+        {
+            return BadRequest("El identificador debe ser mayor que cero.");
+        }
+
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        return producto is null ? NotFound() : View(producto);
+    }
+
+    [HttpGet("/catalogo/ficha/{id:int}")]
+    public IActionResult Ficha(int id)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        return producto is null ? NotFound() : View("Detalle", producto);
+    }
+
+
+    // P2.3: las anotaciones viven en el modelo de entrada y ModelState comprueba el POST.
+    [HttpGet]
+    public IActionResult Crear() => View(new ProductoFormulario());
+
+    [HttpPost]
+    [ValidateAntiForgeryToken]
+    public IActionResult Crear(ProductoFormulario entrada)
+    {
+        // PASO 2.3.3: observar qué información contiene ModelState.
+        // El model binder también puede registrar errores de conversión.
+        // ACTIVAR (solo durante la investigación): el siguiente bucle opcional
+        // registra las claves con problemas en la salida de depuración.
+        /* PASO 2.3.3 INICIO
+        foreach (var estado in ModelState.Where(x => x.Value?.Errors.Count > 0))
+        {
+            foreach (var error in estado.Value!.Errors)
+                System.Diagnostics.Debug.WriteLine(
+                    $"P2.3, campo {estado.Key}: {error.ErrorMessage}");
+        }
+        PASO 2.3.3 FIN */
+
+        // RETO 2.3 (ACTIVAR): regla contextual ilustrativa sobre el nombre.
+        // A diferencia de Required/Range, esta regla se añade desde la acción.
+        /* RETO 2.3 INICIO
+        if (entrada.Nombre?.StartsWith("TEST", StringComparison.OrdinalIgnoreCase) == true)
+        {
+            ModelState.AddModelError(nameof(entrada.Nombre),
+                "El nombre no puede comenzar por TEST en este ejemplo.");
+        }
+        RETO 2.3 FIN */
+
+        if (!ModelState.IsValid)
+        {
+            // PASO 2.3.4: devolver el mismo modelo de entrada permite
+            // conservar datos introducidos y mostrar errores en Crear.cshtml.
+            return View(entrada);
+        }
+
+        // Solo protege el estado previo a activar las reglas de P2.3.2:
+        // un formulario incompleto no puede crear una entidad válida.
+        // Una vez activadas [Required], estas entradas quedan rechazadas
+        // por ModelState antes de alcanzar este punto.
+        if (string.IsNullOrWhiteSpace(entrada.Nombre) || entrada.Precio is null)
+            return BadRequest("Nombre y precio son obligatorios.");
+
+        // P2.3: conversión explícita de DTO de entrada a modelo del catálogo.
+        // No se guarda. En P2.4 el identificador lo generará la base de datos.
+        var producto = new Producto
+        {
+            Id = 4,
+            Nombre = entrada.Nombre,
+            Precio = entrada.Precio.Value
+        };
+        return View("Confirmacion", producto);
+    }
+
+    // El reto 1.4 permanece identificado como variante histórica.
+    // P1.5 trabaja específicamente con presentación Razor y vistas parciales.
+    /* RETO 1.4 INICIO
+    [HttpGet("/catalogo/resumen/{id:int}")]
+    public IActionResult Resumen(int id)
+    {
+        var producto = ObtenerProductosEjemplo().FirstOrDefault(p => p.Id == id);
+        return producto is null ? NotFound() : Ok(new { producto.Id, producto.Nombre });
+    }
+    RETO 1.4 FIN */
+}
+~~~
+
+**Actividad de lectura vinculada a la teoría.** Revisa las propiedades, los atributos de Razor y las ramas del controlador que intervienen en los casos de Nombre vacío, Nombre corto, Precio fuera de intervalo o dato no convertible. Identifica qué condición decide aceptar o rechazar el envío, qué recibe el usuario y qué se conserva de P2.2.
+
+### P2.3 — Views/Productos/Crear.cshtml
+
+**Responsabilidad y comprensión.** Genera campos tipados y mensajes de validación asociados a las propiedades. El modelo de entrada y la vista deben coincidir en nombres, tipos y reglas. La transcripción reproduce íntegramente este archivo, con las alternativas comentadas que se activan en los pasos de P2.3.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.ProductoFormulario
+@{
+    ViewData["Title"] = "Crear producto validado";
+}
+<h1>Crear producto — P2.3</h1>
+<p>Los errores se comprueban en el servidor mediante DataAnnotations y ModelState.</p>
+
+@* PASO 2.3.1: la entrada se representa con ProductoFormulario, no con la entidad Producto. *@
+<form asp-controller="Productos" asp-action="Crear" method="post">
+    @* PASO 2.3.4: ModelOnly muestra errores de modelo no asignados a campos.
+       Para ver también los errores de propiedades en una lista general,
+       prueba temporalmente asp-validation-summary="All" y compara.
+       Los span asp-validation-for mostrarán los mensajes junto a cada campo.
+    *@
+    <div asp-validation-summary="ModelOnly" class="text-danger"></div>
+    <div>
+        <label asp-for="Nombre"></label>
+        <input asp-for="Nombre" />
+        <span asp-validation-for="Nombre" class="text-danger"></span>
+    </div>
+    <div>
+        <label asp-for="Precio"></label>
+        <input asp-for="Precio" type="number" step="0.01" />
+        <span asp-validation-for="Precio" class="text-danger"></span>
+    </div>
+    <button type="submit">Validar producto</button>
+</form>
+<p><a asp-controller="Productos" asp-action="Index">Volver al catálogo</a></p>
+
+@* PASO 2.3.5 (ACTIVAR) — Al terminar la validación de servidor,
+   retira los delimitadores del siguiente comentario Razor para habilitar
+   los tres scripts de validación cliente desde _ValidationScriptsPartial.
+   El layout ya contiene RenderSectionAsync("Scripts", required: false).
+   IMPORTANTE: si una biblioteca CDN no carga, los mensajes del navegador
+   pueden no activarse; la validación de servidor debe seguir funcionando.
+
+@section Scripts
+{
+    <partial name="_ValidationScriptsPartial" />
+}
+*@
+~~~
+
+**Actividad de lectura vinculada a la teoría.** Revisa las propiedades, los atributos de Razor y las ramas del controlador que intervienen en los casos de Nombre vacío, Nombre corto, Precio fuera de intervalo o dato no convertible. Identifica qué condición decide aceptar o rechazar el envío, qué recibe el usuario y qué se conserva de P2.2.
+
+### P2.3 — Views/Shared/_ValidationScriptsPartial.cshtml
+
+**Responsabilidad y comprensión.** Incorpora las referencias a scripts de validación de cliente para comparar con la verificación del servidor. Deshabilitar la validación del navegador no debe deshabilitar la validación de la aplicación. La transcripción reproduce íntegramente este archivo, con las alternativas comentadas que se activan en los pasos de P2.3.
+
+~~~cshtml
+@* PASO 2.3.5 — Validación de navegador opcional, además de servidor.
+   Los tres recursos se cargan en este orden. La CDN necesita red;
+   para un laboratorio sin Internet, proveer copias locales autorizadas
+   y cambiar src a ~/lib/... sin alterar reglas del modelo.
+   La validación de servidor NO depende de estos scripts.
+*@
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.7.1/jquery.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validate/1.19.5/jquery.validate.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery-validation-unobtrusive/4.0.0/jquery.validate.unobtrusive.min.js"></script>
+~~~
+
+**Actividad de lectura vinculada a la teoría.** Revisa las propiedades, los atributos de Razor y las ramas del controlador que intervienen en los casos de Nombre vacío, Nombre corto, Precio fuera de intervalo o dato no convertible. Identifica qué condición decide aceptar o rechazar el envío, qué recibe el usuario y qué se conserva de P2.2.
+
+### P2.3 — Views/Shared/_Layout.cshtml
+
+**Responsabilidad y comprensión.** Mantiene navegación y recursos compartidos e incorpora la estructura de scripts pertinente. Una validación correcta no reemplaza la protección antiforgery. La transcripción reproduce íntegramente este archivo, con las alternativas comentadas que se activan en los pasos de P2.3.
+
+~~~cshtml
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Curso Web .NET 8</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+    <link rel="stylesheet" href="/css/catalogo.css" />
+</head>
+<body>
+    <header>
+        <nav aria-label="Navegación principal">
+            <a href="/">Inicio</a>
+            <a href="/Productos">Productos</a>
+            <a href="/recursos/guia-publica.txt">Guía pública</a>
+        </nav>
+    </header>
+    <main class="container">
+        @RenderBody()
+    </main>
+    @* PASO 1.5.3: habilitado al terminar M01. *@
+    <aside id="notas-del-layout" aria-label="Notas de la página">
+        @await RenderSectionAsync("NotasPagina", required: false)
+    </aside>
+    
+    @* PASO 2.3.5: renderizar sección opcional; si la vista no declara Scripts, no pasa nada. *@
+    @await RenderSectionAsync("Scripts", required: false)
+    <footer>Curso ASP.NET Core MVC · .NET 8</footer>
+</body>
+</html>
+~~~
+
+**Actividad de lectura vinculada a la teoría.** Revisa las propiedades, los atributos de Razor y las ramas del controlador que intervienen en los casos de Nombre vacío, Nombre corto, Precio fuera de intervalo o dato no convertible. Identifica qué condición decide aceptar o rechazar el envío, qué recibe el usuario y qué se conserva de P2.2.
+
+### P2.3 — Views/Productos/Index.cshtml
+
+**Responsabilidad y comprensión.** Conserva el catálogo y su navegación sin sustituirlo por un formulario aislado. La transcripción reproduce íntegramente este archivo, con las alternativas comentadas que se activan en los pasos de P2.3.
+
+~~~cshtml
+@model IReadOnlyList<CursoWeb.Mvc.Models.Producto>?
+@{
+    ViewData["Title"] = "Catálogo de productos";
+}
+
+<h1>1.5 | Razor y presentación de productos</h1>
+<p><a asp-controller="Productos" asp-action="Crear">Crear producto</a></p>
+<p id="proposito-vista">La vista representa datos del catálogo, sin consultas a base de datos.</p>
+
+@if (Model is null)
+{
+    <p id="sin-modelo">El controlador no ha proporcionado productos.</p>
+}
+else
+{
+    <p id="numero-productos">El controlador ha enviado <strong>@Model.Count</strong> productos.</p>
+
+    @* PASO 1.5.2: habilitado al terminar M01. *@
+    @if (Model.Count >= 3)
+    {
+        <p id="catalogo-completo">El catálogo contiene al menos tres productos.</p>
+    }
+    
+
+    <ul id="listado-productos">
+    @foreach (var producto in Model)
+    {
+        <li data-id="@producto.Id">
+            @producto.Nombre — @producto.Precio.ToString("0.00") €
+            <a class="enlace-detalle" href="/Productos/Detalle/@producto.Id">Ver detalle</a>
+        </li>
+    }
+    </ul>
+
+    @* PASO 1.5.4: habilitado al terminar M01. *@
+    <section id="tarjetas-catalogo" aria-label="Tarjetas reutilizables de productos">
+        <h2>Vista de tarjetas</h2>
+        @foreach (var producto in Model)
+        {
+            <partial name="_TarjetaProducto" model="producto" />
+        }
+    </section>
+    
+}
+~~~
+
+**Actividad de lectura vinculada a la teoría.** Revisa las propiedades, los atributos de Razor y las ramas del controlador que intervienen en los casos de Nombre vacío, Nombre corto, Precio fuera de intervalo o dato no convertible. Identifica qué condición decide aceptar o rechazar el envío, qué recibe el usuario y qué se conserva de P2.2.
+
+### P2.3 — Views/Shared/_TarjetaProducto.cshtml
+
+**Responsabilidad y comprensión.** Mantiene la presentación parcial del producto; la validación de formularios no corresponde a esta tarjeta. La transcripción reproduce íntegramente este archivo, con las alternativas comentadas que se activan en los pasos de P2.3.
+
+~~~cshtml
+@model CursoWeb.Mvc.Models.Producto
+
+@* PASO 1.5.4: vista parcial tipada. No declara @page ni layout propio. *@
+<article class="tarjeta-producto" data-producto-id="@Model.Id">
+    <h3>@Model.Nombre</h3>
+    <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
+    <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
+
+    @* RETO 1.5 (inicio)
+    @if (Model.Precio < 3m)
+    {
+        <strong class="etiqueta-economico">Precio económico</strong>
+    }
+    RETO 1.5 (fin) *@
+</article>
+~~~
+
+**Actividad de lectura vinculada a la teoría.** Revisa las propiedades, los atributos de Razor y las ramas del controlador que intervienen en los casos de Nombre vacío, Nombre corto, Precio fuera de intervalo o dato no convertible. Identifica qué condición decide aceptar o rechazar el envío, qué recibe el usuario y qué se conserva de P2.2.
+
 ## Cuaderno de profundización opcional P2.3 — Cuatro causas de fallo diferentes
 
 Conserva el estado de `PROYECTO/2.3/CursoWeb.Mvc` después de activar las anotaciones del paso 2.3.2. El objetivo es diferenciar **ausencia**, **error de conversión**, **regla de negocio** y **ausencia de token**. Las cuatro situaciones pueden impedir un resultado positivo, pero requieren razonamientos distintos. No debes quitar validaciones para que una entrada incorrecta parezca válida.
