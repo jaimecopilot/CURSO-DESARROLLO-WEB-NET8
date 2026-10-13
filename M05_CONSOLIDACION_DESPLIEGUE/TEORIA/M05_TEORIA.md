@@ -181,6 +181,212 @@ La diferencia entre error de red, error HTTP, error de serialización, error de 
 El resultado formativo es una aplicación Blazor que consulta, crea, valida, informa de fallos y permite refrescar sus datos. Más importante todavía: el alumno es capaz de identificar quién mantiene cada estado y cuál es el origen de una respuesta. Esa comprensión permite pasar de «la pantalla funciona» a «sé por qué funciona y cómo repararla».
 
 
+
+### 5.1.10. Una respuesta útil no es lo mismo que una pantalla actualizada
+
+Conviene estudiar un problema que aparece incluso cuando ninguna línea de código contiene un error sintáctico. Imaginemos que la API conserva dos productos y que una persona abre el catálogo Blazor. El servidor Blazor obtiene dos DTO, los convierte en una lista y el componente dibuja dos elementos. Mientras esa persona sigue mirando la pantalla, otro cliente ejecuta un POST válido y la API pasa a conservar tres productos.
+
+En ese instante existen dos afirmaciones compatibles: **el servidor dispone de tres productos** y **el componente representa dos**. La primera describe el estado del origen de datos; la segunda, una instantánea obtenida anteriormente. La aplicación no ha incorporado un mecanismo de notificación de cambios. Por tanto, no tiene por qué producirse una actualización espontánea en la interfaz.
+
+Esta observación evita un diagnóstico equivocado. El sistema no ha perdido el tercer producto. Tampoco hay evidencia de que el renderizado esté roto. Para afirmar cualquiera de esas cosas habría que consultar al servidor y comparar ambas representaciones.
+
+**Modelo temporal de una consulta.**
+
+| Instante | Acción | API | Lista del componente | Pantalla |
+|---|---|---|---|---|
+| T0 | Arranca la API | Cuaderno, Lápiz | No creada | Sin catálogo |
+| T1 | Se abre Blazor y se completa GET | Cuaderno, Lápiz | Dos elementos | Dos elementos |
+| T2 | Un cliente externo crea Regla | Tres elementos | Dos elementos | Dos elementos |
+| T3 | El usuario solicita una nueva consulta | Tres elementos | Tres elementos | Tres elementos |
+| T4 | Se reinicia únicamente la API en memoria | Cuaderno, Lápiz | Tres elementos | Tres elementos |
+| T5 | Una nueva consulta termina con 200 | Cuaderno, Lápiz | Dos elementos | Dos elementos |
+
+La tabla deliberadamente separa un cambio en el servidor de una modificación de la colección local. En T4 todavía pueden verse tres productos, aunque el nuevo proceso de API tenga dos. La interfaz solo se reconciliará con el servidor después de una consulta posterior. Si el GET de T5 falla, el resultado visual dependerá de cómo esté implementado el tratamiento de errores: se podría conservar la lista antigua o sustituirla por un estado de error. No hay que deducir la estrategia únicamente del código de la API.
+
+**Ejemplo conceptual de actualización explícita.** Una función responsable de consultar no necesita conocer cómo se inició la operación; tanto el ciclo de vida como un botón pueden llamarla:
+
+~~~csharp
+private async Task ActualizarAsync()
+{
+    var nuevos = await Servicio.ObtenerAsync();
+    productos = nuevos.ToList();
+}
+~~~
+
+Este fragmento es deliberadamente pequeño para mostrar **una única responsabilidad**: obtener una nueva representación y sustituir la anterior. No contiene manejo de errores, bandera de carga ni HTML. Todos esos aspectos se estudiaron por separado y se integran en el proyecto real. Si se añadieran directamente a este primer fragmento, sería más difícil ver que la sustitución de la colección es el punto exacto en que cambia el estado visible.
+
+### 5.1.11. El ciclo de vida no sustituye los eventos de la interfaz
+
+`OnInitializedAsync` se ejecuta durante la inicialización del componente. Es adecuado para la primera consulta porque el usuario aún no ha tenido ocasión de pulsar un botón. No equivale, sin embargo, a «consultar siempre que alguien necesite datos». Si el componente sigue vivo, un cambio producido en otro sistema no vuelve a llamar automáticamente a `OnInitializedAsync`.
+
+Podríamos copiar las mismas instrucciones HTTP en el método de inicialización y en el manejador del botón. El resultado quizá funcionaría inicialmente, pero tendríamos dos sitios donde mantener los mensajes, el estado de carga, el tratamiento de errores y la lógica de actualización. La duplicación generaría un problema pedagógico y técnico: cada corrección posterior tendría que aplicarse en ambos caminos.
+
+La alternativa es hacer que ambas entradas convoquen **una misma operación con nombre**:
+
+~~~csharp
+protected override Task OnInitializedAsync() => ConsultarAsync();
+
+private async Task ConsultarAsync()
+{
+    cargando = true;
+    error = null;
+
+    try
+    {
+        productos = (await CatalogoApi.ObtenerAsync()).ToList();
+    }
+    catch (HttpRequestException)
+    {
+        error = "No se pudo obtener el catálogo remoto.";
+    }
+    finally
+    {
+        cargando = false;
+    }
+}
+~~~
+
+El fragmento presupone campos de componente y un servicio ya registrados. Es ilustrativo y no pretende sustituir la implementación definitiva, que también trata cancelación y errores JSON. La transformación importante no es añadir más código sino **sacar una operación reutilizable** de un lugar que solo se ejecuta una vez.
+
+Ahora comparemos dos recorridos. En el primero, Blazor inicializa el componente y llama a `ConsultarAsync`. En el segundo, el navegador envía el evento del botón y vuelve a llamar a `ConsultarAsync`. Después del punto de entrada, el flujo es idéntico: bandera de carga, servicio HTTP, asignación de lista, finalización. Un cambio en el método beneficia a ambos recorridos y evita que el botón se comporte de modo distinto al arranque.
+
+En Interactive Server, el manejador del evento es código .NET ejecutado en el servidor, no JavaScript escrito por nosotros. La conexión interactiva mantiene la comunicación necesaria con el navegador. Este detalle importa cuando se depura: que un botón tenga `@onclick` no significa que se esté efectuando un `fetch` directamente desde el navegador.
+
+### 5.1.12. Cuatro estados visuales que no deben confundirse
+
+Un componente que consulta una API no tiene solamente los estados «funciona» y «falla». Al menos conviene distinguir **consulta pendiente**, **error**, **respuesta válida sin productos** y **respuesta válida con productos**.
+
+Para expresar esas posibilidades mediante las propiedades ya conocidas se puede usar la siguiente condición conceptual:
+
+~~~razor
+@if (cargando)
+{
+    <p>Consultando el servidor...</p>
+}
+else if (error is not null)
+{
+    <p role="alert">@error</p>
+}
+else if (productos.Count == 0)
+{
+    <p>No hay productos disponibles.</p>
+}
+else
+{
+    <ul>
+        @foreach (var producto in productos)
+        {
+            <li>@producto.Nombre</li>
+        }
+    </ul>
+}
+~~~
+
+La distinción entre `productos.Count == 0` y `error is not null` es esencial. Un servicio puede devolver correctamente `[]`; esa respuesta no indica una avería. Y un fallo de red puede ocurrir incluso cuando la última lista recibida contiene elementos. La interfaz necesita representar ambas realidades sin decir que el servidor está vacío cuando ni siquiera ha respondido.
+
+Una respuesta HTTP 200 acompañada de `[]` satisface el contrato de una colección. Una respuesta HTTP 200 acompañada de `{"mensaje":"listo"}` **no** satisface necesariamente el contrato esperado por un cliente que deserializa `List<ProductoDto>`. El código de estado HTTP solo responde a una parte de la pregunta. El contenido tiene que ser coherente con el tipo que el servicio ha solicitado.
+
+Finalmente, conviene identificar el problema del **estado anterior visible mientras se carga**. Algunos diseños sustituyen la lista por una indicación de carga; otros conservan la lista e incorporan un indicador discreto. Ambas decisiones pueden ser correctas según el uso. Lo que no es correcto es presentar sin matices una lista anterior como si acabara de confirmarse desde el servidor. En el curso se adopta una solución sencilla: la consulta modifica las banderas de carga y error, y el componente ofrece una respuesta visual inequívoca.
+
+### 5.1.13. El significado de `await` y las transiciones de estado
+
+Una consulta asincrónica devuelve una tarea; no devuelve inmediatamente los productos. Cuando un método hace `await` sobre esa tarea, permite que el entorno gestione otras operaciones mientras llega la respuesta. Eso no quiere decir que el resultado pueda consumirse antes de que la tarea termine.
+
+Examinemos el orden de instrucciones:
+
+~~~csharp
+cargando = true;
+error = null;
+
+try
+{
+    var respuesta = await CatalogoApi.ObtenerAsync();
+    productos = respuesta.ToList();
+}
+finally
+{
+    cargando = false;
+}
+~~~
+
+La asignación a `productos` se ejecuta **después** de obtener `respuesta`. Si la consulta falla, esa asignación no se ejecuta. En cambio, el bloque `finally` se ejecuta tanto en una terminación satisfactoria como en una excepción. Así se evita dejar el botón inutilizable por una bandera `cargando` que permaneciera en `true` para siempre.
+
+Los `catch` no son sustitutos del `finally`. Sirven para expresar qué error se observó y qué decisión toma el componente. La comprobación de que la operación terminó corresponde a un bloque que se ejecuta con independencia del resultado. Esta separación es una regla útil para otros ejemplos asincrónicos del curso: también la acción de crear tiene una bandera de envío que debe restaurarse.
+
+**Pregunta razonada.** ¿Qué ocurriría si `cargando = false` estuviera exclusivamente después del `await`, fuera de un `finally`, y la llamada fallara? La ejecución abandonaría el bloque antes de llegar a esa línea. La interfaz podría seguir mostrando «Cargando...» e impedir nuevas pulsaciones aunque la solicitud ya hubiera terminado con un error. El fallo sería de gestión de estado local, no de la API.
+
+**Otra pregunta.** ¿Por qué se borra el error anterior antes de consultar? Porque una nueva solicitud representa una oportunidad de recuperarse. Si el servidor había estado caído y vuelve a responder, no es coherente seguir mostrando la advertencia de la petición anterior después de recibir una lista satisfactoria.
+
+### 5.1.14. La creación y el identificador pertenecen al servidor
+
+Un formulario de creación recoge nombre y precio. La pantalla puede comprobar que el nombre no está vacío y que el precio es positivo, pero esa comprobación no crea un recurso en el servidor. Para ello hace falta una solicitud POST que el servidor valide y procese.
+
+Imaginemos que una página muestra dos productos y decide asignar al siguiente el identificador `productos.Count + 1`, que sería 3. Si otro cliente ha creado un producto antes, el identificador 3 podría estar ocupado. Si se eliminara un elemento, la cuenta visible tampoco tendría por qué corresponderse con el siguiente identificador válido. En consecuencia, la interfaz no debe calcular el ID.
+
+El patrón correcto para un alta es:
+
+~~~csharp
+var entrada = new CrearProductoDto(nombre.Trim(), precio);
+var creado = await CatalogoApi.CrearAsync(entrada);
+productos.Add(creado);
+~~~
+
+Aquí `creado` es la representación devuelta por el servidor. El servicio HTTP debe comprobar primero que recibió una respuesta satisfactoria y deserializar el cuerpo esperado. Solo después de obtener ese objeto tiene sentido incorporarlo a la colección del componente.
+
+Si el POST devuelve **400**, el componente no debería añadir el producto como si hubiese sido creado. Si la respuesta devuelve **201** pero el cuerpo JSON está incompleto, tampoco debería construir artificialmente el identificador. En ambos casos corresponde mostrar información suficiente para investigar y preservar la coherencia de la interfaz.
+
+La diferencia entre recargar toda la lista después de POST y añadir el resultado del POST a la lista existente debe explicarse como una **decisión de sincronización**. Añadir el resultado es eficiente cuando se acaba de crear un recurso válido. Volver a consultar ofrece una instantánea más reciente del catálogo completo. En este curso se pueden observar ambas alternativas sin introducir sistemas de notificación en tiempo real.
+
+### 5.1.15. Una lista en memoria y una base de datos SQL Server no comparten garantías
+
+En M02 el proyecto MVC A utiliza EF Core y SQL Server Express LocalDB. La aplicación crea un contexto, realiza consultas y guarda cambios en una base de datos. Los datos persisten con independencia de que el proceso web termine, mientras la base esté disponible y no se elimine. En M04 y P5.1 la API docente mantiene un diccionario de productos dentro de su proceso.
+
+Esta diferencia no es un detalle de instalación. Cambia lo que puede afirmarse sobre el resultado de una operación. Si un POST añade Regla a una colección estática en memoria, una consulta posterior al mismo proceso la encontrará. Sin embargo, al detener y reiniciar la API se inicializarán otra vez los valores de partida. Ese comportamiento es esperado, no una pérdida accidental que deba corregirse trasladando la API a SQLite.
+
+Comparación causal:
+
+| Pregunta | API de productos en memoria | MVC con EF Core y LocalDB |
+|---|---|---|
+| ¿Quién conserva la información? | El proceso ASP.NET Core | El motor SQL Server LocalDB |
+| ¿Qué sucede al reiniciar solo el proceso web? | Se recrea la colección inicial | Los datos de la base siguen disponibles |
+| ¿Hace falta instalar LocalDB para GET y POST de P5.1? | No | No aplica a esa API |
+| ¿Se puede afirmar persistencia por recibir 201? | No | La persistencia se comprueba según el flujo EF |
+| ¿Es adecuada para la demostración de despliegue Linux de M05? | No se usa allí | El CRUD de MVC requiere SQL Server real |
+
+La última fila ayuda a entender una restricción posterior: en el contenedor Docker del curso se publica MVC A, pero **no se instala LocalDB dentro del contenedor Linux**. El ejercicio demostrará que el proceso MVC y sus recursos básicos se sirven; no fingirá que el CRUD con base de datos está disponible allí.
+
+### 5.1.16. Recorrido de diagnóstico en seis preguntas
+
+Cuando una operación falla, una secuencia de preguntas reduce las modificaciones improvisadas:
+
+**Primera: ¿existe el proceso que debería atender la solicitud?** Ver un navegador abierto no demuestra que siga vivo el proceso de API. Consultar su consola y su URL directa permite distinguir la ausencia de servicio de un error del componente.
+
+**Segunda: ¿se utiliza la dirección correcta?** `http://localhost:5081/` identifica en el ejemplo el servidor API; `http://localhost:5092/` identifica Blazor. Una respuesta de la página inicial Blazor no demuestra que el endpoint de productos haya recibido la solicitud. Deben verificarse host, puerto y ruta.
+
+**Tercera: ¿la API contesta y con qué estado?** Un 404 demuestra que el servidor recibió la solicitud, pero no encontró el recurso solicitado. Un error de conexión significa que no se consiguió una respuesta HTTP equivalente. Son hechos distintos y requieren actuaciones distintas.
+
+**Cuarta: ¿el cuerpo responde al contrato?** Un 200 puede contener `[]`, una lista de productos válida o un texto que no es JSON. Leer el cuerpo ayuda a separar fallo de transporte y fallo de interpretación.
+
+**Quinta: ¿el servicio transforma correctamente el resultado?** Si la API devuelve datos válidos y Blazor sigue mostrando un error, revisar el servicio tipado, su configuración de dirección base y la excepción concreta. No duplicar rutas HTTP en el componente para eludir la investigación.
+
+**Sexta: ¿la interfaz está presentando el estado recibido?** Aunque la red funcione, una colección no actualizada o una bandera de carga incorrecta pueden hacer que la página parezca rota. Examinar el método que asigna `productos` y el orden de condiciones Razor suele resultar más útil que añadir un nuevo proyecto.
+
+El orden importa. Empezar por cambiar la UI sin comprobar el servidor puede ocultar una avería externa; empezar por la API sin considerar el estado del componente puede atribuir al servidor un fallo de renderizado. La clave es aislar primero la capa donde el resultado deja de coincidir con el contrato.
+
+### 5.1.17. Caso integral resuelto: el producto que parece desaparecer
+
+Una persona crea Regla desde Blazor. La página recibe un DTO con ID asignado por la API y lo añade a la lista. Todo parece correcto. Después, el docente detiene y vuelve a iniciar la API. En la pantalla anterior todavía figura Regla. Al pulsar «Consultar servidor» desaparece.
+
+¿Por qué se produce este comportamiento? El POST creó el producto en memoria, no en SQL Server. El reinicio volvió a poblar la colección inicial. La pantalla mantenía una representación anterior hasta ejecutar una consulta nueva. La actualización no eliminó por error un registro persistente: mostró el contenido del nuevo proceso.
+
+¿Qué observaciones permitirían confirmar la explicación? Antes del reinicio, un GET directo a la API devuelve Regla. Después del reinicio, el mismo GET devuelve solo los productos iniciales. Mientras tanto, antes de recargar Blazor, la pantalla puede conservar Regla. Al consultar explícitamente, la UI coincide con la última respuesta. Se han identificado tres estados y una secuencia de eventos sin introducir herramientas ajenas al temario.
+
+¿Qué corrección no deberíamos aplicar? No deberíamos modificar MVC A ni sustituir LocalDB por SQLite ni incorporar Identity/JWT a esta API para conseguir persistencia. La API en memoria cumple exactamente el papel docente del módulo. Si se quisiera implementar persistencia duradera en otro curso, habría que plantear explícitamente otro contrato, otra infraestructura y nuevas pruebas. Eso no forma parte del objetivo de P5.1.
+
+**Conclusión.** La integración queda comprendida cuando el alumno puede explicar no solo la respuesta correcta, sino también una secuencia aparentemente contradictoria de respuestas correctas obtenidas en instantes distintos.
+
+
+
 ## 5.2. Ejecutar, compilar y publicar una aplicación ASP.NET Core MVC
 
 ### 5.2.1. ¿Por qué compilar no equivale a publicar?
