@@ -880,6 +880,165 @@ Las carpetas de publicación A y B permanecen dentro de `.work` para facilitar u
 
 
 
+
+### Paso P5.2.10. Publicar por primera vez desde una ruta absoluta controlada
+
+**Fundamento:** 5.2.21 y 5.2.24. Hasta ahora hemos utilizado rutas relativas desde la raíz del repositorio. Este ejercicio permite comprobar qué sucede cuando se trabaja desde otra carpeta y por qué conviene conocer la ubicación real de los artefactos.
+
+Abre PowerShell en la raíz del repositorio. Localiza el archivo de proyecto e inspecciona su ruta absoluta:
+
+~~~powershell
+$proyecto = Resolve-Path ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\MVC\CursoWeb.Mvc\CursoWeb.Mvc.csproj"
+$proyecto.Path
+~~~
+
+No copies el resultado literal a otro equipo. La ubicación dependerá de dónde haya clonado el alumno el repositorio. Crea un destino también absoluto, pero dentro de la zona de trabajo de ese repositorio:
+
+~~~powershell
+New-Item -ItemType Directory -Force ".\.work\M05" | Out-Null
+$carpeta = (Resolve-Path ".\.work\M05").Path
+$destino = Join-Path $carpeta "publicacion-ruta-absoluta"
+
+dotnet publish $proyecto.Path -c Release -o $destino
+~~~
+
+Cuando termine, comprueba:
+
+~~~powershell
+Test-Path (Join-Path $destino "CursoWeb.Mvc.dll")
+Test-Path (Join-Path $destino "CursoWeb.Mvc.runtimeconfig.json")
+Test-Path (Join-Path $destino "wwwroot\css\site.css")
+~~~
+
+Los tres resultados deberían ser verdaderos. Explica qué confirma cada uno y qué no confirma todavía. El primer resultado localiza el ensamblado; el segundo, un archivo que describe requisitos de ejecución; el tercero, un recurso estático. Ninguno constituye por sí solo una petición HTTP atendida.
+
+Cambia temporalmente el directorio actual con `Push-Location` a una carpeta diferente y vuelve a ejecutar la misma orden `dotnet publish` usando `$proyecto.Path` y `$destino`. Como ahora ambas variables contienen rutas absolutas, la operación sigue apuntando a los mismos orígenes y destino. Ejecuta `Pop-Location` para regresar.
+
+La intención no es recomendar que todos los comandos se escriban siempre con rutas largas; es enseñar que **el directorio actual tiene consecuencias**, y que el alumno puede eliminarlas cuando necesite una reproducción exacta.
+
+### Paso P5.2.11. Examinar la salida de publicación sin borrar archivos desconocidos
+
+**Fundamento:** 5.2.8 y 5.2.22. Un error común durante el aprendizaje es eliminar archivos publicados cuyo nombre parece misterioso. Antes de hacerlo debemos comprender su función.
+
+Usa el destino que acabas de generar:
+
+~~~powershell
+Get-ChildItem -Path $destino -File |
+    Select-Object Name, Extension, Length |
+    Sort-Object Extension, Name
+~~~
+
+Localiza la DLL principal y los archivos `.deps.json` y `.runtimeconfig.json`. Después identifica si existen archivos de configuración y una carpeta `wwwroot`.
+
+Abre el archivo de configuración del runtime con un editor de texto. No modifiques su contenido; busca la referencia al framework exigido. Observa que el archivo no instala ese framework: describe la versión y las condiciones de ejecución esperadas.
+
+Abre también `appsettings.json`. Si contiene `ConnectionStrings:Productos`, no debes interpretar que la base física haya sido copiada. El archivo contiene un valor de configuración; la instancia de SQL Server Express LocalDB pertenece al entorno Windows.
+
+Finalmente comprueba el archivo estático:
+
+~~~powershell
+Get-Item (Join-Path $destino "wwwroot\css\site.css") |
+    Select-Object Name, Length, LastWriteTime
+~~~
+
+Si existe y tiene contenido, sabemos que se ha preparado un recurso estático. Todavía no sabemos si el middleware lo va a servir, porque eso exige iniciar la aplicación y pedir su URL. Deja intactos los archivos. No es necesario editar manualmente `.deps.json` o `.runtimeconfig.json` para enseñar un despliegue elemental.
+
+### Paso P5.2.12. Comprobar los runtimes disponibles antes de iniciar la publicación
+
+**Fundamento:** 5.2.17. Desde PowerShell ejecuta:
+
+~~~powershell
+dotnet --list-sdks
+dotnet --list-runtimes
+~~~
+
+El primer comando informa de los SDK instalados; el segundo, de los runtimes. Busca una versión compatible de Microsoft.AspNetCore.App 8 en la lista de runtimes. La publicación que utilizamos depende del framework y presupone que el entorno puede ejecutar ASP.NET Core 8.
+
+El alumno debe explicar por qué **tener el SDK no es la única condición de ejecución de un destino**, y por qué una carpeta publicada no garantiza que un equipo remoto tenga los runtimes necesarios. En su puesto de desarrollo quizá aparezcan tanto SDK como runtime porque Visual Studio los instaló; en un servidor con IIS el escenario habitual será diferente.
+
+No desinstales ni cambies runtimes como parte de esta práctica. El objetivo es reconocer sus requisitos, no provocar una avería que impida continuar el curso. Si falta .NET 8 en el puesto del alumno, hay que preparar el laboratorio antes de ejecutar las actividades.
+
+### Paso P5.2.13. Contrastar tres evidencias de una publicación ejecutable
+
+**Fundamento:** 5.2.19. Inicia la DLL de la carpeta publicada en modo sin base para estudiar la parte web del host, sin alterar EF Core:
+
+~~~powershell
+$env:Despliegue__SinLocalDb = "true"
+Push-Location $destino
+dotnet .\CursoWeb.Mvc.dll --urls http://localhost:5094
+~~~
+
+Mantén esa ventana abierta. Desde otra terminal ejecuta:
+
+~~~powershell
+curl.exe -i http://localhost:5094/
+curl.exe -i http://localhost:5094/Productos/Estado
+curl.exe -i http://localhost:5094/css/site.css
+~~~
+
+Anota tres observaciones: la portada HTML se genera, la acción de estado responde el texto previsto y el recurso estático se sirve desde la publicación. Esto demuestra más que la mera presencia de archivos. El siguiente paso lógico sería comprobar el CRUD con SQL Server en un escenario donde la base sea accesible, pero no lo confundas con el ensayo sin base.
+
+Detén el proceso con Ctrl+C, ejecuta `Pop-Location` y elimina la variable en esa terminal:
+
+~~~powershell
+Remove-Item Env:\Despliegue__SinLocalDb -ErrorAction SilentlyContinue
+~~~
+
+El recorrido conserva la salida dentro de `.work`, por lo que puede repetirse sin reconstruir el proyecto. No hace falta modificar ningún archivo fuente.
+
+### Paso P5.2.14. Conservar el proveedor SQL Server cuando el destino no ofrece LocalDB
+
+**Fundamento:** 5.2.12 y 5.2.29. Abre `PROYECTO/MVC/CursoWeb.Mvc/Program.cs` y localiza el registro del contexto con `UseSqlServer`. Comprueba que la aplicación sigue utilizando la cadena `ConnectionStrings:Productos` como en M02.
+
+A continuación encuentra la lectura de `Despliegue:SinLocalDb` y el bloque que decide si inicializar la base. Identifica una relación de causa y efecto: cuando la opción es falsa, el programa intenta preparar LocalDB. Cuando es verdadera, omite ese arranque, pero no reemplaza SQL Server por una colección estática.
+
+Localiza finalmente el middleware que intercepta las rutas bajo `/Productos`, exceptuando `/Productos/Estado`, para devolver 503 en el modo sin base. Esta parte es tan importante como la omisión de inicialización: evita que el alumno crea que un CRUD funciona por el mero hecho de que la portada abre.
+
+**Comparación razonada:**
+
+| Situación | Interpretación admisible |
+|---|---|
+| `dotnet publish` termina correctamente | Artefactos generados |
+| Kestrel responde 200 en `/` | El host y la portada funcionan |
+| Kestrel responde 503 en `/Productos` con modo sin base | El CRUD está explícitamente deshabilitado |
+| `/Productos` funciona con LocalDB real en Windows | Se ha comprobado, al menos, una ruta SQL |
+| Crear, editar y eliminar productos con LocalDB | Evidencia de recorrido CRUD persistente |
+
+No cambies el proveedor a SQLite para conseguir una respuesta 200 en el contenedor posterior. Eso violaría el contrato tecnológico del curso y alteraría el ejemplo que el alumno ha construido desde M02.
+
+### Paso P5.2.15. Construir dos salidas y demostrar que el navegador consulta dos versiones
+
+**Fundamento:** 5.2.13–5.2.15 y 5.2.25. Recupera las carpetas `publicacion-original` y `publicacion-cambio` de P5.2.7. Ambas pertenecen al mismo proyecto, pero la segunda se generó después de introducir un marcador en `Views/Home/Index.cshtml`.
+
+Inicia A y B en ventanas diferentes, con la opción sin base y puertos 5091 y 5094 respectivamente. En el navegador abre ambos documentos y examina el texto. Para identificar el cambio sin depender exclusivamente del aspecto visual, usa desde otra terminal:
+
+~~~powershell
+curl.exe -s http://localhost:5091/ | Select-String "marca-publicacion-m05"
+curl.exe -s http://localhost:5094/ | Select-String "marca-publicacion-m05"
+~~~
+
+La primera búsqueda no debería encontrar ese identificador; la segunda sí. Si ambos resultados son iguales, revisa de qué carpeta procede cada proceso y si la versión B se publicó realmente después de modificar la vista.
+
+No necesitas crear dos proyectos ni dos controladores. Las versiones del programa se distinguen por su contenido publicado y por el proceso que lo utiliza. Detén ambas instancias y confirma que la fuente se ha restaurado según P5.2.9.
+
+### Paso P5.2.16. Ejercicio de diagnóstico sin modificar el proyecto
+
+Un compañero afirma que «publicar no funciona» porque abrió el navegador después de ejecutar `dotnet publish` y no encontró ninguna página. Antes de corregir su equipo, hazle estas preguntas:
+
+- ¿Dónde se encuentra el directorio de salida?
+- ¿Se ejecutó realmente una DLL publicada o solamente se generaron los archivos?
+- ¿Qué proceso debería escuchar la URL indicada?
+- ¿Existe una dirección de escucha anunciada por ese proceso?
+- ¿Qué respuesta concreta se obtiene al solicitar una ruta conocida?
+
+Ahora considera un segundo compañero que obtiene 200 en la portada y 503 en Productos. ¿Se ha demostrado que la publicación es defectuosa? No necesariamente. Puede estar utilizando la opción sin LocalDB que limita expresamente esas rutas. La comprobación de la configuración es más pertinente que rehacer la vista.
+
+Por último, otro compañero abre una portada antigua después de volver a publicar. Debe comprobar el proceso activo y la carpeta que utiliza antes de cambiar código C#. La respuesta correcta identifica **qué instancia está recibiendo la solicitud**.
+
+Estas tres situaciones son una evaluación formativa completa del concepto publicar: salida, ejecución y dependencia. No requieren una herramienta adicional; requieren interpretar evidencias diferentes.
+
+
+
 ### Resultado y estado final P5.2
 
 La carpeta `.work\M05\publicacion-mvc` contiene los artefactos de MVC. El alumno sabe identificar qué cambió al publicar: no el código fuente ni las acciones, sino los archivos preparados para ejecutarse fuera de la estructura de desarrollo. No edites la fuente para corregir un problema que solo aparece por una variable del entorno de ejecución.
