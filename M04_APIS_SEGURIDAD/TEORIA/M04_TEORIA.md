@@ -579,6 +579,106 @@ Una petición puede tener JSON sintácticamente válido y, sin embargo, incumpli
 
 Tampoco basta con que un POST devuelva 201 para afirmar que existe persistencia: **la información vive en memoria del proceso**. Al reiniciar la API se restauran Cuaderno y Lápiz; el producto añadido desaparece. La persistencia ya fue estudiada con EF Core en el contexto previo del alumnado; reintroducirla aquí impediría concentrarse en la comunicación Blazor–API.
 
+### 4.3.6. Construcción gradual desde una plantilla vacía
+
+Hasta ahora hemos leído la API suministrada. Para comprender cómo se llega a ese resultado, podemos reconstruirla sin copiar su archivo final. Esta secuencia no supone que el alumno desconozca ASP.NET Core Web API; aprovecha sus conocimientos previos y se centra en las decisiones que afectan al cliente Blazor.
+
+**Estado A — el host responde.** Desde una terminal distinta de Blazor:
+
+\`\`\`powershell
+dotnet new web -n CursoWeb.ProductosApi -f net8.0
+cd CursoWeb.ProductosApi
+dotnet run --urls http://localhost:5081
+\`\`\`
+
+El proyecto inicial permite arrancar Kestrel. Antes de repetir peticiones, detén la API preconstruida utilizada en 4.1 para evitar que ambos procesos intenten escuchar en el mismo puerto. El objetivo del primer estado no es devolver productos: es distinguir que el host está iniciado del hecho de que existan endpoints funcionales.
+
+Sustituye el contenido inicial de \`Program.cs\` por:
+
+\`\`\`csharp
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+app.MapGet("/", () => Results.Ok("API de Productos disponible"));
+
+app.Run();
+\`\`\`
+
+Si el navegador puede consultar \`http://localhost:5081/\`, la comunicación básica funciona. Si no funciona, no tiene sentido investigar todavía DTO o serialización.
+
+**Estado B — aparecen datos con contrato público.** Incorporamos un modelo pequeño y un almacenamiento de memoria. La parte superior del archivo pasa a contener:
+
+\`\`\`csharp
+using System.Collections.Concurrent;
+
+var builder = WebApplication.CreateBuilder(args);
+var app = builder.Build();
+
+var productos = new ConcurrentDictionary<int, ProductoApi>();
+productos[1] = new ProductoApi(1, "Cuaderno", 2.50m);
+productos[2] = new ProductoApi(2, "Lápiz", 0.80m);
+
+app.MapGet("/", () => Results.Ok("API de Productos disponible"));
+app.MapGet("/api/productos", () =>
+    Results.Ok(productos.Values.OrderBy(p => p.Id)));
+
+app.Run();
+
+record ProductoApi(int Id, string Nombre, decimal Precio);
+\`\`\`
+
+Ahora podemos comprobar dos contratos distintos: una respuesta de salud o bienvenida en la raíz y un arreglo de productos en \`/api/productos\`. Es importante observar la **forma** de la respuesta: Blazor espera una colección de objetos con Id, Nombre y Precio. No bastaría con devolver una cadena de texto que diga «hay dos productos».
+
+**Estado C — el servidor distingue un recurso inexistente.** Antes de \`app.Run\`, incorporamos:
+
+\`\`\`csharp
+app.MapGet("/api/productos/{id:int}", (int id) =>
+    productos.TryGetValue(id, out var producto)
+        ? Results.Ok(producto)
+        : Results.NotFound());
+\`\`\`
+
+En este punto tenemos una regla útil para razonar sobre 404: el servidor recibe una petición correctamente formada, pero el diccionario no contiene la clave solicitada. Esto no es un error de conexión; el servidor sigue operativo.
+
+**Estado D — el servidor crea productos.** Agregamos el segundo contrato, que no contiene identificador:
+
+\`\`\`csharp
+record CrearProductoApi(string Nombre, decimal Precio);
+\`\`\`
+
+Y antes de \`app.Run\`, la acción:
+
+\`\`\`csharp
+var siguienteId = 2;
+
+app.MapPost("/api/productos", (CrearProductoApi entrada) =>
+{
+    if (string.IsNullOrWhiteSpace(entrada.Nombre) || entrada.Precio <= 0)
+        return Results.BadRequest("Nombre y precio deben ser válidos.");
+
+    var id = Interlocked.Increment(ref siguienteId);
+    var creado = new ProductoApi(id, entrada.Nombre.Trim(), entrada.Precio);
+    productos[id] = creado;
+    return Results.Created($"/api/productos/{id}", creado);
+});
+\`\`\`
+
+El contador comienza en 2 porque los productos iniciales tienen identificadores 1 y 2. \`Interlocked.Increment\` evita que dos peticiones simultáneas reciban el mismo identificador por una operación de incremento no atómica. No convierte la colección en una base de datos ni garantiza persistencia tras reiniciar. La validación de nombre y precio reside en el servidor incluso aunque el formulario de Blazor ya rechace esos valores.
+
+El resultado de este estado es una API compatible con los GET/POST que nuestro cliente consume. Por ello podemos detener la API suministrada, arrancar la construida por el alumno en el mismo puerto y **volver a utilizar Blazor sin cambiar su interfaz**.
+
+**Estado E — extensión de respuesta independiente.** Finalmente, podemos añadir el endpoint \`/api/productos/resumen\` mostrado en el apartado anterior. Devolverá una estructura diferente de la lista, sin alterar las rutas que el servicio tipado necesita. El objetivo no es acumular endpoints, sino entender qué significa extender un contrato público conservando sus consumidores.
+
+### 4.3.7. Cómo reconocer tres fallos frecuentes en la construcción
+
+La primera equivocación habitual consiste en ubicar una declaración \`record\` en medio de las instrucciones de nivel superior de \`Program.cs\`, de forma que las instrucciones ejecutables posteriores ya no estén permitidas. Los tipos auxiliares pueden declararse al final del archivo, después de \`app.Run\`, como hemos hecho en los ejemplos.
+
+La segunda consiste en cambiar \`GET /api/productos\` para devolver una forma JSON diferente mientras Blazor sigue esperando \`List<ProductoDto>\`. El problema no se resuelve cambiando el puerto: es una incompatibilidad de contrato. Una vía de diagnóstico consiste en leer el JSON directamente y compararlo con el DTO esperado.
+
+La tercera es construir una API nueva y olvidar que la antigua sigue ocupando 5081. Dos procesos no pueden escuchar normalmente en la misma dirección y puerto; uno fallará al arrancar. Antes de investigar HttpClient, verifica qué aplicación está escuchando.
+
+Estas incidencias se estudian aquí porque proporcionan criterios transferibles a otras integraciones: distinguir alojamiento, contrato y estado de aplicación.
+
 ### 4.3.6. Probar el contrato sin depender de la pantalla
 
 Para diagnosticar una integración conviene separar observaciones. Primero ejecutamos la API y probamos GET, POST y errores con un cliente HTTP independiente. Después abrimos Blazor para comprobar que conserva su comportamiento. Si el GET directo funciona, pero la página falla, investigaremos URL configurada, puerto, servicio tipado, DTO o estado del componente. Si el GET directo también falla, examinaremos el proceso API y sus rutas.
