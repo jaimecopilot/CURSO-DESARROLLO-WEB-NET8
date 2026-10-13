@@ -16,10 +16,16 @@ builder.Services.AddDbContext<AppDbContext>(options => options.UseSqlServer(cade
 
 var app = builder.Build();
 
-// P2.4: EnsureCreated para el laboratorio nuevo; no son migraciones.
-// Solo insertar los tres productos iniciales cuando la base acaba de crearse.
-using (var scope = app.Services.CreateScope())
+// P5.2: se mantiene el CRUD de P2.4/P2.5 con LocalDB en Windows.
+// P5.5: la publicación Linux no dispone de LocalDB; el indicador SOLO
+// permite ejecutar Home/Index, recursos estáticos y Productos/Estado.
+// NO cambia el proveedor EF Core y NO crea una base ficticia.
+var sinLocalDb = builder.Configuration.GetValue<bool>("Despliegue:SinLocalDb");
+if (!sinLocalDb)
 {
+    // PASO 5.2: aplicación MVC publicada en Windows con LocalDB real.
+    // P2.4: EnsureCreated es una simplificación exclusivamente docente.
+    using var scope = app.Services.CreateScope();
     var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     if (db.Database.EnsureCreated())
     {
@@ -29,6 +35,25 @@ using (var scope = app.Services.CreateScope())
             new Producto { Nombre = "Carpeta", Precio = 3.75m });
         db.SaveChanges();
     }
+}
+
+// PASO 5.5: modo sin base para un contenedor Linux.
+// Una ruta de CRUD no se presenta como funcional sin SQL Server.
+// El filtro responde 503 en lugar de producir una excepción SQL no explicada.
+if (sinLocalDb)
+{
+    app.Use(async (contexto, siguiente) =>
+    {
+        if (contexto.Request.Path.StartsWithSegments("/Productos")
+            && !contexto.Request.Path.StartsWithSegments("/Productos/Estado"))
+        {
+            contexto.Response.StatusCode = StatusCodes.Status503ServiceUnavailable;
+            await contexto.Response.WriteAsync(
+                "CRUD no disponible: el ensayo de despliegue Linux no utiliza LocalDB.");
+            return;
+        }
+        await siguiente(contexto);
+    });
 }
 
 app.UseStaticFiles();
