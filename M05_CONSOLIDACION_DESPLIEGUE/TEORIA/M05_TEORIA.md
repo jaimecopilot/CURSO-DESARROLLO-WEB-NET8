@@ -962,7 +962,134 @@ Los contenedores también tienen logs y estado de salida. Que `docker build` ten
 
 La intención no es declarar ganadora a una modalidad, sino reconocer que **la misma aplicación puede publicarse de diferentes formas mientras cambian sus condiciones de ejecución**. La capa MVC sigue recibiendo solicitudes HTTP, pero varían los procesos, los permisos y los mecanismos de exposición del puerto.
 
-### 5.5.8. Conclusión del curso
+
+### 5.5.8. La diferencia entre construir una imagen y ejecutar un proceso
+
+Durante `docker build`, Docker interpreta el Dockerfile y produce una imagen. Los comandos `RUN` de su etapa de compilación se ejecutan en el proceso de construcción y preparan los archivos de aplicación. Al terminar, el hecho de tener una imagen no significa que exista un servidor web atendiendo solicitudes.
+
+`docker run` crea y pone en marcha un contenedor a partir de esa imagen. En nuestro ejemplo, `ENTRYPOINT ["dotnet", "CursoWeb.Mvc.dll"]` define el programa que se ejecuta dentro del contenedor. Ese proceso inicia ASP.NET Core y su servidor HTTP. Si termina, el contenedor deja de estar en ejecución normal. Una imagen correcta puede, por tanto, producir un contenedor que termina inmediatamente debido a una mala configuración de ejecución.
+
+La distinción puede expresarse con tres preguntas:
+
+- ¿Existe una imagen construida con las capas previstas? Lo comprobamos con `docker images`.
+- ¿Existe un contenedor en ejecución a partir de esa imagen? Lo comprobamos con `docker ps`.
+- ¿El proceso del contenedor atiende una petición HTTP desde el host? Lo comprobamos abriendo la URL publicada mediante `-p`.
+
+Estas observaciones no son sinónimos. Docker puede informar de un contenedor en marcha aunque la aplicación todavía esté inicializándose; también puede permitir crear un contenedor cuya ejecución termina antes de que nadie abra el navegador.
+
+### 5.5.9. Por qué el contexto de construcción tiene tanta importancia como el Dockerfile
+
+El comando `docker build -t cursoweb-mvc:m05 .` termina con un punto. Ese punto identifica el **contexto de construcción**. Las instrucciones `COPY` operan sobre los archivos enviados en ese contexto, no sobre cualquier ruta disponible en el equipo.
+
+En nuestro Dockerfile aparece:
+
+~~~dockerfile
+WORKDIR /src
+COPY . .
+RUN dotnet restore CursoWeb.Mvc.csproj
+RUN dotnet publish CursoWeb.Mvc.csproj -c Release --no-restore -o /app/publicada
+~~~
+
+Para que `CursoWeb.Mvc.csproj` aparezca en `/src`, debemos usar como contexto la carpeta del proyecto MVC que lo contiene. Si el alumno invoca `docker build` desde la raíz del repositorio con ese mismo Dockerfile y sin ajustar el contexto, puede copiar una estructura de carpetas diferente. El error de restauración posterior no significa que el SDK .NET 8 esté roto; significa que el archivo no está en la ruta esperada dentro de la etapa de construcción.
+
+`.dockerignore` permite excluir archivos que no necesitamos enviar al contexto. Un directorio `bin` o `obj` creado durante el desarrollo no debería presentarse como fuente del nuevo build. La etapa de SDK se encarga de restaurar y publicar a partir de los archivos correctos.
+
+El ejemplo mantiene un Dockerfile multietapa sencillo. En proyectos grandes podríamos reorganizar el orden de copias para aprovechar más capas en caché, pero esa optimización no es necesaria para comprender el recorrido fundamental de esta jornada.
+
+### 5.5.10. La imagen final no necesita las herramientas utilizadas para construirla
+
+La primera etapa del ejemplo utiliza `mcr.microsoft.com/dotnet/sdk:8.0`. Contiene el SDK y herramientas de construcción. La etapa final utiliza `mcr.microsoft.com/dotnet/aspnet:8.0`, que proporciona el runtime ASP.NET Core requerido para ejecutar la publicación.
+
+La instrucción `COPY --from=compilacion /app/publicada .` incorpora a la etapa final la salida preparada en la etapa anterior. El resultado no necesita transportar el código fuente completo ni el SDK para iniciar el servidor HTTP. Esta separación hace más evidente que «compilar» y «ejecutar» son responsabilidades diferentes, incluso cuando se describen en un mismo Dockerfile.
+
+Sin embargo, una imagen final pequeña no elimina requisitos de la aplicación. Si un programa necesita un servicio SQL, seguirá necesitándolo. La etapa runtime de ASP.NET Core no incorpora mágicamente una instancia LocalDB. El ejercicio deja intencionadamente ese CRUD fuera del recorrido Linux para mantener la fidelidad técnica con SQL Server Express LocalDB del curso.
+
+### 5.5.11. Comprender el mapeo de puertos sin cambiar el código MVC
+
+Supongamos un contenedor cuyo proceso ASP.NET Core escucha en 8080. Cuando ejecutamos:
+
+~~~powershell
+docker run --name cursoweb-m05 --rm -p 8081:8080 `
+  -e Despliegue__SinLocalDb=true cursoweb-mvc:m05
+~~~
+
+Docker publica el puerto 8080 del contenedor a través del puerto 8081 del host. El navegador en Windows consulta `http://localhost:8081/`. El primer número de `-p` corresponde al lado del host, el segundo al del contenedor.
+
+Si 8081 ya está ocupado, podemos elegir 8082 como puerto del host sin reescribir el Dockerfile, siempre que el proceso del contenedor continúe escuchando en 8080. Cambiar solamente el primer número resuelve la colisión exterior. Cambiar solamente el segundo a un puerto en el que la aplicación no escucha no proporciona acceso a la web.
+
+La declaración `EXPOSE 8080` comunica la intención de usar ese puerto, pero **no crea automáticamente una publicación accesible desde el host**. Para la prueba elegimos explícitamente el mapeo con `-p`. Se trata de una decisión del entorno de ejecución y no de una ruta de controlador MVC.
+
+### 5.5.12. Tres direcciones que el alumno debe mantener separadas
+
+En la práctica aparecen al menos tres conceptos de dirección. La primera es la dirección que el servidor escucha **dentro del contenedor**; el Dockerfile la establece mediante `ASPNETCORE_URLS=http://+:8080`. La segunda es el puerto que Docker publica **en el host**, como 8081. La tercera es la URL concreta que abre el navegador del alumno, `http://localhost:8081/`.
+
+No hay contradicción en que dos números distintos aparezcan en la misma aplicación. El navegador no tiene que conocer el puerto interno si utiliza el publicado por Docker. El servidor ASP.NET Core tampoco necesita saber qué número de host ha elegido el docente, porque sigue escuchando internamente en 8080.
+
+Una avería típica consiste en abrir `http://localhost:8080/` desde el host y concluir que el contenedor no funciona. Si no se ha publicado ese puerto exterior, la solicitud no corresponde al mapeo real. El diagnóstico empieza por `docker ps`, donde podemos comprobar el nombre del contenedor, su estado y los puertos publicados.
+
+### 5.5.13. Variables de entorno como decisiones de ejecución
+
+Docker permite suministrar variables al iniciar el contenedor:
+
+~~~powershell
+docker run --name cursoweb-m05 --rm `
+  -e Despliegue__SinLocalDb=true `
+  -p 8081:8080 cursoweb-mvc:m05
+~~~
+
+La variable hace que la aplicación .NET interprete la clave `Despliegue:SinLocalDb` como verdadera. El mismo ensamblado y la misma imagen podrían iniciarse con otros valores, pero sus dependencias reales cambiarían. No debemos ocultarlo detrás de la frase «Docker adapta automáticamente la base».
+
+Con esta configuración la portada y los recursos sin dependencia SQL siguen disponibles. Las rutas del catálogo MVC que requieren LocalDB deben responder 503. El servidor está operativo; la funcionalidad CRUD no lo está. La variable permite demostrar un límite controlado sin modificar el proveedor EF Core ni inventar persistencia.
+
+En un entorno productivo, la configuración requeriría criterios de seguridad y gestión de secretos que aquí no se desarrollan. La variable utilizada no contiene credenciales: expresa únicamente una opción didáctica de ejecución.
+
+### 5.5.14. La vida de un contenedor y la vida de los datos no son equivalentes
+
+Una imagen se conserva después de detener un contenedor, salvo que se elimine expresamente. Un contenedor creado desde esa imagen tiene un ciclo de vida de ejecución. Sus archivos de escritura no deberían utilizarse como almacenamiento persistente implícito de datos de negocio cuando el contenedor se elimina.
+
+En el ejemplo usamos `--rm` para que Docker retire el contenedor al terminar. Esa elección simplifica la limpieza del laboratorio, pero significa que no esperamos conservar el estado de escritura de ese contenedor. No se incorporan volúmenes ni un SQL Server externo; sería necesario enseñar una infraestructura distinta para explicar correctamente esa persistencia.
+
+Tampoco la presencia de una variable que evita LocalDB crea una base en memoria que admita el CRUD MVC. Al contrario: el middleware explica la indisponibilidad de las rutas que requerirían SQL. El resultado permite aprender el ciclo de vida de una aplicación real sin atribuirle capacidades que no tiene.
+
+### 5.5.15. Leer `docker ps` y `docker logs` como pruebas con distinto alcance
+
+`docker ps` informa de contenedores en ejecución y su configuración general. Nos ayuda a comprobar si el proceso sigue activo y cómo se han publicado los puertos. Si el contenedor no aparece, quizá terminó, no llegó a arrancar o fue eliminado tras su finalización por `--rm`.
+
+`docker logs cursoweb-m05` muestra la salida registrada del contenedor mientras existe. Puede revelar errores de inicio de ASP.NET Core, direcciones de escucha y excepciones de aplicación. Es una evidencia diferente a la del navegador.
+
+`curl.exe -i http://localhost:8081/Productos/Estado` pregunta algo más concreto: «¿qué responde esta ruta desde el host ahora mismo?». Aunque el contenedor figure en ejecución y los logs no contengan errores, debemos solicitar HTTP para demostrar que el mapeo de puertos y la ruta funcionan.
+
+Por tanto, las tres comprobaciones se complementan: contenedor activo, salida del proceso y respuesta de red. Si una falla, conviene localizar en qué etapa se produjo la interrupción antes de reconstruir la imagen.
+
+### 5.5.16. Caso razonado: la imagen se construye y el navegador no conecta
+
+El alumno ejecuta `docker build` y obtiene una imagen. Después intenta abrir `http://localhost:8081/`, pero el navegador informa de que no se puede establecer conexión. ¿Podemos afirmar que el Dockerfile está mal? No todavía.
+
+Primero debemos saber si se ejecutó `docker run`. La construcción no inicia automáticamente el servidor. Segundo, comprobar si el contenedor sigue en ejecución; un proceso que terminó puede haber dejado la imagen intacta. Tercero, examinar el mapeo de puertos efectivo. Si se publicó 8082:8080, la URL 8081 no corresponde al contenedor.
+
+Solo después procede revisar los logs de arranque y el programa. Una excepción durante el inicio de ASP.NET Core, una variable de configuración ausente o una incompatibilidad en los artefactos publicados podrían explicar que el proceso no atendiera nunca una solicitud.
+
+**Conclusión del caso:** debemos separar una imagen disponible, un contenedor activo y una aplicación web accesible. Comprobar una condición no garantiza automáticamente las restantes.
+
+### 5.5.17. Caso razonado: HTTP 200 en la portada y 503 en productos
+
+El mismo contenedor devuelve 200 en `/`, 200 en `/css/site.css` y 200 en `/Productos/Estado`, pero devuelve 503 en `/Productos`. Es un resultado esperado bajo el modo `Despliegue:SinLocalDb=true`.
+
+La observación demuestra ejecución real del host, middleware de archivos estáticos y rutas MVC. La ruta de productos no contiene un catálogo ficticio para el contenedor: declara que la base SQL Server Express LocalDB no está disponible en ese entorno.
+
+Sería improcedente sustituir LocalDB por SQLite solo para conseguir un 200 más. El objetivo pedagógico es comparar hospedajes y sus dependencias, no rediseñar la persistencia ni falsear una función. Si quisiéramos un CRUD Linux con SQL Server, habría que preparar de forma explícita otra infraestructura accesible al contenedor, dentro de un proyecto distinto al recorrido mínimo acordado.
+
+### 5.5.18. Una comparación causal con los otros dos hospedajes
+
+Con Kestrel en Windows iniciamos una publicación como un proceso `dotnet` y elegimos su dirección local. Con IIS en Windows registramos un sitio y el ASP.NET Core Module participa en su hospedaje. Con Docker creamos una imagen y ejecutamos un contenedor que inicia ASP.NET Core en un entorno Linux.
+
+En todos ellos el código MVC conserva su responsabilidad de responder a solicitudes mediante controladores, vistas y archivos estáticos. Lo que cambia es el mecanismo de inicio, la identidad, el sistema de archivos visible, los puertos y las dependencias disponibles.
+
+El objetivo no es decidir qué tecnología es mejor para todos los usos. Una elección empresarial exigiría evaluar mantenimiento, seguridad, redes, datos, observabilidad y operación, asuntos que esta jornada solo menciona para dejar claros sus límites. Aquí aprendemos a describir una publicación sencilla y a demostrar con observaciones verificables qué parte de la misma aplicación funciona bajo cada mecanismo.
+
+
+
+### 5.5.19. Conclusión del curso
 
 Tras M05 el alumno habrá recorrido dos ideas complementarias: una aplicación Blazor que se comunica correctamente con una API y una aplicación MVC que puede ser publicada y ejecutada en distintas modalidades de hospedaje. Habrá aprendido a distinguir compilación de ejecución, respuesta HTTP de funcionamiento completo, interfaz de servidor, y estado temporal de persistencia.
 
