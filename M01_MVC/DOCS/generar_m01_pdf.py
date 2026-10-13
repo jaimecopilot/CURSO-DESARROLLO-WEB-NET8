@@ -136,8 +136,18 @@ def sequence_svg(src: str) -> str:
 
 DIAGRAM_COUNT=0
 
+def strip_fenced_code(source: str) -> str:
+    """El código completo de los README puede contener etiquetas de autor propias.
+
+    No son metadatos de portada: se reconocen solo las declaraciones
+    fuera de los bloques de código del manual.
+    """
+    return re.sub(r"^~~~[^\n]*\n.*?^~~~[ \t]*$", "", source, flags=re.M | re.S)
+
+
 def metadata_from_markdown(source: str, field: str) -> str:
     """Devuelve una única declaración canónica de portada para curso, tipo o autor."""
+    source = strip_fenced_code(source)
     hits=re.findall(r"(?m)^\*\*"+re.escape(field)+r":\s*([^\r\n*]+)\*\*\s*$", source)
     if len(hits)!=1:
         raise ValueError(f"Se requiere exactamente un metadato **{field}: ...** en el Markdown")
@@ -145,7 +155,7 @@ def metadata_from_markdown(source: str, field: str) -> str:
 
 def author_from_markdown(source: str) -> str:
     """Obtener el texto del autor solo del documento Markdown."""
-    labels=re.findall(r"(?m)^\*\*(AUTOR:[ \t]*[^\r\n*]+)\*\*[ \t]*$",source)
+    labels=re.findall(r"(?m)^\*\*(AUTOR:[ \t]*[^\r\n*]+)\*\*[ \t]*$",strip_fenced_code(source))
     if len(labels)!=1:
         raise ValueError("El Markdown debe contener exactamente una línea **AUTOR: ...**")
     return labels[0].strip()
@@ -375,9 +385,12 @@ def check_pdf(file: Path, md: str, diagram_count: int, source_bytes: bytes, file
         raise AssertionError(f"{file.name}: se esperan cinco títulos de capítulo en Markdown")
     current_chapter="Índice del módulo"
     for i,p in enumerate(doc):
-        boxes=p.search_for(author)
+        all_boxes=p.search_for(author)
+        # Los README transcritos pueden mostrar el autor en el cuerpo del capítulo.
+        # Para cabeceras, contamos únicamente la aparición en la banda superior.
+        boxes=all_boxes if i==0 else [box for box in all_boxes if box.y0 <= 70]
         if len(boxes)!=1:
-            raise AssertionError(f"{file.name}, página {i+1}: texto del autor aparece {len(boxes)} veces, se esperaba 1")
+            raise AssertionError(f"{file.name}, página {i+1}: autor en portada/cabecera aparece {len(boxes)} veces; total visible {len(all_boxes)}")
         if i==0:
             if boxes[0].y0 < 90:
                 raise AssertionError(f"{file.name}: autor en cabecera en lugar de portada")
