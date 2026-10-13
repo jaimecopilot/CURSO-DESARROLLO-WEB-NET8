@@ -2488,6 +2488,161 @@ Reinicia la API antes de comparar resultados con el catálogo inicial y recuerda
 
 El objetivo de esta ampliación es poder relacionar método, ruta, validación, respuesta y estado del recurso. No se evalúa por el número de endpoints añadidos, sino por la capacidad del alumno para explicar y ejecutar esos contratos de forma autónoma.
 
+
+### Ampliación autónoma P4.3.8 — Mensajes de validación estructurados desde la API
+
+En el recorrido principal creamos un endpoint POST que rechaza nombre y precio incorrectos mediante un mensaje sencillo. Ahora construiremos **una variante alternativa de ese mismo endpoint** capaz de devolver mensajes separados para cada campo. Esta mejora tiene sentido cuando una interfaz desea informar de manera concreta por qué se rechazó una solicitud.
+
+No cambies los DTO de creación y lectura, la ruta GET ni la estructura del producto creado. La ampliación modifica únicamente el contrato de **respuesta de error** de POST. Se realiza en una copia del proyecto de 4.3 y no forma parte del itinerario presencial obligatorio.
+
+#### Paso V1. Restaurar un servidor de referencia
+
+Detén todas las API que estén utilizando 5081. Inicia la copia de tu proyecto 4.3 con el POST original todavía activo. Consulta GET /api/productos y comprueba que existen Cuaderno y Lápiz.
+
+Envía un POST con nombre vacío. Debe devolverse 400. Observa que la respuesta de la versión inicial contiene un mensaje general. El servidor ha rechazado la entrada correctamente, pero el cuerpo no identifica los errores por campo.
+
+No modifiques todavía el cliente Blazor. El primer objetivo es comparar dos contratos de error del mismo servidor con herramientas HTTP directas.
+
+#### Paso V2. Definir qué errores queremos comunicar
+
+Nuestro formulario tiene dos datos de entrada: nombre y precio. El nombre no puede estar vacío ni contener únicamente espacios; el precio debe ser mayor que cero. Queremos que la API distinga ambos motivos de rechazo.
+
+Podemos expresar los errores mediante un diccionario. La clave identifica el campo y el valor contiene uno o varios mensajes. En el ejemplo:
+
+~~~csharp
+var errores = new Dictionary<string, string[]>();
+
+if (string.IsNullOrWhiteSpace(entrada.Nombre))
+    errores["nombre"] = ["El nombre es obligatorio."];
+
+if (entrada.Precio <= 0)
+    errores["precio"] = ["El precio debe ser positivo."];
+~~~
+
+Si los dos campos son incorrectos, el diccionario tendrá dos claves. Si uno cumple su regla, no aparecerá como error. Esta estructura resulta más útil para un formulario que un mensaje de texto cuyo contenido puede variar libremente.
+
+#### Paso V3. Sustituir POST, no duplicarlo
+
+En Program.cs comenta el MapPost de creación original y habilita únicamente la alternativa de validación estructurada:
+
+~~~csharp
+app.MapPost("/api/productos", (CrearProductoApi entrada) =>
+{
+    var errores = new Dictionary<string, string[]>();
+
+    if (string.IsNullOrWhiteSpace(entrada.Nombre))
+        errores["nombre"] = ["El nombre es obligatorio."];
+
+    if (entrada.Precio <= 0)
+        errores["precio"] = ["El precio debe ser positivo."];
+
+    if (errores.Count > 0)
+        return Results.ValidationProblem(errores);
+
+    var id = Interlocked.Increment(ref siguienteId);
+    var creado = new ProductoApi(
+        id, entrada.Nombre.Trim(), entrada.Precio);
+    productos[id] = creado;
+    return Results.Created($"/api/productos/{id}", creado);
+});
+~~~
+
+Compila y reinicia. No dejes ambos MapPost activos para /api/productos. Si la aplicación contiene dos handlers equivalentes para la misma operación, puedes introducir una selección ambigua de endpoint. El ejercicio consiste en comparar alternativas, no en publicar simultáneamente dos versiones incompatibles.
+
+#### Paso V4. Probar el nombre incorrecto
+
+Prepara nombre-invalido.json:
+
+~~~json
+{
+  "nombre": "",
+  "precio": 4.50
+}
+~~~
+
+Ejecuta:
+
+~~~powershell
+curl.exe -i -X POST http://localhost:5081/api/productos -H "Content-Type: application/json" --data-binary "@nombre-invalido.json"
+~~~
+
+Comprueba que el estado es 400 y que el cuerpo contiene un objeto de problema. Dentro de errors debe encontrarse una entrada correspondiente a nombre. No debe aparecer un error de precio, porque el valor 4,50 es positivo.
+
+El cuerpo puede incluir propiedades adicionales propias de la representación estándar de problema, como status o title. No dependas del orden textual de las propiedades JSON; comprueba su significado y la presencia de las claves que necesitas.
+
+#### Paso V5. Probar solamente el precio incorrecto
+
+Sustituye el cuerpo por:
+
+~~~json
+{
+  "nombre": "Regla",
+  "precio": 0
+}
+~~~
+
+Vuelve a enviar POST. El servidor debe indicar 400 y un error asociado a precio. El campo nombre no debe incluir un error, porque ahora cumple la regla.
+
+Ejecuta después GET /api/productos. La colección no ha aumentado; el rechazo se ha producido antes de generar el nuevo ID o modificar el diccionario. Una buena respuesta de error también debe estar acompañada del comportamiento correcto sobre el estado.
+
+#### Paso V6. Probar ambas reglas
+
+Envía:
+
+~~~json
+{
+  "nombre": "   ",
+  "precio": -2
+}
+~~~
+
+La API debe encontrar dos problemas y devolverlos bajo las claves nombre y precio. El alumno debería poder relacionar cada mensaje con su condición en el manejador.
+
+Este escenario permite comprobar que la implementación no se limita a rechazar en la primera regla que falla. La variante registra todos los errores que conoce y después produce una sola respuesta de validación.
+
+La colección tampoco debe cambiar. Si GET muestra un producto nuevo después del rechazo, revisa que Interlocked.Increment y la asignación al diccionario ocurren únicamente después de comprobar errores.Count.
+
+#### Paso V7. Verificar que la creación correcta sigue funcionando
+
+Prepara una entrada válida de Regla por 1,75. El endpoint debe continuar devolviendo 201, un ID nuevo y el producto creado. La ampliación no tenía como objetivo modificar el camino de éxito ni romper el servicio tipado de Blazor.
+
+Consulta GET para confirmar que Regla existe. Después abre /catalogo-remoto desde la aplicación Blazor de 4.2 y comprueba que el catálogo puede leer la lista.
+
+En un POST correcto, ProductosApiService espera un ProductoDto. Como la estructura de éxito sigue siendo la misma, el cliente continúa pudiendo interpretarla. La diferencia de la ampliación se sitúa en las respuestas de error, que la pantalla básica transforma todavía en un mensaje general.
+
+#### Paso V8. Comparar los dos contratos de error
+
+Revisa la respuesta de la versión original y la de Results.ValidationProblem. Ambas devuelven 400 para los datos inválidos, pero no expresan la información de la misma manera.
+
+La primera versión utiliza un mensaje sencillo que informa del rechazo. La segunda permite distinguir los campos afectados. Si quisiéramos representar esos mensajes al lado de cada input de Blazor, necesitaríamos adaptar ProductosApiService para leer el cuerpo del error y trasladarlo a la presentación de forma explícita.
+
+No supongas que un cliente con EnsureSuccessStatusCode convierte automáticamente el cuerpo de problema a errores de formulario. Ese método informa de que el estado no fue satisfactorio; una experiencia de validación por campo requiere código que interprete el contrato específico de error.
+
+#### Paso V9. Razonar sobre un JSON mal formado
+
+Hasta ahora enviamos cuerpos JSON válidos, aunque con valores funcionalmente incorrectos. Ahora imagina una entrada que ni siquiera puede convertirse al tipo CrearProductoApi, por ejemplo un número expresado con formato inválido.
+
+En ese caso ASP.NET Core puede rechazar la solicitud durante la lectura del cuerpo, antes de ejecutar nuestra lógica de validación. Por tanto, no debemos afirmar que toda respuesta 400 procede del diccionario errores. Es útil distinguir error de formato, error de enlace a tipo y error de regla de negocio.
+
+La práctica no exige construir manualmente un manejador de excepciones global. Basta comprender que diferentes fases de una petición pueden producir rechazos HTTP y que el contrato del servidor debe permitir investigarlos.
+
+#### Paso V10. Restaurar la variante adecuada
+
+Al terminar, el alumno puede conservar dos copias de la API: una con el POST inicial y otra con los errores estructurados. Ambas deben compilar, pero solo se ejecuta una implementación concreta de la ruta por proceso.
+
+No modifiques el recorrido obligatorio para presentar esta variante como requisito de la jornada. Se trata de un ejemplo adicional que permite profundizar en diseño de contratos HTTP y reutilizar los conocimientos sobre validación de formularios vistos en el módulo anterior.
+
+### Matriz de resultados de P4.3.8
+
+| Datos enviados | Estado | Claves de error | Cambio en el catálogo |
+|---|---:|---|---|
+| Nombre vacío, precio 4,50 | 400 | nombre | Ninguno |
+| Nombre Regla, precio cero | 400 | precio | Ninguno |
+| Nombre espacios, precio negativo | 400 | nombre y precio | Ninguno |
+| Nombre Regla, precio 1,75 | 201 | Sin errores | Se crea Regla |
+
+Esta actividad demuestra que el alumno puede diseñar una respuesta de error clara, comprobarla con HTTP y mantener la compatibilidad del camino de éxito. Es un aprendizaje de contratos, no un ejercicio de añadir páginas.
+
 ### Resultado del ejercicio
 
 Ahora puedes recorrer una petición desde Blazor hasta la API y viceversa, interpretar sus códigos HTTP y añadir un endpoint nuevo sin modificar rutas existentes. La API continúa funcionando en memoria: al reiniciarla se pierde todo lo creado durante la ejecución.
