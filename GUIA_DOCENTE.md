@@ -7,8 +7,8 @@ Formación presencial de 30 horas lectivas (lunes–viernes, 6 h cada mañana), 
 Dos aplicaciones pequeñas, con dominio de productos:
 - **A (MVC)**, días 1–2: controladores, vistas Razor, formularios, validación y persistencia SQL Server Express LocalDB con EF Core.
 - **B (Blazor Web App, Interactive Server)**, días 3–5: componentes, eventos, binding, servicios y consumo de una API REST auxiliar con datos en memoria.
-- **API auxiliar**: parte del material proporcionado; solo GET/POST y gestión simple de errores. No se enseña Web API de nuevo.
-- **Seguridad**: demostración preconfigurada y explícitamente limitada; no implementar Identity desde cero.
+- **API auxiliar**: el curso proporciona una API ejecutable para P4.1–P4.2 (GET/POST y gestión básica de errores). En P4.3 el alumno construye desde una plantilla vacía una segunda implementación compatible, sin copiar el código de la API entregada ni ampliar el alcance a un curso completo de Web API.
+- **Seguridad**: P4.4 utiliza una demostración local limitada con cookies, dentro de las seis horas. La ampliación autónoma P4.4.6 enseña a construir Identity con SQL Server Express LocalDB y JWT Bearer desde cero, fuera del recorrido presencial obligatorio.
 - **Publicación**: mismo proyecto MVC A para las prácticas Kestrel, IIS y Docker; B se consolida en la primera práctica del quinto día.
 
 ## Método de impartición
@@ -35,7 +35,7 @@ Comparar explícitamente las vistas Razor de MVC con los componentes Razor de Bl
 
 ### Día 4 — API y seguridad (90/240/30)
 
-La API mínima se entrega ya compilable para evitar la dependencia imposible de P4.1 con P4.3. El docente la arranca al comienzo del día y muestra su dirección local. P4.1 verifica GET/POST y errores; P4.2 separa llamadas HTTP en un servicio; P4.3 permite estudiar y modificar la API; P4.4 demuestra acceso autenticado/protegido sin detallar todo Identity. No convertir 4.4 en una implementación empresarial.
+La API inicial se entrega ya compilable para que P4.1 y P4.2 puedan consumirla sin depender de P4.3. El docente la arranca al comenzar la jornada y comunica su URL. P4.1 verifica GET/POST y errores; P4.2 extrae las llamadas a un servicio; P4.3 guía la construcción desde cero de otra API con el mismo contrato, que se conecta al cliente Blazor sin reescribirlo. P4.4 demuestra autenticación y autorización local con cookies. Identity y JWT se desarrollan solo en la ampliación autónoma P4.4.6 y no son requisito para completar la jornada.
 
 ### Día 5 — Proyecto y despliegue (60/270/30)
 
