@@ -58,6 +58,24 @@ app.MapGet("/api/productos/resumen", () =>
 */
 // RETO 4.3.5 FIN
 
+// RETO OPCIONAL 4.3.6 INICIO — búsqueda mediante parámetro de consulta.
+// Activar únicamente después de comprobar los endpoints originales.
+/*
+app.MapGet("/api/productos/buscar", (string? nombre) =>
+{
+    if (string.IsNullOrWhiteSpace(nombre))
+        return Results.BadRequest("Indica el nombre que deseas buscar.");
+
+    var termino = nombre.Trim();
+    var encontrados = productos.Values
+        .Where(p => p.Nombre.Contains(termino, StringComparison.OrdinalIgnoreCase))
+        .OrderBy(p => p.Id)
+        .ToArray();
+    return Results.Ok(encontrados);
+});
+*/
+// RETO OPCIONAL 4.3.6 FIN
+
 app.Run();
 
 record ProductoApi(int Id, string Nombre, decimal Precio);
