@@ -402,263 +402,200 @@ El padre decide **qué elementos** forman parte de la colección y el orden en q
 
 # P3.4. Eventos, @onclick, @bind y estado de componentes
 
-## Objetivo, ubicación y relación con P3.3
+## Laboratorio principal acumulativo P3.4 — Ampliar P3.3 sin perder sus componentes
 
-En P3.3 las tarjetas mostraban productos mediante parámetros. Ahora veremos que los componentes no solo representan información: también pueden reaccionar a eventos y alterar datos en memoria. Para aislar el concepto, durante P3.4 los botones de selección estarán escritos **directamente en la página padre**. En P3.5 los trasladaremos al hijo y aprenderemos EventCallback. No introducimos una API remota, guardado en EF Core ni administración de estado global.
+**Situación didáctica.** En P3.3 hemos construido un catálogo que representa objetos Producto mediante un componente TarjetaProducto con su parámetro tipado. En P3.4 ese componente se **conserva**; no volvemos a colocar el artículo HTML de cada producto directamente dentro de la página. Vamos a añadir primero selección, después entrada enlazada y creación, finalmente edición y consulta. Este es el mismo proyecto B y la ruta sigue siendo /productos. La novedad de este capítulo es la gestión del estado interactivo.
 
-La ubicación exacta es `M03_BLAZOR/PROYECTO/3.4/CursoWeb.Blazor/`, y el archivo principal `Components/Pages/Productos.razor`. El estado inicial contiene tres tarjetas, un texto «Seleccionado: ninguno», botones comentados y métodos C# asociados también comentados. **La compilación inicial debe funcionar sin activar ninguno de ellos**.
+### 3.4.1 — Abrir el estado heredado y reconocer cada archivo
 
-### 3.4.1. Abrir el estado inicial y reconocer el campo de selección
+Abre la carpeta M03_BLAZOR/PROYECTO/3.4/CursoWeb.Blazor en Visual Studio 2026. Comprueba que continúan las páginas /estatica e /interactiva de P3.1, el enlace de navegación de P3.2 y el modelo y la tarjeta de P3.3. El alumno debe comprender que la instantánea 3.4 **parte del resultado de 3.3**, no de un segundo catálogo.
 
-Detén la aplicación de P3.3. Abre el archivo `CursoWeb.Blazor.csproj` de la carpeta 3.4, ejecuta `dotnet build` y arranca con `dotnet run --no-launch-profile --urls http://localhost:5092`. Visita `http://localhost:5092/productos` y localiza el elemento `id="seleccion"`. Debes leer «Seleccionado: ninguno». Cuenta los tres artículos con clase `tarjeta`; no debe haber botones Seleccionar activos.
-
-Abre el archivo de página y localiza la directiva `@rendermode InteractiveServer`. Encuentra también el campo:
+El modelo de datos, Models/Producto.cs, es este archivo completo:
 
 ~~~csharp
-private string seleccion = "ninguno";
+namespace CursoWeb.Blazor.Models;
+/// <summary>Producto de laboratorio: sin persistencia ni DTO remoto en M03.</summary>
+public sealed record Producto(int Id, string Nombre, decimal Precio);
 ~~~
 
-El campo pertenece al componente y sirve para mostrar el valor actual. No es una propiedad de `Producto`, no se guarda en LocalDB y no se transmite a un controlador. Esta observación anticipa el paso siguiente: un evento modificará ese campo y el framework volverá a representar el texto.
+Id permite seleccionar, editar y conservar identidad. Nombre aparece tanto en el listado como en el editor; Precio se representa en cada tarjeta pero no será modificado por el editor de nombre. El record es apropiado para ensayar una sustitución mediante with.
 
-### 3.4.2. Activar el evento de selección
-
-En `Components/Pages/Productos.razor`, localiza el comentario Razor identificado como `PASO 3.4.2 (ACTIVAR)`. El botón real del proyecto aparece en una única línea:
+El componente reutilizado de 3.3 continúa íntegro y no se reescribe en 3.4:
 
 ~~~razor
-@* <button @onclick="() => Seleccionar(producto.Id)">Seleccionar</button> *@
-~~~
-
-Retira exclusivamente `@*` y `*@`, dejando el botón activo. En el bloque `@code`, localiza el fragmento delimitado por `PASO 3.4.2 INICIO` y `PASO 3.4.2 FIN` y activa su método:
-
-~~~csharp
-private void Seleccionar(int id)
-{
-    seleccion = productos.First(p => p.Id == id).Nombre;
+<article class="tarjeta" data-producto-id="@Producto.Id">
+    <h2>@Producto.Nombre</h2>
+    <p>Precio: @Producto.Precio.ToString("0.00") €</p>
+    <small>Referencia @Producto.Id</small>
+</article>
+@code {
+    [Parameter, EditorRequired] public Producto Producto { get; set; } = default!;
 }
 ~~~
 
-Compila. En `/productos` debe aparecer un botón Seleccionar por tarjeta. Pulsa en Lápiz y observa «Seleccionado: Lápiz». Después pulsa en Carpeta y observa el cambio a ese nombre. **El dato cambia dentro de la misma página** y no se necesita realizar una nueva operación MVC por cada clic.
+Fíjate en el atributo data-producto-id: representa la identidad del producto, no su índice en la lista. El parámetro Producto recibe el objeto de la iteración del padre. Toda la representación HTML del artículo vive en este archivo. El padre puede envolver la tarjeta en un contenedor para añadir controles, pero **no duplica el artículo**.
 
-**Caso negativo de activación:** si activaste el botón pero no el método C#, el compilador puede comunicar que `Seleccionar` no existe. Revisa ambos bloques del mismo paso; no inventes un método con otro nombre. **Caso negativo de ejecución:** si el botón está visible pero no produce cambios, comprueba primero que estás ejecutando `/productos` del proyecto 3.4, y después que el circuito Interactive Server funciona; recuerda la comparación de P3.1.
+### 3.4.2 — Consultar el archivo completo de la página antes de activar nada
 
-**Por qué funciona:** la expresión lambda captura el Id del producto que se está representando en esa tarjeta. El método del componente encuentra su nombre y modifica `seleccion`. Blazor programa una actualización de la representación al finalizar el evento. No es necesario llamar manualmente a `StateHasChanged()` para este clic ordinario.
-
-### 3.4.3. Incorporar un campo con @bind
-
-Localiza `PASO 3.4.3 (ACTIVAR)` y retira los delimitadores de comentario del campo:
+El archivo Components/Pages/Productos.razor se entrega con el estado inicial compilable. El siguiente bloque contiene el **100 % del archivo entregado para este punto**, incluidos los marcadores de código comentado. Léelo siguiendo este orden: ruta y modo interactivo; títulos y selección; tarjeta y acciones; controles de edición y alta; colección de ejemplo; métodos comentados para la actividad.
 
 ~~~razor
-<label>Nombre nuevo:
-    <input id="nombre-nuevo" @bind="nuevoNombre" />
-</label>
-~~~
+@page "/productos"
+@rendermode InteractiveServer
+<PageTitle>Eventos</PageTitle>
+<h1>P3.4 | Estado y eventos</h1>
+<p>Los datos existen únicamente durante la sesión interactiva de este componente.</p>
+<p id="seleccion">Seleccionado: @seleccion</p>
+@* RETO INTEGRADOR 3.4.6: activa los tres controles y su lógica C#;
+   el filtro se aplica inmediatamente al escribir y no modifica la colección. *@
+@* <label>Buscar por nombre: <input id="buscar" @bind="busqueda" @bind:event="oninput" /></label> *@
+@* <label>Precio máximo: <input id="precio-maximo" type="number" min="0" step="0.5" @bind="precioMaximo" /></label> *@
+@* <button id="alternar-orden" @onclick="AlternarOrden">Invertir orden por precio</button> *@
+@* <p id="resumen-filtrado">Mostrando @ProductosVisibles.Count() de @productos.Count productos</p> *@
+@* RETO INTEGRADOR 3.4.6: sustituir solamente la expresión foreach
+   original por la variante siguiente, conservando todo el artículo y botones. *@
+@* @foreach (var producto in ProductosVisibles) *@
+<div class="tarjetas" id="tarjetas-productos">
+    @foreach (var producto in productos)
+    {
+        <div class="tarjeta-con-acciones" data-elemento-id="@producto.Id">
+            @* Conservamos TarjetaProducto de P3.3: el padre administra eventos en P3.4. *@
+            <TarjetaProducto Producto="producto" />
+            @* PASO 3.4.2 (ACTIVAR): descomenta este botón al activar Seleccionar. *@
+            @* <button @onclick="() => Seleccionar(producto.Id)">Seleccionar</button> *@
+            @* PASO 3.4.5: sustituir el botón anterior, no añadir un segundo. *@
+            @* <button @onclick="() => SeleccionarParaEditar(producto.Id)">Seleccionar</button> *@
+        </div>
+    }
+</div>
+@* PASO 3.4.3 (ACTIVAR): descomenta el input tras activar el campo nuevoNombre. *@
+@* <label>Nombre nuevo: <input id="nombre-nuevo" @bind="nuevoNombre" /></label> *@
+@* PASO 3.4.4 (ACTIVAR): descomenta el botón tras activar Agregar. *@
+@* <button id="agregar" @onclick="Agregar">Añadir producto</button> *@
+@* PASO 3.4.5: activa juntos el campo y el botón tras activar el método de edición. *@
+@* <label>Editar nombre: <input id="editar-nombre" @bind="nombreEditado" /></label> *@
+@* <button id="guardar-cambio" @onclick="GuardarCambio">Guardar nombre</button> *@
+@* RETO 3.4 (ACTIVAR): botón para deshacer la selección. *@
+@* <button id="limpiar" @onclick="Limpiar">Limpiar selección</button> *@
+@code {
+    private readonly List<Producto> productos =
+    [
+        new(1, "Cuaderno", 4.50m),
+        new(2, "Lápiz", 1.20m),
+        new(3, "Carpeta", 3.75m)
+    ];
+    private string seleccion = "ninguno";
 
-En `@code` activa también el fragmento `PASO 3.4.3 INICIO / FIN`, que declara:
+    /* PASO 3.4.2 INICIO
+    private void Seleccionar(int id)
+    {
+        seleccion = productos.First(p => p.Id == id).Nombre;
+    }
+    PASO 3.4.2 FIN */
 
-~~~csharp
-private string nuevoNombre = string.Empty;
-~~~
+    /* PASO 3.4.3 INICIO
+    private string nuevoNombre = string.Empty;
+    PASO 3.4.3 FIN */
 
-Compila, abre `/productos` y escribe «Regla». De momento **no se añade** ninguna tarjeta porque todavía falta el método del paso siguiente. Esta separación resulta intencionada: estamos comprobando el vínculo entre el control HTML y el estado C#, sin introducir simultáneamente todas las operaciones.
+    /* PASO 3.4.4 INICIO
+    private int siguienteId = 4;
+    private void Agregar()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoNombre))
+            return;
+        productos.Add(new Producto(siguienteId++, nuevoNombre.Trim(), 5m));
+        nuevoNombre = string.Empty;
+    }
+    PASO 3.4.4 FIN */
 
-A diferencia de `asp-for` del formulario MVC, aquí `@bind` participa en el enlace de datos de una interfaz interactiva. Si escribes sin abandonar el campo, recuerda que el enlace predeterminado del `input` se actualiza conforme a su evento de cambio; el itinerario principal no necesita la variante avanzada `@bind:event="oninput"`.
 
-### 3.4.4. Activar el alta de un producto en memoria
+    /* PASO 3.4.5 INICIO
+    private int? idEnEdicion;
+    private string nombreEditado = string.Empty;
+    private void SeleccionarParaEditar(int id)
+    {
+        var producto = productos.First(p => p.Id == id);
+        idEnEdicion = id;
+        seleccion = producto.Nombre;
+        nombreEditado = producto.Nombre;
+    }
 
-Localiza `PASO 3.4.4 (ACTIVAR)` y descomenta exactamente el botón:
+    private void GuardarCambio()
+    {
+        if (idEnEdicion is null || string.IsNullOrWhiteSpace(nombreEditado))
+            return;
 
-~~~razor
-<button id="agregar" @onclick="Agregar">Añadir producto</button>
-~~~
+        var indice = productos.FindIndex(p => p.Id == idEnEdicion.Value);
+        if (indice < 0)
+            return;
 
-A continuación, en `@code`, activa **todo** el bloque `PASO 3.4.4 INICIO / FIN`, incluida la declaración del nuevo identificador:
+        productos[indice] = productos[indice] with { Nombre = nombreEditado.Trim() };
+        seleccion = productos[indice].Nombre;
+    }
+    PASO 3.4.5 FIN */
 
-~~~csharp
-private int siguienteId = 4;
+    /* RETO INTEGRADOR 3.4.6 INICIO
+    private string busqueda = string.Empty;
+    private decimal? precioMaximo;
+    private bool ordenAscendente = true;
 
-private void Agregar()
-{
-    if (string.IsNullOrWhiteSpace(nuevoNombre))
-        return;
-    productos.Add(new Producto(siguienteId++, nuevoNombre.Trim(), 5m));
-    nuevoNombre = string.Empty;
+    private IEnumerable<Producto> ProductosVisibles =>
+        (ordenAscendente
+            ? productos.OrderBy(p => p.Precio).ThenBy(p => p.Id)
+            : productos.OrderByDescending(p => p.Precio).ThenBy(p => p.Id))
+        .Where(p =>
+            (string.IsNullOrWhiteSpace(busqueda) ||
+             p.Nombre.Contains(busqueda.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+            (precioMaximo is null || p.Precio <= precioMaximo.Value));
+
+    private void AlternarOrden() => ordenAscendente = !ordenAscendente;
+    RETO INTEGRADOR 3.4.6 FIN */
+
+    /* RETO 3.4 INICIO
+    private void Limpiar() => seleccion = "ninguno";
+    RETO 3.4 FIN */
 }
 ~~~
 
-Ahora compila y ejecuta. Escribe «Regla» y pulsa Añadir. Debe aparecer una cuarta tarjeta y vaciarse el campo. Comprueba que el nuevo producto tiene un Id distinto de los tres anteriores y el precio fijo 5.00 que proporciona esta demostración.
+Observa tres decisiones. Primero, la página sigue usando TarjetaProducto y el mismo objeto Producto creado en P3.2. Segundo, la variable productos es la única colección fuente; el filtro opcional construye una representación calculada sin borrar objetos. Tercero, el código que todavía no has estudiado se entrega comentado con marcas PASO o RETO, para que puedas activarlo en el momento adecuado.
 
-**Caso negativo:** intenta añadir un nombre vacío y después uno compuesto exclusivamente por espacios. En ambos casos la cantidad de tarjetas debe mantenerse igual. No confundas esta condición sencilla con todas las reglas DataAnnotations de M02: aquí aprendemos el ciclo de eventos y la representación, no repetimos todo el CRUD persistente.
+### 3.4.3 — Primer cambio: seleccionar un producto mediante un evento
 
-**Estado persistente:** recarga la ruta completamente para iniciar otra instancia de componente. Lo normal es que reaparezcan los tres productos originales. Es coherente: la lista pertenece a la sesión/instancia de interfaz y no se almacena en SQL ni se envía a la API que todavía no existe. Un resultado visual de «cuatro tarjetas» no demuestra un INSERT.
+Localiza la etiqueta de botón comentada con PASO 3.4.2. Actívala quitando únicamente las marcas de comentario Razor. Activa también el bloque C# del mismo identificador retirando los delimitadores de comentario que rodean Seleccionar(int id). Guarda, compila y abre la página. Selecciona Lápiz: el texto debe mostrar «Seleccionado: Lápiz» y continuar viendo tres instancias de TarjetaProducto.
 
-### 3.4.5. Editor de nombre: sustituir el valor de una tarjeta, no añadir otra
-
-**Objetivo.** Completar el editor simple previsto para P3.4. Una vez que sabes seleccionar un producto, escribir en un input y añadir un elemento en memoria, aplicarás las mismas ideas a una operación diferente: **editar el nombre de un producto ya existente conservando su Id y su precio**. No se utiliza EF Core ni se realizan peticiones HTTP.
-
-**Punto de partida.** Trabaja en `M03_BLAZOR/PROYECTO/3.4/CursoWeb.Blazor/Components/Pages/Productos.razor` con los pasos 3.4.2, 3.4.3 y 3.4.4 activados. Comprueba que seleccionar Lápiz cambia el texto y que añadir Regla crea una cuarta tarjeta. Para realizar la edición de manera controlada, recarga la página y comienza con los tres productos de ejemplo. No ejecutes otros procesos de la misma aplicación en el puerto 5092.
-
-**Paso A: comprender por qué el nombre no identifica correctamente una edición.** En el estado anterior `Seleccionar(int id)` buscaba el producto y almacenaba su nombre en `seleccion`. Esa información permite mostrar una frase, pero no es una referencia suficientemente robusta para editar. Dos productos podrían tener el mismo nombre. Por ello, el nuevo manejador recordará el Id seleccionado en `idEnEdicion`, mientras un segundo campo guardará el texto que se propone escribir.
-
-**Paso B: activar el estado y los métodos del editor.** Localiza en `@code` el bloque C# marcado `PASO 3.4.5 INICIO` y `PASO 3.4.5 FIN`. Elimina esas dos líneas delimitadoras, dejando activo el código interior. Contiene los campos:
-
-~~~csharp
-private int? idEnEdicion;
-private string nombreEditado = string.Empty;
-~~~
-
-Y un método que prepara el editor:
-
-~~~csharp
-private void SeleccionarParaEditar(int id)
-{
-    var producto = productos.First(p => p.Id == id);
-    idEnEdicion = id;
-    seleccion = producto.Nombre;
-    nombreEditado = producto.Nombre;
-}
-~~~
-
-Fíjate en que el método no altera `productos`. Primero obtiene el objeto por identidad, después conserva el Id, y por último coloca el nombre tanto en la frase de selección como en el campo de edición. Este último valor será la base sobre la que el alumno escriba un cambio.
-
-**Paso C: sustituir el botón Seleccionar.** Dentro del `foreach` de tarjetas existen ahora dos versiones de botón. La del paso 3.4.2 estará activa:
+La llamada al método está escrita con una lambda porque necesitamos transmitir producto.Id:
 
 ~~~razor
 <button @onclick="() => Seleccionar(producto.Id)">Seleccionar</button>
 ~~~
 
-Coméntala usando `@*` y `*@`. Activa en su lugar la variante del paso 3.4.5, preparada justo debajo:
+Seleccionar busca en la lista por identidad. No modifica la colección, sino el campo seleccion. Pulsa Cuaderno y comprueba que la selección cambia sin añadir ni borrar tarjetas. Si obtienes un error de compilación que dice que Seleccionar no existe, el botón se ha activado antes que su método C#: ambas piezas forman una única operación.
 
-~~~razor
-<button @onclick="() => SeleccionarParaEditar(producto.Id)">
-    Seleccionar
-</button>
-~~~
+### 3.4.4 — Añadir entrada vinculada y alta en memoria
 
-**Importante:** el segundo botón debe seguir estando **dentro del bucle y del artículo de cada producto**. No lo copies fuera del `foreach`, porque entonces la variable `producto` no tendría el mismo alcance. Mantén una sola versión activa por tarjeta para que la interfaz no muestre dos botones Seleccionar innecesarios.
+Activa el campo del bloque PASO 3.4.3 y comprueba que su atributo @bind apunta a nuevoNombre. Después activa el bloque PASO 3.4.4, que contiene siguienteId y Agregar; descomenta el botón id="agregar". El método utiliza string.IsNullOrWhiteSpace para rechazar una entrada vacía, Trim para normalizar el nombre y un Id creciente para crear otro producto.
 
-**Paso D: activar el campo y el botón de guardado.** En la misma página, después de las tarjetas, localiza los comentarios del paso 3.4.5 correspondientes a:
+Introduce Regla, pulsa Añadir producto y cuenta las tarjetas: deben ser cuatro, cada una representada por TarjetaProducto. Intenta añadir una cadena de espacios y verifica que no aparece otra tarjeta. El campo debe quedar vacío tras un alta correcta. Escribe ahora por qué el método de alta pertenece al padre y no al componente TarjetaProducto: el hijo conoce un producto, pero no la colección donde insertar otro.
 
-~~~razor
-<label>Editar nombre:
-    <input id="editar-nombre" @bind="nombreEditado" />
-</label>
-<button id="guardar-cambio" @onclick="GuardarCambio">
-    Guardar nombre
-</button>
-~~~
+### 3.4.5 — Edición por identidad, conservando precio y total
 
-El archivo original tiene estos elementos escritos en una línea cada uno. Retira sus delimitadores de comentario Razor, conserva los identificadores y comprueba que el método `GuardarCambio` también está activo dentro del bloque C#. Si activas el botón sin el método, tendrás un error de compilación: la recuperación correcta es activar el código del mismo paso, no crear otro método de nombre distinto.
+Activa el bloque C# marcado PASO 3.4.5, que define idEnEdicion, nombreEditado, SeleccionarParaEditar y GuardarCambio. La versión de Seleccionar del paso anterior ya no es suficiente para saber qué objeto editar. Por ello deja comentado el botón anterior y activa la versión SeleccionarParaEditar en el mismo contenedor, manteniendo **un solo botón de selección activo por producto**.
 
-**Paso E: comprender el código de GuardarCambio antes de pulsar.** El método contiene un retorno anticipado si `idEnEdicion` es null o el texto está vacío. Después busca la posición del producto mediante el Id:
+Activa también el campo de texto id="editar-nombre" y el botón id="guardar-cambio". Selecciona Lápiz; observa que el editor recibe ese nombre y cambia el texto por «Lápiz rojo». Pulsa Guardar nombre. La tarjeta actualiza su nombre sin perder el Id 2, conserva el precio 1,20 € y el catálogo continúa mostrando tres objetos. Un nombre que contiene solo espacios no debe alterar el dato existente. Explica por qué el operador with sustituye un record sin crear un alta.
 
-~~~csharp
-var indice = productos.FindIndex(p => p.Id == idEnEdicion.Value);
-if (indice < 0)
-    return;
-~~~
+### 3.4.6 — Consulta reversible: búsqueda, límite numérico y ordenación
 
-Si la identidad no aparece en la lista, la operación no debe modificar arbitrariamente otro producto. A continuación, el código sustituye el valor del record en esa posición:
+Este reto integrador añade tres criterios de representación en la misma página. Activa el bloque C# RETO INTEGRADOR 3.4.6 y los cuatro elementos Razor comentados: buscar, precio máximo, botón para alternar orden y resumen de resultados. Por último, cambia la expresión foreach que recorre productos para que recorra ProductosVisibles. **No escribas un segundo foreach ni reemplaces la tarjeta reutilizable.**
 
-~~~csharp
-productos[indice] = productos[indice] with
-{
-    Nombre = nombreEditado.Trim()
-};
-seleccion = productos[indice].Nombre;
-~~~
+Confirma el resultado previsto: orden ascendente Lápiz–Carpeta–Cuaderno, búsqueda «láp» que muestra solo Lápiz, precio máximo 1 que no deja resultados y precio máximo 2 que permite volver a ver ese producto. Borra los criterios: deben reaparecer todos. Renombra después Lápiz como «Lápiz rojo» y busca «rojo»: el filtro debe encontrar el record editado. Si al borrar el filtro desaparecen definitivamente objetos, has modificado la lista fuente en lugar de producir una consulta.
 
-La expresión `with` conserva las otras propiedades del record original. No utilizamos `productos.Add`, porque añadir produciría un cuarto objeto y estaríamos realizando otra operación distinta de editar.
+El input textual utiliza @bind:event="oninput" y puede reaccionar mientras se escribe; el límite decimal conserva el evento por defecto. Esas dos alternativas permiten comparar la semántica del enlace sin introducir JavaScript. La secuencia de consulta no es un requisito para arrancar M03, pero **las instantáneas posteriores mantienen el comportamiento** porque forman parte de la evolución integrada de este catálogo.
 
-**Paso F: compilar y ejecutar la edición positiva.** Guarda todos los cambios y ejecuta `dotnet build`. Abre `http://localhost:5092/productos`. Comprueba que existen tres tarjetas y que el nuevo campo de edición está disponible. Pulsa Seleccionar en Lápiz. El campo `editar-nombre` debe mostrar «Lápiz». Escribe «Lápiz rojo» y pulsa Guardar nombre.
+### 3.4.7 — Cierre del punto y transferencia al siguiente
 
-**Resultados esperados:** la tarjeta con `data-producto-id="2"` debe mostrar «Lápiz rojo». El precio debe seguir siendo 1.20 y el total de tarjetas debe continuar siendo tres. La línea de selección también debe actualizarse a «Seleccionado: Lápiz rojo». La operación no crea un nuevo producto: sustituye el valor del que ya tenía ese Id. Comprueba todos esos resultados y no te conformes únicamente con que el botón parezca responder.
+Activa el botón del reto de limpiar selección y comprueba que no modifica ninguna tarjeta. Recupera siempre el código conocido si has provocado un error de manera deliberada. Al finalizar, la aplicación contiene el modelo, la ruta, el componente reutilizable, selección, alta, edición y consulta. No hay una API ni base de datos, porque aún estudiamos estado de componente.
 
-**Paso G: ejecutar un caso negativo.** Con el mismo producto seleccionado, borra el campo de edición, escribe tres espacios y pulsa Guardar nombre. El código contiene `string.IsNullOrWhiteSpace`, por lo que el producto debe conservar «Lápiz rojo». Otra posibilidad negativa es intentar guardar antes de seleccionar ningún producto en una nueva carga de la página: `idEnEdicion` será null y el método regresará sin hacer modificaciones.
-
-**Paso H: contrastar edición y alta.** En el mismo componente siguen existiendo `nuevoNombre` y el botón Añadir. La alta incrementa el tamaño de la colección y asigna un Id nuevo. La edición conserva el tamaño e identidad, pero modifica una propiedad del objeto existente. Escribe en tu cuaderno dos secuencias: entrada → Añadir → cuarta tarjeta y selección → entrada de edición → Guardar → mismo Id con nombre distinto. Las dos usan C# y Razor, pero aplican operaciones de estado diferentes.
-
-**Diagnóstico 1 — se crean cuatro tarjetas.** Revisa si, por error, utilizaste `productos.Add` dentro de `GuardarCambio`. El proyecto canónico utiliza `productos[indice] = ...`. La sustitución no debería incrementar la cantidad de elementos. Si quieres verificar la diferencia, inspecciona `productos.Count` antes y después del evento.
-
-**Diagnóstico 2 — cambia el producto equivocado.** Comprueba que has activado `SeleccionarParaEditar(producto.Id)` dentro del bucle y que `FindIndex` compara el Id recibido. Si buscaras por `Nombre`, un catálogo con nombres duplicados haría ambigua la elección. El identificador existe precisamente para evitar esa situación.
-
-**Diagnóstico 3 — la edición no se refleja hasta recargar.** Comprueba que la página declara `@rendermode InteractiveServer` y que el botón ejecuta `GuardarCambio`. Verifica que el campo de edición actualiza `nombreEditado` y que se asigna el record modificado a la lista que representa el `foreach`. No deberías necesitar una recarga completa para ver el resultado de un evento local correctamente conectado.
-
-**Diagnóstico 4 — la selección sigue mostrando el nombre antiguo.** La edición podría estar sustituyendo el objeto sin actualizar la frase de selección. Revisa la asignación final `seleccion = productos[indice].Nombre`. Esta es una regla de consistencia de presentación que pertenece al componente dueño del estado, no a una función de CSS ni a la infraestructura HTTP.
-
-**Diagnóstico 5 — un nombre compuesto por espacios borra el original.** Comprueba la condición de entrada `string.IsNullOrWhiteSpace(nombreEditado)` antes de modificar la colección. La versión preparada no guarda valores vacíos. No hace falta construir un formulario MVC con DataAnnotations para practicar esta condición básica dentro del editor.
-
-**Conclusión pedagógica:** P3.4.5 combina las ideas anteriores para mostrar un caso distinto de interacción real. Puedes conservar el Id, modificar un nombre, rechazar un cambio inválido y observar una representación coherente sin incorporar ninguna tecnología de M04. La teoría 3.4, apartado «Un editor real en memoria», explica por qué este resultado es diferente de un CRUD persistente.
-
-### 3.4.6. Reto integrador — Catálogo consultable con filtros combinados y ordenación
-
-**Situación de trabajo.** La tienda que utiliza este catálogo quiere poder localizar un producto sin perder de vista qué artículos tiene realmente almacenados en la sesión. El encargado necesita buscar por parte del nombre, limitar el precio y cambiar el orden. No quiere que los filtros eliminen productos ni que la edición del paso anterior deje de funcionar. Resolverás este encargo **en el mismo componente Productos.razor de P3.4**, sin añadir una API, una base de datos ni un segundo listado independiente.
-
-**Resultado que debes conseguir:** al abrir la página aparecen tres tarjetas, ordenadas inicialmente de menor a mayor precio. Puedes invertir ese orden, escribir una parte del nombre para filtrar mientras tecleas y aplicar un precio máximo. El resumen visible indica cuántos elementos se muestran respecto al total existente. Tras borrar los criterios, los tres productos reaparecen. El botón de edición de 3.4.5 sigue conservando los Id.
-
-**Preparación.** Completa y comprueba 3.4.2–3.4.5 antes de este ejercicio. En el archivo M03_BLAZOR/PROYECTO/3.4/CursoWeb.Blazor/Components/Pages/Productos.razor hay un bloque C# comentado con las marcas RETO INTEGRADOR 3.4.6 INICIO y FIN, cuatro elementos Razor comentados cerca del principio y una variante de la expresión foreach. No inventes nombres diferentes: las piezas están preparadas para activarse conjuntamente.
-
-**Paso 1 — Anticipar el resultado sobre datos concretos.** Sin modificar nada, escribe qué orden esperas obtener al clasificar por precio ascendente los tres productos originales: Cuaderno vale 4,50 €, Lápiz 1,20 € y Carpeta 3,75 €. Después escribe el orden descendente. Esta predicción es importante porque, si más adelante la pantalla muestra otro orden, podrás distinguir un error en la consulta de un error de representación. El orden ascendente esperado es Lápiz, Carpeta y Cuaderno; el descendente es Cuaderno, Carpeta y Lápiz.
-
-**Paso 2 — Activar la proyección de consulta.** En el bloque RETO INTEGRADOR 3.4.6 retira los dos delimitadores del comentario C#. El código contiene tres variables y una propiedad calculada:
-
-~~~csharp
-private string busqueda = string.Empty;
-private decimal? precioMaximo;
-private bool ordenAscendente = true;
-~~~
-
-La propiedad ProductosVisibles ordena por Precio, usa Id como segundo criterio estable y después filtra con Where. En el predicado, la condición de nombre permite que una búsqueda vacía no restrinja la lista; la condición numérica solo se aplica cuando precioMaximo tiene un valor. Lee el predicado completo antes de compilar. ¿Por qué un filtro vacío no debe dejar la pantalla sin productos?
-
-**Paso 3 — Mostrar los controles de la consulta.** Descomenta **cada una** de las cuatro líneas Razor con el comentario RETO INTEGRADOR 3.4.6: el campo id="buscar" enlazado a busqueda con evento oninput; el campo id="precio-maximo" enlazado a precioMaximo; el botón id="alternar-orden" que invoca AlternarOrden; y el párrafo id="resumen-filtrado" con el número visible y el número total. No copies los controles por segunda vez; activa los que ya están escritos.
-
-**Paso 4 — Conectar consulta y representación.** Localiza la instrucción activa del bucle de tarjetas:
-
-~~~razor
-@foreach (var producto in productos)
-~~~
-
-Cambia **solo esa expresión** por:
-
-~~~razor
-@foreach (var producto in ProductosVisibles)
-~~~
-
-Conserva intactos el artículo, su atributo data-producto-id, el precio y el botón Seleccionar. El archivo incluye una variante comentada a modo de pista: no debes dejar dos bucles activos. La colección productos sigue existiendo y se utiliza como fuente de datos; lo único que cambia es qué secuencia se recorre al dibujar las tarjetas.
-
-**Paso 5 — Comprobar el encargo en el navegador.** Guarda y compila el proyecto de 3.4. Visita la ruta /productos. Deberías leer «Mostrando 3 de 3 productos» y observar primero Lápiz. Pulsa «Invertir orden por precio»: ahora la primera tarjeta debe ser Cuaderno, pero los precios y los Id siguen iguales. Escribe «láp» en la búsqueda; el contador debe pasar a 1 de 3 y solo queda Lápiz, aunque no hayas cambiado la colección. Escribe 1 como precio máximo y abandona el campo: no debe aparecer ninguna tarjeta, porque 1,20 es mayor que 1. Sustituye el máximo por 2 y abandona el campo: Lápiz reaparece. Borra la búsqueda: sigue siendo visible solo Lápiz, esta vez por el criterio de precio. Borra también el límite: reaparecen los tres artículos.
-
-**Paso 6 — Relacionar filtros y editor.** Selecciona Lápiz, comprueba que el editor del paso 3.4.5 recibe su nombre, escribe «Lápiz rojo» y guarda. Ahora utiliza la búsqueda «rojo»: el producto editado debe aparecer sin necesidad de volver a crear la lista. Anota cuál es su Id antes y después de editar. Si cambió, has construido un alta en lugar de una edición. Si no se encuentra con el nuevo nombre, revisa si ProductosVisibles lee la colección original o alguna copia que hayas mantenido por accidente.
-
-**Comportamientos incorrectos que debes saber diagnosticar.** Si al borrar la búsqueda siguen faltando productos, comprueba que no ejecutaste RemoveAll o una asignación destructiva para filtrar. Si el nombre se filtra solo al salir del input, revisa la presencia de @bind:event="oninput". Si el precio parece no cambiar hasta que sales del control, recuerda que en este campo hemos utilizado el evento por defecto. Si los filtros muestran correctamente el contador pero no las tarjetas, comprueba qué expresión recorre realmente el foreach. Si seleccionar o guardar deja de funcionar tras ordenar, confirma que el botón pasa producto.Id y no la posición de la tarjeta.
-
-**Cierre razonado.** Explica en un párrafo por qué ordenar y filtrar no deberían modificar el contenido de la colección; contrástalo con la edición de nombre, que sí sustituye un elemento. Distingue el total de objetos en memoria del subconjunto visible y describe qué se reinicia al recargar completamente la página. Este reto prepara la separación entre datos y criterios de presentación que reutilizaremos cuando el origen se convierta en una API.
-
-
-### Reto 3.4 — Limpiar la selección sin alterar el catálogo
-
-El proyecto contiene un botón y un método comentados bajo la marca `RETO 3.4`. Su objetivo es practicar que un mismo estado puede cambiar por otra acción distinta de Seleccionar.
-
-Activa en el Razor:
-
-~~~razor
-<button id="limpiar" @onclick="Limpiar">Limpiar selección</button>
-~~~
-
-Y activa en `@code`:
-
-~~~csharp
-private void Limpiar() => seleccion = "ninguno";
-~~~
-
-Compila. Selecciona Cuaderno, comprueba que la pantalla muestra su nombre y pulsa Limpiar. El texto debe volver a «Seleccionado: ninguno». **Control negativo:** ninguna tarjeta debe desaparecer ni cambiar de precio. El método solo asigna un nuevo valor a `seleccion`; no tiene motivos para modificar la lista.
-
-**Solución razonada:** el botón y el método están dentro del componente dueño de ese estado, por lo que no necesitamos EventCallback. Si se activara la línea del botón sin el método, el error de compilación indicaría una correspondencia incompleta entre vista y código. Si se cambiara `seleccion` pero no la interfaz, revisaríamos el contexto interactivo antes de introducir una operación de red.
-
-### Profundización aplicada: diagnóstico de cinco síntomas parecidos
-
-Una interfaz que «no hace nada» puede fallar por causas distintas. Si el botón no aparece, inspecciona el comentario Razor. Si aparece pero no compila, comprueba el método correspondiente. Si compila pero el clic no actualiza, confirma el modo interactivo y la conexión. Si el clic llega a `Agregar` pero no crea una tarjeta, verifica el valor de `nuevoNombre` y la condición `IsNullOrWhiteSpace`. Si el objeto se añade y no se representa, comprueba que el `foreach` lee la misma colección a la que se ha agregado.
-
-La lección es localizar la fase exacta: **entrada → enlace → evento → estado → representación**. No modifiques `Program.cs` cada vez que un dato es incorrecto, ni cambies el modelo cuando lo que falta es activar un botón. La teoría 3.4 explica las responsabilidades de cada pieza y el comportamiento esperado cuando no existe persistencia.
+El paso P3.5 conservará estos métodos y la lista. La transformación esencial será mover la intención de selección al hijo y comunicarla mediante EventCallback sin deshacer lo aprendido en P3.3 y P3.4.
 
 ## Laboratorio de profundización P3.4 — Distinguir entrada, evento y representación
 
