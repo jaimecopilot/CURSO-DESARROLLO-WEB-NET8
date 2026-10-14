@@ -46,8 +46,7 @@ por defecto de `http://localhost:5086/`.
 | GET | /api/identidad/yo | JWT válido obligatorio |
 | GET | /api/identidad/formador | JWT válido más rol Formador |
 
-El workflow `.github/workflows/m04-identity-jwt-ci.yml` ejecuta pruebas
-HTTP reales (registro, 400, 401, 403, firma alterada y 200 con rol).
+Comprueba desde una terminal las respuestas del servidor para registro, entrada inválida (400), acceso sin token (401), rol insuficiente (403), firma alterada (401) y rol autorizado (200). Sigue los pasos del cuaderno de prácticas para preparar las peticiones.
 
 ## Límites de seguridad
 
@@ -66,4 +65,4 @@ validarlos.
 
 Para recomenzar desde cero, **detén la API** y elimina exclusivamente la base de prácticas `CursoWeb_M04_IdentityJwt` usando el Explorador de objetos SQL Server de Visual Studio o SSMS; no borres otras bases LocalDB. `EnsureCreatedAsync` permite iniciar el esquema docente, pero no reemplaza migraciones para cambios posteriores.
 
-Los workflows E2E usan **Windows**, levantan la instancia `MSSQLLocalDB` y establecen un nombre único de base por ejecución. SQL Server LocalDB no se sustituye por SQLite ni por InMemory para las pruebas.
+La ejecución del alumno requiere **Windows** con `MSSQLLocalDB`. SQL Server LocalDB no se sustituye por SQLite ni por InMemory.
