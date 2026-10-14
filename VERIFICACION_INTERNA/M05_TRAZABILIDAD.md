@@ -31,8 +31,8 @@ Los dos Markdown son las fuentes canónicas; sus PDF homónimos están publicado
 
 | Documento | Palabras del MD | Páginas del PDF | Integridad |
 |---|---:|---:|---|
-| M05_TEORIA | 32.607 | 75 | MD íntegro adjunto al PDF y cobertura visible 100 % |
-| M05_PRACTICAS | 28.118 | 76 | MD íntegro adjunto al PDF y cobertura visible 99,9832 % |
+| M05_TEORIA | 32.603 | 75 | MD íntegro adjunto al PDF y cobertura visible 100 % |
+| M05_PRACTICAS | 28.392 | 77 | MD íntegro adjunto al PDF y cobertura visible 99,9832 % |
 
 La publicación se realizó con la tipografía del M01: texto 9,8 pt y código 8,2 pt. Los controles automatizados confirmaron los cinco capítulos, los enlaces del índice, la presencia de texto en todas las páginas, la ausencia de desbordamientos simples y la identidad binaria entre la fuente Markdown y la incorporada a cada PDF. Véase `VERIFICACION_INTERNA/M05_PDFS_VALIDACION.md`.
 
