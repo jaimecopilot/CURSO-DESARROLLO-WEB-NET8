@@ -1,22 +1,29 @@
-# M05 — Consolidación de Blazor y despliegue elemental (.NET 8)
+# M05 — Consolidación de Blazor y despliegue con ASP.NET Core
 
-Este módulo final utiliza **dos aplicaciones que el alumno ya conoce**, no una tercera aplicación empresarial:
+**AUTOR: JAIME GALLO**
 
-- **P5.1:** `PROYECTO/BLAZOR/CursoWeb.Blazor` y `PROYECTO/API/CursoWeb.ProductosApi`. Son estados acumulativos procedentes de M04; se comprueba GET/POST, validación, errores y actualización visible de datos. El cliente no depende de Identity/JWT.
-- **P5.2–P5.5:** `PROYECTO/MVC/CursoWeb.Mvc`, continuación de la aplicación A de M02. Es el **mismo proyecto MVC** para ejecutar, publicar, utilizar Kestrel, IIS y Docker.
+## Material del módulo
 
-## Fuente docente canónica
+- [Teoría (Markdown)](TEORIA/M05_TEORIA.md) · [Teoría (PDF)](TEORIA/M05_TEORIA.pdf).
+- [Prácticas (Markdown)](PRACTICAS/M05_PRACTICAS.md) · [Prácticas (PDF)](PRACTICAS/M05_PRACTICAS.pdf).
+- [Proyectos y variantes para los ejercicios](PROYECTO/).
 
-La teoría figura en `TEORIA/M05_TEORIA.md` y las prácticas en `PRACTICAS/M05_PRACTICAS.md`. Los PDF homónimos se generan **solo** desde esos Markdown, con la plantilla tipográfica M01 (texto de 9,8 pt y código de 8,2 pt).
+## Proyectos que utilizarás
 
-## Limitación explícita de LocalDB
+| Ejercicios | Proyecto | Contenido |
+|---|---|---|
+| P5.1 | [Blazor](PROYECTO/BLAZOR/CursoWeb.Blazor/) y [API](PROYECTO/API/CursoWeb.ProductosApi/) | Consulta HTTP, creación de productos, validación, actualización del catálogo y tratamiento de errores |
+| P5.2–P5.5 | [MVC](PROYECTO/MVC/CursoWeb.Mvc/) | Compilación, publicación, ejecución con Kestrel, hospedaje en IIS y ejecución con Docker |
+| Variantes guiadas | [VARIANTES](PROYECTO/VARIANTES/) | Estados iniciales y alternativas para desarrollar y repetir ejercicios |
 
-Por defecto, MVC conserva el CRUD de M02 con SQL Server Express LocalDB en Windows. La opción `Despliegue:SinLocalDb=true` **omite la inicialización de la base** y permite comprobar las páginas MVC sin datos y los recursos estáticos; las rutas que requieren el CRUD devuelven 503. Se utiliza al ejecutar la imagen Docker **Linux**; no sustituye LocalDB por SQLite ni permite declarar probado el CRUD en contenedor.
+## Cómo trabajar
 
-## Itinerario presencial
+Estudia el tema correspondiente en la teoría y ejecuta las instrucciones del cuaderno de prácticas. En P5.1 continuarás la aplicación Blazor y la API; en P5.2–P5.5 utilizarás **la misma aplicación MVC** en los tres entornos de despliegue.
 
-La jornada tiene 6 horas: 60 minutos de teoría, 270 minutos de prácticas y 30 minutos de repaso/dudas. Los contenidos correspondientes a cada punto están recogidos en el [temario](../TEMARIO.md). Las ampliaciones autónomas de los manuales no añaden tareas obligatorias al itinerario.
+Conserva las copias de respaldo cuando una práctica te pida sustituir temporalmente un archivo y restaura el estado indicado antes de continuar.
 
-## Advertencia de despliegue
+## SQL Server Express LocalDB y Docker
 
-IIS solo puede declararse verificado después de ejecutar realmente sobre IIS en Windows con ASP.NET Core Hosting Bundle. Docker solo puede declararse verificado después de construir y ejecutar un contenedor real. Las pruebas de Kestrel no sustituyen ninguna de estas evidencias.
+La aplicación MVC utiliza SQL Server Express LocalDB para su CRUD en Windows. Al ejecutarla en un contenedor Linux, la configuración `Despliegue__SinLocalDb=true` permite visitar la página principal, consultar el estado y cargar recursos estáticos, pero **las rutas que necesitan la base de datos devuelven HTTP 503**. El ejercicio no sustituye SQL Server por SQLite ni instala LocalDB en Linux.
+
+Consulta también el [temario del curso](../TEMARIO.md) y los [requisitos del laboratorio](../REQUISITOS_LABORATORIO.md).
