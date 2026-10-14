@@ -32,7 +32,7 @@ Los dos Markdown son las fuentes canónicas; sus PDF homónimos están publicado
 | Documento | Palabras del MD | Páginas del PDF | Integridad |
 |---|---:|---:|---|
 | M05_TEORIA | 32.607 | 75 | MD íntegro adjunto al PDF y cobertura visible 100 % |
-| M05_PRACTICAS | 28.118 | 76 | MD íntegro adjunto al PDF y cobertura visible 99,9898 % |
+| M05_PRACTICAS | 28.118 | 76 | MD íntegro adjunto al PDF y cobertura visible 99,9832 % |
 
 La publicación se realizó con la tipografía del M01: texto 9,8 pt y código 8,2 pt. Los controles automatizados confirmaron los cinco capítulos, los enlaces del índice, la presencia de texto en todas las páginas, la ausencia de desbordamientos simples y la identidad binaria entre la fuente Markdown y la incorporada a cada PDF. Véase `VERIFICACION_INTERNA/M05_PDFS_VALIDACION.md`.
 
@@ -40,11 +40,11 @@ La publicación se realizó con la tipografía del M01: texto 9,8 pt y código 8
 
 - IIS Windows real: `38456317027`, SUCCESS, con ANCM, servidor HTTP y restricciones explícitas de LocalDB.
 - Blazor en navegador Chromium: `38458993456`, SUCCESS para catálogo normal, vacío y respuesta JSON inválida. Ejecuciones posteriores también validaron el comportamiento del componente.
-- Integración de Blazor/API, publicación Kestrel y contenedor Docker Linux real: `38466969627`, SUCCESS.
-- Publicación PDF canónica y puertas documentales: `38466969570`, SUCCESS.
-- Medición de PDF y renderizado de cada página a imagen: `38466969597`, SUCCESS.
+- Integración de Blazor/API, publicación Kestrel y contenedor Docker Linux real: `38517424599`, SUCCESS.
+- Publicación PDF canónica y puertas documentales: `38516974252`, SUCCESS.
+- Medición de PDF y renderizado de cada página a imagen: `38516974256`, SUCCESS.
 
-**Límite de la evidencia:** las páginas se rasterizaron y comprobaron automáticamente, pero estos controles NO acreditan por sí mismos una inspección visual humana individual de las 151 páginas ni sustituyen el juicio pedagógico de un instructor. No afirmar auditoría visual humana completa sin realizarla. La documentación no debe esconder esta limitación.
+**Límite de la evidencia:** la revisión visual se efectuó sobre mosaicos de todas las páginas renderizadas, complementados con comprobaciones automatizadas individuales de texto y límites de cada página. Existe una revisión pedagógica documental y de trazabilidad; estos controles no sustituyen una clase piloto real con alumnos ni garantizan que toda la infraestructura esté disponible. La descripción detallada está en `M05_CIERRE_VISUAL_PEDAGOGICO_2026-10-14.md`.
 
 ## Variantes del alumno y correspondencia añadida
 
@@ -54,4 +54,4 @@ La publicación se realizó con la tipografía del M01: texto 9,8 pt y código 8
 - P5.2: `PROYECTO/VARIANTES/P5.2_ANTES/Program.cs` recoge el estado previo al modo sin LocalDB.
 - P5.5: el alumno reconstruye gradualmente el Dockerfile con referencia y restauración; el proyecto acumulativo conserva su versión compilable.
 
-**Criterio de interpretación:** 75/76 páginas entra en el intervalo técnico aprobado de 75–100 para una extensión aproximada de 80, pero el cumplimiento cuantitativo y las pruebas automáticas no garantizan por sí solos la ausencia de redundancia ni una calidad didáctica ya revisada visualmente. Estas son comprobaciones independientes.
+**Criterio de interpretación:** 75/77 páginas entra en el intervalo técnico aprobado de 75–100 para una extensión aproximada de 80, pero el cumplimiento cuantitativo y las pruebas automáticas no garantizan por sí solos la ausencia de redundancia ni una calidad didáctica ya revisada visualmente. Estas son comprobaciones independientes.
