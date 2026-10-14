@@ -1,0 +1,10 @@
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Datos recibidos";
+}
+<h1>Datos recibidos del formulario</h1>
+<p id="producto-recibido">Nombre: <strong>@Model.Nombre</strong></p>
+<p id="precio-recibido">Precio: <strong>@Model.Precio.ToString("0.00")</strong> €</p>
+<p>Este resultado confirma el enlace de modelos; los productos aún no se guardan.</p>
+<p><a asp-controller="Productos" asp-action="Crear">Enviar otro formulario</a></p>
+<p><a asp-controller="Productos" asp-action="Index">Volver al catálogo</a></p>

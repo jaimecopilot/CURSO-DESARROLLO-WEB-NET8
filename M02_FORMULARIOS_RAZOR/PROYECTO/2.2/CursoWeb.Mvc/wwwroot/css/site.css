@@ -1,0 +1,11 @@
+body { margin: 0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: #f8fafc; color: #1f2937; line-height: 1.55; }
+header { background: #16324f; padding: 1rem 2rem; }
+nav a { color: white; text-decoration: none; margin-right: 1.2rem; }
+.container { max-width: 850px; padding: 2rem; margin: auto; }
+h1 { margin-top: 0; }
+section { border-left: 4px solid #16324f; padding-left: 1rem; }
+.tarjeta-producto { margin: .6rem 0; padding: .7rem 1rem; border: 1px solid #aabcc6; background: #fff; border-radius: .35rem; }
+.tarjeta-producto h3 { margin: 0; }
+.etiqueta-economico { display: inline-block; margin-left: 1rem; padding: .1rem .45rem; border: 1px solid #285c4e; }
+#notas-del-layout { padding: .7rem 1.5rem; background: #eaf2f2; }
+footer { text-align: center; font-size: 0.9rem; color: #4b5563; padding: 2rem; }

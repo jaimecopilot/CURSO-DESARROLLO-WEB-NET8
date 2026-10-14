@@ -1,0 +1,18 @@
+@model CursoWeb.Mvc.Models.Producto
+
+@* PASO 1.5.4: vista parcial tipada. No declara @page ni layout propio. *@
+<article class="tarjeta-producto" data-producto-id="@Model.Id">
+    <h3>@Model.Nombre</h3>
+    <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
+
+    @* APLICACION 1.5 — Escribe aquí una condición Razor propia: si Model.Precio >= 4m, representa <strong class="etiqueta-destacada">Producto destacado</strong>. La misma parcial se reutiliza en listado y detalle. *@
+    @* APLICACION 1.5.B: tras activar la parcial, sustituye este enlace con href por un enlace con asp-controller, asp-action y asp-route-id. Conserva el mismo destino visible. *@
+    <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
+
+    @* RETO 1.5 (inicio)
+    @if (Model.Precio < 3m)
+    {
+        <strong class="etiqueta-economico">Precio económico</strong>
+    }
+    RETO 1.5 (fin) *@
+</article>

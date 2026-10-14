@@ -1,0 +1,85 @@
+# Requisitos y preparación del laboratorio
+
+## Propósito y alcance
+
+Estas condiciones soportan una formación presencial de cinco jornadas y **deben comprobarse antes de la primera clase**. La aplicación MVC (A) ocupa M01/M02; la aplicación Blazor (B) ocupa M03/M04/M05; la API auxiliar (GET/POST) se aporta en el propio repositorio. IIS y Docker se utilizan únicamente en M05. No se requiere ningún proyecto de otro curso.
+
+## 1. Puesto de desarrollo del alumno
+
+- Windows 10/11 o entorno compatible para desarrollar y ejecutar .NET 8. Para la práctica IIS se necesita un **host Windows** con IIS configurado; no se da por hecho que otros sistemas puedan ejecutar IIS.
+- **SDK de .NET 8**, además de runtime ASP.NET Core 8. Comprobar con `dotnet --list-sdks`, `dotnet --list-runtimes` y `dotnet --info`.
+- Visual Studio Community con carga de trabajo **Desarrollo de ASP.NET y web** y compatibilidad con .NET 8. Para M02, confirmar también el componente **SQL Server Express LocalDB** en el Instalador de Visual Studio; si no está instalado, añadirlo individualmente o mediante la carga de trabajo de almacenamiento y procesamiento de datos. Se ofrecen comandos `dotnet` equivalentes cuando corresponda.
+- Navegador moderno con herramientas de desarrollo; posibilidad de abrir localhost y varios puertos simultáneos.
+- Restauración NuGet previa: conexión a fuentes oficiales en preparación; caché lista si el laboratorio tiene red limitada.
+- Permisos locales suficientes para crear/editar carpetas, ejecutar procesos y acceder a puertos de laboratorio.
+
+### Compatibilidad temporal de .NET 8
+
+Esta edición se mantiene **deliberadamente en .NET 8** por el temario acordado. Según la política oficial de Microsoft, **.NET 8 finaliza su soporte el 10 de noviembre de 2026**. Actualizar la plataforma será una decisión curricular posterior, no una modificación silenciosa durante la preparación. No utilizar esta formación como guía para desplegar sistemas nuevos de producción más allá del soporte.
+
+Referencia oficial: https://dotnet.microsoft.com/es-es/platform/support/policy
+
+## 2. Dependencias de los proyectos del curso
+
+**Aplicación MVC A:** ASP.NET Core MVC net8.0, C#, EF Core 8 y proveedor `Microsoft.EntityFrameworkCore.SqlServer` (versión 8.x) con **SQL Server Express LocalDB** cuando P2.4 introduce persistencia. En M01 se utilizan productos en memoria sin base de datos. LocalDB requiere Windows y se utiliza bajo la cuenta interactiva del alumno. La cadena de conexión de laboratorio será `Server=(localdb)\\MSSQLLocalDB;Database=CursoWebProductos;Trusted_Connection=True;TrustServerCertificate=True;` en JSON (barra de instancia escapada).
+
+**Aplicación Blazor B:** Blazor Web App net8.0, modo principal Interactive Server. No se crea una WebAssembly standalone. En M03 los datos proceden de un servicio en memoria; en M04 se sustituye/añade acceso mediante HttpClient al API auxiliar.
+
+**API auxiliar:** proyecto ASP.NET Core Web API net8.0 pequeño, proporcionado inicialmente para P4.1 y P4.2; endpoints GET y POST de productos, datos en memoria. En P4.3 el alumno construye desde una plantilla vacía una implementación compatible y la prueba con el mismo cliente Blazor. La API de productos no requiere SQL Server ni credenciales remotas.
+
+**Demostración de seguridad P4.4:** ejemplo local de cookies incluido, con identidad de demostración; no depende de servicios externos. **Ampliación autónoma P4.4.6:** construcción progresiva de una API ASP.NET Core Identity y JWT Bearer con usuarios y roles almacenados en SQL Server Express LocalDB real. Requiere Windows, LocalDB y un secreto de firma definido mediante configuración de entorno, nunca versionado. Esta ampliación no forma parte de las seis horas obligatorias.
+
+**Comprobaciones en navegador:** cada práctica indica qué URL abrir, qué datos introducir y qué resultado debe observarse.
+
+## 3. Puertos de referencia del laboratorio
+
+Los puertos siguientes son una **convención inicial**, y las prácticas definitivas incluirán la configuración exacta y las URL:
+
+| Proceso | URL HTTP didáctica |
+|---|---|
+| Aplicación MVC A | http://localhost:5091 |
+| Blazor Web App B | http://localhost:5092 |
+| API auxiliar | http://localhost:5093 |
+| IIS (sitio local de ejemplo) | http://localhost:8091 |
+| Docker (puerto de host) | http://localhost:8081 |
+
+Una aplicación ASP.NET Core con imagen oficial de **.NET 8 escucha normalmente en el puerto 8080 dentro del contenedor**; por tanto, el ejemplo de publicación será `-p 8081:8080`, no `-p 8081:80`. El Dockerfile y la URL final se mantendrán coherentes con ello.
+
+Referencias: https://learn.microsoft.com/es-es/dotnet/core/docker/ y https://learn.microsoft.com/en-us/dotnet/core/compatibility/containers/8.0/aspnet-port
+
+**Atención:** los puertos no se dan por disponibles sin comprobarlos; el laboratorio debe reservarlos y evitar conflictos con procesos existentes. HTTPS, confianza de certificados de desarrollo y credenciales del navegador se tratarán en la guía concreta solo cuando la actividad los necesite.
+
+## 4. Preparación específica de IIS (solo M05)
+
+El instructor preparará antes de la jornada:
+1. Equipo/VM Windows compatible y rol/característica IIS activada.
+2. ASP.NET Core **Hosting Bundle 8** instalado en el servidor IIS, con los servicios reciclados/reiniciados según las indicaciones oficiales.
+3. Permiso para crear un sitio de laboratorio en IIS y una carpeta de publicación; pool de aplicaciones configurado conforme al modelo recomendado para ASP.NET Core (sin administrar CLR de .NET Framework).
+4. Puerto de prueba libre, ruta física y permisos de lectura/ejecución y escritura **si** la muestra lo necesita.
+5. Prueba manual con una aplicación mínima publicada antes de la clase.
+
+Los alumnos seguirán el procedimiento funcional; no aprenderán administración avanzada, publicación pública ni endurecimiento de IIS.
+
+## 5. Preparación específica de Docker (solo M05)
+
+- Docker Desktop/Engine disponible y **motor iniciado**, con acceso autorizado para ejecutar `docker version`, `docker build` y `docker run`.
+- Disponibilidad de imágenes Microsoft para .NET 8 SDK/runtime, descargadas con antelación si el acceso a internet es limitado.
+- Espacio disponible para build y puertos libres; capacidad de acceder desde navegador a localhost.
+- Una muestra autocontenida para la práctica, de modo que no haga falta orquestación ni Docker Compose.
+- Advertir que datos de contenedor sin volumen persistente pueden perderse al eliminarlo. El curso no enseña almacenamiento persistente de contenedores.
+
+Referencias: https://learn.microsoft.com/en-us/dotnet/core/docker/ y https://learn.microsoft.com/en-us/dotnet/core/docker/container-images
+
+## 6. Plan de comprobaciones previas del instructor
+
+Comprobar antes de comenzar cada jornada:
+- **M01:** plantilla MVC net8.0 restaurada/compilable y navegación local.
+- **M02:** instancia `(localdb)\MSSQLLocalDB` disponible en Windows (`sqllocaldb info`), Visual Studio capaz de conectarse a ella y paquete EF Core 8 para SQL Server disponible. El alumno debe poder crear y modificar su base de datos `CursoWebProductos` sin permisos administrativos.
+- **M03:** plantilla Blazor Web App net8.0 con Interactive Server, comprobando que un @onclick responde realmente.
+- **M04:** API inicial accesible por HTTP; Blazor tiene su URL configurada; API construida por el alumno comprobable de manera independiente; demostración con cookies funcional. Para la ampliación P4.4.6, comprobar además LocalDB real, creación de las tablas Identity, emisión de JWT y respuestas 401, 403 y 200.
+- **M05:** `dotnet publish` produce archivos ejecutables; IIS/Hosting Bundle funciona; Docker hace build y ejecuta con mapeo a 8080.
+- Abrir y comprobar los proyectos en el puesto donde se impartirán; atender a los resultados visibles antes de iniciar las actividades.
+
+## 7. Límites de seguridad de los ejemplos
+
+Usar datos ficticios, puertos locales y credenciales de demostración exclusivamente. No reutilizar la configuración didáctica de autenticación o HTTP en producción; no exponer servicios de laboratorio públicamente sin configuración de seguridad adecuada. El curso muestra fundamentos, no un diseño de operación segura en producción.

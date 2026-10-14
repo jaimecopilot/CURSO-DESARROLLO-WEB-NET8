@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Curso Web .NET 8</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+    <link rel="stylesheet" href="/css/catalogo.css" />
+</head>
+<body>
+    <header>
+        <nav aria-label="Navegación principal">
+            <a href="/">Inicio</a>
+            <a href="/Productos">Productos</a>
+            <a href="/recursos/guia-publica.txt">Guía pública</a>
+        </nav>
+    </header>
+    <main class="container">
+        @RenderBody()
+    </main>
+    @* PASO 1.5.3: habilitado al terminar M01. *@
+    <aside id="notas-del-layout" aria-label="Notas de la página">
+        @await RenderSectionAsync("NotasPagina", required: false)
+    </aside>
+    
+    @* PASO 2.3.5: renderizar sección opcional; si la vista no declara Scripts, no pasa nada. *@
+    @await RenderSectionAsync("Scripts", required: false)
+    <footer>Curso ASP.NET Core MVC · .NET 8</footer>
+</body>
+</html>

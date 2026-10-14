@@ -1,0 +1,9 @@
+EJERCICIO DE PUBLICACIÓN — P1.3
+
+Este documento es un recurso de laboratorio sin datos privados.
+Inicialmente está fuera de wwwroot; no debe estar disponible desde una URL pública.
+
+Cópialo a wwwroot/recursos/ejercicio-publicacion.txt para observar cómo
+UseStaticFiles expone el recurso sin añadir un controlador MVC.
+
+No publiques contraseñas, claves, datos personales ni documentación interna real.

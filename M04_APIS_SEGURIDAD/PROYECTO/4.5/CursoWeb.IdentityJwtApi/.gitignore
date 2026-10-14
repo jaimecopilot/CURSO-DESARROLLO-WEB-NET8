@@ -1,0 +1,5 @@
+# Estado local generado por ASP.NET Core Identity / SQLite
+.work/
+*.db
+*.db-shm
+*.db-wal

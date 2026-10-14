@@ -1,0 +1,22 @@
+<article class="tarjeta" data-producto-id="@Producto.Id">
+    <h2>@Producto.Nombre</h2>
+    <p>Precio: @Producto.Precio.ToString("0.00") €</p>
+    <small>Referencia @Producto.Id</small>
+    @* PASO 3.5.2 (ACTIVAR) al declarar AlSeleccionar: *@
+    @* <button @onclick="NotificarSeleccion">Seleccionar</button> *@
+    @* RETO 3.5 (ACTIVAR) al declarar AlQuitar: *@
+    @* <button @onclick="NotificarQuitar">Quitar</button> *@
+</article>
+@code {
+    [Parameter, EditorRequired] public Producto Producto { get; set; } = default!;
+
+    /* PASO 3.5.2 INICIO
+    [Parameter] public EventCallback<int> AlSeleccionar { get; set; }
+    private Task NotificarSeleccion() => AlSeleccionar.InvokeAsync(Producto.Id);
+    PASO 3.5.2 FIN */
+
+    /* RETO 3.5 INICIO
+    [Parameter] public EventCallback<int> AlQuitar { get; set; }
+    private Task NotificarQuitar() => AlQuitar.InvokeAsync(Producto.Id);
+    RETO 3.5 FIN */
+}

@@ -1,0 +1,178 @@
+@page "/productos"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject IProductosMemoriaService Catalogo
+<PageTitle>Catálogo asíncrono</PageTitle>
+<h1>P3.6 | Catálogo acumulativo y OnInitializedAsync</h1>
+<p>Conservamos la selección, el alta, la edición, los filtros y la recuperación de P3.5. Ahora los datos iniciales proceden de un servicio.</p>
+<p id="estado-carga">@estado</p>
+<p id="seleccion">Seleccionado: @seleccion</p>
+@* RETO INTEGRADOR 3.6.7: error controlado y botón de reintento.
+   Activa junto con la nueva versión de OnInitializedAsync y el servicio. *@
+@* <label>Simular fallo: <input id="simular-error" type="checkbox" @bind="simularError" /></label> *@
+@* <button id="recargar-productos" disabled="@cargando" @onclick="RecargarAsync">Recargar catálogo</button> *@
+@* @if (!string.IsNullOrEmpty(errorCarga)) { <p role="alert" id="error-carga">@errorCarga</p> } *@
+@if (!cargando)
+{
+    <section aria-label="Consultar catálogo">
+        <label>Buscar por nombre: <input id="buscar" @bind="busqueda" @bind:event="oninput" /></label>
+        <label>Precio máximo: <input id="precio-maximo" type="number" min="0" step="0.5" @bind="precioMaximo" /></label>
+        <button id="alternar-orden" @onclick="AlternarOrden">Invertir orden por precio</button>
+        <p id="resumen-filtrado">Mostrando @ProductosVisibles.Count() de @productos.Count productos</p>
+    </section>
+
+    @if (productos.Count > 0)
+    {
+        <div class="tarjetas" id="tarjetas-productos">
+            @foreach (var producto in ProductosVisibles)
+            {
+                <TarjetaProducto Producto="producto"
+                                AlSeleccionar="SeleccionarParaEditar"
+                                AlQuitar="QuitarConDeshacer" />
+            }
+        </div>
+    }
+    <p id="cantidad">Total: @productos.Count</p>
+
+    @* RETO 3.6: condición para una colección vacía tras una carga correcta. *@
+    @* @if (productos.Count == 0 && estado == "Lista preparada") { <p id="sin-productos">No hay productos para mostrar.</p> } *@
+
+    <section aria-label="Crear y editar productos">
+        <label>Nombre nuevo: <input id="nombre-nuevo" @bind="nuevoNombre" /></label>
+        <button id="agregar" @onclick="Agregar">Añadir producto</button>
+        <label>Editar nombre: <input id="editar-nombre" @bind="nombreEditado" /></label>
+        <button id="guardar-cambio" @onclick="GuardarCambio">Guardar nombre</button>
+        <button id="limpiar" @onclick="Limpiar">Limpiar selección</button>
+    </section>
+
+    <button id="deshacer" disabled="@(eliminacionPendiente is null)" @onclick="DeshacerEliminacion">Deshacer última eliminación</button>
+    <p id="estado-deshacer">@TextoDeshacer</p>
+}
+
+@code {
+    // P3.6: se deja vacía al empezar; el servicio cargará el catálogo inicial.
+    private List<Producto> productos = [];
+    private bool cargando = true;
+    private string estado = "Cargando productos...";
+
+    // P3.4: estado del editor, el alta y los filtros, conservado.
+    private string seleccion = "ninguno";
+    private string nuevoNombre = string.Empty;
+    private int siguienteId = 4;
+    private int? idEnEdicion;
+    private string nombreEditado = string.Empty;
+    private string busqueda = string.Empty;
+    private decimal? precioMaximo;
+    private bool ordenAscendente = true;
+
+    private IEnumerable<Producto> ProductosVisibles =>
+        (ordenAscendente
+            ? productos.OrderBy(p => p.Precio).ThenBy(p => p.Id)
+            : productos.OrderByDescending(p => p.Precio).ThenBy(p => p.Id))
+        .Where(p =>
+            (string.IsNullOrWhiteSpace(busqueda) ||
+             p.Nombre.Contains(busqueda.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+            (precioMaximo is null || p.Precio <= precioMaximo.Value));
+
+    private void AlternarOrden() => ordenAscendente = !ordenAscendente;
+
+    private void SeleccionarParaEditar(int id)
+    {
+        var producto = productos.First(p => p.Id == id);
+        idEnEdicion = id;
+        seleccion = producto.Nombre;
+        nombreEditado = producto.Nombre;
+    }
+
+    private void GuardarCambio()
+    {
+        if (idEnEdicion is null || string.IsNullOrWhiteSpace(nombreEditado))
+            return;
+        var indice = productos.FindIndex(p => p.Id == idEnEdicion.Value);
+        if (indice < 0)
+            return;
+        productos[indice] = productos[indice] with { Nombre = nombreEditado.Trim() };
+        seleccion = productos[indice].Nombre;
+    }
+
+    private void Agregar()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoNombre))
+            return;
+        productos.Add(new Producto(siguienteId++, nuevoNombre.Trim(), 5m));
+        nuevoNombre = string.Empty;
+    }
+
+    private void Limpiar()
+    {
+        seleccion = "ninguno";
+        idEnEdicion = null;
+        nombreEditado = string.Empty;
+    }
+
+    // P3.5: la tarjeta comunica intención; el padre gestiona la lista y el deshacer.
+    private (Producto Producto, int Indice)? eliminacionPendiente;
+    private string TextoDeshacer => eliminacionPendiente is { } pendiente
+        ? $"Pendiente: {pendiente.Producto.Nombre}"
+        : "Ninguna eliminación pendiente";
+
+    private void QuitarConDeshacer(int id)
+    {
+        var indice = productos.FindIndex(p => p.Id == id);
+        if (indice < 0)
+            return;
+        eliminacionPendiente = (productos[indice], indice);
+        productos.RemoveAt(indice);
+        Limpiar();
+    }
+
+    private void DeshacerEliminacion()
+    {
+        if (eliminacionPendiente is not { } anterior)
+            return;
+        if (!productos.Any(p => p.Id == anterior.Producto.Id))
+            productos.Insert(Math.Min(anterior.Indice, productos.Count), anterior.Producto);
+        eliminacionPendiente = null;
+    }
+
+    // PASO 3.6.2: activado en el estado acumulativo M04.
+    protected override async Task OnInitializedAsync()
+    {
+        estado = "Cargando productos...";
+        productos = (await Catalogo.ObtenerAsync()).ToList();
+        cargando = false;
+        estado = "Lista preparada";
+    }
+
+    /* RETO INTEGRADOR 3.6.7 INICIO
+    private bool simularError;
+    private string? errorCarga;
+
+    // Sustituye el método de PASO 3.6.2 por esta versión al llegar al reto.
+    protected override Task OnInitializedAsync() => RecargarAsync();
+
+    private async Task RecargarAsync()
+    {
+        cargando = true;
+        errorCarga = null;
+        estado = "Cargando productos...";
+        productos = [];
+        Limpiar();
+        eliminacionPendiente = null;
+        try
+        {
+            productos = (await Catalogo.ObtenerConErrorAsync(simularError)).ToList();
+            siguienteId = Math.Max(4, productos.Select(p => p.Id).DefaultIfEmpty(3).Max() + 1);
+            estado = "Lista preparada";
+        }
+        catch (InvalidOperationException)
+        {
+            errorCarga = "No se pudo cargar el catálogo de demostración.";
+            estado = "Carga fallida";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+    RETO INTEGRADOR 3.6.7 FIN */
+}

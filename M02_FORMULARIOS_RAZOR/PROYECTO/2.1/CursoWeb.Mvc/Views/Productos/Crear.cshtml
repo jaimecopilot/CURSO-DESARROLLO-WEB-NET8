@@ -1,0 +1,13 @@
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Crear producto";
+}
+<h1>Crear producto — P2.1</h1>
+<p>Este primer formulario permite observar el envío de datos, pero todavía no persiste productos.</p>
+<form method="post" action="/Productos/Crear">
+    @Html.AntiForgeryToken()
+    <div><label for="Nombre">Nombre</label><input id="Nombre" name="Nombre" value="@Model.Nombre" /></div>
+    <div><label for="Precio">Precio</label><input id="Precio" name="Precio" type="number" step="0.01" value="@Model.Precio.ToString(System.Globalization.CultureInfo.InvariantCulture)" /></div>
+    <button type="submit">Enviar producto</button>
+</form>
+<p><a href="/Productos">Volver al catálogo</a></p>

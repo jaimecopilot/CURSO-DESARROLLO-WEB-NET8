@@ -1,0 +1,13 @@
+@page "/interactiva"
+@rendermode InteractiveServer
+<PageTitle>Interactive Server</PageTitle>
+<h1>P3.1 | Componente interactivo en servidor</h1>
+<p>El evento se procesa en el circuito de Blazor y la pantalla se actualiza sin navegación HTTP.</p>
+<p id="contador-interactivo">Pulsaciones: @contador</p>
+<button id="boton-interactivo" @onclick="Incrementar">Pulsar (interactivo)</button>
+@code {
+    private int contador;
+    private void Incrementar() => contador++;
+    // RETO 3.1: sustituye la línea anterior por esta variante (no mantener ambas):
+    // private void Incrementar() => contador += 2;
+}

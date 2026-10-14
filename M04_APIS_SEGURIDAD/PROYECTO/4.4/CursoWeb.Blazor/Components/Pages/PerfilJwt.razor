@@ -1,0 +1,144 @@
+@page "/perfil-jwt"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@using System.Net.Http.Headers
+@using System.Net.Http.Json
+@inject IHttpClientFactory Clientes
+
+<h1>Identity y JWT: cliente de laboratorio</h1>
+<p>La API de Identity/JWT funciona en otro proceso. Esta página conserva el token
+   solo en el estado temporal del componente, sin cookies ni almacenamiento del navegador.
+   No representa un mecanismo de identidad de producción.</p>
+
+<div>
+    <label>Correo <input id="jwt-email" type="email" @bind="correo" /></label>
+    <label>Contraseña <input id="jwt-clave" type="password" @bind="clave" /></label>
+    <button id="jwt-entrar" disabled="@ocupado" @onclick="EntrarAsync">Obtener JWT</button>
+</div>
+
+@if (!string.IsNullOrWhiteSpace(token))
+{
+    <p id="jwt-sesion">Se recibió un JWT de acceso (no se muestra su valor).</p>
+    <button id="jwt-perfil" disabled="@ocupado" @onclick="ConsultarPerfilAsync">GET /api/identidad/yo</button>
+    <button id="jwt-formador" disabled="@ocupado" @onclick="ConsultarFormadorAsync">GET /api/identidad/formador</button>
+    <button id="jwt-salir" @onclick="OlvidarToken">Olvidar token local</button>
+}
+
+<p id="jwt-estado" role="status">@estado</p>
+@if (perfil is not null)
+{
+    <p id="jwt-perfil-respuesta">Identidad: @perfil.Email — roles: @string.Join(", ", perfil.Roles)</p>
+}
+
+@code {
+    private string correo = "";
+    private string clave = "";
+    private string? token;
+    private string estado = "Introduce las credenciales de un usuario registrado.";
+    private bool ocupado;
+    private PerfilRespuesta? perfil;
+
+    private async Task EntrarAsync()
+    {
+        ocupado = true;
+        token = null;
+        perfil = null;
+        estado = "Solicitando token...";
+        try
+        {
+            var cliente = Clientes.CreateClient("IdentityJwtApi");
+            using var respuesta = await cliente.PostAsJsonAsync(
+                "auth/login", new { Email = correo, Password = clave });
+            if (!respuesta.IsSuccessStatusCode)
+            {
+                estado = $"Acceso rechazado (HTTP {(int)respuesta.StatusCode}).";
+                return;
+            }
+            var sesion = await respuesta.Content.ReadFromJsonAsync<TokenRespuesta>();
+            token = sesion?.AccessToken;
+            estado = token is null ? "No se recibió un JWT válido." :
+                "JWT recibido. Ya puedes probar los recursos protegidos.";
+        }
+        catch (HttpRequestException)
+        {
+            estado = "No se pudo contactar con la API de Identity.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            estado = "La respuesta de login no coincide con el contrato JSON.";
+        }
+        finally
+        {
+            clave = ""; // No conservar la contraseña tras la petición.
+            ocupado = false;
+        }
+    }
+
+    private async Task ConsultarPerfilAsync()
+    {
+        if (token is null) return;
+        ocupado = true;
+        try
+        {
+            var cliente = Clientes.CreateClient("IdentityJwtApi");
+            using var solicitud = new HttpRequestMessage(HttpMethod.Get, "api/identidad/yo");
+            solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            using var respuesta = await cliente.SendAsync(solicitud);
+            if (!respuesta.IsSuccessStatusCode)
+            {
+                perfil = null;
+                estado = $"Perfil rechazado: HTTP {(int)respuesta.StatusCode}.";
+                return;
+            }
+            perfil = await respuesta.Content.ReadFromJsonAsync<PerfilRespuesta>();
+            estado = "Perfil obtenido con Authorization: Bearer.";
+        }
+        catch (HttpRequestException)
+        {
+            estado = "No se pudo consultar el perfil.";
+        }
+        finally
+        {
+            ocupado = false;
+        }
+    }
+
+    private async Task ConsultarFormadorAsync()
+    {
+        if (token is null) return;
+        ocupado = true;
+        try
+        {
+            var cliente = Clientes.CreateClient("IdentityJwtApi");
+            using var solicitud = new HttpRequestMessage(
+                HttpMethod.Get, "api/identidad/formador");
+            solicitud.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+            using var respuesta = await cliente.SendAsync(solicitud);
+            estado = respuesta.StatusCode switch
+            {
+                System.Net.HttpStatusCode.OK => "Acceso permitido: rol Formador.",
+                System.Net.HttpStatusCode.Forbidden => "HTTP 403: token válido, sin rol Formador.",
+                System.Net.HttpStatusCode.Unauthorized => "HTTP 401: token ausente, inválido o caducado.",
+                _ => $"Respuesta HTTP {(int)respuesta.StatusCode}."
+            };
+        }
+        catch (HttpRequestException)
+        {
+            estado = "No se pudo consultar el recurso Formador.";
+        }
+        finally
+        {
+            ocupado = false;
+        }
+    }
+
+    private void OlvidarToken()
+    {
+        token = null;
+        perfil = null;
+        clave = "";
+        estado = "Token eliminado del estado del componente. No revoca el JWT emitido.";
+    }
+
+    private sealed record TokenRespuesta(string AccessToken, string TokenType, DateTime ExpiresAtUtc);
+    private sealed record PerfilRespuesta(string Id, string Email, string[] Roles);
+}

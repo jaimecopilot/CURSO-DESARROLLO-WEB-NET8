@@ -1,0 +1,15 @@
+<article class="tarjeta" data-producto-id="@Producto.Id">
+    <h2>@Producto.Nombre</h2>
+    <p>Precio: @Producto.Precio.ToString("0.00") €</p>
+    <small>Referencia @Producto.Id</small>
+    @* RETO 3.3: eliminar los delimitadores del bloque siguiente. *@
+    @*
+    @if (Producto.Precio > 4m)
+    {
+        <p class="mensaje">Precio superior a 4 euros</p>
+    }
+    *@
+</article>
+@code {
+    [Parameter, EditorRequired] public Producto Producto { get; set; } = default!;
+}

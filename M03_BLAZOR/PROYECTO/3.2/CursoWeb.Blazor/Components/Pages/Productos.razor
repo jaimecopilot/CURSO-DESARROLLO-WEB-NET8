@@ -1,0 +1,21 @@
+@page "/productos"
+@rendermode InteractiveServer
+<PageTitle>Productos</PageTitle>
+<h1>P3.2 | Página Productos</h1>
+<p>Catálogo de ejemplo en memoria. Todavía no consumimos una API.</p>
+<ul id="lista-productos">
+    @foreach (var producto in productos)
+    {
+        <li>@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+    }
+</ul>
+@code {
+    private readonly List<Producto> productos =
+    [
+        new(1, "Cuaderno", 4.50m),
+        new(2, "Lápiz", 1.20m),
+        new(3, "Carpeta", 3.75m)
+        // APLICACIÓN 3.2: añade una coma tras Carpeta y activa esta cuarta fila.
+        // , new(4, "Regla", 2.50m)
+    ];
+}

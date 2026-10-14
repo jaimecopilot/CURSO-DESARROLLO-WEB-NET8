@@ -1,0 +1,15 @@
+@model CursoWeb.Mvc.Models.Producto
+
+@* PASO 1.5.4: vista parcial tipada. No declara @page ni layout propio. *@
+<article class="tarjeta-producto" data-producto-id="@Model.Id">
+    <h3>@Model.Nombre</h3>
+    <p class="tarjeta-precio">Precio: @Model.Precio.ToString("0.00") €</p>
+    <a href="/Productos/Detalle/@Model.Id">Ver detalle de @Model.Nombre</a>
+
+    @* RETO 1.5 (inicio)
+    @if (Model.Precio < 3m)
+    {
+        <strong class="etiqueta-economico">Precio económico</strong>
+    }
+    RETO 1.5 (fin) *@
+</article>

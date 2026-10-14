@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>@ViewData["Title"] - Curso Web .NET 8</title>
+    <link rel="stylesheet" href="~/css/site.css" />
+    @* PASO 1.3.4 (inicio)
+    <link rel="stylesheet" href="/css/catalogo.css" />
+    PASO 1.3.4 (fin) *@
+</head>
+<body>
+    <header>
+        <nav aria-label="Navegación principal">
+            <a href="/">Inicio</a>
+            <a href="/Productos">Productos</a>
+            @* PASO 1.3.5 (inicio)
+            <a href="/recursos/guia-publica.txt">Guía pública</a>
+            PASO 1.3.5 (fin) *@
+            @* APLICACION 1.3.5: escribe aquí tu propio enlace <a> al recurso /recursos/ejercicio-publicacion.txt. Debe quedar junto a los enlaces de la navegación. *@
+            @* RETO 1.3 (inicio)
+            <a href="/recursos/aviso-laboratorio.txt">Aviso de laboratorio</a>
+            RETO 1.3 (fin) *@
+        </nav>
+    </header>
+    <main class="container">
+        @RenderBody()
+    </main>
+    <footer>Curso ASP.NET Core MVC · .NET 8</footer>
+</body>
+</html>

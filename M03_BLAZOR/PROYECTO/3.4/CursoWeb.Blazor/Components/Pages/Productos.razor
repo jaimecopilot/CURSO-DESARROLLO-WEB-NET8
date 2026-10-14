@@ -1,0 +1,115 @@
+@page "/productos"
+@rendermode InteractiveServer
+<PageTitle>Eventos</PageTitle>
+<h1>P3.4 | Estado y eventos</h1>
+<p>Los datos existen únicamente durante la sesión interactiva de este componente.</p>
+<p id="seleccion">Seleccionado: @seleccion</p>
+@* RETO INTEGRADOR 3.4.6: activa los tres controles y su lógica C#;
+   el filtro se aplica inmediatamente al escribir y no modifica la colección. *@
+@* <label>Buscar por nombre: <input id="buscar" @bind="busqueda" @bind:event="oninput" /></label> *@
+@* <label>Precio máximo: <input id="precio-maximo" type="number" min="0" step="0.5" @bind="precioMaximo" /></label> *@
+@* <button id="alternar-orden" @onclick="AlternarOrden">Invertir orden por precio</button> *@
+@* <p id="resumen-filtrado">Mostrando @ProductosVisibles.Count() de @productos.Count productos</p> *@
+@* RETO INTEGRADOR 3.4.6: sustituir solamente la expresión foreach
+   original por la variante siguiente, conservando todo el artículo y botones. *@
+@* @foreach (var producto in ProductosVisibles) *@
+<div class="tarjetas" id="tarjetas-productos">
+    @foreach (var producto in productos)
+    {
+        <div class="tarjeta-con-acciones" data-elemento-id="@producto.Id">
+            @* Conservamos TarjetaProducto de P3.3: el padre administra eventos en P3.4. *@
+            <TarjetaProducto Producto="producto" />
+            @* PASO 3.4.2 (ACTIVAR): descomenta este botón al activar Seleccionar. *@
+            @* <button @onclick="() => Seleccionar(producto.Id)">Seleccionar</button> *@
+            @* PASO 3.4.5: sustituir el botón anterior, no añadir un segundo. *@
+            @* <button @onclick="() => SeleccionarParaEditar(producto.Id)">Seleccionar</button> *@
+        </div>
+    }
+</div>
+@* PASO 3.4.3 (ACTIVAR): descomenta el input tras activar el campo nuevoNombre. *@
+@* <label>Nombre nuevo: <input id="nombre-nuevo" @bind="nuevoNombre" /></label> *@
+@* PASO 3.4.4 (ACTIVAR): descomenta el botón tras activar Agregar. *@
+@* <button id="agregar" @onclick="Agregar">Añadir producto</button> *@
+@* PASO 3.4.5: activa juntos el campo y el botón tras activar el método de edición. *@
+@* <label>Editar nombre: <input id="editar-nombre" @bind="nombreEditado" /></label> *@
+@* <button id="guardar-cambio" @onclick="GuardarCambio">Guardar nombre</button> *@
+@* RETO 3.4 (ACTIVAR): botón para deshacer la selección. *@
+@* <button id="limpiar" @onclick="Limpiar">Limpiar selección</button> *@
+@code {
+    private readonly List<Producto> productos =
+    [
+        new(1, "Cuaderno", 4.50m),
+        new(2, "Lápiz", 1.20m),
+        new(3, "Carpeta", 3.75m)
+    ];
+    private string seleccion = "ninguno";
+
+    /* PASO 3.4.2 INICIO
+    private void Seleccionar(int id)
+    {
+        seleccion = productos.First(p => p.Id == id).Nombre;
+    }
+    PASO 3.4.2 FIN */
+
+    /* PASO 3.4.3 INICIO
+    private string nuevoNombre = string.Empty;
+    PASO 3.4.3 FIN */
+
+    /* PASO 3.4.4 INICIO
+    private int siguienteId = 4;
+    private void Agregar()
+    {
+        if (string.IsNullOrWhiteSpace(nuevoNombre))
+            return;
+        productos.Add(new Producto(siguienteId++, nuevoNombre.Trim(), 5m));
+        nuevoNombre = string.Empty;
+    }
+    PASO 3.4.4 FIN */
+
+
+    /* PASO 3.4.5 INICIO
+    private int? idEnEdicion;
+    private string nombreEditado = string.Empty;
+    private void SeleccionarParaEditar(int id)
+    {
+        var producto = productos.First(p => p.Id == id);
+        idEnEdicion = id;
+        seleccion = producto.Nombre;
+        nombreEditado = producto.Nombre;
+    }
+
+    private void GuardarCambio()
+    {
+        if (idEnEdicion is null || string.IsNullOrWhiteSpace(nombreEditado))
+            return;
+
+        var indice = productos.FindIndex(p => p.Id == idEnEdicion.Value);
+        if (indice < 0)
+            return;
+
+        productos[indice] = productos[indice] with { Nombre = nombreEditado.Trim() };
+        seleccion = productos[indice].Nombre;
+    }
+    PASO 3.4.5 FIN */
+
+    /* RETO INTEGRADOR 3.4.6 INICIO
+    private string busqueda = string.Empty;
+    private decimal? precioMaximo;
+    private bool ordenAscendente = true;
+
+    private IEnumerable<Producto> ProductosVisibles =>
+        (ordenAscendente
+            ? productos.OrderBy(p => p.Precio).ThenBy(p => p.Id)
+            : productos.OrderByDescending(p => p.Precio).ThenBy(p => p.Id))
+        .Where(p =>
+            (string.IsNullOrWhiteSpace(busqueda) ||
+             p.Nombre.Contains(busqueda.Trim(), StringComparison.OrdinalIgnoreCase)) &&
+            (precioMaximo is null || p.Precio <= precioMaximo.Value));
+
+    private void AlternarOrden() => ordenAscendente = !ordenAscendente;
+    RETO INTEGRADOR 3.4.6 FIN */
+
+    /* RETO 3.4 INICIO
+    private void Limpiar() => seleccion = "ninguno";
+    RETO 3.4 FIN */
+}

@@ -1,0 +1,11 @@
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Detalle del producto";
+}
+<h1 id="titulo-detalle">1.4 | Detalle de producto</h1>
+<dl id="detalle-producto">
+    <dt>Identificador</dt><dd id="detalle-id">@Model.Id</dd>
+    <dt>Nombre</dt><dd id="detalle-nombre">@Model.Nombre</dd>
+    <dt>Precio</dt><dd id="detalle-precio">@Model.Precio.ToString("0.00") €</dd>
+</dl>
+<p><a href="/Productos">Volver al catálogo</a></p>

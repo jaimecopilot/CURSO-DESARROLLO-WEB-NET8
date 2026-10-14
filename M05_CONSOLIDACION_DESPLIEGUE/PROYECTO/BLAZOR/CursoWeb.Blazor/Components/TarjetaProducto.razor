@@ -1,0 +1,14 @@
+<article class="tarjeta" data-producto-id="@Producto.Id">
+    <h2>@Producto.Nombre</h2>
+    <p>Precio: @Producto.Precio.ToString("0.00") €</p>
+    <small>Referencia @Producto.Id</small>
+    <button @onclick="NotificarSeleccion">Seleccionar</button>
+    <button @onclick="NotificarQuitar">Quitar</button>
+</article>
+@code {
+    [Parameter, EditorRequired] public Producto Producto { get; set; } = default!;
+    [Parameter] public EventCallback<int> AlSeleccionar { get; set; }
+    [Parameter] public EventCallback<int> AlQuitar { get; set; }
+    private Task NotificarSeleccion() => AlSeleccionar.InvokeAsync(Producto.Id);
+    private Task NotificarQuitar() => AlQuitar.InvokeAsync(Producto.Id);
+}

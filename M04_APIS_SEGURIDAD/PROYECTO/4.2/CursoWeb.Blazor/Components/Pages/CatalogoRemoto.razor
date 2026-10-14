@@ -1,0 +1,112 @@
+@page "/catalogo-remoto"
+@rendermode @(new InteractiveServerRenderMode(prerender: false))
+@inject IProductosApiService CatalogoApi
+<PageTitle>Productos desde API</PageTitle>
+
+<h1>Catálogo remoto · P4.1</h1>
+<p>Esta página consume una API HTTP. El catálogo local de M03 sigue disponible en /productos.</p>
+@if (cargando)
+{
+    <p id="estado-api" role="status">Cargando catálogo remoto...</p>
+}
+else if (error is not null)
+{
+    <p id="error-api" role="alert">@error</p>
+}
+else
+{
+    <p id="estado-api">Catálogo remoto disponible</p>
+    <ul id="productos-api">
+        @foreach (var producto in productos)
+        {
+            <li>@producto.Nombre — @producto.Precio.ToString("0.00") €</li>
+        }
+    </ul>
+}
+<section>
+    <h2>Crear producto</h2>
+    <label>Nombre: <input id="nombre-api" @bind="nombreNuevo" /></label>
+    <label>Precio: <input id="precio-api" type="number" min="0" step="0.01" @bind="precioNuevo" /></label>
+    <button id="crear-api" disabled="@enviando" @onclick="CrearAsync">Crear en API</button>
+    @if (mensaje is not null)
+    {
+        <p id="resultado-api" role="status">@mensaje</p>
+    }
+</section>
+
+@code {
+    private List<ProductoDto> productos = [];
+    private bool cargando = true;
+    private string? error;
+    private string nombreNuevo = string.Empty;
+    private decimal precioNuevo;
+    private bool enviando;
+    private string? mensaje;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            productos = (await CatalogoApi.ObtenerAsync()).ToList();
+        }
+        catch (HttpRequestException)
+        {
+            error = "No se pudo obtener el catálogo remoto.";
+        }
+        catch (TaskCanceledException)
+        {
+            error = "La petición superó el tiempo disponible.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            error = "La API no devolvió un catálogo JSON válido.";
+        }
+        finally
+        {
+            cargando = false;
+        }
+    }
+
+    private async Task CrearAsync()
+    {
+        if (string.IsNullOrWhiteSpace(nombreNuevo) || precioNuevo <= 0)
+        {
+            mensaje = "Indica un nombre y un precio mayor que cero.";
+            return;
+        }
+
+        enviando = true;
+        mensaje = null;
+        try
+        {
+            var creado = await CatalogoApi.CrearAsync(new CrearProductoDto(nombreNuevo.Trim(), precioNuevo));
+            productos.Add(creado);
+            nombreNuevo = string.Empty;
+            precioNuevo = 0;
+            mensaje = $"Producto creado: {creado.Nombre} (id {creado.Id}).";
+        }
+        catch (HttpRequestException)
+        {
+            mensaje = "La API no pudo completar el alta.";
+        }
+        catch (TaskCanceledException)
+        {
+            mensaje = "Se agotó el tiempo al crear el producto.";
+        }
+        catch (System.Text.Json.JsonException)
+        {
+            mensaje = "La respuesta de alta no contiene JSON válido.";
+        }
+        catch (InvalidOperationException)
+        {
+            mensaje = "La respuesta de alta está incompleta.";
+        }
+        finally
+        {
+            enviando = false;
+        }
+    }
+
+    /* RETO P4.2: comprobar que la ruta "api/productos" solo aparece en
+       ProductosApiService, nunca en las llamadas del componente. */
+}

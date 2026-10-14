@@ -1,0 +1,26 @@
+@model CursoWeb.Mvc.Models.Producto
+@{
+    ViewData["Title"] = "Detalle del producto";
+}
+
+<h1 id="titulo-detalle">1.4 | Detalle de producto</h1>
+<dl id="detalle-producto">
+    <dt>Identificador</dt><dd id="detalle-id">@Model.Id</dd>
+    <dt>Nombre</dt><dd id="detalle-nombre">@Model.Nombre</dd>
+    <dt>Precio</dt><dd id="detalle-precio">@Model.Precio.ToString("0.00") €</dd>
+</dl>
+<p><a href="/Productos">Volver al catálogo</a></p>
+
+@* PASO 1.5.3 (inicio)
+@section NotasPagina
+{
+    <p id="nota-pagina-detalle">Detalle construido con una vista Razor tipada.</p>
+}
+PASO 1.5.3 (fin) *@
+
+@* PASO 1.5.5 (inicio)
+<section id="tarjeta-detalle" aria-label="Ficha presentada como tarjeta">
+    <h2>Tarjeta reutilizada en el detalle</h2>
+    <partial name="_TarjetaProducto" model="Model" />
+</section>
+PASO 1.5.5 (fin) *@

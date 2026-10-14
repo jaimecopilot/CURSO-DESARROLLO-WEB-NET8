@@ -1,15 +1,35 @@
-# Curso: Desarrollo web con ASP.NET Core MVC, Razor y Blazor en .NET 8
+# Desarrollo web con ASP.NET Core MVC, Razor y Blazor en .NET 8
 
-Curso presencial de 30 horas (cinco jornadas de seis horas) dirigido a desarrolladores con conocimientos previos de C#, ASP.NET Core Web API y Entity Framework Core.
+**AUTOR: JAIME GALLO**
 
-**Estado:** diseño docente y desarrollo incremental en rama de trabajo. No utilizar `main` como referencia de material validado hasta que se publiquen capítulos completos.
+Curso presencial de **30 horas**, distribuido en cinco jornadas de seis horas. Destinado a desarrolladores que conocen C#, ASP.NET Core Web API y Entity Framework Core. Se estudian MVC, vistas Razor, formularios y Razor Pages, componentes Blazor Interactive Server, consumo de API, seguridad básica y publicación elemental.
 
-## Organización acordada
+## Material del alumno
 
-- Cinco módulos (M01–M05), uno por jornada.
-- Cada módulo contiene `TEORIA/Mxx_TEORIA.md` y `PRACTICAS/Mxx_PRACTICAS.md`; los dos PDF correspondientes se generan tras validar los Markdown.
-- Los 25 puntos del programa se construyen progresivamente con código de prácticas activable por pasos y pruebas reproducibles.
-- Aplicación MVC (días 1 y 2) y Blazor Web App Interactive Server (días 3–5), con API auxiliar mínima.
-- Una sola materia común de gestión de productos, sin depender de ningún curso externo.
+Cada módulo contiene **una teoría y unas prácticas completas**, disponibles en Markdown y PDF. Cada PDF procede de su Markdown correspondiente. Los proyectos y variantes de los ejercicios se encuentran bajo la carpeta `PROYECTO` del módulo.
 
-La estructura, la matriz de actividades, la guía docente y los requisitos de laboratorio se desarrollan en la rama `desarrollo/m01-mvc` antes de iniciar el capítulo 1.1.
+| Jornada | Módulo | Teoría | Prácticas | Código |
+|---|---|---|---|---|
+| 1 · MVC | [M01](M01_MVC/README.md) | [MD](M01_MVC/TEORIA/M01_TEORIA.md) · [PDF](M01_MVC/TEORIA/M01_TEORIA.pdf) | [MD](M01_MVC/PRACTICAS/M01_PRACTICAS.md) · [PDF](M01_MVC/PRACTICAS/M01_PRACTICAS.pdf) | [PROYECTO](M01_MVC/PROYECTO/) |
+| 2 · Formularios y Razor Pages | [M02](M02_FORMULARIOS_RAZOR/README.md) | [MD](M02_FORMULARIOS_RAZOR/TEORIA/M02_TEORIA.md) · [PDF](M02_FORMULARIOS_RAZOR/TEORIA/M02_TEORIA.pdf) | [MD](M02_FORMULARIOS_RAZOR/PRACTICAS/M02_PRACTICAS.md) · [PDF](M02_FORMULARIOS_RAZOR/PRACTICAS/M02_PRACTICAS.pdf) | [PROYECTO](M02_FORMULARIOS_RAZOR/PROYECTO/) |
+| 3 · Blazor | [M03](M03_BLAZOR/README.md) | [MD](M03_BLAZOR/TEORIA/M03_TEORIA.md) · [PDF](M03_BLAZOR/TEORIA/M03_TEORIA.pdf) | [MD](M03_BLAZOR/PRACTICAS/M03_PRACTICAS.md) · [PDF](M03_BLAZOR/PRACTICAS/M03_PRACTICAS.pdf) | [PROYECTO](M03_BLAZOR/PROYECTO/) |
+| 4 · APIs y seguridad | [M04](M04_APIS_SEGURIDAD/README.md) | [MD](M04_APIS_SEGURIDAD/TEORIA/M04_TEORIA.md) · [PDF](M04_APIS_SEGURIDAD/TEORIA/M04_TEORIA.pdf) | [MD](M04_APIS_SEGURIDAD/PRACTICAS/M04_PRACTICAS.md) · [PDF](M04_APIS_SEGURIDAD/PRACTICAS/M04_PRACTICAS.pdf) | [PROYECTO](M04_APIS_SEGURIDAD/PROYECTO/) |
+| 5 · Consolidación y despliegue | [M05](M05_CONSOLIDACION_DESPLIEGUE/README.md) | [MD](M05_CONSOLIDACION_DESPLIEGUE/TEORIA/M05_TEORIA.md) · [PDF](M05_CONSOLIDACION_DESPLIEGUE/TEORIA/M05_TEORIA.pdf) | [MD](M05_CONSOLIDACION_DESPLIEGUE/PRACTICAS/M05_PRACTICAS.md) · [PDF](M05_CONSOLIDACION_DESPLIEGUE/PRACTICAS/M05_PRACTICAS.pdf) | [PROYECTO](M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/) |
+
+Material complementario: [temario y distribución de 30 horas](TEMARIO_30H.md) y [requisitos para preparar el laboratorio](REQUISITOS_LABORATORIO.md).
+
+## Recorrido de aprendizaje
+
+- **Aplicación A — MVC:** M01 construye rutas, controladores y vistas Razor; M02 añade formularios, validación, CRUD con **EF Core 8 y SQL Server Express LocalDB** y la comparación breve con Razor Pages.
+- **Aplicación B — Blazor Web App Interactive Server:** M03 introduce componentes, estado, eventos y servicios; M04 incorpora una API auxiliar HTTP y una introducción a autenticación/autorización. La ampliación de Identity y JWT utiliza LocalDB, no SQLite.
+- **M05:** consolida el cliente Blazor y reutiliza **la misma aplicación MVC A** para ejecutar, publicar y comparar Kestrel, IIS y Docker. El contenedor Linux no ejecuta LocalDB: el material identifica explícitamente las rutas que no pueden usar el CRUD.
+
+Los proyectos contienen estados escalonados y variantes para construir los ejercicios. **No todos los fragmentos comentados deben activarse a la vez**: sigue el orden y las indicaciones de cada cuaderno de prácticas.
+
+## Preparación y ejecución
+
+Instala .NET SDK 8 y Visual Studio con desarrollo ASP.NET/web. Para M02 y la ampliación de M04, prepara Windows con SQL Server Express LocalDB; para IIS, Windows con IIS y ASP.NET Core Hosting Bundle 8; para Docker, un motor de contenedores Linux. Los puertos y comandos exactos se especifican en los manuales de prácticas.
+
+Abre el módulo correspondiente, **estudia primero su teoría y después sigue sus prácticas por orden**. Cada módulo incluye las rutas de proyecto, acciones, resultados esperados y ejercicios de ampliación cuando proceda.
+
+> Los laboratorios son formativos, no configuraciones listas para producción. Esta edición permanece en .NET 8 por el programa pactado; comprueba su fecha de soporte antes de usarla en nuevos proyectos.
