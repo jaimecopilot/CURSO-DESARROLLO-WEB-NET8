@@ -15,7 +15,7 @@ Por defecto, MVC conserva el CRUD de M02 con SQL Server Express LocalDB en Windo
 
 ## Itinerario presencial
 
-La jornada tiene 6 horas: 60 minutos de teoría, 270 minutos de prácticas y 30 minutos de repaso/dudas. Los tiempos por punto se corresponden con `TEMARIO_30H.md`. Las ampliaciones autónomas de los manuales no añaden tareas obligatorias al itinerario.
+La jornada tiene 6 horas: 60 minutos de teoría, 270 minutos de prácticas y 30 minutos de repaso/dudas. Los contenidos correspondientes a cada punto están recogidos en el [temario](../TEMARIO.md). Las ampliaciones autónomas de los manuales no añaden tareas obligatorias al itinerario.
 
 ## Advertencia de despliegue
 
