@@ -59,6 +59,9 @@ jobs:
               assert len(doc[1].get_text().strip())>300, f'{kind}: página 2 insuficiente'
               for i,page in enumerate(doc):
                   assert page.get_text().strip(), f'{kind}: página {i+1} vacía'
+                  if i >= 2:
+                      cuerpo=page.get_text('text',clip=fitz.Rect(0,66,page.rect.width,page.rect.height-42)).strip()
+                      assert len(cuerpo)>=1000, f'{kind}: página {i+1} casi vacía ({len(cuerpo)} caracteres de cuerpo)'
                   pix=page.get_pixmap(matrix=fitz.Matrix(.6,.6),alpha=False)
                   assert pix.width>300 and pix.height>400
               print(f'{kind}: {len(doc)} páginas, {len(fences)} bloques de código, índice navegable, ninguna página vacía')
