@@ -10,7 +10,7 @@ Este módulo continúa la aplicación MVC construida en M01 y desarrolla cinco p
 - [Teoría completa](TEORIA/M02_TEORIA.md) y [PDF de teoría](TEORIA/M02_TEORIA.pdf).
 - [Cuaderno de prácticas](PRACTICAS/M02_PRACTICAS.md) y [PDF de prácticas](PRACTICAS/M02_PRACTICAS.pdf).
 
-Cada PDF se genera desde el Markdown correspondiente. Los dos Markdown contienen los cinco puntos del módulo; no hay archivos docentes separados para cada punto.
+Los materiales cubren los cinco puntos del módulo. Sigue los ejercicios del cuaderno de prácticas en el orden indicado.
 
 ## Proyectos de prácticas
 
@@ -24,7 +24,7 @@ Los proyectos están disponibles bajo `PROYECTO/` y se abren independientemente 
 | P2.4 | [2.4](PROYECTO/2.4/CursoWeb.Mvc/) | CRUD con EF Core y LocalDB |
 | P2.5 | [2.5](PROYECTO/2.5/CursoWeb.Mvc/) | Razor Pages dentro de la aplicación MVC |
 
-Los proyectos son estados docentes deliberados: determinados handlers y acciones aparecen comentados para que el alumno siga el recorrido descrito en el cuaderno, los active y compile cada evolución. **No se debe suponer que el código entregado con todos esos bloques aún comentados equivale al estado final de cada práctica.**
+Algunas acciones y métodos están comentados para que puedas activarlos siguiendo los pasos del cuaderno. **No actives todos los bloques a la vez**: completa y comprueba cada práctica por separado.
 
 Para P2.4 y P2.5 se requiere Windows con SQL Server Express LocalDB funcional. Incluso la página de comparación P2.5 reutiliza el arranque del host MVC, que inicializa la base al arrancar.
 
