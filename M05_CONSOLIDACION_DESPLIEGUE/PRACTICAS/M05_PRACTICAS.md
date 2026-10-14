@@ -238,7 +238,7 @@ Recorre esta matriz antes de considerar la integración terminada:
 | API detenida | Consultar de nuevo | Mensaje de error |
 | API reiniciada | Volver a consultar | Datos de inicio |
 
-Si los resultados no coinciden, diagnostica empezando en la API directa, después servicio tipado y finalmente el componente. No copies un `Program.cs` ajeno para resolver un problema de puerto. Esta matriz describe escenarios observables que el alumno puede ejecutar; la confirmación técnica automática se documenta fuera del material docente.
+Si los resultados no coinciden, diagnostica empezando en la API directa, después servicio tipado y finalmente el componente. No copies un `Program.cs` ajeno para resolver un problema de puerto. Esta matriz describe escenarios que puedes repetir para identificar el proceso, el endpoint o el componente responsable.
 
 **Restauración del proyecto para seguir con los siguientes puntos:** si construiste el componente desde la variante de P5.1.4, vuelve al estado acumulativo de referencia que conserva la implementación de errores HTTP y JSON más completa. Detén Blazor y, en la misma terminal PowerShell donde definiste las variables, ejecuta:
 
