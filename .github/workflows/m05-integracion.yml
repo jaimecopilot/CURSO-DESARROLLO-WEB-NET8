@@ -30,6 +30,24 @@ jobs:
             M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/MVC/CursoWeb.Mvc/CursoWeb.Mvc.csproj
           do dotnet build "$p" -c Release; done
 
+      - name: Verificar estado inicial de P5.1.4 y restaurar el estado acumulativo
+        shell: bash
+        run: |
+          set -euo pipefail
+          componente=M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/BLAZOR/CursoWeb.Blazor/Components/Pages/CatalogoRemoto.razor
+          variante=M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/VARIANTES/P5.1_ANTES/Components/Pages/CatalogoRemoto.razor
+          cp "$componente" "$RUNNER_TEMP/M05-Catalogo-P514-original.razor"
+          trap 'cp "$RUNNER_TEMP/M05-Catalogo-P514-original.razor" "$componente"' EXIT
+          cp "$variante" "$componente"
+          dotnet build M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/BLAZOR/CursoWeb.Blazor/CursoWeb.Blazor.csproj -c Release
+          if grep -Fq 'id="recargar-api"' "$componente"; then
+            echo "La variante inicial ya contiene el botón; no sirve como punto de partida."
+            exit 1
+          fi
+          cp "$RUNNER_TEMP/M05-Catalogo-P514-original.razor" "$componente"
+          grep -Fq 'id="recargar-api"' "$componente"
+          dotnet build M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/BLAZOR/CursoWeb.Blazor/CursoWeb.Blazor.csproj -c Release
+
       - name: Compilar variante Razor de resumen visible y restaurar componente canónico
         shell: bash
         run: |
