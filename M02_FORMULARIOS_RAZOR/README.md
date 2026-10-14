@@ -32,4 +32,4 @@ Para P2.4 y P2.5 se requiere Windows con SQL Server Express LocalDB funcional. I
 
 Abre primero la [teoría 2.1](TEORIA/M02_TEORIA.md) y sigue el [cuaderno de prácticas](PRACTICAS/M02_PRACTICAS.md) por orden. Las instrucciones incluyen la carpeta exacta que debes abrir, los bloques que se activan, el comportamiento esperado y las variantes opcionales. Para volver a un estado inicial, recupera el proyecto de ese punto sin alterar los materiales de M01.
 
-Los requisitos generales de la jornada están recogidos en [REQUISITOS_LABORATORIO.md](../REQUISITOS_LABORATORIO.md) y su duración y alcance en [TEMARIO_30H.md](../TEMARIO_30H.md).
+Los requisitos generales de la jornada están recogidos en [REQUISITOS_LABORATORIO.md](../REQUISITOS_LABORATORIO.md) y los contenidos del curso en [TEMARIO.md](../TEMARIO.md).
