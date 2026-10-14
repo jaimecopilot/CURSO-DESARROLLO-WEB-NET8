@@ -43,13 +43,13 @@ P5.1 utiliza Blazor B y su API; P5.2–P5.5 reutilizan MVC A. El puesto requiere
 
 La jornada reserva otros **30 minutos** para dudas. Las ampliaciones y el diagnóstico extendido son autónomos. Usa una terminal por proceso, verifica las rutas de ejecución y conserva el estado final de cada ejercicio antes de avanzar.
 
-**Itinerario presencial de 270 minutos:** P5.1.1–P5.1.7 (90 min); P5.2.1–P5.2.6 (35 min); P5.3.1–P5.3.5 (45 min); P5.4.1–P5.4.8 (55 min); P5.5.1–P5.5.5 y P5.5.10–P5.5.13 (45 min, reconstrucción guiada del Dockerfile incluida). Los demás pasos numerados, las variantes de diagnóstico y las comparaciones adicionales son ampliaciones autónomas, no obligaciones encubiertas para la misma jornada. La estimación presupone Visual Studio, SQL Server Express LocalDB, IIS con Hosting Bundle y Docker Desktop **preinstalados y operativos**; si la infraestructura no está preparada, el docente debe adaptar la sesión, no declarar una ejecución ficticia.
-
 ## P5.1. Consolidar el catálogo Blazor y la API HTTP
 
 ### Objetivo, estado inicial y resultado previsto
 
 Partimos de la aplicación Blazor Interactive Server que funciona al finalizar M04 y de la API de productos construida allí. Queremos comprobar toda la cadena: pedir productos, mostrar datos, intentar crear un producto inválido, crear uno válido y consultar de nuevo el servidor. No añadiremos Identity/JWT, no crearemos otra aplicación Blazor y no conectaremos esta API de memoria a LocalDB.
+
+**Itinerario presencial (270 min):** P5.1.1–7 (90 min), P5.2.1–6 (35), P5.3.1–5 (45), P5.4.1–8 (55), P5.5.1–5 y P5.5.10–13 (45, incluyendo la reconstrucción del Dockerfile). Los demás ejercicios son **ampliaciones autónomas**. El cálculo presupone Visual Studio, LocalDB, IIS/Hosting Bundle y Docker operativos antes de empezar; instalar infraestructura no forma parte de las 270 min.
 
 El estado inicial contiene:
 
