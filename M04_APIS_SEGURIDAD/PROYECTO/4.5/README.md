@@ -1,7 +1,6 @@
 # P4.4.6 · ASP.NET Core Identity + JWT Bearer en .NET 8
 
-**Ampliación autónoma** del M04. No sustituye los proyectos 4.1–4.4 ni añade
-actividades al recorrido presencial obligatorio de 6 horas.
+**Ejercicio complementario** de M04. Continúa el aprendizaje de autenticación y autorización con ASP.NET Core Identity y JWT.
 
 ## Qué construye el alumno
 
