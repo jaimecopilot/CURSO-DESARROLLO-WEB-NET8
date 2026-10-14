@@ -47,7 +47,7 @@ Se han examinado mosaicos de **todas las páginas** renderizadas del PDF final, 
 - **API, Blazor, Kestrel y Docker Linux real:** run `38516974326`, SUCCESS, para los proyectos acumulativos, endpoints y publicación.
 - **Regeneración y publicación PDF a partir de Markdown:** run `38516974252`, SUCCESS.
 - **Medición y renderizado de páginas:** run `38516974256`, SUCCESS.
-- El workflow de integración añadió un paso que **compila también el archivo inicial de P5.1.4 y devuelve el componente a su estado canónico**. Registrar el resultado de su ejecución posterior a la incorporación antes de dar ese paso concreto como validado automáticamente.
+- **Estado inicial de P5.1.4 y restauración:** run `38517424599`, SUCCESS. El workflow copia y compila `P5.1_ANTES/Components/Pages/CatalogoRemoto.razor`, comprueba que todavía no contiene el botón del ejercicio, restaura el componente canónico y vuelve a compilar, además de los ensayos HTTP/Kestrel/Docker.
 
 Los controles detectan errores de compilación, publicación, HTTP, estructura, páginas vacías y algunos errores editoriales. No demuestran que un alumno sin experiencia previa sea capaz de finalizar los ejercicios sin apoyo ni que un hospedaje de demostración cumpla criterios de producción. Esa afirmación no se hace.
 
