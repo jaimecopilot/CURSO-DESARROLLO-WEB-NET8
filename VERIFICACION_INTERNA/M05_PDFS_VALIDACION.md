@@ -6,7 +6,7 @@ Cada PDF incluye su Markdown completo, adjunto idéntico byte por byte.
 | Documento | Palabras MD | Páginas PDF |
 |---|---:|---:|
 | TEORIA | 32603 | 75 |
-| PRACTICAS | 28350 | 77 |
+| PRACTICAS | 28392 | 77 |
 
 ## Detalle de comprobaciones
 
@@ -35,7 +35,7 @@ La inspección visual humana página a página no se sustituye por estas comprob
   {
     "tipo": "PRACTICAS",
     "paginas": 77,
-    "palabras_md": 28350,
+    "palabras_md": 28392,
     "cobertura_palabras_visibles": 0.999832,
     "palabras_faltantes_en_extraccion": [
       [
@@ -43,15 +43,15 @@ La inspección visual humana página a página no se sustituye por estas comprob
         5
       ]
     ],
-    "caracteres_md": 200597,
-    "bytes_pdf": 601986,
-    "sha256_md": "da297e63f6ceb8758726a49487211874939614e445da93cc08acffc7c0cdd4a4",
+    "caracteres_md": 201086,
+    "bytes_pdf": 603936,
+    "sha256_md": "5fccd198f73a3e54d003180cb36df7a774674fda885cff51594d80e7334da1b0",
     "fuente_md_incrustada_identica": true,
     "capitulos_inicio": {
       "1": 3,
       "2": 22,
-      "3": 36,
-      "4": 45,
+      "3": 37,
+      "4": 46,
       "5": 59
     }
   }
