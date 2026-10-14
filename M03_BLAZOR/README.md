@@ -1,6 +1,6 @@
 # M03 — Blazor Web App y componentes
 
-**AUTOR: JAIME GALLO** · Jornada 3 · 6 horas
+**AUTOR: JAIME GALLO**
 
 ## Material de estudio
 
