@@ -16,7 +16,7 @@ Cada módulo contiene **una teoría y unas prácticas completas**, disponibles e
 | 4 · APIs y seguridad | [M04](M04_APIS_SEGURIDAD/README.md) | [MD](M04_APIS_SEGURIDAD/TEORIA/M04_TEORIA.md) · [PDF](M04_APIS_SEGURIDAD/TEORIA/M04_TEORIA.pdf) | [MD](M04_APIS_SEGURIDAD/PRACTICAS/M04_PRACTICAS.md) · [PDF](M04_APIS_SEGURIDAD/PRACTICAS/M04_PRACTICAS.pdf) | [PROYECTO](M04_APIS_SEGURIDAD/PROYECTO/) |
 | 5 · Consolidación y despliegue | [M05](M05_CONSOLIDACION_DESPLIEGUE/README.md) | [MD](M05_CONSOLIDACION_DESPLIEGUE/TEORIA/M05_TEORIA.md) · [PDF](M05_CONSOLIDACION_DESPLIEGUE/TEORIA/M05_TEORIA.pdf) | [MD](M05_CONSOLIDACION_DESPLIEGUE/PRACTICAS/M05_PRACTICAS.md) · [PDF](M05_CONSOLIDACION_DESPLIEGUE/PRACTICAS/M05_PRACTICAS.pdf) | [PROYECTO](M05_CONSOLIDACION_DESPLIEGUE/PROYECTO/) |
 
-Material complementario: [temario y distribución de 30 horas](TEMARIO_30H.md) y [requisitos para preparar el laboratorio](REQUISITOS_LABORATORIO.md).
+Material complementario: [temario de contenidos](TEMARIO.md) y [requisitos para preparar el laboratorio](REQUISITOS_LABORATORIO.md).
 
 ## Recorrido de aprendizaje
 
