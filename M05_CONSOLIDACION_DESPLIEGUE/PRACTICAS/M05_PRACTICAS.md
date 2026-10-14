@@ -119,7 +119,7 @@ No hace falta ejecutar la API Identity/JWT: su dirección existe en configuraci�
 
 ### Paso P5.1.4. Añadir la consulta explícita «Consultar servidor»
 
-La versión de trabajo de M04 obtenía productos durante `OnInitializedAsync`. El archivo de partida se conserva como **variante inicial fuera del proyecto compilable**, en `PROYECTO/VARIANTES/P5.1_ANTES/Components/Pages/CatalogoRemoto.razor`. Como el proyecto acumulativo M05 ya contiene el resultado de referencia, **no añadas por segunda vez** el botón ni el método. Para construir el cambio desde el estado inicial de M04, recupera de forma reversible la variante anterior desde la raíz del repositorio, usando PowerShell:
+La versión de trabajo de M04 obtenía productos durante `OnInitializedAsync`. El archivo de partida se conserva como **variante inicial fuera del proyecto compilable**, en `PROYECTO/VARIANTES/P5.1_ANTES/Components/Pages/CatalogoRemoto.razor`. Como el proyecto acumulativo M05 ya contiene el resultado de referencia, **no añadas por segunda vez** el botón ni el método. Para construir el cambio desde el estado inicial de M04, **detén Blazor con Ctrl+C en la terminal de P5.1.3; deja la API funcionando en 5081**. Recupera de forma reversible la variante anterior desde la raíz del repositorio, usando PowerShell:
 
 ~~~powershell
 $pagina = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\BLAZOR\CursoWeb.Blazor\Components\Pages\CatalogoRemoto.razor"
@@ -183,7 +183,14 @@ private bool cargando = true;
 private string? error;
 ~~~
 
-El código final de referencia contiene esos campos y el método ya integrado. Compila y abre la página. Pulsa «Consultar servidor»: debe seguir mostrando la lista. La intención no es producir un nuevo diseño de UI, sino comprobar que el mismo servicio puede reutilizarse desde el ciclo de vida y desde un evento del usuario.
+El código final de referencia contiene esos campos y el método ya integrado. Compila con los cambios guardados y reinicia Blazor en una terminal separada, manteniendo la API en 5081:
+
+~~~powershell
+dotnet build .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\BLAZOR\CursoWeb.Blazor\CursoWeb.Blazor.csproj
+dotnet run --project .\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\BLAZOR\CursoWeb.Blazor\CursoWeb.Blazor.csproj --no-launch-profile --urls http://localhost:5092
+~~~
+
+Abre `http://localhost:5092/catalogo-remoto` y pulsa «Consultar servidor»: debe seguir mostrando la lista. La intención no es producir un nuevo diseño de UI, sino comprobar que el mismo servicio puede reutilizarse desde el ciclo de vida y desde un evento del usuario.
 
 ### Paso P5.1.5. Crear y validar sin introducir duplicidades
 
