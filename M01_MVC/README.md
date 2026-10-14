@@ -2,14 +2,14 @@
 
 **AUTOR: JAIME GALLO**
 
-**Duración docente:** seis horas. Cinco apartados (1.1 a 1.5).
+Cinco apartados: del 1.1 al 1.5.
 
 ## Material del alumno
 
 - [Teoría completa en Markdown](TEORIA/M01_TEORIA.md) — [PDF de teoría](TEORIA/M01_TEORIA.pdf).
 - [Prácticas completas, ejercicios y retos en Markdown](PRACTICAS/M01_PRACTICAS.md) — [PDF de prácticas](PRACTICAS/M01_PRACTICAS.pdf).
 
-Los documentos reúnen los cinco capítulos del módulo. Cada PDF corresponde a su manual completo y no existe un PDF independiente por ejercicio.
+Comienza por la teoría y continúa con los ejercicios del cuaderno de prácticas.
 
 ## Proyecto y evolución
 
@@ -33,6 +33,6 @@ Después de cada ejercicio, abre las direcciones indicadas en el cuaderno de pr�
 
 El ejercicio final de 1.5 es un catálogo con listados, detalles y tarjetas Razor reutilizables, todavía con datos en memoria. Su persistencia se abordará en M02.
 
-## Orientación didáctica
+## Consejos para practicar
 
 El recorrido esencial son los pasos numerados y los resultados observables; las profundizaciones son actividades de ampliación y los retos se intentan antes de consultar el código de referencia. Se trabaja con cinco estados identificables del catálogo MVC. 
