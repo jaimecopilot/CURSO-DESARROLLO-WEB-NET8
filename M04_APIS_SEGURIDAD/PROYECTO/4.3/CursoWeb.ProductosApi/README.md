@@ -1,4 +1,4 @@
-# API auxiliar para P4.1 (NET 8)
+# API de productos — práctica P4.3 (.NET 8)
 
 Ejecutar desde esta carpeta:
 
@@ -6,11 +6,11 @@ Ejecutar desde esta carpeta:
 dotnet run --urls http://localhost:5081
 ```
 
-Esta API de laboratorio está disponible **antes** de empezar P4.1; se estudia en detalle y se modifica en P4.3.
+Esta carpeta sirve para estudiar el contrato de productos y comparar los endpoints con la API que construirás paso a paso en P4.3. Sigue la práctica para saber qué bloques modificar o activar.
 
-- GET `http://localhost:5081/api/productos`: 200 y lista JSON.
-- GET `http://localhost:5081/api/productos/999`: 404.
-- POST `http://localhost:5081/api/productos` con JSON `{"nombre":"Regla","precio":1.75}`: 201.
-- POST sin nombre o con precio cero: 400.
+- GET `http://localhost:5081/api/productos`: respuesta 200 y lista JSON.
+- GET `http://localhost:5081/api/productos/999`: respuesta 404.
+- POST `http://localhost:5081/api/productos` con `{"nombre":"Regla","precio":1.75}`: respuesta 201.
+- POST con nombre vacío o precio cero: respuesta 400.
 
-Los datos son de memoria: reiniciar la API restaura los dos productos iniciales. No se utiliza base de datos ni autenticación en P4.1.
+Los datos permanecen en memoria y se reinician al volver a arrancar la API. La práctica no requiere SQL Server ni autenticación para estos endpoints.
