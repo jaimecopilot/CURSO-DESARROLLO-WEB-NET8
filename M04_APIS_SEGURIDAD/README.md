@@ -1,6 +1,6 @@
 # M04 — Integración con APIs y seguridad básica
 
-**AUTOR: JAIME GALLO** · Jornada 4 · 6 horas
+**AUTOR: JAIME GALLO**
 
 ## Material de estudio
 
@@ -19,4 +19,4 @@ En [PROYECTO](PROYECTO/) se mantienen los estados de la aplicación Blazor B y d
 | 4.4 | [4.4](PROYECTO/4.4/) | Autenticación y autorización en Blazor |
 | Ampliación autónoma | [4.5](PROYECTO/4.5/) | Identity y JWT con SQL Server Express LocalDB |
 
-La ampliación autónoma no pertenece al itinerario obligatorio de seis horas y no sustituye la demostración inicial de seguridad. Sigue el cuaderno de prácticas para conocer qué proyecto iniciar, en qué puerto y qué cambios activar. No se utiliza SQLite.
+El ejercicio de Identity y JWT es una ampliación complementaria. Sigue el cuaderno de prácticas para conocer qué proyecto iniciar, en qué puerto y qué cambios activar. Se utiliza SQL Server Express LocalDB.
