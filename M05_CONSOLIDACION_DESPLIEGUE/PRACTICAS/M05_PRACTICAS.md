@@ -43,6 +43,8 @@ P5.1 utiliza Blazor B y su API; P5.2–P5.5 reutilizan MVC A. El puesto requiere
 
 La jornada reserva otros **30 minutos** para dudas. Las ampliaciones y el diagnóstico extendido son autónomos. Usa una terminal por proceso, verifica las rutas de ejecución y conserva el estado final de cada ejercicio antes de avanzar.
 
+**Itinerario presencial de 270 minutos:** P5.1.1–P5.1.7 (90 min); P5.2.1–P5.2.6 (35 min); P5.3.1–P5.3.5 (45 min); P5.4.1–P5.4.8 (55 min); P5.5.1–P5.5.5 y P5.5.10–P5.5.13 (45 min, reconstrucción guiada del Dockerfile incluida). Los demás pasos numerados, las variantes de diagnóstico y las comparaciones adicionales son ampliaciones autónomas, no obligaciones encubiertas para la misma jornada. La estimación presupone Visual Studio, SQL Server Express LocalDB, IIS con Hosting Bundle y Docker Desktop **preinstalados y operativos**; si la infraestructura no está preparada, el docente debe adaptar la sesión, no declarar una ejecución ficticia.
+
 ## P5.1. Consolidar el catálogo Blazor y la API HTTP
 
 ### Objetivo, estado inicial y resultado previsto
@@ -117,7 +119,18 @@ No hace falta ejecutar la API Identity/JWT: su dirección existe en configuraci�
 
 ### Paso P5.1.4. Añadir la consulta explícita «Consultar servidor»
 
-La versión de trabajo de M04 obtenía productos durante `OnInitializedAsync`. El archivo de partida se conserva como **variante inicial fuera del proyecto compilable**, en `PROYECTO/VARIANTES/P5.1_ANTES/Components/Pages/CatalogoRemoto.razor`. Si ya has recibido el proyecto final M05, compara con esta variante antes de realizar manualmente la transformación. Queremos permitir una segunda consulta sin reconstruir toda la página. En `Components/Pages/CatalogoRemoto.razor`, debajo del párrafo introductorio, añade:
+La versión de trabajo de M04 obtenía productos durante `OnInitializedAsync`. El archivo de partida se conserva como **variante inicial fuera del proyecto compilable**, en `PROYECTO/VARIANTES/P5.1_ANTES/Components/Pages/CatalogoRemoto.razor`. Como el proyecto acumulativo M05 ya contiene el resultado de referencia, **no añadas por segunda vez** el botón ni el método. Para construir el cambio desde el estado inicial de M04, recupera de forma reversible la variante anterior desde la raíz del repositorio, usando PowerShell:
+
+~~~powershell
+$pagina = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\BLAZOR\CursoWeb.Blazor\Components\Pages\CatalogoRemoto.razor"
+$partida = ".\M05_CONSOLIDACION_DESPLIEGUE\PROYECTO\VARIANTES\P5.1_ANTES\Components\Pages\CatalogoRemoto.razor"
+$respaldo = "$pagina.p514-referencia"
+if (Test-Path $respaldo) { throw "Ya existe un respaldo P5.1.4; revísalo antes de continuar." }
+Copy-Item $pagina $respaldo
+Copy-Item $partida $pagina -Force
+~~~
+
+Ahora el archivo que compila es el estado **anterior al botón**. Queremos permitir una segunda consulta sin reconstruir toda la página. En `Components/Pages/CatalogoRemoto.razor`, debajo del párrafo introductorio, añade:
 
 ~~~razor
 <button id="recargar-api"
@@ -226,6 +239,16 @@ Recorre esta matriz antes de considerar la integración terminada:
 | API reiniciada | Volver a consultar | Datos de inicio |
 
 Si los resultados no coinciden, diagnostica empezando en la API directa, después servicio tipado y finalmente el componente. No copies un `Program.cs` ajeno para resolver un problema de puerto. Esta matriz describe escenarios observables que el alumno puede ejecutar; la confirmación técnica automática se documenta fuera del material docente.
+
+**Restauración del proyecto para seguir con los siguientes puntos:** si construiste el componente desde la variante de P5.1.4, vuelve al estado acumulativo de referencia que conserva la implementación de errores HTTP y JSON más completa. Detén Blazor y, en la misma terminal PowerShell donde definiste las variables, ejecuta:
+
+~~~powershell
+if (-not (Test-Path $respaldo)) { throw "No existe el respaldo original de P5.1.4." }
+Copy-Item $respaldo $pagina -Force
+Remove-Item $respaldo
+~~~
+
+Reinicia Blazor y comprueba el botón «Consultar servidor». Los ejercicios P5.1.8 y siguientes trabajan sobre este estado acumulativo; el cambio de P5.1.4 no se duplica.
 
 
 ### Paso P5.1.8. Diferenciar ausencia de resultados y error de comunicación
@@ -2487,7 +2510,7 @@ No debes completar una casilla con «sí» si la herramienta correspondiente no 
 
 ### Paso P5.5.10. Reconstruir desde el principio el Dockerfile de la aplicación real
 
-**Relación con la teoría:** apartados 5.5.8–5.5.10. El recorrido obligatorio ya ha probado la imagen preparada. Esta ampliación autónoma demuestra que el alumno es capaz de construir su contenido de forma progresiva, sin iniciar una tercera aplicación y sin perder el estado entregado.
+**Relación con la teoría:** apartados 5.5.8–5.5.10. El recorrido presencial ya ha probado la imagen preparada. **Esta reconstrucción forma parte del itinerario presencial esencial del P5.5:** el alumno debe escribir progresivamente su Dockerfile, no limitarse a leer el archivo de referencia. Las comparaciones adicionales posteriores sí son ampliaciones autónomas. No se inicia una tercera aplicación ni se pierde el estado entregado.
 
 Desde la raíz del repositorio, detén el contenedor de la práctica anterior y prepara una copia de referencia:
 
