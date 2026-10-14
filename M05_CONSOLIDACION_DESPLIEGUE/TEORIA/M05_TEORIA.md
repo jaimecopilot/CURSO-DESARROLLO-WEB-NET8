@@ -1160,7 +1160,7 @@ El aprendizaje esperado es poder señalar las condiciones que cambian y reconoce
 
 ### 5.2.28. Leer una publicación como evidencia acumulativa
 
-Podemos establecer una cadena de resultados concretos sin crear un sistema de auditoría dentro del material del alumno. Después de `dotnet build` sabemos que la compilación ha terminado. Después de `dotnet publish` sabemos que se ha preparado una salida. Después de iniciar la DLL sabemos que el proceso ha llegado a ejecutarse. Después de GET a `/` sabemos que una ruta ha respondido. Después de GET a `/css/site.css` sabemos que se ha entregado un recurso estático. Después de una operación real de CRUD con SQL Server sabemos que esa operación y su dependencia han respondido.
+Una publicación se comprende mejor encadenando observaciones verificables, cada una con un significado diferente. Después de `dotnet build` sabemos que la compilación ha terminado. Después de `dotnet publish` sabemos que se ha preparado una salida. Después de iniciar la DLL sabemos que el proceso ha llegado a ejecutarse. Después de GET a `/` sabemos que una ruta ha respondido. Después de GET a `/css/site.css` sabemos que se ha entregado un recurso estático. Después de una operación real de CRUD con SQL Server sabemos que esa operación y su dependencia han respondido.
 
 La secuencia evita una inferencia equivocada: que el paso anterior acredita automáticamente todos los siguientes. Una publicación puede compilar y carecer del runtime en destino; un host puede responder la portada y carecer de base de datos.
 
